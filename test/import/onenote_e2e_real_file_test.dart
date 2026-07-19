@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:abelnotes/features/import/data/onenote_importer.dart';
-import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 /// End-to-end smoke test against real OneNote desktop exports. Skips
 /// silently where no sample paths are configured, or where the files or
