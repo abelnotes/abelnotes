@@ -1,0 +1,15 @@
+targets:
+  $default:
+    builders:
+      json_serializable:
+        options:
+          # Recursively call toJson() on nested object fields when serialising.
+          # Without this, a `Freezed.toJson()` call on a class with nested
+          # Freezed fields leaves those fields as live class instances inside
+          # the returned Map<String, dynamic>.  When that map then crosses an
+          # isolate boundary (compute / SendPort) and the receiver tries to
+          # `fromJson` it back into typed objects, every nested cast fails:
+          #   `_$RenderingLayersImpl is not a subtype of Map<String, dynamic>`
+          # which is exactly the BgSync crash on Linux for AICD / Analog /
+          # Power Electronics ("Failed to sync ... type cast").
+          explicit_to_json: true

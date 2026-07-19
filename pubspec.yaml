@@ -1,0 +1,140 @@
+name: abelnotes
+description: Handwritten notes with LaTeX, PDF annotation, and WebDAV sync to your own server.
+version: 0.37.0+39
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+  
+  # Immutable Data Models
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  
+  # Local Storage
+  sqflite: ^2.3.2
+  sqflite_common_ffi: ^2.3.3
+  path_provider: ^2.1.2
+  path: ^1.9.0
+  
+  # File Handling
+  archive: ^3.6.1          # ZIP compression/decompression
+  
+  # Networking
+  http: ^1.2.1
+  xml: ^6.5.0              # WebDAV XML parsing
+  
+  # Persistent storage
+  shared_preferences: ^2.2.2
+
+  # OS keychain/keystore for secrets (Nextcloud password) — not plaintext
+  # prefs. Backed by Keychain (iOS/macOS), Keystore (Android), DPAPI
+  # (Windows), Secret Service via libsecret (Linux).
+  flutter_secure_storage: ^9.2.2
+
+  # SHA-256 for TLS certificate pinning (trust-on-first-use on the WebDAV
+  # client — see webdav_service.dart)
+  crypto: ^3.0.3
+  
+  # UI
+  cupertino_icons: ^1.0.8
+  uuid: ^4.3.3
+  intl: ^0.20.2
+  collection: ^1.18.0
+
+  # Typeset LaTeX math elements — pure-Dart TeX layout (no platform
+  # channels), rasterized offscreen to a ui.Image and drawn on the canvas.
+  flutter_math_fork: ^0.7.4
+  
+  # Canvas utilities
+  vector_math: ^2.1.4
+
+  # FFI — query the real ABS_PRESSURE range from the Linux tablet's evdev
+  # node (EVIOCGABS ioctl) so pen pressure is correct for ANY tablet
+  # without a hardcoded per-device maximum.
+  ffi: ^2.1.0
+  
+  # File picker for images/PDFs
+  file_picker: ^8.0.0
+  
+  # Camera
+  image_picker: ^1.0.7
+  
+  # PDF generation (export). NOTE: the `printing` package was removed — it
+  # bundled a second PDFium that called FPDF_DestroyLibrary and segfaulted
+  # against pdfrx's PDFium. pdfrx now does all PDF rasterization + text.
+  pdf: ^3.11.1
+
+  # PDF rasterization + embedded text-layer extraction (PDFium, all platforms
+  # incl. Linux desktop). On import we render each page AND pull its embedded
+  # text + per-character bounding boxes so imported PDFs are selectable /
+  # searchable. Sole PDFium engine in the app. Pinned: the text API
+  # (loadStructuredText / charRects) churned across major versions.
+  pdfrx: ^2.4.4
+
+  # Image re-encoding (PDF rasters → JPEG q=85). Cuts asset bytes
+  # 4-6× compared to PNG so PDF imports sync in seconds instead of
+  # minutes on Tailscale.
+  image: ^4.1.0
+  super_clipboard: ^0.9.1
+  
+  # Sharing (iOS share sheet for export)
+  share_plus: ^12.0.2
+
+  # Receive share intents from other apps (PDF, images)
+  receive_sharing_intent: ^1.8.1
+  markdown: ^7.3.1
+  yaml: ^3.1.3
+  csv: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.8
+  freezed: ^2.4.7
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.4.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  generate: true # gen_l10n: AppLocalizations da lib/l10n/*.arb (vedi l10n.yaml)
+  assets:
+    # Bundled so the Linux runner can set the GTK window/taskbar icon at
+    # runtime (see set_window_icon in linux/runner/my_application.cc) —
+    # flutter_launcher_icons doesn't target Linux.
+    - assets/icon/app_icon.png
+    # In-app brand mark (onboarding header, Settings → About).
+    - assets/branding/logo.png
+    # MPL-2.0 attribution for the onenote_parser crate used by the OneNote
+    # import bridge (native/onenote_bridge) — registered in LicenseRegistry.
+    - assets/licenses/onenote_parser_LICENSE.txt
+
+# ── App icon generation ──────────────────────────────────────────────
+# Drop ONE square 1024x1024 PNG at assets/icon/app_icon.png, then run:
+#   dart run flutter_launcher_icons
+# It regenerates every platform's icon set (Android mipmaps, iOS/macOS
+# appiconset, Windows .ico, web icons — which the .deb also uses).
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+    icon_size: 256
+  macos:
+    generate: true

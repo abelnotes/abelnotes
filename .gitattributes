@@ -1,0 +1,26 @@
+# Force LF line endings on all text files regardless of OS the commit
+# came from. Prevents the "every line in every file looks modified"
+# diff explosion when working between Windows (CRLF) and Linux/macOS
+# (LF) checkouts of the same Nextcloud-synced repo.
+*               text=auto eol=lf
+
+# Binary file types — never normalise.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.icns          binary
+*.pdf           binary
+*.ttf           binary
+*.otf           binary
+*.woff          binary
+*.woff2         binary
+*.ncnote        binary
+*.zip           binary
+*.jks           binary
+*.keystore      binary
+
+# Generated files — keep them out of diffs even when they get touched.
+*.g.dart        linguist-generated=true
+*.freezed.dart  linguist-generated=true

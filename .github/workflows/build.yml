@@ -1,0 +1,82 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Keep in sync with the local dev machine (flutter --version). A drifting
+  # CI Flutter silently changes what actually ships in the artifacts.
+  FLUTTER_VERSION: '3.44.0'
+
+jobs:
+  # Fast feedback gate: analyze + tests once, on the cheapest runner.
+  # The build jobs only start if this passes.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # --no-fatal-infos: flutter analyze treats info-level lints as fatal
+      # by default; the repo carries style infos that must not block builds.
+      # Warnings and errors stay fatal.
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test
+
+  macos:
+    needs: check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter config --enable-native-assets
+      - run: flutter pub get
+      # Unsigned build — Gatekeeper will warn on first open. Signing +
+      # notarization need an Apple Developer cert and are wired separately
+      # when macOS becomes a launch target.
+      - run: flutter build macos --release --dart-define=GIT_COMMIT=${{ github.sha }}
+      - name: Package .app
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r -y "$GITHUB_WORKSPACE/abelnotes-macos.zip" *.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: abelnotes-macos
+          path: abelnotes-macos.zip
+
+  ios:
+    needs: check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Unsigned build: Sideloadly (or AltStore) signs the .ipa with the
+      # user's Apple ID at sideload time, so no cert/profile needed here.
+      - run: flutter build ios --release --no-codesign --dart-define=GIT_COMMIT=${{ github.sha }}
+      # An .ipa is just a zip with the .app under Payload/ — package the
+      # unsigned Runner.app in that layout.
+      - name: Package unsigned .ipa
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r -y abelnotes-ios-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: abelnotes-ios-unsigned
+          path: abelnotes-ios-unsigned.ipa

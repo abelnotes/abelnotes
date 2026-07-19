@@ -1,0 +1,25 @@
+[package]
+name = "onenote_bridge"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# MPL-2.0 — license text shipped in assets/licenses/onenote_parser.txt and
+# shown in the app's about screen. Used unmodified (file-level copyleft
+# satisfied by attribution + license text).
+# Vendored git HEAD (msiemens/onenote.rs, commit in ../vendor/onenote.rs/
+# VENDORED_COMMIT): the published 1.1.1 release only reads OneDrive/FSSHTTP
+# files — desktop .one (OneNote 2016/2019) and .onepkg support are unreleased.
+onenote_parser = { path = "../vendor/onenote.rs/crates/parser", features = ["onepkg"] }
+serde_json = "1"
+base64 = "0.22"
+typed-path = "0.12.3"
+
+[profile.release]
+lto = true
+strip = true

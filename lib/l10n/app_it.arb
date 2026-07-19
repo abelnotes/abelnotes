@@ -1,0 +1,2045 @@
+{
+  "@@locale": "it",
+  "csPdfTextCopied": "Testo copiato",
+  "@csPdfTextCopied": {},
+  "csCopyFailed": "Copia non riuscita: {error}",
+  "@csCopyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csCopy": "Copia",
+  "@csCopy": {},
+  "csSyncInProgress": "Sincronizzazione in corso…",
+  "@csSyncInProgress": {},
+  "csSaved": "Salvato!",
+  "@csSaved": {},
+  "csErrorGeneric": "Errore: {error}",
+  "@csErrorGeneric": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csSelectionCopied": "Selezione copiata",
+  "@csSelectionCopied": {},
+  "csSelectionCut": "Selezione tagliata",
+  "@csSelectionCut": {},
+  "csShortcutsTitle": "Scorciatoie tastiera",
+  "@csShortcutsTitle": {},
+  "csShortcutGroupGeneral": "Generale",
+  "@csShortcutGroupGeneral": {},
+  "csSaveNow": "Salva ora",
+  "@csSaveNow": {},
+  "csShortcutUndo": "Annulla",
+  "@csShortcutUndo": {},
+  "csShortcutRedo": "Ripeti",
+  "@csShortcutRedo": {},
+  "csSelectAll": "Seleziona tutto",
+  "@csSelectAll": {},
+  "csShortcutResetZoom": "Azzera zoom",
+  "@csShortcutResetZoom": {},
+  "csShortcutDeselect": "Deseleziona / annulla",
+  "@csShortcutDeselect": {},
+  "csShortcutThisGuide": "Questa guida",
+  "@csShortcutThisGuide": {},
+  "csShortcutGroupClipboard": "Appunti",
+  "@csShortcutGroupClipboard": {},
+  "csShortcutCopySelection": "Copia selezione",
+  "@csShortcutCopySelection": {},
+  "csShortcutCutSelection": "Taglia selezione",
+  "@csShortcutCutSelection": {},
+  "csPaste": "Incolla",
+  "@csPaste": {},
+  "csShortcutDuplicateSelection": "Duplica selezione",
+  "@csShortcutDuplicateSelection": {},
+  "csShortcutKeyDeleteBackspace": "Canc / Backspace",
+  "@csShortcutKeyDeleteBackspace": {},
+  "csShortcutDeleteElementOrSelection": "Elimina elemento o selezione",
+  "@csShortcutDeleteElementOrSelection": {},
+  "csShortcutGroupTools": "Strumenti",
+  "@csShortcutGroupTools": {},
+  "csToolPen": "Penna",
+  "@csToolPen": {},
+  "csToolBrush": "Pennello",
+  "@csToolBrush": {},
+  "csToolEraser": "Gomma",
+  "@csToolEraser": {},
+  "csToolLasso": "Lazo",
+  "@csToolLasso": {},
+  "csToolHand": "Mano / sposta",
+  "@csToolHand": {},
+  "csToolText": "Testo",
+  "@csToolText": {},
+  "csToolShape": "Forma",
+  "@csToolShape": {},
+  "csClose": "Chiudi",
+  "@csClose": {},
+  "csUnsavedChangesTitle": "Modifiche non salvate",
+  "@csUnsavedChangesTitle": {},
+  "csUnsavedChangesBody": "Vuoi salvare prima di uscire?",
+  "@csUnsavedChangesBody": {},
+  "csDiscard": "Scarta",
+  "@csDiscard": {},
+  "csCancel": "Annulla",
+  "@csCancel": {},
+  "csSave": "Salva",
+  "@csSave": {},
+  "csOpeningLink": "Apertura link…",
+  "@csOpeningLink": {},
+  "csCannotOpenLink": "Impossibile aprire il link",
+  "@csCannotOpenLink": {},
+  "csCameraUnavailable": "Fotocamera non disponibile su questo dispositivo",
+  "@csCameraUnavailable": {},
+  "csPhotoCaptureFailed": "Impossibile scattare la foto",
+  "@csPhotoCaptureFailed": {},
+  "csPdfRasterizing": "Rasterizzazione PDF in corso…",
+  "@csPdfRasterizing": {},
+  "csPdfImportProgress": "Importazione PDF: {done}/{total}",
+  "@csPdfImportProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "csPdfReadFailed": "Impossibile leggere il PDF: nessuna pagina trovata",
+  "@csPdfReadFailed": {},
+  "csPdfImported": "PDF importato: {count, plural, one{{count} pagina} other{{count} pagine}}",
+  "@csPdfImported": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csPdfImportError": "Errore importazione PDF: {error}",
+  "@csPdfImportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csNoNotebookOpen": "Nessun notebook aperto",
+  "@csNoNotebookOpen": {},
+  "csMissingPageDataTitle": "Dati pagina mancanti",
+  "@csMissingPageDataTitle": {},
+  "csNoPages": "Nessuna pagina",
+  "@csNoPages": {},
+  "csMissingPagesBodyMany": "Questa pagina e altre {count} non sono state recuperate dal server. I file potrebbero essere andati persi durante una sincronizzazione parziale.",
+  "@csMissingPagesBodyMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csMissingPageBodyOne": "Il file di questa pagina non è stato recuperato dal server. Potrebbe essere andato perso durante una sincronizzazione parziale.",
+  "@csMissingPageBodyOne": {},
+  "csRetrySync": "Riprova sync",
+  "@csRetrySync": {},
+  "csRestoreAsBlankPage": "Ripristina come pagina vuota",
+  "@csRestoreAsBlankPage": {},
+  "csRestoreAllMissing": "Ripristina tutte ({count})",
+  "@csRestoreAllMissing": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csPagesRestoredBlank": "{count, plural, one{{count} pagina ripristinata come vuota} other{{count} pagine ripristinate come vuote}}",
+  "@csPagesRestoredBlank": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csDeletePage": "Elimina pagina",
+  "@csDeletePage": {},
+  "csSyncProgressCount": "Sincronizzazione {done}/{total}",
+  "@csSyncProgressCount": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "csSyncing": "Sincronizzazione…",
+  "@csSyncing": {},
+  "csShapeRecognizedLabel": "Forma: {shape}",
+  "@csShapeRecognizedLabel": {
+    "placeholders": {
+      "shape": {
+        "type": "String"
+      }
+    }
+  },
+  "csConfirmShapeSemantics": "Conferma forma riconosciuta",
+  "@csConfirmShapeSemantics": {},
+  "csConfirm": "Conferma",
+  "@csConfirm": {},
+  "csCancelShapeSemantics": "Annulla forma riconosciuta",
+  "@csCancelShapeSemantics": {},
+  "csTapToPlaceSymbol": "Tocca per posizionare: {name}",
+  "@csTapToPlaceSymbol": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "csCancelSymbolInsertSemantics": "Annulla inserimento simbolo",
+  "@csCancelSymbolInsertSemantics": {},
+  "csTapToPlaceCopy": "Tocca per posizionare la copia",
+  "@csTapToPlaceCopy": {},
+  "csCancelPasteSemantics": "Annulla incolla",
+  "@csCancelPasteSemantics": {},
+  "csNewPage": "Nuova pagina",
+  "@csNewPage": {},
+  "csImageCopied": "Immagine copiata",
+  "@csImageCopied": {},
+  "csImageCut": "Immagine tagliata",
+  "@csImageCut": {},
+  "csImageCommentTitle": "Commento immagine",
+  "@csImageCommentTitle": {},
+  "csAddCommentHint": "Aggiungi un commento...",
+  "@csAddCommentHint": {},
+  "csRemove": "Rimuovi",
+  "@csRemove": {},
+  "csCut": "Taglia",
+  "@csCut": {},
+  "csDuplicate": "Duplica",
+  "@csDuplicate": {},
+  "csSelectionDuplicated": "Selezione duplicata",
+  "@csSelectionDuplicated": {},
+  "csChangeColor": "Cambia colore",
+  "@csChangeColor": {},
+  "csThickness": "Spessore",
+  "@csThickness": {},
+  "csDelete": "Elimina",
+  "@csDelete": {},
+  "csMore": "Altro",
+  "@csMore": {},
+  "csPresentationMode": "Modalità presentazione",
+  "@csPresentationMode": {},
+  "csPresentationModeSub": "Schermo intero, senza strumenti — ideale per mostrare le pagine",
+  "@csPresentationModeSub": {},
+  "csRecognizeHandwriting": "Riconosci calligrafia",
+  "@csRecognizeHandwriting": {},
+  "csRecognizeHandwritingSub": "Converte l'inchiostro in testo cercabile (sul dispositivo)",
+  "@csRecognizeHandwritingSub": {},
+  "csRecognizeInProgress": "Riconoscimento in corso…",
+  "@csRecognizeInProgress": {},
+  "csRecognizeNothing": "Nessun testo riconosciuto.",
+  "@csRecognizeNothing": {},
+  "csRecognizeDone": "{count, plural, one{{count} riga riconosciuta} other{{count} righe riconosciute}}.",
+  "@csRecognizeDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csRecognizeFailed": "Riconoscimento fallito: {error}",
+  "@csRecognizeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csShareLink": "Condividi con link",
+  "@csShareLink": {},
+  "csShareLinkSub": "Carica un PDF sul tuo Nextcloud e genera un link pubblico",
+  "@csShareLinkSub": {},
+  "csShareLinkInProgress": "Creazione link in corso…",
+  "@csShareLinkInProgress": {},
+  "csShareLinkTitle": "Link pubblico",
+  "@csShareLinkTitle": {},
+  "csShareLinkBody": "Chiunque abbia questo link può vedere il PDF. Revocabile dal tuo Nextcloud.",
+  "@csShareLinkBody": {},
+  "csShareLinkCopied": "Link copiato negli appunti.",
+  "@csShareLinkCopied": {},
+  "csShareLinkFailed": "Condivisione fallita: {error}",
+  "@csShareLinkFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csCopyLink": "Copia link",
+  "@csCopyLink": {},
+  "csShare": "Condividi",
+  "@csShare": {},
+  "csRevokeLink": "Revoca link",
+  "@csRevokeLink": {},
+  "csRevokeLinkDone": "Link revocato.",
+  "@csRevokeLinkDone": {},
+  "csShareLinkUpdate": "Aggiorna PDF condiviso",
+  "@csShareLinkUpdate": {},
+  "csShareLinkUpdated": "PDF aggiornato.",
+  "@csShareLinkUpdated": {},
+  "csChangeSelectionColor": "Cambia colore selezione",
+  "@csChangeSelectionColor": {},
+  "csSelectionThickness": "Spessore selezione",
+  "@csSelectionThickness": {},
+  "csWidthPx": "{width} px",
+  "@csWidthPx": {
+    "placeholders": {
+      "width": {
+        "type": "String"
+      }
+    }
+  },
+  "csFlipHorizontal": "Rifletti orizzontalmente",
+  "@csFlipHorizontal": {},
+  "csFlipVertical": "Rifletti verticalmente",
+  "@csFlipVertical": {},
+  "csCopyAsImage": "Copia come immagine",
+  "@csCopyAsImage": {},
+  "csPasteInAnotherNotebook": "Incolla in un altro taccuino…",
+  "@csPasteInAnotherNotebook": {},
+  "csKeyDelete": "Canc",
+  "@csKeyDelete": {},
+  "csCreateSymbol": "Crea simbolo",
+  "@csCreateSymbol": {},
+  "csSelect": "Seleziona",
+  "@csSelect": {},
+  "csImportFile": "Importa file…",
+  "@csImportFile": {},
+  "csTakePhoto": "Scatta foto",
+  "@csTakePhoto": {},
+  "csInsertText": "Inserisci testo",
+  "@csInsertText": {},
+  "csInsertSymbolCount": "Inserisci simbolo ({count})",
+  "@csInsertSymbolCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csClearPage": "Cancella pagina",
+  "@csClearPage": {},
+  "csExportPng": "Esporta PNG",
+  "@csExportPng": {},
+  "csExportPdf": "Esporta PDF",
+  "@csExportPdf": {},
+  "csClearPageConfirmBody": "Tutti gli elementi di questa pagina saranno eliminati. Continuare?",
+  "@csClearPageConfirmBody": {},
+  "csClear": "Cancella",
+  "@csClear": {},
+  "csCreateSymbolTitle": "Crea simbolo riutilizzabile",
+  "@csCreateSymbolTitle": {},
+  "csSymbolNameLabel": "Nome simbolo",
+  "@csSymbolNameLabel": {},
+  "csLibraryLabel": "Libreria:",
+  "@csLibraryLabel": {},
+  "csNoLibraryNotice": "Nessuna libreria esistente. Verrà creata una libreria \"Simboli\".",
+  "@csNoLibraryNotice": {},
+  "csCreate": "Crea",
+  "@csCreate": {},
+  "csSymbolCreated": "Simbolo \"{name}\" creato!",
+  "@csSymbolCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "csSaveFileDialogTitle": "Salva {fileName}",
+  "@csSaveFileDialogTitle": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "csExportCurrentPagePng": "Pagina corrente (PNG)",
+  "@csExportCurrentPagePng": {},
+  "csExportCurrentChapter": "Capitolo corrente",
+  "@csExportCurrentChapter": {},
+  "csExportEntireNotebook": "Quaderno intero",
+  "@csExportEntireNotebook": {},
+  "csExportingPages": "Esportazione {count} pagine...",
+  "@csExportingPages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csChooseFolderForImages": "Scegli cartella per le {count} immagini",
+  "@csChooseFolderForImages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csPngExported": "PNG esportato ({count, plural, one{{count} pagina} other{{count} pagine}})",
+  "@csPngExported": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csExportError": "Errore export: {error}",
+  "@csExportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csExportCurrentPage": "Pagina corrente",
+  "@csExportCurrentPage": {},
+  "csGeneratingPdf": "Generazione PDF ({count, plural, one{{count} pagina} other{{count} pagine}})...",
+  "@csGeneratingPdf": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csPdfExportError": "Errore export PDF: {error}",
+  "@csPdfExportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csPdfExported": "PDF esportato: {count, plural, one{{count} pagina} other{{count} pagine}}",
+  "@csPdfExported": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csChapterSeparatorEyebrow": "CAPITOLO",
+  "@csChapterSeparatorEyebrow": {},
+  "csSelectionCopiedAsImage": "Selezione copiata come immagine",
+  "@csSelectionCopiedAsImage": {},
+  "csCopyImageError": "Errore copia immagine: {error}",
+  "@csCopyImageError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csExport": "Esporta",
+  "@csExport": {},
+  "csPageNumber": "Pagina {number}",
+  "@csPageNumber": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "csPagesCount": "{count, plural, one{{count} pagina} other{{count} pagine}}",
+  "@csPagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csExportChapterTitle": "Esporta capitolo",
+  "@csExportChapterTitle": {},
+  "csExportNotebookTitle": "Esporta quaderno intero",
+  "@csExportNotebookTitle": {},
+  "csChapterSeparatorQuestion": "Inserire una pagina separatore prima di ogni capitolo?",
+  "@csChapterSeparatorQuestion": {},
+  "csYesWithSeparators": "Sì, con separatori",
+  "@csYesWithSeparators": {},
+  "csNoPagesOnly": "No, solo le pagine",
+  "@csNoPagesOnly": {},
+  "csTotalPages": "Pagine totali: {count}",
+  "@csTotalPages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csFromPage": "Da pagina: {page}",
+  "@csFromPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "csToPage": "A pagina: {page}",
+  "@csToPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "csWillExportPages": "{count, plural, one{Sarà esportata {count} pagina ({start}–{end})} other{Saranno esportate {count} pagine ({start}–{end})}}",
+  "@csWillExportPages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "start": {
+        "type": "int"
+      },
+      "end": {
+        "type": "int"
+      }
+    }
+  },
+  "csChapterLabelWithCount": "{title} ({count, plural, one{{count} pagina} other{{count} pagine}})",
+  "@csChapterLabelWithCount": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csGoToPage": "Vai alla pagina",
+  "@csGoToPage": {},
+  "csDuplicatePage": "Duplica pagina",
+  "@csDuplicatePage": {},
+  "csNewPageAfter": "Nuova pagina dopo",
+  "@csNewPageAfter": {},
+  "csDeletePageConfirmTitle": "Eliminare la pagina?",
+  "@csDeletePageConfirmTitle": {},
+  "csDeletePageConfirmBody": "La pagina {number} e tutto il suo contenuto verranno eliminati.",
+  "@csDeletePageConfirmBody": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "csExportAsPdf": "Esporta come PDF",
+  "@csExportAsPdf": {},
+  "csExportAsPng": "Esporta come PNG",
+  "@csExportAsPng": {},
+  "csExportAsNcnote": "Esporta come .ncnote (nativo)",
+  "@csExportAsNcnote": {},
+  "csExportNcnoteSubtitle": "Formato nativo, qualità vettoriale piena (per backup o trasferimento)",
+  "@csExportNcnoteSubtitle": {},
+  "csGeneratingNcnote": "Generazione .ncnote in corso…",
+  "@csGeneratingNcnote": {},
+  "csNcnoteExported": ".ncnote esportato ({size} KB)",
+  "@csNcnoteExported": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "csNcnoteExportError": "Errore export .ncnote: {error}",
+  "@csNcnoteExportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "csImageOrPdf": "Immagine o PDF",
+  "@csImageOrPdf": {},
+  "csChangePaperType": "Cambia tipo di carta",
+  "@csChangePaperType": {},
+  "csPenToMonitor": "Penna → Monitor",
+  "@csPenToMonitor": {},
+  "csPenToMonitorSubtitle": "Limita la penna a un singolo schermo",
+  "@csPenToMonitorSubtitle": {},
+  "csPaperType": "Tipo di carta",
+  "@csPaperType": {},
+  "csPaperBlank": "Bianco",
+  "@csPaperBlank": {},
+  "csPaperLinedNarrow": "Righe strette",
+  "@csPaperLinedNarrow": {},
+  "csPaperLinedWide": "Righe larghe",
+  "@csPaperLinedWide": {},
+  "csPaperGrid": "Quadretti",
+  "@csPaperGrid": {},
+  "csPaperDotted": "Puntinato",
+  "@csPaperDotted": {},
+  "csPaperCornell": "Cornell",
+  "@csPaperCornell": {},
+  "csPaperIsometric": "Isometrico",
+  "@csPaperIsometric": {},
+  "csPaperMusic": "Pentagramma",
+  "@csPaperMusic": {},
+  "csMapPenToMonitor": "Mappa penna su monitor",
+  "@csMapPenToMonitor": {},
+  "csPenMappedTo": "Penna mappata su {monitor}",
+  "@csPenMappedTo": {
+    "placeholders": {
+      "monitor": {
+        "type": "String"
+      }
+    }
+  },
+  "csAllMonitors": "Tutti i monitor",
+  "@csAllMonitors": {},
+  "csAllMonitorsSubtitle": "Ripristina (penna su tutto il desktop)",
+  "@csAllMonitorsSubtitle": {},
+  "csPenReset": "Penna ripristinata",
+  "@csPenReset": {},
+  "csShapeLine": "Linea",
+  "@csShapeLine": {},
+  "csShapeCircle": "Cerchio",
+  "@csShapeCircle": {},
+  "csShapeRectangle": "Rettangolo",
+  "@csShapeRectangle": {},
+  "csShapeTriangle": "Triangolo",
+  "@csShapeTriangle": {},
+  "csShapeArrow": "Freccia",
+  "@csShapeArrow": {},
+  "csInvalidRangeError": "Inserisci un intervallo valido (es. 1–10).",
+  "@csInvalidRangeError": {},
+  "csPdfStartOutOfRange": "Il PDF ha circa {count} pagine. Inizio fuori range.",
+  "@csPdfStartOutOfRange": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csImportPdfTitle": "Importa PDF",
+  "@csImportPdfTitle": {},
+  "csPdfEstimatedPages": "Il PDF ha circa {count} pagine.",
+  "@csPdfEstimatedPages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csAllPagesWithCount": "Tutte le pagine ({count})",
+  "@csAllPagesWithCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "csAllPages": "Tutte le pagine",
+  "@csAllPages": {},
+  "csCustomRange": "Intervallo personalizzato",
+  "@csCustomRange": {},
+  "csFromLabel": "Da",
+  "@csFromLabel": {},
+  "csToLabel": "A",
+  "@csToLabel": {},
+  "csImport": "Importa",
+  "@csImport": {},
+  "libErrorGeneric": "Errore: {error}",
+  "@libErrorGeneric": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libErrorOpen": "Errore apertura: {error}",
+  "@libErrorOpen": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libImportCannotReadFile": "Impossibile leggere il file",
+  "@libImportCannotReadFile": {},
+  "libImportInProgress": "Importazione in corso…",
+  "@libImportInProgress": {},
+  "libServiceUnavailable": "Servizio non disponibile",
+  "@libServiceUnavailable": {},
+  "libImportedTitleSuffix": "{title} (importato)",
+  "@libImportedTitleSuffix": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "libImportSuccess": "Importato: \"{title}\" ({count, plural, one{{count} pagina} other{{count} pagine}})",
+  "@libImportSuccess": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libErrorImport": "Errore importazione: {error}",
+  "@libErrorImport": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libErrorCreate": "Errore creazione: {error}",
+  "@libErrorCreate": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libSketchDefaultTitle": "Schizzo",
+  "@libSketchDefaultTitle": {},
+  "libErrorCreateSketch": "Errore creazione schizzo: {error}",
+  "@libErrorCreateSketch": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "libRemoveFromFavorites": "Rimuovi dai preferiti",
+  "@libRemoveFromFavorites": {},
+  "libAddToFavorites": "Aggiungi ai preferiti",
+  "@libAddToFavorites": {},
+  "libRename": "Rinomina",
+  "@libRename": {},
+  "libChangeCover": "Cambia copertina",
+  "@libChangeCover": {},
+  "libMoveToFolder": "Sposta in cartella",
+  "@libMoveToFolder": {},
+  "libNoFolder": "Nessuna cartella",
+  "@libNoFolder": {},
+  "libNewFolder": "Nuova cartella",
+  "@libNewFolder": {},
+  "libRenameFolder": "Rinomina cartella",
+  "@libRenameFolder": {},
+  "libFolderNameHint": "Nome cartella",
+  "@libFolderNameHint": {},
+  "libAllNotebooks": "Tutti",
+  "@libAllNotebooks": {},
+  "libDeleteFolder": "Elimina cartella",
+  "@libDeleteFolder": {},
+  "libDeleteFolderTitle": "Eliminare la cartella \"{name}\"?",
+  "@libDeleteFolderTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "libDeleteFolderBody": "I taccuini al suo interno non vengono eliminati, restano nella libreria senza cartella.",
+  "@libDeleteFolderBody": {},
+  "libDelete": "Elimina",
+  "@libDelete": {},
+  "libDeleteNotebookTitle": "Eliminare il taccuino?",
+  "@libDeleteNotebookTitle": {},
+  "libDeleteNotebookBody": "Verrà spostato nel cestino. Potrai ripristinarlo da Impostazioni > Spazio.",
+  "@libDeleteNotebookBody": {},
+  "libCancel": "Annulla",
+  "@libCancel": {},
+  "libRenameNotebookTitle": "Rinomina taccuino",
+  "@libRenameNotebookTitle": {},
+  "libSave": "Salva",
+  "@libSave": {},
+  "libSortTitle": "Ordinamento",
+  "@libSortTitle": {},
+  "libAppName": "AbelNotes",
+  "@libAppName": {},
+  "libSearchHintShort": "Cerca…",
+  "@libSearchHintShort": {},
+  "libSearchHintNotebooks": "Cerca taccuini…",
+  "@libSearchHintNotebooks": {},
+  "libImport": "Importa",
+  "@libImport": {},
+  "libImportTooltip": "Importa un file .ncnote",
+  "@libImportTooltip": {},
+  "libSettingsTooltip": "Impostazioni",
+  "@libSettingsTooltip": {},
+  "libMoreTooltip": "Altro",
+  "@libMoreTooltip": {},
+  "libViewAsList": "Vista a lista",
+  "@libViewAsList": {},
+  "libViewAsGrid": "Vista a griglia",
+  "@libViewAsGrid": {},
+  "libSortWithLabel": "Ordinamento: {sortLabel}",
+  "@libSortWithLabel": {
+    "placeholders": {
+      "sortLabel": {
+        "type": "String"
+      }
+    }
+  },
+  "libImportNcnoteMenu": "Importa…",
+  "@libImportNcnoteMenu": {},
+  "libYourNotebooks": "I tuoi taccuini",
+  "@libYourNotebooks": {},
+  "libItemsCount": "{count, plural, one{{count} elemento} other{{count} elementi}}",
+  "@libItemsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libNewNotebook": "Nuovo taccuino",
+  "@libNewNotebook": {},
+  "libSketches": "Schizzi",
+  "@libSketches": {},
+  "libInfiniteSpace": "spazio infinito",
+  "@libInfiniteSpace": {},
+  "libNewSketch": "Nuovo schizzo",
+  "@libNewSketch": {},
+  "libInfiniteCanvas": "Canvas infinito",
+  "@libInfiniteCanvas": {},
+  "libNew": "Nuovo",
+  "@libNew": {},
+  "libPagesAbbrev": "{count} pag.",
+  "@libPagesAbbrev": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libPagesCount": "{count, plural, one{{count} pagina} other{{count} pagine}}",
+  "@libPagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libFooterWebdav": "WebDAV",
+  "@libFooterWebdav": {},
+  "libFooterLocalFirst": "App locale-first",
+  "@libFooterLocalFirst": {},
+  "libSyncingWithServer": "Sincronizzazione con il server…",
+  "@libSyncingWithServer": {},
+  "libDownloadingProgress": "Scaricamento {done}/{total} taccuini…",
+  "@libDownloadingProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "libLoadingNotebooks": "Caricamento taccuini…",
+  "@libLoadingNotebooks": {},
+  "libLoadingNotebooksFromServer": "Caricamento taccuini dal server…",
+  "@libLoadingNotebooksFromServer": {},
+  "libTimeNow": "ora",
+  "@libTimeNow": {},
+  "libTimeMinutesAgo": "{count} min fa",
+  "@libTimeMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libTimeHoursAgo": "{count, plural, one{{count} ora fa} other{{count} ore fa}}",
+  "@libTimeHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libTimeDaysAgo": "{count} g fa",
+  "@libTimeDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libTimeWeeksAgo": "{count} sett. fa",
+  "@libTimeWeeksAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libTimeMonthsAgo": "{count, plural, one{{count} mese fa} other{{count} mesi fa}}",
+  "@libTimeMonthsAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libTimeYearsAgo": "{count, plural, one{{count} anno fa} other{{count} anni fa}}",
+  "@libTimeYearsAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libNotebookTitleLabel": "Titolo",
+  "@libNotebookTitleLabel": {},
+  "libCoverLabel": "Copertina",
+  "@libCoverLabel": {},
+  "libPaperLabel": "Carta",
+  "@libPaperLabel": {},
+  "libPaperBlank": "Bianco",
+  "@libPaperBlank": {},
+  "libPaperLined": "Righe",
+  "@libPaperLined": {},
+  "libPaperGrid": "Griglia",
+  "@libPaperGrid": {},
+  "libPaperDotted": "Puntinato",
+  "@libPaperDotted": {},
+  "libCreate": "Crea",
+  "@libCreate": {},
+  "setSectionGeneral": "Generale",
+  "@setSectionGeneral": {},
+  "setSectionInput": "Stylus & input",
+  "@setSectionInput": {},
+  "setSectionSync": "Sincronia",
+  "@setSectionSync": {},
+  "setSectionStorage": "Spazio",
+  "@setSectionStorage": {},
+  "setSectionShortcuts": "Scorciatoie",
+  "@setSectionShortcuts": {},
+  "setSectionAdvanced": "Avanzate",
+  "@setSectionAdvanced": {},
+  "setSectionAbout": "Informazioni",
+  "@setSectionAbout": {},
+  "setBackToLibrary": "Libreria",
+  "@setBackToLibrary": {},
+  "setSettingsTitle": "Impostazioni",
+  "@setSettingsTitle": {},
+  "setThemeLabel": "Tema",
+  "@setThemeLabel": {},
+  "setThemeLight": "Chiaro",
+  "@setThemeLight": {},
+  "setThemePaper": "Carta",
+  "@setThemePaper": {},
+  "setThemeDark": "Scuro",
+  "@setThemeDark": {},
+  "setLanguage": "Lingua",
+  "@setLanguage": {},
+  "setLanguageSub": "Lingua dell'interfaccia",
+  "@setLanguageSub": {},
+  "setLanguageItalian": "Italiano",
+  "@setLanguageItalian": {},
+  "setFavoritesFirst": "Preferiti per primi",
+  "@setFavoritesFirst": {},
+  "setFavoritesFirstSub": "Mostra i taccuini preferiti in cima alla libreria",
+  "@setFavoritesFirstSub": {},
+  "setStylusOnly": "Solo stylus",
+  "@setStylusOnly": {},
+  "setStylusOnlySub": "Ignora il tocco del dito durante la scrittura. Pinch e pan continuano a funzionare con due dita.",
+  "@setStylusOnlySub": {},
+  "setPalmRejection": "Palm rejection",
+  "@setPalmRejection": {},
+  "setPalmRejectionSub": "Riconoscimento automatico del palmo appoggiato",
+  "@setPalmRejectionSub": {},
+  "setPressureThickness": "Pressione → spessore",
+  "@setPressureThickness": {},
+  "setPressureThicknessSub": "Modulazione di tratto in base alla pressione dello stylus",
+  "@setPressureThicknessSub": {},
+  "setTiltCalligraphy": "Tilt → calligrafia",
+  "@setTiltCalligraphy": {},
+  "setTiltCalligraphySub": "L'inclinazione dello stylus altera larghezza e angolo del tratto",
+  "@setTiltCalligraphySub": {},
+  "setStrokeContinuation": "Continuazione tratto",
+  "@setStrokeContinuation": {},
+  "setStrokeContinuationSub": "Compensa brevi interruzioni del sensore (es. punto della i)",
+  "@setStrokeContinuationSub": {},
+  "setSyncConnectedDesc": "Connesso a un server WebDAV. I taccuini si sincronizzano su tutti i tuoi dispositivi.",
+  "@setSyncConnectedDesc": {},
+  "setSyncLocalOnlyDesc": "Modalità solo-locale: i taccuini restano su questo dispositivo. Connetti un server WebDAV per accedervi da più dispositivi.",
+  "@setSyncLocalOnlyDesc": {},
+  "setSyncWebdav": "WebDAV",
+  "@setSyncWebdav": {},
+  "setSyncLocalOnly": "Solo locale",
+  "@setSyncLocalOnly": {},
+  "setSyncAccountInfo": "{host} · {username}",
+  "@setSyncAccountInfo": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      },
+      "username": {
+        "type": "String"
+      }
+    }
+  },
+  "setSyncNoServer": "Nessun server connesso",
+  "@setSyncNoServer": {},
+  "setDisconnect": "Disconnetti",
+  "@setDisconnect": {},
+  "setConnect": "Connetti",
+  "@setConnect": {},
+  "setDisconnectTitle": "Disconnettere il server?",
+  "@setDisconnectTitle": {},
+  "setDisconnectBody": "I taccuini già scaricati restano su questo dispositivo. La sincronizzazione si interrompe finché non riconnetti.",
+  "@setDisconnectBody": {},
+  "setCheckCert": "Verifica certificato server",
+  "@setCheckCert": {},
+  "setCertCheckFailed": "Impossibile verificare il certificato del server.",
+  "@setCertCheckFailed": {},
+  "setCertUnchanged": "Il certificato non è cambiato dall'ultima connessione.",
+  "@setCertUnchanged": {},
+  "setCertChangedTitle": "Nuovo certificato rilevato",
+  "@setCertChangedTitle": {},
+  "setCertChangedBody": "Il server presenta un'impronta diversa da quella salvata. Se hai rinnovato tu il certificato, conferma per continuare a sincronizzare. Se non sei stato tu, ANNULLA e controlla la tua rete prima di riprovare.\n\nImpronta salvata: {oldFingerprint}\nImpronta attuale: {newFingerprint}",
+  "@setCertChangedBody": {
+    "placeholders": {
+      "oldFingerprint": {
+        "type": "String"
+      },
+      "newFingerprint": {
+        "type": "String"
+      }
+    }
+  },
+  "setCertConfirmNew": "Conferma nuovo certificato",
+  "@setCertConfirmNew": {},
+  "setCancel": "Annulla",
+  "@setCancel": {},
+  "setShortcutPen": "Penna",
+  "@setShortcutPen": {},
+  "setShortcutUndo": "Annulla",
+  "@setShortcutUndo": {},
+  "setShortcutBrush": "Pennello",
+  "@setShortcutBrush": {},
+  "setShortcutRedo": "Ripeti",
+  "@setShortcutRedo": {},
+  "setShortcutEraser": "Gomma",
+  "@setShortcutEraser": {},
+  "setShortcutSelectAll": "Seleziona tutto",
+  "@setShortcutSelectAll": {},
+  "setShortcutLasso": "Lasso",
+  "@setShortcutLasso": {},
+  "setShortcutCopy": "Copia",
+  "@setShortcutCopy": {},
+  "setShortcutHand": "Mano",
+  "@setShortcutHand": {},
+  "setShortcutCut": "Taglia",
+  "@setShortcutCut": {},
+  "setShortcutText": "Testo",
+  "@setShortcutText": {},
+  "setShortcutPaste": "Incolla",
+  "@setShortcutPaste": {},
+  "setShortcutShape": "Forma",
+  "@setShortcutShape": {},
+  "setShortcutDuplicate": "Duplica",
+  "@setShortcutDuplicate": {},
+  "setShortcutChangePage": "Cambia pagina",
+  "@setShortcutChangePage": {},
+  "setShortcutSave": "Salva",
+  "@setShortcutSave": {},
+  "setShortcutFit": "Adatta",
+  "@setShortcutFit": {},
+  "setShortcutCheatSheet": "Cheat sheet",
+  "@setShortcutCheatSheet": {},
+  "setKeyboardShortcutsTitle": "Scorciatoie da tastiera",
+  "@setKeyboardShortcutsTitle": {},
+  "setClearCache": "Pulisci cache",
+  "@setClearCache": {},
+  "setClearCacheSub": "Rimuove i file temporanei. I taccuini non vengono toccati.",
+  "@setClearCacheSub": {},
+  "setClear": "Pulisci",
+  "@setClear": {},
+  "setTrash": "Cestino",
+  "@setTrash": {},
+  "setTrashSub": "Taccuini eliminati, ripristinabili",
+  "@setTrashSub": {},
+  "setOpenTrash": "Apri cestino",
+  "@setOpenTrash": {},
+  "setClearCacheDone": "Cache pulita.",
+  "@setClearCacheDone": {},
+  "setExportLibrary": "Esporta libreria",
+  "@setExportLibrary": {},
+  "setExportLibrarySub": "Salva tutti i taccuini in un unico archivio zip.",
+  "@setExportLibrarySub": {},
+  "setExport": "Esporta",
+  "@setExport": {},
+  "setExportLibraryEmpty": "Nessun taccuino da esportare.",
+  "@setExportLibraryEmpty": {},
+  "setExportLibraryInProgress": "Esportazione in corso…",
+  "@setExportLibraryInProgress": {},
+  "setExportLibraryDone": "{count, plural, one{Esportato {count} taccuino} other{Esportati {count} taccuini}}.",
+  "@setExportLibraryDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "setExportLibraryFailed": "Esportazione fallita: {error}",
+  "@setExportLibraryFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "setTrashPurgeTitle": "Eliminare definitivamente \"{title}\"?",
+  "@setTrashPurgeTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "setTrashPurgeBody": "Non potrai più recuperarlo.",
+  "@setTrashPurgeBody": {},
+  "setTrashPurge": "Elimina definitivamente",
+  "@setTrashPurge": {},
+  "setTrashEmptyTitle": "Svuotare il cestino?",
+  "@setTrashEmptyTitle": {},
+  "setTrashEmptyBody": "Tutti i taccuini nel cestino verranno eliminati definitivamente.",
+  "@setTrashEmptyBody": {},
+  "setTrashEmpty": "Svuota cestino",
+  "@setTrashEmpty": {},
+  "setTrashEmptyState": "Il cestino è vuoto.",
+  "@setTrashEmptyState": {},
+  "setTrashDeletedAgo": "Eliminato {time} fa",
+  "@setTrashDeletedAgo": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "setTrashRestore": "Ripristina",
+  "@setTrashRestore": {},
+  "setAdvancedIntro": "Strumenti di recupero per casi rari di taccuino bloccato in sincronia. Usali solo se il sync continua a fallire dopo un normale \"Forza sync\" dalla libreria.",
+  "@setAdvancedIntro": {},
+  "setForceReloadTitle": "Forza ricarica taccuino dal server",
+  "@setForceReloadTitle": {},
+  "setForceReloadDesc": "Riscarica tutto il contenuto del taccuino dalla cartella delta del server e sovrascrive la copia locale. Utile se il count pagine sembra sbagliato o il taccuino non si apre. Non perde dati lato server.",
+  "@setForceReloadDesc": {},
+  "setErrorGeneric": "Errore: {error}",
+  "@setErrorGeneric": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "setPagesCount": "{count, plural, one{{count} pagina} other{{count} pagine}}",
+  "@setPagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "setReload": "Ricarica",
+  "@setReload": {},
+  "setCloseNotebookFirst": "Chiudi il taccuino prima di ricaricarlo dal server.",
+  "@setCloseNotebookFirst": {},
+  "setReloadConfirmTitle": "Ricaricare \"{title}\"?",
+  "@setReloadConfirmTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "setReloadConfirmBody": "Riscarica metadata, document, pagine e asset dalla cartella delta del server. La copia locale viene sostituita.\n\nModifiche locali non ancora sincronizzate verranno perse. Continuare?",
+  "@setReloadConfirmBody": {},
+  "setReloadInProgress": "Ricarica \"{title}\" in corso…",
+  "@setReloadInProgress": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "setNotConnectedWebdav": "Non connesso a un server WebDAV.",
+  "@setNotConnectedWebdav": {},
+  "setReloadDone": "\"{title}\" ricaricato — {count, plural, one{{count} pagina} other{{count} pagine}}.",
+  "@setReloadDone": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "setReloadFailed": "Ricarica fallita: {error}",
+  "@setReloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "setAboutTagline": "App di scrittura a mano, local-first.",
+  "@setAboutTagline": {},
+  "setAboutOffline": "Funziona offline; la sincronia con WebDAV è facoltativa.",
+  "@setAboutOffline": {},
+  "setAboutVersion": "Versione {version} · build {commit}",
+  "@setAboutVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      },
+      "commit": {
+        "type": "String"
+      }
+    }
+  },
+  "setReportProblem": "Segnala un problema",
+  "@setReportProblem": {},
+  "setReportProblemSub": "Copia il log errori negli appunti da allegare alla segnalazione.",
+  "@setReportProblemSub": {},
+  "setCopyLog": "Copia log",
+  "@setCopyLog": {},
+  "setReportProblemEmpty": "Nessun errore registrato.",
+  "@setReportProblemEmpty": {},
+  "setCopyLogDone": "Log copiato negli appunti.",
+  "@setCopyLogDone": {},
+  "onbTagline": "Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare — puoi cambiare in seguito.",
+  "@onbTagline": {},
+  "onbTryNowTitle": "Prova subito",
+  "@onbTryNowTitle": {},
+  "onbTryNowSubtitle": "Inizia a scrivere ora. I taccuini restano su questo dispositivo — nessun account, nessun server.",
+  "@onbTryNowSubtitle": {},
+  "onbConnectNextcloudTitle": "Connetti il tuo Nextcloud",
+  "@onbConnectNextcloudTitle": {},
+  "onbConnectNextcloudSubtitle": "Sincronizza sul tuo server WebDAV / Nextcloud personale e accedi da tutti i dispositivi.",
+  "@onbConnectNextcloudSubtitle": {},
+  "onbManagedServerTitle": "Server gestito AbelNotes",
+  "@onbManagedServerTitle": {},
+  "onbManagedServerSubtitle": "Non hai un server? Presto potrai usare il nostro, senza configurare nulla.",
+  "@onbManagedServerSubtitle": {},
+  "onbComingSoonBadge": "In arrivo",
+  "@onbComingSoonBadge": {},
+  "onbLicenseNote": "Aprendo l'app accetti la licenza AGPL-3.0. \"AbelNotes\" è un marchio del progetto.",
+  "@onbLicenseNote": {},
+  "logConnectionFailed": "Impossibile connettersi. Verifica URL, username e password.",
+  "@logConnectionFailed": {},
+  "logConnectionError": "Errore di connessione: {error}",
+  "@logConnectionError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "logCertificateChanged": "Il certificato del server è cambiato rispetto all'ultima connessione. Se sei stato tu (es. rinnovo certificato), vai in Impostazioni > Sincronizzazione per confermare la nuova impronta.",
+  "@logCertificateChanged": {},
+  "logCertConfirmTitle": "Verifica identità del server",
+  "@logCertConfirmTitle": {},
+  "logCertConfirmBody": "Prima connessione a questo server. Confronta questa impronta con quella del tuo server (es. da riga di comando) prima di continuare:",
+  "@logCertConfirmBody": {},
+  "logCertConfirmTrust": "Mi fido, continua",
+  "@logCertConfirmTrust": {},
+  "logBackTooltip": "Indietro",
+  "@logBackTooltip": {},
+  "logTitle": "Connetti il tuo Nextcloud",
+  "@logTitle": {},
+  "logSubtitle": "Qualsiasi server WebDAV / Nextcloud (VPS, self-hosted, LAN). Nessun cloud di terze parti.",
+  "@logSubtitle": {},
+  "logServerUrlLabel": "URL Server",
+  "@logServerUrlLabel": {},
+  "logServerUrlHint": "https://cloud.example.com",
+  "@logServerUrlHint": {},
+  "logServerUrlRequired": "Inserisci l'URL del server",
+  "@logServerUrlRequired": {},
+  "logServerUrlInvalid": "Deve iniziare con http:// o https://",
+  "@logServerUrlInvalid": {},
+  "logUsernameLabel": "Username",
+  "@logUsernameLabel": {},
+  "logUsernameRequired": "Username richiesto",
+  "@logUsernameRequired": {},
+  "logPasswordLabel": "Password / App Password",
+  "@logPasswordLabel": {},
+  "logPasswordRequired": "Password richiesta",
+  "@logPasswordRequired": {},
+  "logAppPasswordHint": "Consigliato: una App Password generata dalle impostazioni di Nextcloud.",
+  "@logAppPasswordHint": {},
+  "logServerTypeNextcloud": "Nextcloud / ownCloud",
+  "@logServerTypeNextcloud": {},
+  "logServerTypeWebdav": "Altro WebDAV",
+  "@logServerTypeWebdav": {},
+  "logServerUrlHintWebdav": "https://dav.example.com/cartella",
+  "@logServerUrlHintWebdav": {},
+  "logWebdavExperimental": "I backend WebDAV generici (Synology, Seafile, rclone…) sono sperimentali: solo Nextcloud è testato a fondo. Tieni un backup dei tuoi quaderni.",
+  "@logWebdavExperimental": {},
+  "logWebdavUrlHint": "URL WebDAV completo, percorso incluso — es. Synology https://nas:5006/home, Seafile https://server/seafdav. La condivisione link non è disponibile su WebDAV generico.",
+  "@logWebdavUrlHint": {},
+  "logConnectButton": "Connetti",
+  "@logConnectButton": {},
+  "chromeBackToLibraryTooltip": "Torna alla libreria",
+  "@chromeBackToLibraryTooltip": {},
+  "chromeLibrary": "Libreria",
+  "@chromeLibrary": {},
+  "chromeUnsaved": "Non salvato",
+  "@chromeUnsaved": {},
+  "chromeMouseDrawsTooltip": "Mouse: disegna — tocca per usarlo come selezione",
+  "@chromeMouseDrawsTooltip": {},
+  "chromeMouseSelectsTooltip": "Mouse: selezione — tocca per disegnare col mouse",
+  "@chromeMouseSelectsTooltip": {},
+  "chromeUndo": "Annulla",
+  "@chromeUndo": {},
+  "chromeRedo": "Ripeti",
+  "@chromeRedo": {},
+  "chromeAllPages": "Tutte le pagine",
+  "@chromeAllPages": {},
+  "chromePageIndicator": "{current} / {total}",
+  "@chromePageIndicator": {
+    "placeholders": {
+      "current": {
+        "type": "String"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "chromeAddPage": "Aggiungi pagina",
+  "@chromeAddPage": {},
+  "chromeSymbols": "Simboli",
+  "@chromeSymbols": {},
+  "chromeExport": "Esporta",
+  "@chromeExport": {},
+  "chromeMore": "Altro",
+  "@chromeMore": {},
+  "chromeMoreEllipsis": "Altro…",
+  "@chromeMoreEllipsis": {},
+  "chromeToolPen": "Penna · P",
+  "@chromeToolPen": {},
+  "chromeToolHighlighter": "Evidenziatore",
+  "@chromeToolHighlighter": {},
+  "chromeToolEraser": "Gomma · E",
+  "@chromeToolEraser": {},
+  "chromeToolLasso": "Lasso · L",
+  "@chromeToolLasso": {},
+  "chromeToolText": "Testo · T",
+  "@chromeToolText": {},
+  "chromeToolLaser": "Laser",
+  "@chromeToolLaser": {},
+  "chromeToolPan": "Mano · H",
+  "@chromeToolPan": {},
+  "chromeDragToMoveBar": "Trascina per spostare la barra",
+  "@chromeDragToMoveBar": {},
+  "chromeShapeGuessOn": "Auto-forma · attivo",
+  "@chromeShapeGuessOn": {},
+  "chromeShapeGuessOff": "Auto-forma · spento",
+  "@chromeShapeGuessOff": {},
+  "chromeLabelPen": "Penna",
+  "@chromeLabelPen": {},
+  "chromeLabelBallpoint": "Ballpoint",
+  "@chromeLabelBallpoint": {},
+  "chromeLabelBrush": "Pennello",
+  "@chromeLabelBrush": {},
+  "chromeLabelCalligraphy": "Calligrafia",
+  "@chromeLabelCalligraphy": {},
+  "chromeLabelEraser": "Gomma",
+  "@chromeLabelEraser": {},
+  "chromeLabelLasso": "Lasso",
+  "@chromeLabelLasso": {},
+  "chromeLabelText": "Testo",
+  "@chromeLabelText": {},
+  "chromeLabelShape": "Forma",
+  "@chromeLabelShape": {},
+  "chromeLabelImage": "Immagine",
+  "@chromeLabelImage": {},
+  "chromeLabelPan": "Mano",
+  "@chromeLabelPan": {},
+  "chromePresetsSection": "Pre-impostazioni",
+  "@chromePresetsSection": {},
+  "chromePresetHint": "Tieni premuto per salvare/cancellare",
+  "@chromePresetHint": {},
+  "chromeColorSection": "Colore",
+  "@chromeColorSection": {},
+  "chromeColorEditHint": "Tieni premuto un colore per cambiarlo",
+  "@chromeColorEditHint": {},
+  "chromeThicknessSection": "Spessore",
+  "@chromeThicknessSection": {},
+  "chromeThicknessPx": "{value} px",
+  "@chromeThicknessPx": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "chromePreview": "Anteprima",
+  "@chromePreview": {},
+  "chromeModeSection": "Modalità",
+  "@chromeModeSection": {},
+  "chromeEraserPerArea": "Per area",
+  "@chromeEraserPerArea": {},
+  "chromeEraserPerStroke": "Per tratto",
+  "@chromeEraserPerStroke": {},
+  "chromeSizeSection": "Dimensione",
+  "@chromeSizeSection": {},
+  "chromeSizeSmall": "S",
+  "@chromeSizeSmall": {},
+  "chromeSizeMedium": "M",
+  "@chromeSizeMedium": {},
+  "chromeSizeLarge": "L",
+  "@chromeSizeLarge": {},
+  "chromePresetOverwrite": "Sovrascrivi con corrente",
+  "@chromePresetOverwrite": {},
+  "chromePresetClearSlot": "Svuota slot",
+  "@chromePresetClearSlot": {},
+  "chromeNoPages": "Nessuna pagina",
+  "@chromeNoPages": {},
+  "chromeHidePageBar": "Nascondi la barra delle pagine",
+  "@chromeHidePageBar": {},
+  "chromeShowPageBar": "Mostra la barra delle pagine",
+  "@chromeShowPageBar": {},
+  "chromePrevPageTooltip": "Pagina precedente {number} — tocca per tornare indietro",
+  "@chromePrevPageTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "chromePageOfChapterTooltip": "Pagina {number} del capitolo · pagina {globalNumber} del taccuino",
+  "@chromePageOfChapterTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "globalNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "chromePageTooltip": "Pagina {number}",
+  "@chromePageTooltip": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "chromeHexLabel": "Esadecimale",
+  "@chromeHexLabel": {},
+  "chromeCancel": "Annulla",
+  "@chromeCancel": {},
+  "chromeApply": "Applica",
+  "@chromeApply": {},
+  "pmNone": "Nessuno",
+  "@pmNone": {},
+  "pmCreateChapterFirst": "Crea prima almeno un capitolo.",
+  "@pmCreateChapterFirst": {},
+  "pmAssignChapterCount": "Assegna capitolo ({count} pag.)",
+  "@pmAssignChapterCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmDeletePagesConfirm": "{count, plural, one{Eliminare 1 pagina?} other{Eliminare {count} pagine?}}",
+  "@pmDeletePagesConfirm": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmActionCannotBeUndone": "Questa azione non può essere annullata.",
+  "@pmActionCannotBeUndone": {},
+  "pmCancel": "Annulla",
+  "@pmCancel": {},
+  "pmDelete": "Elimina",
+  "@pmDelete": {},
+  "pmPagesCut": "{count, plural, one{1 pagina tagliata — aprire il notebook di destinazione per incollare.} other{{count} pagine tagliate — aprire il notebook di destinazione per incollare.}}",
+  "@pmPagesCut": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmPagesCutSkipped": "{count} pagine tagliate ({skipped} non ancora caricate, saltate) — aprire il notebook di destinazione per incollare.",
+  "@pmPagesCutSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "skipped": {
+        "type": "int"
+      }
+    }
+  },
+  "pmSelectedCount": "{count} selezionate",
+  "@pmSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmSelectAllButton": "Tutte",
+  "@pmSelectAllButton": {},
+  "pmClearSelection": "Annulla selezione",
+  "@pmClearSelection": {},
+  "pmPagesCount": "Pagine ({count})",
+  "@pmPagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmPagesFilteredCount": "Pagine ({visible}/{total})",
+  "@pmPagesFilteredCount": {
+    "placeholders": {
+      "visible": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "pmGoToPageTooltip": "Vai alla pagina…",
+  "@pmGoToPageTooltip": {},
+  "pmExitSelection": "Esci dalla selezione",
+  "@pmExitSelection": {},
+  "pmSelectPages": "Seleziona pagine",
+  "@pmSelectPages": {},
+  "pmPastePages": "Incolla pagine",
+  "@pmPastePages": {},
+  "pmPagesPasted": "{count, plural, one{1 pagina incollata.} other{{count} pagine incollate.}}",
+  "@pmPagesPasted": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmAddPage": "Aggiungi pagina",
+  "@pmAddPage": {},
+  "pmClose": "Chiudi",
+  "@pmClose": {},
+  "pmNewChapter": "Nuovo capitolo",
+  "@pmNewChapter": {},
+  "pmChapterNameHint": "Nome capitolo",
+  "@pmChapterNameHint": {},
+  "pmPageDeleted": "Pagina {number} eliminata",
+  "@pmPageDeleted": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "pmUndo": "Annulla",
+  "@pmUndo": {},
+  "pmAssignChapter": "Assegna capitolo",
+  "@pmAssignChapter": {},
+  "pmRename": "Rinomina",
+  "@pmRename": {},
+  "pmRenameChapter": "Rinomina capitolo",
+  "@pmRenameChapter": {},
+  "pmDeleteChapter": "Elimina capitolo",
+  "@pmDeleteChapter": {},
+  "pmDeleteChapterConfirm": "Eliminare \"{title}\"? Le pagine al suo interno resteranno ma senza capitolo.",
+  "@pmDeleteChapterConfirm": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "pmGoToPage": "Vai alla pagina",
+  "@pmGoToPage": {},
+  "pmPageRangeHint": "1–{max}",
+  "@pmPageRangeHint": {
+    "placeholders": {
+      "max": {
+        "type": "int"
+      }
+    }
+  },
+  "pmGo": "Vai",
+  "@pmGo": {},
+  "pmOk": "OK",
+  "@pmOk": {},
+  "pmCountPagesShort": "{count} pag.",
+  "@pmCountPagesShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "pmChapter": "Capitolo",
+  "@pmChapter": {},
+  "pmCut": "Taglia",
+  "@pmCut": {},
+  "pmInsertBefore": "Inserisci prima",
+  "@pmInsertBefore": {},
+  "pmInsertAfter": "Inserisci dopo",
+  "@pmInsertAfter": {},
+  "pmDuplicate": "Duplica",
+  "@pmDuplicate": {},
+  "pmMoveTo": "Sposta a pagina…",
+  "@pmMoveTo": {},
+  "pmMove": "Sposta",
+  "@pmMove": {},
+  "pmMoveToPage": "Sposta a pagina",
+  "@pmMoveToPage": {},
+  "pmChapterEllipsis": "Capitolo…",
+  "@pmChapterEllipsis": {},
+  "pmPageChapterLabel": "{number} • {chapter}",
+  "@pmPageChapterLabel": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      },
+      "chapter": {
+        "type": "String"
+      }
+    }
+  },
+  "pmCorruptAssetTooltip": "Asset corrotto sul server (troncato) — ri-importa il PDF originale per recuperare",
+  "@pmCorruptAssetTooltip": {},
+  "pmLoadingImageTooltip": "Caricamento immagine dal server…",
+  "@pmLoadingImageTooltip": {},
+  "tedInsertTextTitle": "Inserisci testo",
+  "@tedInsertTextTitle": {},
+  "tedEditTextTitle": "Modifica testo",
+  "@tedEditTextTitle": {},
+  "tedBoldTooltip": "Grassetto (Ctrl+B)",
+  "@tedBoldTooltip": {},
+  "tedItalicTooltip": "Corsivo (Ctrl+I)",
+  "@tedItalicTooltip": {},
+  "tedUnderlineTooltip": "Sottolineato (Ctrl+U)",
+  "@tedUnderlineTooltip": {},
+  "tedStrikethroughTooltip": "Barrato",
+  "@tedStrikethroughTooltip": {},
+  "tedAlignLeft": "Sinistra",
+  "@tedAlignLeft": {},
+  "tedAlignCenter": "Centro",
+  "@tedAlignCenter": {},
+  "tedAlignRight": "Destra",
+  "@tedAlignRight": {},
+  "tedWriteHereHint": "Scrivi qui…",
+  "@tedWriteHereHint": {},
+  "tedCancel": "Annulla",
+  "@tedCancel": {},
+  "tedInsert": "Inserisci",
+  "@tedInsert": {},
+  "cropTitle": "Ritaglia immagine",
+  "@cropTitle": {},
+  "cropCancel": "Annulla",
+  "@cropCancel": {},
+  "cropConfirm": "Ritaglia",
+  "@cropConfirm": {},
+  "imgFontSmaller": "Testo più piccolo",
+  "@imgFontSmaller": {},
+  "imgFontLarger": "Testo più grande",
+  "@imgFontLarger": {},
+  "imgCrop": "Ritaglia",
+  "@imgCrop": {},
+  "imgCopy": "Copia",
+  "@imgCopy": {},
+  "imgUnlock": "Sblocca",
+  "@imgUnlock": {},
+  "imgLock": "Blocca",
+  "@imgLock": {},
+  "imgDelete": "Elimina",
+  "@imgDelete": {},
+  "imgDeselect": "Deseleziona",
+  "@imgDeselect": {},
+  "imgMoreActions": "Altre azioni",
+  "@imgMoreActions": {},
+  "imgBringToFront": "In primo piano",
+  "@imgBringToFront": {},
+  "imgSendToBack": "Dietro a tutto",
+  "@imgSendToBack": {},
+  "imgComment": "Commento",
+  "@imgComment": {},
+  "imgFlipHChecked": "Rifletti H ✓",
+  "@imgFlipHChecked": {},
+  "imgFlipH": "Rifletti H",
+  "@imgFlipH": {},
+  "imgCut": "Taglia",
+  "@imgCut": {},
+  "syncOkTooltip": "Sincronizzato",
+  "@syncOkTooltip": {},
+  "syncPendingTooltip": "In sincronia…",
+  "@syncPendingTooltip": {},
+  "syncOfflineTooltip": "Offline",
+  "@syncOfflineTooltip": {},
+  "syncConflictTooltip": "Conflitto",
+  "@syncConflictTooltip": {},
+  "confDecideLater": "Decidi più tardi",
+  "@confDecideLater": {},
+  "confTitlePageDeletedElsewhere": "Pagina {pageNumber} eliminata altrove",
+  "@confTitlePageDeletedElsewhere": {
+    "placeholders": {
+      "pageNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "confTitleConflictPage": "Conflitto — Pagina {pageNumber}",
+  "@confTitleConflictPage": {
+    "placeholders": {
+      "pageNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "confDeletionExplainer": "Hai modificato questa pagina, ma un altro dispositivo l'ha eliminata. Vuoi mantenerla o eliminarla?",
+  "@confDeletionExplainer": {},
+  "confKeepPage": "Mantieni la pagina",
+  "@confKeepPage": {},
+  "confLocalYours": "Locale (tuo)",
+  "@confLocalYours": {},
+  "confRemoteOtherDevice": "Remoto (altro dispositivo)",
+  "@confRemoteOtherDevice": {},
+  "confKeepAllLocal": "Tieni tutti locali",
+  "@confKeepAllLocal": {},
+  "confAcceptAllRemote": "Accetta tutti remoti",
+  "@confAcceptAllRemote": {},
+  "confProgressIndicator": "{current} / {total}  ({decided, plural, one{{decided} deciso} other{{decided} decisi}})",
+  "@confProgressIndicator": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "decided": {
+        "type": "num"
+      }
+    }
+  },
+  "confApplyChoices": "Applica scelte",
+  "@confApplyChoices": {},
+  "confDecidedProgress": "{decided}/{total} {total, plural, one{deciso} other{decisi}}",
+  "@confDecidedProgress": {
+    "placeholders": {
+      "decided": {
+        "type": "int"
+      },
+      "total": {
+        "type": "num"
+      }
+    }
+  },
+  "confJumpToConflict": "Vai al conflitto",
+  "@confJumpToConflict": {},
+  "confJumpDecidedCount": "{decided}/{total} decisi",
+  "@confJumpDecidedCount": {
+    "placeholders": {
+      "decided": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "confJumpItemPage": "Pag. {pageNumber}",
+  "@confJumpItemPage": {
+    "placeholders": {
+      "pageNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "confJumpItemPageWithChapter": "Pag. {pageNumber} — {chapterName}",
+  "@confJumpItemPageWithChapter": {
+    "placeholders": {
+      "pageNumber": {
+        "type": "int"
+      },
+      "chapterName": {
+        "type": "String"
+      }
+    }
+  },
+  "confDismissDialogTitle": "Annullare?",
+  "@confDismissDialogTitle": {},
+  "confDismissDialogBody": "Le scelte non applicate verranno perse. La versione locale verrà mantenuta.",
+  "@confDismissDialogBody": {},
+  "confContinue": "Continua",
+  "@confContinue": {},
+  "confCancel": "Annulla",
+  "@confCancel": {},
+  "confModifiedJustNow": "Adesso",
+  "@confModifiedJustNow": {},
+  "confModifiedMinutesAgo": "{minutes} min fa",
+  "@confModifiedMinutesAgo": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "confModifiedHoursAgo": "{hours, plural, one{{hours} ora fa} other{{hours} ore fa}}",
+  "@confModifiedHoursAgo": {
+    "placeholders": {
+      "hours": {
+        "type": "num"
+      }
+    }
+  },
+  "confDeletePage": "Elimina la pagina",
+  "@confDeletePage": {},
+  "confAsOnOtherDevice": "Come sull'altro dispositivo",
+  "@confAsOnOtherDevice": {},
+  "symNewLibraryTitle": "Nuova libreria",
+  "@symNewLibraryTitle": {},
+  "symNewLibraryHint": "Inserisci il nome della libreria",
+  "@symNewLibraryHint": {},
+  "symRenameLibraryTitle": "Rinomina libreria",
+  "@symRenameLibraryTitle": {},
+  "symNewNameHint": "Nuovo nome",
+  "@symNewNameHint": {},
+  "symDeleteLibraryTitle": "Elimina libreria",
+  "@symDeleteLibraryTitle": {},
+  "symDeleteLibraryConfirm": "Elimina \"{name}\" e tutti i suoi simboli?",
+  "@symDeleteLibraryConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "symCancel": "Annulla",
+  "@symCancel": {},
+  "symDelete": "Elimina",
+  "@symDelete": {},
+  "symRenameSymbolTitle": "Rinomina simbolo",
+  "@symRenameSymbolTitle": {},
+  "symPanelTitle": "Librerie simboli",
+  "@symPanelTitle": {},
+  "symNoLibraries": "Nessuna libreria",
+  "@symNoLibraries": {},
+  "symNew": "Nuova",
+  "@symNew": {},
+  "symSelectLibrary": "Seleziona una libreria",
+  "@symSelectLibrary": {},
+  "symNoSymbolsHint": "Nessun simbolo\nSeleziona elementi con il lazo e premi ✚",
+  "@symNoSymbolsHint": {},
+  "symLassoSaveHint": "Seleziona elementi con il lazo → ✚ per salvare nella libreria attiva",
+  "@symLassoSaveHint": {},
+  "symRename": "Rinomina",
+  "@symRename": {},
+  "symInsert": "Inserisci",
+  "@symInsert": {},
+  "symOk": "OK",
+  "@symOk": {},
+  "rcbBannerTitle": "Modifiche da un altro dispositivo",
+  "@rcbBannerTitle": {},
+  "rcbSeeDetails": "Vedi dettagli",
+  "@rcbSeeDetails": {},
+  "rcbDismiss": "Ignora",
+  "@rcbDismiss": {},
+  "rcbIncomingChanges": "Modifiche in arrivo",
+  "@rcbIncomingChanges": {},
+  "rcbTapPageHint": "Tocca una pagina per applicare e andare lì",
+  "@rcbTapPageHint": {},
+  "rcbNewImagesCount": "{count, plural, one{1 nuova immagine} other{{count} nuove immagini}}",
+  "@rcbNewImagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "rcbKeepMine": "Mantieni i miei",
+  "@rcbKeepMine": {},
+  "rcbApplyAll": "Applica tutto",
+  "@rcbApplyAll": {},
+  "rcbBadgeNew": "NUOVA",
+  "@rcbBadgeNew": {},
+  "rcbBadgeModified": "MODIFICATA",
+  "@rcbBadgeModified": {},
+  "rcbPageTitle": "Pagina {pageNumber}",
+  "@rcbPageTitle": {
+    "placeholders": {
+      "pageNumber": {
+        "type": "int"
+      }
+    }
+  },
+  "rcbContentUpdated": "Contenuto aggiornato",
+  "@rcbContentUpdated": {},
+  "rcbSummaryModifiedPages": "{count, plural, one{{count} pag. modificata} other{{count} pag. modificate}}",
+  "@rcbSummaryModifiedPages": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "rcbSummaryNewPages": "{count, plural, one{{count} nuova} other{{count} nuove}}",
+  "@rcbSummaryNewPages": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "rcbSummaryImages": "{count, plural, one{{count} immagine} other{{count} immagini}}",
+  "@rcbSummaryImages": {
+    "placeholders": {
+      "count": {
+        "type": "num"
+      }
+    }
+  },
+  "rcbChangesDetected": "Cambiamenti rilevati",
+  "@rcbChangesDetected": {},
+  "nbUntitled": "Senza titolo",
+  "@nbUntitled": {},
+  "nbDefaultChapterTitle": "Capitolo 1",
+  "@nbDefaultChapterTitle": {},
+  "nbOpeningNotebook": "Apertura taccuino…",
+  "@nbOpeningNotebook": {},
+  "nbNoLocalCopyOffline": "Nessuna copia locale di questo taccuino, e non sei connesso a un server per scaricarlo.",
+  "@nbNoLocalCopyOffline": {},
+  "nbOpenFailed": "Impossibile aprire: {error}",
+  "@nbOpenFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "nbSortModifiedDesc": "Modificati (più recenti)",
+  "@nbSortModifiedDesc": {},
+  "nbSortModifiedAsc": "Modificati (meno recenti)",
+  "@nbSortModifiedAsc": {},
+  "nbSortTitleAsc": "Titolo A→Z",
+  "@nbSortTitleAsc": {},
+  "nbSortTitleDesc": "Titolo Z→A",
+  "@nbSortTitleDesc": {},
+  "nbSortCreatedDesc": "Creati (più recenti)",
+  "@nbSortCreatedDesc": {},
+  "nbSortCreatedAsc": "Creati (meno recenti)",
+  "@nbSortCreatedAsc": {},
+  "nbSortColorGroup": "Colore copertina",
+  "@nbSortColorGroup": {},
+  "cvFormatTooNew": "Questo taccuino usa un formato più recente (v{fileVersion}, supportato: v{supportedVersion}). Aggiorna AbelNotes per aprirlo.",
+  "@cvFormatTooNew": {
+    "placeholders": {
+      "fileVersion": {
+        "type": "int"
+      },
+      "supportedVersion": {
+        "type": "int"
+      }
+    }
+  },
+  "setLanguageSystem": "Sistema",
+  "@setLanguageSystem": {},
+  "setLanguageEnglish": "English",
+  "@setLanguageEnglish": {},
+  "setLanguageSpanish": "Español",
+  "@setLanguageSpanish": {},
+  "onbAppName": "AbelNotes",
+  "@onbAppName": {},
+  "setAboutAppName": "AbelNotes",
+  "@setAboutAppName": {},
+  "chromeLabelHighlighter": "Evidenziatore",
+  "@chromeLabelHighlighter": {},
+  "chromeLabelLaser": "Laser",
+  "@chromeLabelLaser": {},
+  "importSourceTitle": "Importa nella libreria",
+  "@importSourceTitle": {},
+  "importSourceNcnote": "Taccuino .ncnote",
+  "@importSourceNcnote": {},
+  "importSourceObsidian": "Vault Obsidian",
+  "@importSourceObsidian": {},
+  "importSourceObsidianHint": "Cartella con file Markdown",
+  "@importSourceObsidianHint": {},
+  "importSourceNotion": "Export Notion",
+  "@importSourceNotion": {},
+  "importSourceNotionHint": "File .zip (Markdown e CSV)",
+  "@importSourceNotionHint": {},
+  "importPhaseScanning": "Analisi sorgente…",
+  "@importPhaseScanning": {},
+  "importPhaseParsing": "Lettura file {current} di {total}",
+  "@importPhaseParsing": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "importPhasePaginating": "Impaginazione capitolo {current} di {total}",
+  "@importPhasePaginating": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "importPhasePackaging": "Creazione taccuino…",
+  "@importPhasePackaging": {},
+  "importCancel": "Annulla",
+  "@importCancel": {},
+  "importCancelled": "Importazione annullata",
+  "@importCancelled": {},
+  "importReportTitle": "{count} avvisi durante l'import",
+  "@importReportTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "importReportCopy": "Copia",
+  "@importReportCopy": {},
+  "importReportClose": "Chiudi",
+  "@importReportClose": {},
+  "importSourceOneNote": "File OneNote",
+  "@importSourceOneNote": {},
+  "importSourceOneNoteHint": "Sezione .one o taccuino .onetoc2",
+  "@importSourceOneNoteHint": {},
+  "setOpenSourceLicenses": "Licenze open source",
+  "@setOpenSourceLicenses": {},
+  "setOpenSourceLicensesSub": "Componenti di terze parti inclusi nell'app",
+  "@setOpenSourceLicensesSub": {},
+  "csBackToContent": "Torna al contenuto",
+  "@csBackToContent": {}
+}
