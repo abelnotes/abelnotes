@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/config/app_config.dart';
@@ -554,10 +555,16 @@ class _GeneralSection extends ConsumerWidget {
   }
 }
 
-class _InputSection extends StatelessWidget {
+class _InputSection extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final override = ref.watch(
+        appSettingsProvider.select((s) => s.stylusOnlyDrawing));
+    final stylusOnly = override ??
+        (!kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.iOS ||
+                defaultTargetPlatform == TargetPlatform.android));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -565,7 +572,11 @@ class _InputSection extends StatelessWidget {
         _Row(
             title: l10n.setStylusOnly,
             sub: l10n.setStylusOnlySub,
-            control: HwSwitch(value: true, onChanged: (_) {})),
+            control: HwSwitch(
+                value: stylusOnly,
+                onChanged: (v) => ref
+                    .read(appSettingsProvider.notifier)
+                    .setStylusOnlyDrawing(v))),
         _Row(
             title: l10n.setPalmRejection,
             sub: l10n.setPalmRejectionSub,

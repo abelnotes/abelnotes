@@ -125,6 +125,12 @@ class AppSettings {
   /// the pen/touch draw. Toggled from the editor's top-right control.
   final bool mouseDraws;
 
+  /// Whether touch (finger) input is ignored for drawing tools, treating it
+  /// as pan/scroll instead — only stylus/pen draws. Null means "follow the
+  /// platform default" (on: Android/iOS, off: desktop/web); non-null is an
+  /// explicit user override from Settings → Stylus & Input.
+  final bool? stylusOnlyDrawing;
+
   /// Whether the bottom page-strip (chapter label + page thumbnails) is
   /// shown. Defaults to true; the user can collapse it via its own
   /// chevron to reclaim canvas height, and bring it back with the thin
@@ -150,6 +156,7 @@ class AppSettings {
     this.toolPresets = const {},
     this.toolDock = const ToolDockConfig(),
     this.mouseDraws = false,
+    this.stylusOnlyDrawing,
     this.showPageStrip = true,
     this.localeCode = 'system',
   });
@@ -172,6 +179,7 @@ class AppSettings {
     Map<String, List<PenPreset?>>? toolPresets,
     ToolDockConfig? toolDock,
     bool? mouseDraws,
+    bool? stylusOnlyDrawing,
     bool? showPageStrip,
     String? localeCode,
   }) =>
@@ -186,6 +194,7 @@ class AppSettings {
         toolPresets: toolPresets ?? this.toolPresets,
         toolDock: toolDock ?? this.toolDock,
         mouseDraws: mouseDraws ?? this.mouseDraws,
+        stylusOnlyDrawing: stylusOnlyDrawing ?? this.stylusOnlyDrawing,
         showPageStrip: showPageStrip ?? this.showPageStrip,
         localeCode: localeCode ?? this.localeCode,
       );
@@ -259,6 +268,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         toolPresets: toolPresets,
         toolDock: dock,
         mouseDraws: map['mouse_draws'] as bool? ?? false,
+        stylusOnlyDrawing: map['stylus_only_drawing'] as bool?,
         showPageStrip: map['show_page_strip'] as bool? ?? true,
         localeCode: map['locale'] as String? ?? 'system',
       );
@@ -281,6 +291,8 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
             toolName, list.map((p) => p?.toJson()).toList(growable: false))),
         'dock': state.toolDock.toJson(),
         'mouse_draws': state.mouseDraws,
+        if (state.stylusOnlyDrawing != null)
+          'stylus_only_drawing': state.stylusOnlyDrawing,
         'show_page_strip': state.showPageStrip,
         'locale': state.localeCode,
       }));
@@ -345,6 +357,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setMouseDraws(bool v) {
     state = state.copyWith(mouseDraws: v);
+    _persist();
+  }
+
+  void setStylusOnlyDrawing(bool v) {
+    state = state.copyWith(stylusOnlyDrawing: v);
     _persist();
   }
 

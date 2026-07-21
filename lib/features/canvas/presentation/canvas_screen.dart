@@ -81,7 +81,6 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   bool _isSaving = false;
   Future<void>? _saveInFlight;
   bool _closing = false;
-  late bool _stylusOnlyDrawing;
   bool _isTouchPanning = false;
 
   // Pinch-to-zoom state
@@ -773,9 +772,6 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   @override
   void initState() {
     super.initState();
-    _stylusOnlyDrawing = !kIsWeb &&
-        (defaultTargetPlatform == TargetPlatform.iOS ||
-         defaultTargetPlatform == TargetPlatform.android);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addObserver(this);
     _startAutoSave();
@@ -1999,8 +1995,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         tool == CanvasTool.laser;
   }
 
+  /// Whether touch should be treated as pan-only (true) or as a drawing
+  /// device on par with the stylus (false). Follows the user's explicit
+  /// Settings → Stylus & Input override when set, else the platform
+  /// default (on for Android/iOS, off for desktop/web).
+  bool _effectiveStylusOnly() {
+    final override = ref.read(appSettingsProvider).stylusOnlyDrawing;
+    return override ??
+        (!kIsWeb &&
+            (defaultTargetPlatform == TargetPlatform.iOS ||
+                defaultTargetPlatform == TargetPlatform.android));
+  }
+
   bool _shouldTouchPan(PointerDeviceKind kind, CanvasTool tool) {
-    return _stylusOnlyDrawing && kind == PointerDeviceKind.touch && _isDrawLikeTool(tool);
+    return _effectiveStylusOnly() && kind == PointerDeviceKind.touch && _isDrawLikeTool(tool);
   }
 
   void _onPointerDown(PointerDownEvent event, CanvasState state, Size canvasSize) {
@@ -2412,7 +2420,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // For non-draw tools: all input devices can interact.
     if (state.selectedElementId != null) {
       final isPenLikeDevice = event.kind == PointerDeviceKind.stylus ||
-          (event.kind == PointerDeviceKind.mouse && event.pressure > 0);
+          (event.kind == PointerDeviceKind.mouse && event.pressure > 0) ||
+          (event.kind == PointerDeviceKind.touch && !_effectiveStylusOnly());
       if (_isDrawLikeTool(tool) && isPenLikeDevice) {
         // Stylus/tablet pen in draw mode: deselect image and proceed to draw
         ref.read(canvasProvider.notifier).deselectElement();
