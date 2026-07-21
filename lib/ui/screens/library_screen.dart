@@ -1440,19 +1440,24 @@ class _Body extends StatelessWidget {
               builder: (ctx, constraints) {
                 // Adapt cover-tile sizing to the available width so the
                 // grid doesn't stay locked to tablet proportions on phones
-                // or waste space on very wide desktops.
+                // or waste space on very wide desktops. mainExtent is
+                // derived from maxExtent via the cover's aspect ratio plus
+                // the text block below it, so the cover height always
+                // tracks its actual width instead of the two drifting
+                // apart on narrow screens (which read as the cover being
+                // stretched tall and clipping into the row below).
                 final width = constraints.crossAxisExtent;
-                final double maxExtent, mainExtent;
+                final double maxExtent;
                 if (width < 480) {
                   maxExtent = 160;
-                  mainExtent = 260;
                 } else if (width > 1100) {
                   maxExtent = 280;
-                  mainExtent = 340;
                 } else {
                   maxExtent = 232;
-                  mainExtent = 320;
                 }
+                final mainExtent =
+                    _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
+                        _CoverTile.textBlockHeight;
                 return SliverGrid(
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: maxExtent,
@@ -1698,41 +1703,47 @@ class _NewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 200,
-          height: 260,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(4),
-                bottomLeft: Radius.circular(4),
-                topRight: Radius.circular(10),
-                bottomRight: Radius.circular(10),
-              ),
-              child: DottedBorderBox(
-                color: p.paperEdge,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    HwIcon('plus', size: 28, color: p.ink2),
-                    const SizedBox(height: 8),
-                    Text(AppLocalizations.of(context).libNew,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: p.ink2,
-                            fontWeight: FontWeight.w500)),
-                  ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = _CoverTile.coverWidthFor(constraints.maxWidth);
+        final height = width / _CoverTile.aspectRatio;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: width,
+              height: height,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onTap,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(4),
+                    bottomLeft: Radius.circular(4),
+                    topRight: Radius.circular(10),
+                    bottomRight: Radius.circular(10),
+                  ),
+                  child: DottedBorderBox(
+                    color: p.paperEdge,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        HwIcon('plus', size: 28, color: p.ink2),
+                        const SizedBox(height: 8),
+                        Text(AppLocalizations.of(context).libNew,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: p.ink2,
+                                fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1794,114 +1805,137 @@ class _CoverTile extends StatelessWidget {
     required this.onToggleFavorite,
   });
 
+  // Design proportions of the cover art itself (width / height). The grid's
+  // mainAxisExtent is derived from this so cover height always tracks
+  // whatever width the grid actually hands the tile, on any screen size.
+  static const double aspectRatio = 200 / 260;
+  // The cover never grows past its original design size — on wide
+  // desktop columns it just stays 200 wide with room to spare, rather
+  // than blowing up to fill the whole cell. On narrow phone columns it
+  // shrinks below this, which is the case the aspect ratio above exists
+  // to handle cleanly.
+  static const double designMaxWidth = 200;
+  // Space below the cover reserved for title + meta row, incl. the 12px
+  // gap between cover and text. Keep in sync with the text block below.
+  static const double textBlockHeight = 56;
+
+  static double coverWidthFor(double cellWidth) =>
+      cellWidth < designMaxWidth ? cellWidth : designMaxWidth;
+
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Star overlay sits ABOVE the cover via Stack so its tap can be
-        // intercepted before NotebookCover's onTap fires (the cover-wide
-        // InkWell would otherwise swallow it). One-tap favorite was a
-        // three-tap action via the long-press sheet pre-fix.
-        SizedBox(
-          width: 200,
-          height: 260,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onLongPress: onLongPress,
-                  // Desktop affordance: right click opens the same actions
-                  // menu as long-press.
-                  onSecondaryTap: onLongPress,
-                  behavior: HitTestBehavior.translucent,
-                  child: NotebookCover(
-                    color: Color(entry.metadata.coverColor),
-                    title: entry.metadata.title,
-                    // Hide the cover's built-in star — we render our own
-                    // tappable one above.
-                    favorite: false,
-                    texture: _textureFor(entry.metadata.paperType),
-                    width: 200,
-                    height: 260,
-                    onTap: onTap,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final coverWidth = coverWidthFor(constraints.maxWidth);
+        final coverHeight = coverWidth / aspectRatio;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Star overlay sits ABOVE the cover via Stack so its tap can be
+            // intercepted before NotebookCover's onTap fires (the cover-wide
+            // InkWell would otherwise swallow it). One-tap favorite was a
+            // three-tap action via the long-press sheet pre-fix.
+            SizedBox(
+              width: coverWidth,
+              height: coverHeight,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onLongPress: onLongPress,
+                      // Desktop affordance: right click opens the same actions
+                      // menu as long-press.
+                      onSecondaryTap: onLongPress,
+                      behavior: HitTestBehavior.translucent,
+                      child: NotebookCover(
+                        color: Color(entry.metadata.coverColor),
+                        title: entry.metadata.title,
+                        // Hide the cover's built-in star — we render our own
+                        // tappable one above.
+                        favorite: false,
+                        texture: _textureFor(entry.metadata.paperType),
+                        width: coverWidth,
+                        height: coverHeight,
+                        onTap: onTap,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Positioned(
-                top: 6,
-                right: 6,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onToggleFavorite,
-                    customBorder: const CircleBorder(),
-                    child: Tooltip(
-                      message: favorite
-                          ? AppLocalizations.of(context).libRemoveFromFavorites
-                          : AppLocalizations.of(context).libAddToFavorites,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: HwIcon(
-                          favorite ? 'star-filled' : 'star',
-                          size: 18,
-                          color: favorite
-                              ? HwTheme.favoriteGold
-                              : p.paper0.withValues(alpha: 0.80),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onToggleFavorite,
+                        customBorder: const CircleBorder(),
+                        child: Tooltip(
+                          message: favorite
+                              ? AppLocalizations.of(context).libRemoveFromFavorites
+                              : AppLocalizations.of(context).libAddToFavorites,
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: HwIcon(
+                              favorite ? 'star-filled' : 'star',
+                              size: 18,
+                              color: favorite
+                                  ? HwTheme.favoriteGold
+                                  : p.paper0.withValues(alpha: 0.80),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: 200,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(entry.metadata.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: p.ink0,
-                    )),
-                const SizedBox(height: 2),
-                Row(
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: coverWidth,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                        AppLocalizations.of(context)
-                            .libPagesAbbrev(entry.metadata.pageCount),
-                        style: TextStyle(fontSize: 12, color: p.ink2)),
-                    Text(' · ',
-                        style: TextStyle(fontSize: 12, color: p.ink3)),
-                    Expanded(
-                      child: Text(
-                        _relativeTime(AppLocalizations.of(context),
-                            entry.metadata.modifiedAt),
+                    Text(entry.metadata.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: p.ink2),
-                      ),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: p.ink0,
+                        )),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                            AppLocalizations.of(context)
+                                .libPagesAbbrev(entry.metadata.pageCount),
+                            style: TextStyle(fontSize: 12, color: p.ink2)),
+                        Text(' · ',
+                            style: TextStyle(fontSize: 12, color: p.ink3)),
+                        Expanded(
+                          child: Text(
+                            _relativeTime(AppLocalizations.of(context),
+                                entry.metadata.modifiedAt),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: p.ink2),
+                          ),
+                        ),
+                        SyncBadge(state: _syncStateOf(entry)),
+                      ],
                     ),
-                    SyncBadge(state: _syncStateOf(entry)),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
