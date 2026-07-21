@@ -418,6 +418,8 @@
   "chromeUnsaved": "Sin guardar",
   "chromeMouseDrawsTooltip": "Ratón: dibuja — toca para usarlo como selección",
   "chromeMouseSelectsTooltip": "Ratón: selección — toca para dibujar con el ratón",
+  "chromeTouchDrawsTooltip": "Dedo: dibuja — toca para usarlo para desplazar",
+  "chromeTouchPansTooltip": "Dedo: desplaza — toca para dibujar con el dedo",
   "chromeUndo": "Deshacer",
   "chromeRedo": "Rehacer",
   "chromeAllPages": "Todas las páginas",

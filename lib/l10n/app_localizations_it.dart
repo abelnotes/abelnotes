@@ -1567,6 +1567,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'Mouse: selezione — tocca per disegnare col mouse';
 
   @override
+  String get chromeTouchDrawsTooltip =>
+      'Dito: disegna — tocca per usarlo per navigare';
+
+  @override
+  String get chromeTouchPansTooltip =>
+      'Dito: naviga — tocca per disegnare col dito';
+
+  @override
   String get chromeUndo => 'Annulla';
 
   @override

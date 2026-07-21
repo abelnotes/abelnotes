@@ -1562,6 +1562,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Mouse: selection — tap to draw with the mouse';
 
   @override
+  String get chromeTouchDrawsTooltip =>
+      'Finger: draws — tap to use it for panning';
+
+  @override
+  String get chromeTouchPansTooltip =>
+      'Finger: pans — tap to draw with your finger';
+
+  @override
   String get chromeUndo => 'Undo';
 
   @override

@@ -31,8 +31,15 @@ class HwEditorTopBar extends StatelessWidget {
   final VoidCallback? onExportTap;
   final VoidCallback? onMoreTap;
   /// Mouse mode: true = mouse draws like a pen; false = mouse selects.
+  /// Desktop/web only — mutually exclusive with [onToggleTouchDraws] below.
   final bool mouseDraws;
   final VoidCallback? onToggleMouseMode;
+  /// Touch mode on phone/tablet: true = finger draws like a pen; false =
+  /// finger pans/navigates (stylus still draws either way). Mutually
+  /// exclusive with [onToggleMouseMode] — only one of the two toggles is
+  /// ever wired up by the caller, matching the current platform.
+  final bool touchDraws;
+  final VoidCallback? onToggleTouchDraws;
   /// Show the page-count indicator + "all pages" button. False for the
   /// infinite scratch canvas, which has no A4 pages to navigate.
   final bool showPages;
@@ -58,6 +65,8 @@ class HwEditorTopBar extends StatelessWidget {
     this.showPages = true,
     this.mouseDraws = false,
     this.onToggleMouseMode,
+    this.touchDraws = false,
+    this.onToggleTouchDraws,
   });
 
   @override
@@ -159,6 +168,18 @@ class HwEditorTopBar extends StatelessWidget {
                     ? l10n.chromeMouseDrawsTooltip
                     : l10n.chromeMouseSelectsTooltip,
                 onPressed: onToggleMouseMode,
+              ),
+            // Touch mode toggle (phone/tablet): draw with a finger vs pan.
+            // 'hand' mirrors the pan tool's own icon (finger navigates);
+            // 'pen' mirrors the draw tools' icon (finger draws).
+            if (onToggleTouchDraws != null)
+              HwButton.icon(
+                icon: HwIcon(touchDraws ? 'pen' : 'hand', size: 16,
+                    color: touchDraws ? p.accentDeep : null),
+                tooltip: touchDraws
+                    ? l10n.chromeTouchDrawsTooltip
+                    : l10n.chromeTouchPansTooltip,
+                onPressed: onToggleTouchDraws,
               ),
             // Always-visible essentials
             HwButton.icon(

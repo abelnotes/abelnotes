@@ -1567,6 +1567,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Ratón: selección — toca para dibujar con el ratón';
 
   @override
+  String get chromeTouchDrawsTooltip =>
+      'Dedo: dibuja — toca para usarlo para desplazar';
+
+  @override
+  String get chromeTouchPansTooltip =>
+      'Dedo: desplaza — toca para dibujar con el dedo';
+
+  @override
   String get chromeUndo => 'Deshacer';
 
   @override

@@ -1995,16 +1995,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         tool == CanvasTool.laser;
   }
 
+  /// True on a touch-primary platform (no mouse to speak of) — gates
+  /// whether the top bar shows the mouse-mode toggle or the touch-mode one,
+  /// and is the platform-default fallback for [_effectiveStylusOnly].
+  bool get _isMobilePlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.android);
+
   /// Whether touch should be treated as pan-only (true) or as a drawing
   /// device on par with the stylus (false). Follows the user's explicit
   /// Settings → Stylus & Input override when set, else the platform
   /// default (on for Android/iOS, off for desktop/web).
   bool _effectiveStylusOnly() {
     final override = ref.read(appSettingsProvider).stylusOnlyDrawing;
-    return override ??
-        (!kIsWeb &&
-            (defaultTargetPlatform == TargetPlatform.iOS ||
-                defaultTargetPlatform == TargetPlatform.android));
+    return override ?? _isMobilePlatform;
   }
 
   bool _shouldTouchPan(PointerDeviceKind kind, CanvasTool tool) {
@@ -4305,9 +4310,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onExportTap: () => _showExportSheet(),
                     onMoreTap: () => _showMoreSheet(canvasState),
                     mouseDraws: mouseDraws,
-                    onToggleMouseMode: () => ref
-                        .read(appSettingsProvider.notifier)
-                        .setMouseDraws(!mouseDraws),
+                    // No mouse ever shows up on a touch-only phone/tablet —
+                    // swap the mouse toggle for a finger-draws-vs-pans one
+                    // instead of showing a control that does nothing there.
+                    onToggleMouseMode: _isMobilePlatform
+                        ? null
+                        : () => ref
+                            .read(appSettingsProvider.notifier)
+                            .setMouseDraws(!mouseDraws),
+                    touchDraws: !_effectiveStylusOnly(),
+                    onToggleTouchDraws: _isMobilePlatform
+                        ? () => ref
+                            .read(appSettingsProvider.notifier)
+                            .setStylusOnlyDrawing(!_effectiveStylusOnly())
+                        : null,
                       );
                     },
                   ),

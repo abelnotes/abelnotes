@@ -2608,6 +2608,18 @@ abstract class AppLocalizations {
   /// **'Mouse: selezione — tocca per disegnare col mouse'**
   String get chromeMouseSelectsTooltip;
 
+  /// No description provided for @chromeTouchDrawsTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Dito: disegna — tocca per usarlo per navigare'**
+  String get chromeTouchDrawsTooltip;
+
+  /// No description provided for @chromeTouchPansTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Dito: naviga — tocca per disegnare col dito'**
+  String get chromeTouchPansTooltip;
+
   /// No description provided for @chromeUndo.
   ///
   /// In it, this message translates to:

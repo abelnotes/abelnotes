@@ -418,6 +418,8 @@
   "chromeUnsaved": "Unsaved",
   "chromeMouseDrawsTooltip": "Mouse: draws — tap to use it for selection",
   "chromeMouseSelectsTooltip": "Mouse: selection — tap to draw with the mouse",
+  "chromeTouchDrawsTooltip": "Finger: draws — tap to use it for panning",
+  "chromeTouchPansTooltip": "Finger: pans — tap to draw with your finger",
   "chromeUndo": "Undo",
   "chromeRedo": "Redo",
   "chromeAllPages": "All pages",
