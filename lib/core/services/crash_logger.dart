@@ -14,7 +14,8 @@ import 'package:path_provider/path_provider.dart';
 ///   - platform-dispatcher errors (`PlatformDispatcher.onError`)
 ///   - zone-level async errors (via `runZonedGuarded` wrapper in `main.dart`)
 ///
-/// The log is append-only to `<documents>/handwriter_crash.log`, rotated
+/// The log is append-only to `<documents>/AbelNotes/abelnotes_crash.log`
+/// (migrated once from the old `<documents>/handwriter_crash.log`), rotated
 /// when it grows past [_maxBytes] so it doesn't balloon over time. The
 /// library UI exposes a button that reads this file and copies it to the
 /// clipboard so the user can forward it without Xcode / a Mac.
@@ -47,8 +48,25 @@ class CrashLogger {
   static Future<void> init() async {
     if (_initialised) return;
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      _logFile = File('${dir.path}/handwriter_crash.log');
+      final docs = await getApplicationDocumentsDirectory();
+      // Keep the log inside the app's own folder (not the Documents root) and
+      // under the current product name. Runs before FileService.init, so
+      // create the dir here rather than assume it exists.
+      final appDir = Directory('${docs.path}/${AppConfig.appDirName}');
+      if (!await appDir.exists()) {
+        await appDir.create(recursive: true);
+      }
+      _logFile = File('${appDir.path}/abelnotes_crash.log');
+      // One-time migration off the old HandWriter-era root path so existing
+      // installs keep their history and the Documents root gets cleaned up.
+      final legacy = File('${docs.path}/handwriter_crash.log');
+      if (await legacy.exists() && !await _logFile!.exists()) {
+        try {
+          await legacy.rename(_logFile!.path);
+        } catch (_) {
+          // Cross-device or locked → leave the old file; a fresh log starts.
+        }
+      }
       _initialised = true;
       await _rotateIfTooBig();
       await append(
