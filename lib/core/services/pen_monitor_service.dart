@@ -42,10 +42,33 @@ class PenMonitorException implements Exception {
 }
 
 class PenMonitorService {
-  /// Pen-to-monitor mapping relies on X11 tooling (xrandr / xinput); only
-  /// offer it on Linux. On Wayland these commands simply fail and the UI
-  /// surfaces the error.
-  static bool get isSupported => Platform.isLinux;
+  /// Whether to offer the pen-to-monitor feature at all. It relies on X11
+  /// tooling (xrandr / xinput), so it is gated on a real X11 session: on
+  /// Wayland the tablet→output mapping is a compositor privilege with no
+  /// portable API and xinput cannot reach the device, so offering it there
+  /// only produces a cryptic "xrandr not found". Hidden on Wayland, macOS
+  /// and Windows; visible (and working) on an Xorg session.
+  static bool get isSupported => isX11;
+
+  /// True only on a genuine X11 (Xorg) session, where xinput controls the
+  /// input devices. False on Wayland — including via Xwayland, where mapping
+  /// the pen through the X server does not affect the real Wayland device —
+  /// and on non-Linux platforms.
+  static bool get isX11 {
+    if (!Platform.isLinux) return false;
+    final env = Platform.environment;
+    switch (env['XDG_SESSION_TYPE']?.toLowerCase()) {
+      case 'x11':
+        return true;
+      case 'wayland':
+        return false;
+    }
+    // XDG_SESSION_TYPE unset on some setups: infer from the sockets — an X
+    // DISPLAY present with no Wayland socket means a plain Xorg session.
+    final hasWayland = (env['WAYLAND_DISPLAY'] ?? '').isNotEmpty;
+    final hasDisplay = (env['DISPLAY'] ?? '').isNotEmpty;
+    return hasDisplay && !hasWayland;
+  }
 
   // e.g. "HDMI-1 connected primary 1920x1080+0+0 (normal ...) 509mm x 286mm"
   //      "DP-2 connected 2560x1440+1920+0 ..."

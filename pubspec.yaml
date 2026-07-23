@@ -1,6 +1,6 @@
 name: abelnotes
 description: Handwritten notes with LaTeX, PDF annotation, and WebDAV sync to your own server.
-version: 0.37.1+40
+version: 0.37.2+41
 publish_to: 'none'
 
 environment:

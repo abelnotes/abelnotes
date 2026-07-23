@@ -1,0 +1,5 @@
+# flatpak-builder artifacts — never commit these. Prefer building outside the
+# source tree (see ../README.md), but ignore them here in case you don't.
+build-dir/
+.flatpak-builder/
+repo/

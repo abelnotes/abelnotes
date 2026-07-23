@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.abelnotes.notes</id>
+
+  <name>AbelNotes</name>
+  <summary>Handwritten notes with LaTeX, PDF annotation and self-hosted sync</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+
+  <developer id="app.abelnotes">
+    <name>AbelNotes</name>
+  </developer>
+
+  <description>
+    <p>
+      AbelNotes is a handwriting-first note-taking app for pen and touch. Write,
+      draw and annotate, then keep everything on a server you control.
+    </p>
+    <ul>
+      <li>Natural pen input with pressure and tilt; palm rejection for stylus users.</li>
+      <li>Import and annotate PDFs, with text selection and search.</li>
+      <li>LaTeX math elements (paste $$…$$ or \[…\]) and geometric shape recognition.</li>
+      <li>Sync notebooks to your own Nextcloud or any generic WebDAV server — no cloud lock-in.</li>
+      <li>Import from OneNote, Obsidian and Notion exports.</li>
+    </ul>
+    <p>
+      Free and open source (AGPL-3.0). No accounts, no ads, no tracking — your notes
+      stay on your hardware.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">app.abelnotes.notes.desktop</launchable>
+
+  <url type="homepage">https://abelnotes.app</url>
+  <url type="bugtracker">https://github.com/abelnotes/abelnotes/issues</url>
+  <url type="vcs-browser">https://github.com/abelnotes/abelnotes</url>
+
+  <categories>
+    <category>Office</category>
+    <category>Graphics</category>
+  </categories>
+
+  <keywords>
+    <keyword>handwriting</keyword>
+    <keyword>notes</keyword>
+    <keyword>stylus</keyword>
+    <keyword>PDF</keyword>
+    <keyword>LaTeX</keyword>
+    <keyword>Nextcloud</keyword>
+    <keyword>WebDAV</keyword>
+  </keywords>
+
+  <recommends>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+  </recommends>
+
+  <!-- Screenshots must be reachable over HTTPS at review time: the PNGs under
+       assets/screenshots/ must be pushed to the PUBLIC repo before the Flathub
+       PR (finished assets, OK public). Pin the URL to a release tag once cut. -->
+  <screenshots>
+    <screenshot type="default">
+      <caption>Handwriting and math on grid paper</caption>
+      <image>https://raw.githubusercontent.com/abelnotes/abelnotes/v0.37.2/assets/screenshots/canvas.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Your notebook library, synced over WebDAV</caption>
+      <image>https://raw.githubusercontent.com/abelnotes/abelnotes/v0.37.2/assets/screenshots/library.png</image>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1" />
+
+  <!-- Update on every release. `date` is the release date (YYYY-MM-DD). -->
+  <releases>
+    <release version="0.37.2" date="2026-07-23">
+      <description>
+        <p>Linux stylus fix: pens that GDK mislabels as a mouse (some Wayland/Xwayland
+           digitizers and driverless tablets) now draw instead of only hovering.</p>
+      </description>
+    </release>
+  </releases>
+</component>

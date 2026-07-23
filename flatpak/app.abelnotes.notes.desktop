@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AbelNotes
+Comment=Handwritten notes with LaTeX, PDF annotation and self-hosted WebDAV sync
+Exec=abelnotes %F
+Icon=app.abelnotes.notes
+Terminal=false
+Categories=Office;Graphics;
+Keywords=handwriting;notes;stylus;pen;PDF;annotation;LaTeX;Nextcloud;WebDAV;
+StartupWMClass=app.abelnotes.notes
