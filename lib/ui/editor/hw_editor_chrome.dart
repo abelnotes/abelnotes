@@ -622,6 +622,8 @@ class HwToolPopup extends StatelessWidget {
       }.contains(tool);
 
   bool get _showThickness => !{
+        CanvasTool.eraserStandard,
+        CanvasTool.eraserStroke,
         CanvasTool.lasso,
         CanvasTool.pan,
         CanvasTool.text,
