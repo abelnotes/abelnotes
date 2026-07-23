@@ -819,6 +819,30 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     return bridged > 0 ? bridged : raw;
   }
 
+  /// True when this `kind == mouse` event is really a stylus that GDK
+  /// mislabelled as a generic pointer.
+  ///
+  /// Flutter's GTK embedder classifies a pointer from
+  /// `gdk_device_get_source()` (fl_view.cc `get_pointer_device_kind`).
+  /// Many touchscreen digitizers and driverless tablets (Gaomon / Huion /
+  /// XP-Pen, and some Wacom-AES panels on Wayland + Xwayland) report
+  /// `GDK_SOURCE_MOUSE`, so their pen arrives as `PointerDeviceKind.mouse`
+  /// even in modern Flutter. Left unhandled, a tip-down on a drawing tool
+  /// falls into the mouse-as-selector path (see `_onPointerDown`) and never
+  /// draws — the pen hovers the cursor but can't ink (issue on Fedora
+  /// Wayland / Xwayland).
+  ///
+  /// The native bridge ([LinuxPenPressure]) reads `GDK_AXIS_PRESSURE` off
+  /// the raw event regardless of the mislabelled source, so a non-zero
+  /// bridged pressure is a positive "the tip is pressing" signal a real
+  /// mouse can never produce (a mouse has no pressure axis, so the bridge
+  /// stays at -1/0). We treat such an event as a stylus so it draws.
+  bool _linuxPenAsMouse(PointerEvent event) {
+    if (kIsWeb || !io.Platform.isLinux) return false;
+    if (event.kind != PointerDeviceKind.mouse) return false;
+    return LinuxPenPressure.latest() > 0;
+  }
+
   /// `PointerEvent.pressure` rescaled to the 0..1 range the whole app
   /// assumes.
   ///
@@ -2088,6 +2112,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
     if (event.kind == PointerDeviceKind.mouse &&
         event.buttons == kPrimaryMouseButton &&
+        !_linuxPenAsMouse(event) &&
         (state.currentTool == CanvasTool.lasso ||
             (!ref.read(appSettingsProvider).mouseDraws &&
                 _mouseSelectTools.contains(state.currentTool)))) {
@@ -2451,6 +2476,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     if (state.selectedElementId != null) {
       final isPenLikeDevice = event.kind == PointerDeviceKind.stylus ||
           (event.kind == PointerDeviceKind.mouse && event.pressure > 0) ||
+          _linuxPenAsMouse(event) ||
           (event.kind == PointerDeviceKind.touch && !_effectiveStylusOnly());
       if (_isDrawLikeTool(tool) && isPenLikeDevice) {
         // Stylus/tablet pen in draw mode: deselect image and proceed to draw
@@ -2517,7 +2543,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         shouldCheckImageTap = true;
       } else if (_isDrawLikeTool(tool) &&
                  event.kind == PointerDeviceKind.mouse &&
-                 event.pressure <= 0) {
+                 event.pressure <= 0 &&
+                 !_linuxPenAsMouse(event)) {
         shouldCheckImageTap = true;
       } else {
         shouldCheckImageTap = false;
