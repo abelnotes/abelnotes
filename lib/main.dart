@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
@@ -22,6 +23,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 void main() async {
   await runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    // Load version from Flutter's generated version.json BEFORE CrashLogger
+    // (which stamps fullVersion into the log) so the build id is always right.
+    await AppConfig.loadVersion();
     await CrashLogger.init();
 
     // MPL-2.0 attribution for the Rust onenote_parser crate bundled via the

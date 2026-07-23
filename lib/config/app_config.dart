@@ -1,18 +1,52 @@
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show rootBundle;
+
 /// Configurazione centralizzata dell'app AbelNotes.
 class AppConfig {
   // ── App Version ──
   //
-  // Must be kept in sync with the `version:` line in pubspec.yaml and
-  // bumped on every commit that ships (including iPad via Codemagic +
-  // Sideloadly) so the in-app crash log and about dialog always show
-  // which build is actually running on the device.
+  // Single source of truth is the `version:` line in pubspec.yaml. Flutter
+  // regenerates `version.json` (bundled at `flutter_assets/version.json`)
+  // from it on EVERY build, so [loadVersion] reads that at startup and the
+  // in-app crash log / about dialog always match the built version — no
+  // hand-maintained constant to forget (which is exactly how it drifted to
+  // 0.37.0+39 while pubspec was already 0.37.1+40).
   //
-  // Patch every commit that only fixes bugs; minor for visible feature
-  // work. The build number after "+" is the absolute counter — never
-  // resets when the semver bumps.
-  static const String appVersion = '0.37.0';
-  static const int appBuildNumber = 39;
-  static String get fullVersion => '$appVersion+$appBuildNumber';
+  // The constants below are only a pre-load fallback (used if the asset read
+  // fails, e.g. in a unit test with no rootBundle). Bump semver in pubspec:
+  // patch for bug-only commits, minor for visible feature work; the build
+  // number after "+" is the absolute counter and never resets.
+  static String _appVersion = '0.0.0';
+  static int _appBuildNumber = 0;
+  static bool _versionLoaded = false;
+
+  static String get appVersion => _appVersion;
+  static int get appBuildNumber => _appBuildNumber;
+  static String get fullVersion => '$_appVersion+$_appBuildNumber';
+
+  /// Reads Flutter's auto-generated `version.json` into the fields above.
+  /// Call once at startup AFTER `WidgetsFlutterBinding.ensureInitialized()`
+  /// and BEFORE anything that reads [fullVersion] (e.g. CrashLogger.init).
+  /// Idempotent; never throws.
+  static Future<void> loadVersion() async {
+    if (_versionLoaded) return;
+    try {
+      final raw = await rootBundle.loadString('version.json');
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final v = json['version'];
+      final b = json['build_number'];
+      if (v is String && v.isNotEmpty) _appVersion = v;
+      if (b is String && b.isNotEmpty) {
+        _appBuildNumber = int.tryParse(b) ?? _appBuildNumber;
+      } else if (b is num) {
+        _appBuildNumber = b.toInt();
+      }
+      _versionLoaded = true;
+    } catch (_) {
+      // Keep the fallback constants; not fatal.
+    }
+  }
 
   /// Short git commit the binary was built from, injected at build time via
   /// `--dart-define=GIT_COMMIT=...` (CI passes the full github.sha; see
