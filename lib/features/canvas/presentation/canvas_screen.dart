@@ -331,6 +331,15 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   String? _seenSystemImageSig;
   String? _seenSystemTextSig;
 
+  /// The most recent (possibly still-running) `_markSystemImageSeen()` call.
+  /// A copy snapshots the system clipboard's identity ASYNCHRONOUSLY; a paste
+  /// that fires right after (a user testing "does Ctrl+C/Ctrl+V work?" presses
+  /// them milliseconds apart) MUST await this snapshot first — otherwise it
+  /// compares the fresh system content against a STALE seen-sig, wrongly
+  /// decides the external clipboard is "newer", and pastes the old image/text
+  /// instead of what was just copied in-app. Awaited at the top of paste.
+  Future<void>? _seenSnapshotInFlight;
+
   // Cached canvas size for pointer-up page-drag commit
   Size _lastCanvasSize = Size.zero;
 
@@ -2061,6 +2070,22 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // — the single moment a user is most likely to try selecting text —
     // and a click there fell through to the plain marquee-only lasso path
     // further down, which never checks for PDF text at all.
+    // Pending paste placement via mouse LEFT click. Must run BEFORE the
+    // selection/marquee block below: that block returns for every left click
+    // on a drawing/lasso tool, so it swallowed the click and the touch/pen
+    // tap-to-place check further down was never reached on desktop — the
+    // "tap to place the copy" banner did nothing when clicked with a mouse.
+    if (event.kind == PointerDeviceKind.mouse &&
+        event.buttons == kPrimaryMouseButton &&
+        state.pendingPaste &&
+        state.clipboard != null) {
+      final pagePos = _toPageCoords(event.localPosition, state, canvasSize);
+      final n = ref.read(canvasProvider.notifier);
+      n.paste(at: pagePos);
+      n.cancelPendingPaste();
+      return;
+    }
+
     if (event.kind == PointerDeviceKind.mouse &&
         event.buttons == kPrimaryMouseButton &&
         (state.currentTool == CanvasTool.lasso ||
@@ -3430,6 +3455,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // paste the old in-app text because the internal clipboard short-circuit
     // always won. `preferSystemImage` (the 'Incolla immagine' menu) forces
     // the image path regardless.
+    // A copy that just happened snapshots the system clipboard's identity
+    // asynchronously. If the user hits Ctrl+V right behind Ctrl+C, that
+    // snapshot may still be running — wait for it so the freshness compare
+    // below sees the correct seen-sigs, not stale ones.
+    if (_seenSnapshotInFlight != null) {
+      await _seenSnapshotInFlight;
+    }
+
     final sysImg = await _readSystemImageRaw();
     final cs = ref.read(canvasProvider);
     final hasInternal = cs != null && cs.clipboard != null;
@@ -3635,13 +3668,19 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// "seen / stale" — called after an internal NON-image copy so a later
   /// Ctrl+V doesn't resurrect a leftover external image instead of the
   /// strokes/text the user just copied. Cheap when no image is present.
-  Future<void> _markSystemImageSeen() async {
-    final r = await _readSystemImageRaw();
-    _seenSystemImageSig = r?.sig;
-    // Same staleness snapshot for system TEXT, so an internal copy takes
-    // priority over whatever external text was left on the clipboard.
-    final t = await _readSystemText();
-    _seenSystemTextSig = t == null ? null : _textSig(t.plain);
+  Future<void> _markSystemImageSeen() {
+    final future = () async {
+      final r = await _readSystemImageRaw();
+      _seenSystemImageSig = r?.sig;
+      // Same staleness snapshot for system TEXT, so an internal copy takes
+      // priority over whatever external text was left on the clipboard.
+      final t = await _readSystemText();
+      _seenSystemTextSig = t == null ? null : _textSig(t.plain);
+    }();
+    // Publish the in-flight snapshot so a paste racing right behind a copy
+    // waits for it instead of reading stale seen-sigs (see field doc).
+    _seenSnapshotInFlight = future;
+    return future;
   }
 
   /// Decode [bytes] with the platform image codec and re-encode as PNG,
@@ -4080,6 +4119,22 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               );
             }
           });
+        }
+      },
+    );
+
+    // Any internal copy/cut (keyboard, context menu, floating bar, single
+    // element) OR a cross-notebook clipboard arriving on notebook-open sets
+    // `clipboard`. Snapshot the system clipboard's image/text identity as
+    // "seen" so a following Ctrl+V / right-click paste prefers THIS fresh
+    // in-app copy instead of resurrecting a stale leftover image/text that
+    // still sits on the OS clipboard. Previously only the two Ctrl+C branches
+    // did this, so cut and every non-keyboard copy pasted old content.
+    ref.listen(
+      canvasProvider.select((s) => s?.clipboard),
+      (prev, next) {
+        if (next != null && !identical(prev, next)) {
+          unawaited(_markSystemImageSeen());
         }
       },
     );
