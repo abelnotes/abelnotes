@@ -99,4 +99,60 @@ void main() {
     expect(_inkedNear(pixels, c.dx.round(), c.dy.round(), radius: 2), isFalse,
         reason: 'an unfilled circle has no ink at its centre');
   });
+
+  group('shapeBodyContains', () {
+    test('circle body is the inscribed ellipse, not its bbox', () {
+      expect(shapeBodyContains(_shape, const Offset(200, 300)), isTrue,
+          reason: 'centre');
+      expect(shapeBodyContains(_shape, const Offset(295, 300)), isTrue,
+          reason: 'just inside the right edge');
+      expect(shapeBodyContains(_shape, const Offset(305, 300)), isFalse,
+          reason: 'just outside the right edge');
+      expect(shapeBodyContains(_shape, const Offset(105, 205)), isFalse,
+          reason: 'bbox corner is outside the ellipse');
+    });
+
+    test('a line has no body to fill', () {
+      const line = ShapeData(
+        shapeType: 'line',
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 100,
+        strokeColor: 0xFF000000,
+        strokeWidth: 2,
+      );
+      expect(shapeBodyContains(line, const Offset(50, 50)), isFalse);
+    });
+
+    test('rotation is undone before the containment test', () {
+      const square = ShapeData(
+        shapeType: 'rectangle',
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 20,
+        strokeColor: 0xFF000000,
+        strokeWidth: 2,
+        rotation: 1.5707963267948966, // 90°, so the bar stands upright
+      );
+      // Upright, the bar spans x∈[40,60], y∈[-40,60] around centre (50,10).
+      expect(shapeBodyContains(square, const Offset(50, 55)), isTrue);
+      expect(shapeBodyContains(square, const Offset(90, 10)), isFalse);
+    });
+
+    test('triangle body excludes the bbox corners beside the apex', () {
+      const tri = ShapeData(
+        shapeType: 'triangle',
+        x1: 0,
+        y1: 0,
+        x2: 100,
+        y2: 100,
+        strokeColor: 0xFF000000,
+        strokeWidth: 2,
+      );
+      expect(shapeBodyContains(tri, const Offset(50, 80)), isTrue);
+      expect(shapeBodyContains(tri, const Offset(5, 5)), isFalse);
+    });
+  });
 }

@@ -15,7 +15,7 @@ import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
-    show CanvasRenderEngine, shapeEllipseRect;
+    show CanvasRenderEngine, shapeBodyContains, shapeEllipseRect;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/rich_paste.dart';
@@ -3421,81 +3421,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   // ── Eraser ──
 
-  /// Distance from point [p] to the line segment [a]-[b].
-  static double _distToSegment(Offset p, Offset a, Offset b) {
-    final l2 = (b - a).distanceSquared;
-    if (l2 == 0) return (p - a).distance;
-    var t = ((p.dx - a.dx) * (b.dx - a.dx) + (p.dy - a.dy) * (b.dy - a.dy)) / l2;
-    t = t.clamp(0.0, 1.0);
-    return (p - Offset(a.dx + t * (b.dx - a.dx), a.dy + t * (b.dy - a.dy))).distance;
-  }
-
-  /// Minimum distance from point [p] to the four edges of [rect].
-  static double _distToRectEdges(Offset p, Rect rect) {
-    final tl = rect.topLeft, tr = rect.topRight, bl = rect.bottomLeft, br = rect.bottomRight;
-    return [
-      _distToSegment(p, tl, tr),
-      _distToSegment(p, tr, br),
-      _distToSegment(p, br, bl),
-      _distToSegment(p, bl, tl),
-    ].reduce(min);
-  }
-
-  /// True if [p] falls inside the body of [sh] (rotation-aware).
-  ///
-  /// Used only for FILLED shapes: their interior is visible ink, so the
-  /// per-stroke eraser must delete them when the user scrubs inside —
-  /// testing the outline alone made a filled circle feel un-erasable
-  /// unless you happened to graze its edge.
-  static bool _shapeBodyContains(ShapeData sh, Offset p) {
-    var q = p;
-    if (sh.rotation != 0) {
-      final cx = (sh.x1 + sh.x2) / 2, cy = (sh.y1 + sh.y2) / 2;
-      final ca = cos(-sh.rotation), sa = sin(-sh.rotation);
-      final dx = p.dx - cx, dy = p.dy - cy;
-      q = Offset(cx + dx * ca - dy * sa, cy + dx * sa + dy * ca);
-    }
-    final rect = Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
-    switch (sh.shapeType) {
-      case 'line':
-      case 'arrow':
-        return false; // no body to fill
-      case 'circle':
-        final rx = rect.width / 2, ry = rect.height / 2;
-        if (rx == 0 || ry == 0) return false;
-        final vx = q.dx - rect.center.dx, vy = q.dy - rect.center.dy;
-        return (vx * vx) / (rx * rx) + (vy * vy) / (ry * ry) <= 1.0;
-      case 'triangle':
-        return _pointInConvex(q, [
-          Offset(rect.center.dx, rect.top),
-          Offset(rect.left, rect.bottom),
-          Offset(rect.right, rect.bottom),
-        ]);
-      case 'rhombus':
-        return _pointInConvex(q, [
-          Offset(rect.center.dx, rect.top),
-          Offset(rect.right, rect.center.dy),
-          Offset(rect.center.dx, rect.bottom),
-          Offset(rect.left, rect.center.dy),
-        ]);
-      default:
-        return rect.contains(q);
-    }
-  }
-
-  /// Even-odd containment for a small convex vertex list.
-  static bool _pointInConvex(Offset p, List<Offset> poly) {
-    var inside = false;
-    var j = poly.length - 1;
-    for (var i = 0; i < poly.length; i++) {
-      final a = poly[i], b = poly[j];
-      if ((a.dy > p.dy) != (b.dy > p.dy) &&
-          p.dx < (b.dx - a.dx) * (p.dy - a.dy) / (b.dy - a.dy) + a.dx) {
-        inside = !inside;
+  /// True if any sampled point of [sh]'s outline lies within [radius] of [p].
+  static bool _shapeOutlineWithin(ShapeData sh, Offset p, double radius) {
+    final r2 = radius * radius;
+    for (final edge in _shapeToSampledEdges(sh, radius * 0.5)) {
+      for (final pt in edge) {
+        final dx = pt.x - p.dx;
+        final dy = pt.y - p.dy;
+        if (dx * dx + dy * dy < r2) return true;
       }
-      j = i;
     }
-    return inside;
+    return false;
   }
 
   /// Convert a shape outline into sampled edge segments (list of point lists).
@@ -3674,24 +3610,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       bool shouldRemoveWhole = false;
 
       // Check non-stroke elements (text, symbols, shapes).
-      // Per-tratto eraser: remove whole element if within bounding box.
-      // Standard eraser: only remove if the eraser touches the actual outline/edge.
+      //
+      // Text, symbols and typeset math are ATOMIC — there's no way to
+      // pixel-erase into them — so both erasers use the same test: the
+      // element goes when the cursor touches its box. The standard eraser
+      // used to test the box EDGES only, which meant scrubbing right
+      // across the middle of a paragraph did nothing at all and the user
+      // had to hunt for the border.
       if (element is TextElement) {
         final t = element.data;
         final rect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
-        if (isStrokeEraser) {
-          if (rect.inflate(eraseRadius).contains(position)) shouldRemoveWhole = true;
-        } else {
-          if (_distToRectEdges(position, rect) < eraseRadius) shouldRemoveWhole = true;
+        if (rect.inflate(eraseRadius).contains(position)) {
+          shouldRemoveWhole = true;
         }
       } else if (element is ImageElement) {
         final img = element.data;
         if (img.assetPath.startsWith('symbol_')) {
           final rect = Rect.fromLTWH(img.x, img.y, img.width, img.height);
-          if (isStrokeEraser) {
-            if (rect.inflate(eraseRadius).contains(position)) shouldRemoveWhole = true;
-          } else {
-            if (_distToRectEdges(position, rect) < eraseRadius) shouldRemoveWhole = true;
+          if (rect.inflate(eraseRadius).contains(position)) {
+            shouldRemoveWhole = true;
           }
         }
       } else if (element is ShapeElement && isStrokeEraser) {
@@ -3709,33 +3646,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             rect.inflate(eraseRadius).contains(position)) {
           // A filled shape's interior is ink too: scrubbing anywhere
           // inside it deletes the element, same as touching the outline.
-          if (sh.fillColor != null && _shapeBodyContains(sh, position)) {
-            shouldRemoveWhole = true;
-          }
-          if (!shouldRemoveWhole) {
-            final r2 = eraseRadius * eraseRadius;
-            outer:
-            for (final edge in _shapeToSampledEdges(sh, eraseRadius * 0.5)) {
-              for (final p in edge) {
-                final dx = p.x - position.dx;
-                final dy = p.y - position.dy;
-                if (dx * dx + dy * dy < r2) {
-                  shouldRemoveWhole = true;
-                  break outer;
-                }
-              }
-            }
-          }
+          shouldRemoveWhole =
+              (sh.fillColor != null && shapeBodyContains(sh, position)) ||
+                  _shapeOutlineWithin(sh, position, eraseRadius);
         }
       } else if (element is MathElement) {
         // Typeset math is an atomic object (like text): delete the whole
         // equation on hit; never pixel-erase into it.
         final m = element.data;
         final rect = Rect.fromLTWH(m.x, m.y, m.width, m.height);
-        if (isStrokeEraser) {
-          if (rect.inflate(eraseRadius).contains(position)) shouldRemoveWhole = true;
-        } else {
-          if (_distToRectEdges(position, rect) < eraseRadius) shouldRemoveWhole = true;
+        if (rect.inflate(eraseRadius).contains(position)) {
+          shouldRemoveWhole = true;
         }
       }
 
@@ -3858,6 +3779,38 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       } else if (element is ShapeElement && !isStrokeEraser) {
         final sh = element;
         handled = true;
+
+        // BBOX FAST PATH — same reason as the stroke branch above: without
+        // it every shape on the page got its outline re-sampled (dozens to
+        // hundreds of points for an ellipse) on every erase event, however
+        // far from the cursor it was. Rotated shapes skip the gate; their
+        // outline can fall outside the axis-aligned x1..x2/y1..y2 rect.
+        final shBounds = Rect.fromPoints(
+          Offset(sh.data.x1, sh.data.y1),
+          Offset(sh.data.x2, sh.data.y2),
+        );
+        if (sh.data.rotation == 0 &&
+            !shBounds.inflate(eraseRadius).contains(position)) {
+          newContent.add(element);
+          continue;
+        }
+
+        // A filled shape can't be nibbled: the surviving pieces are plain
+        // strokes and there's nowhere to keep the fill, so grazing the
+        // border used to silently delete the whole filled area. Treat a
+        // filled shape as atomic for this eraser too — outline OR interior
+        // contact removes it, which is also what the user expects when
+        // scrubbing across a solid blob.
+        if (sh.data.fillColor != null) {
+          if (shapeBodyContains(sh.data, position) ||
+              _shapeOutlineWithin(sh.data, position, eraseRadius)) {
+            changed = true;
+            continue;
+          }
+          newContent.add(element);
+          continue;
+        }
+
         final sampledEdges = _shapeToSampledEdges(sh.data, eraseRadius * 0.5);
         bool anyErased = false;
         final survivingStrokes = <ContentElement>[];
@@ -3885,10 +3838,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
               zIndex: sh.zIndex,
               data: StrokeData(
                 points: seg,
-                toolType: 'ballpoint',
+                // Carry the shape's ink type over. Hardcoding opaque
+                // ballpoint turned what was left of a highlighter-drawn
+                // shape into solid ink the moment the eraser touched it.
+                toolType:
+                    sh.data.isHighlighter ? 'highlighter' : 'ballpoint',
                 color: sh.data.strokeColor,
                 baseWidth: sh.data.strokeWidth,
-                isHighlighter: false,
+                isHighlighter: sh.data.isHighlighter,
                 opacity: 1.0,
               ),
             ));

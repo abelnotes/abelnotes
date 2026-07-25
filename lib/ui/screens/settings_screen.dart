@@ -765,6 +765,11 @@ class _SyncSection extends ConsumerWidget {
       ),
     );
     if (ok != true) return;
+    // Un-claim every notebook BEFORE dropping the credentials: nothing in the
+    // DB records which server a row belongs to, so rows left as `synced`
+    // would be hard-deleted by the library's remote-deletion cleanup the
+    // moment a different account is connected. See markAllNotebooksLocal.
+    await ref.read(fileServiceProvider).markAllNotebooksLocal();
     // Logout, then stay in the app in local-only mode instead of bouncing
     // to onboarding (the user still has their local notebooks).
     await ref.read(credentialsProvider.notifier).logout();

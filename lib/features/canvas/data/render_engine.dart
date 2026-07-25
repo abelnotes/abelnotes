@@ -21,6 +21,63 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 Rect shapeEllipseRect(ShapeData sh) =>
     Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
 
+/// True if [p] falls inside the body of [sh] (rotation-aware).
+///
+/// Meaningful for shapes carrying a `fillColor`: their interior is visible
+/// ink, so both the eraser and the tap hit-test must treat it as part of the
+/// element instead of probing the outline alone — a filled circle was
+/// otherwise un-erasable and un-selectable unless you grazed its edge.
+bool shapeBodyContains(ShapeData sh, Offset p) {
+  var q = p;
+  if (sh.rotation != 0) {
+    final cx = (sh.x1 + sh.x2) / 2, cy = (sh.y1 + sh.y2) / 2;
+    final ca = cos(-sh.rotation), sa = sin(-sh.rotation);
+    final dx = p.dx - cx, dy = p.dy - cy;
+    q = Offset(cx + dx * ca - dy * sa, cy + dx * sa + dy * ca);
+  }
+  final rect = Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
+  switch (sh.shapeType) {
+    case 'line':
+    case 'arrow':
+      return false; // no body to fill
+    case 'circle':
+      final rx = rect.width / 2, ry = rect.height / 2;
+      if (rx == 0 || ry == 0) return false;
+      final vx = q.dx - rect.center.dx, vy = q.dy - rect.center.dy;
+      return (vx * vx) / (rx * rx) + (vy * vy) / (ry * ry) <= 1.0;
+    case 'triangle':
+      return _pointInConvex(q, [
+        Offset(rect.center.dx, rect.top),
+        Offset(rect.left, rect.bottom),
+        Offset(rect.right, rect.bottom),
+      ]);
+    case 'rhombus':
+      return _pointInConvex(q, [
+        Offset(rect.center.dx, rect.top),
+        Offset(rect.right, rect.center.dy),
+        Offset(rect.center.dx, rect.bottom),
+        Offset(rect.left, rect.center.dy),
+      ]);
+    default:
+      return rect.contains(q);
+  }
+}
+
+/// Even-odd containment for a small convex vertex list.
+bool _pointInConvex(Offset p, List<Offset> poly) {
+  var inside = false;
+  var j = poly.length - 1;
+  for (var i = 0; i < poly.length; i++) {
+    final a = poly[i], b = poly[j];
+    if ((a.dy > p.dy) != (b.dy > p.dy) &&
+        p.dx < (b.dx - a.dx) * (p.dy - a.dy) / (b.dy - a.dy) + a.dx) {
+      inside = !inside;
+    }
+    j = i;
+  }
+  return inside;
+}
+
 /// High-performance canvas render engine.
 /// Handles all rendering including zoom/pan transform internally.
 class CanvasRenderEngine extends CustomPainter {

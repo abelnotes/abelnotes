@@ -95,14 +95,18 @@ class NotebookListNotifier
   }
 
   /// Carica la lista dei notebook dal server, con fallback locale offline.
-  Future<void> refresh() async {
+  ///
+  /// [showProgress] drives the "syncing with server" banner. The periodic
+  /// background tick passes false: the user didn't ask for that sync and a
+  /// banner blinking on its own every few minutes reads as a glitch.
+  Future<void> refresh({bool showProgress = true}) async {
     final fileService = _ref.read(fileServiceProvider);
 
     // ── Step 1: Show cached notebooks instantly from local DB ──
     await _loadFromLocalDb(fileService);
 
     // ── Step 2: Sync with server in background ──
-    isSyncing.value = true;
+    if (showProgress) isSyncing.value = true;
     try {
       final syncService = _ref.read(syncServiceProvider);
       final webdav = _ref.read(webdavServiceProvider);
@@ -114,7 +118,10 @@ class NotebookListNotifier
       // Local data is already shown — no need to show error
     } finally {
       if (mounted) {
-        isSyncing.value = false;
+        // syncProgress is always reset, banner or not: _syncWithServer sets
+        // it while downloading, and a leftover count would flash on the next
+        // visible sync before its own PROPFIND lands.
+        if (showProgress) isSyncing.value = false;
         syncProgress.value = (done: 0, total: 0);
       }
     }
@@ -1057,8 +1064,9 @@ class NotebookListNotifier
 
   /// Best-effort re-upload of every notebook whose local sync status is still
   /// `modified` — i.e. previous save() couldn't reach the server (offline,
-  /// Tailscale drop, Nextcloud restart). Called when connectivity comes back,
-  /// and once at library boot after a cold start.
+  /// Tailscale drop, Nextcloud restart). Driven by the library screen: once
+  /// at cold boot, again the first time a server is connected mid-session,
+  /// and on its periodic background-sync tick.
   ///
   /// Uses the local .ncnote as source of truth, pushes it via the delta-sync
   /// exploded folder. Failures are logged but never throw — the notebook stays

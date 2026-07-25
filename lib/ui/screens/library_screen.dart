@@ -47,6 +47,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
   Timer? _bgSyncTimer;
   String? _selectedFolderId;
 
+  /// How often the library re-syncs while it's the visible route.
+  static const _bgSyncInterval = Duration(minutes: 5);
+  bool _bgSyncInFlight = false;
+
   @override
   void initState() {
     super.initState();
@@ -62,6 +66,33 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
         await ref.read(notebookListProvider.notifier).retryPendingUploads();
       } catch (_) {}
     });
+    // Periodic re-sync. `_bgSyncTimer` existed but was never started, so the
+    // library only ever synced at cold boot: notebooks another device created
+    // stayed invisible, and an upload that failed while the network was down
+    // sat pending until the app was restarted.
+    _bgSyncTimer = Timer.periodic(_bgSyncInterval, (_) => _backgroundSync());
+  }
+
+  /// One background sync tick. Skipped while a notebook is open (this screen
+  /// stays mounted underneath the canvas route — syncing under the user's
+  /// editing session is the canvas pull timer's job, not ours) and while
+  /// local-only, where every server probe would just throw.
+  Future<void> _backgroundSync() async {
+    if (!mounted || _bgSyncInFlight) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    if (ref.read(webdavServiceProvider) == null) return;
+    final notifier = ref.read(notebookListProvider.notifier);
+    if (notifier.isSyncing.value) return; // a visible sync is already running
+    _bgSyncInFlight = true;
+    try {
+      await notifier.refresh(showProgress: false);
+      if (!mounted) return;
+      await notifier.retryPendingUploads();
+    } catch (e) {
+      debugPrint('[Library] Background sync failed: $e');
+    } finally {
+      _bgSyncInFlight = false;
+    }
   }
 
   /// Mirrors the cold-start sequence for a server connected mid-session:

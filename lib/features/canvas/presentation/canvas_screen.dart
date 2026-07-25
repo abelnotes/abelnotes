@@ -3187,6 +3187,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     return (p - Offset(a.dx + ab.dx * t, a.dy + ab.dy * t)).distance;
   }
 
+  /// True if [pagePos] hits [sh]: its outline within tolerance, or — when
+  /// the shape is filled — anywhere inside its body. Tapping the middle of
+  /// a solid blob used to select nothing, because only the outline counted.
+  static bool _shapeHit(ShapeData sh, Offset pagePos) {
+    if (_distToShapeOutline(sh, pagePos) < max(8.0, sh.strokeWidth)) {
+      return true;
+    }
+    return sh.fillColor != null && shapeBodyContains(sh, pagePos);
+  }
+
   /// Distance from [p] to the OUTLINE of [sh] (handles rotation).
   /// A shape's bounding box is mostly empty space for lines/circles, so
   /// hit-testing must use the real geometry — bbox-contains selected a
@@ -3294,8 +3304,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           bounds = Rect.fromLTWH(img.data.x, img.data.y, img.data.width, img.data.height);
         },
         shape: (s) {
-          if (_distToShapeOutline(s.data, pagePos) <
-              max(8.0, s.data.strokeWidth)) {
+          if (_shapeHit(s.data, pagePos)) {
             id = s.id;
             geometryHit = true;
           }
@@ -3335,9 +3344,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           bounds = Rect.fromLTWH(img.data.x, img.data.y, img.data.width, img.data.height);
         },
         shape: (s) {
-          if (!imagesOnly &&
-              _distToShapeOutline(s.data, pagePos) <
-                  max(8.0, s.data.strokeWidth)) {
+          if (!imagesOnly && _shapeHit(s.data, pagePos)) {
             id = s.id;
             geometryHit = true;
           }

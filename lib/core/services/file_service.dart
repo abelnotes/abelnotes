@@ -643,6 +643,28 @@ class FileService {
     );
   }
 
+  /// Drops every notebook's claim on a remote server: `synced` → `modified`
+  /// and the ETag cleared. Called on disconnect.
+  ///
+  /// The rows carry `remote_path` + `etag` but nothing that says WHICH server
+  /// they came from. Left as `synced` after a disconnect, the next server the
+  /// user connects — a different account, a different host, or the same
+  /// account with a different base directory — reports "these notebooks are
+  /// not on the server", and the library's remote-deletion cleanup HARD
+  /// deletes them (DB row, loose store, .ncnote and snapshots, no trash).
+  /// `modified` is the honest state after a disconnect: local content that no
+  /// server owns. The cleanup skips those rows, and the pending-upload retry
+  /// bootstraps them onto whatever server comes next (or just re-marks them
+  /// synced when the delta folder is already there).
+  Future<int> markAllNotebooksLocal() async {
+    return _db.update(
+      'notebooks',
+      {'sync_status': 'modified', 'etag': null, 'remote_modified_at': null},
+      where: 'sync_status = ?',
+      whereArgs: ['synced'],
+    );
+  }
+
   /// Returns all notebook IDs that need syncing.
   Future<List<Map<String, dynamic>>> getDirtyNotebooks() async {
     return _db.query(
