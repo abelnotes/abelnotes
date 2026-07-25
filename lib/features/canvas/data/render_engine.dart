@@ -7,6 +7,20 @@ import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/features/canvas/data/text_paragraph_factory.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
+/// Canonical outline of a `circle` shape: the ellipse inscribed in the
+/// shape's bounding box.
+///
+/// Every consumer — committed painter, drag preview, selection glow,
+/// eraser hit-test, tap hit-test, symbol thumbnail — MUST read the
+/// geometry from here. They used to disagree: the painter drew a circle
+/// of radius `(x2-x1)/2` while the eraser and tap hit-tests probed a
+/// circle of radius `hypot(x2-x1, y2-y1)/2` (≈ 1.41× bigger on the square
+/// bbox that shape recognition produces). The hit outline therefore sat
+/// ~40 % outside the ink, so a circle could not be erased or selected by
+/// touching what was drawn.
+Rect shapeEllipseRect(ShapeData sh) =>
+    Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
+
 /// High-performance canvas render engine.
 /// Handles all rendering including zoom/pan transform internally.
 class CanvasRenderEngine extends CustomPainter {
@@ -1530,10 +1544,9 @@ class CanvasRenderEngine extends CustomPainter {
         canvas.drawRect(rect, strokePaint);
         break;
       case 'circle':
-        final center = Offset((shape.x1 + shape.x2) / 2, (shape.y1 + shape.y2) / 2);
-        final radius = (shape.x2 - shape.x1).abs() / 2;
-        if (fillPaint != null) canvas.drawCircle(center, radius, fillPaint);
-        canvas.drawCircle(center, radius, strokePaint);
+        final oval = shapeEllipseRect(shape);
+        if (fillPaint != null) canvas.drawOval(oval, fillPaint);
+        canvas.drawOval(oval, strokePaint);
         break;
       case 'line':
         canvas.drawLine(Offset(shape.x1, shape.y1), Offset(shape.x2, shape.y2), strokePaint);
@@ -1701,9 +1714,10 @@ class CanvasRenderEngine extends CustomPainter {
         canvas.drawRect(Rect.fromPoints(start, end), previewPaint);
         break;
       case 'circle':
-        final center = Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
-        final radius = (end - start).distance / 2;
-        canvas.drawCircle(center, radius, previewPaint);
+        // Same inscribed ellipse the committed shape gets — the preview
+        // used to draw the CIRCUMSCRIBED circle (half-diagonal radius),
+        // so the finished shape landed noticeably smaller than the drag.
+        canvas.drawOval(Rect.fromPoints(start, end), previewPaint);
         break;
       case 'line':
         canvas.drawLine(start, end, previewPaint);

@@ -440,6 +440,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     CanvasTool.highlighter,
   };
 
+  /// A dock button was tapped by [kind]. The dock is part of the canvas as
+  /// far as "which device is in the user's hand" goes: without this, hovering
+  /// the mouse and then tapping the dock with the pen kept `mouseDraws`
+  /// logic pointed at the mouse — so a pen tap on the ALREADY-ACTIVE pen
+  /// button was read as "switch to pen" (the dock was masquerading as lasso
+  /// for the mouse) and silently opted the mouse into drawing instead of
+  /// opening the tool popup. `unknown` comes from the semantics/screen-reader
+  /// path and says nothing about the physical device, so it's ignored.
+  void _noteDockTapDevice(PointerDeviceKind kind) {
+    if (kind == PointerDeviceKind.unknown) return;
+    final isMouse = kind == PointerDeviceKind.mouse;
+    if (_lastPointerWasMouse == isMouse) return;
+    setState(() => _lastPointerWasMouse = isMouse);
+  }
+
   /// Explicit tool pick — dock tap or keyboard shortcut, as opposed to the
   /// transient barrel-button / native-barrel overrides (which restore
   /// afterwards and must NOT go through here). If the mouse was the last
@@ -3193,9 +3208,18 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       case 'arrow':
         return _distToSegment(q, Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
       case 'circle':
-        final c = Offset((sh.x1 + sh.x2) / 2, (sh.y1 + sh.y2) / 2);
-        final radius = Offset(sh.x2 - sh.x1, sh.y2 - sh.y1).distance / 2;
-        return ((q - c).distance - radius).abs();
+        // Distance to the inscribed ellipse the painter actually draws.
+        // Radial approximation: scale the probe into unit-circle space,
+        // project onto the circle, scale back. Exact when rx == ry (the
+        // recognized-circle case) and within a few percent otherwise —
+        // fine against an 8 px tap tolerance.
+        final oval = shapeEllipseRect(sh);
+        final rx = oval.width / 2, ry = oval.height / 2;
+        if (rx == 0 || ry == 0) return (q - oval.center).distance;
+        final vx = q.dx - oval.center.dx, vy = q.dy - oval.center.dy;
+        final k = sqrt((vx * vx) / (rx * rx) + (vy * vy) / (ry * ry));
+        if (k == 0) return min(rx, ry);
+        return (Offset(vx, vy) * (1 - 1 / k)).distance;
       case 'triangle':
         final apex = Offset((l + r) / 2, t);
         final bl = Offset(l, b), br = Offset(r, b);
@@ -4325,6 +4349,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             final dockWidget = HwFloatingDock(
               key: _dockKey,
               currentTool: _dockDisplayTool(canvasState, appSettings.mouseDraws),
+              penDeviceTool: canvasState.currentTool,
               activeInkColor: activeColor,
               lastEraserMode: notifier.lastEraserMode,
               shapeGuess: canvasState.toolSettings.shapeRecognition,
@@ -4332,13 +4357,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 notifier.setToolSettings(
                     canvasState.toolSettings.copyWith(shapeRecognition: v));
               },
-              onToolChanged: (t) {
+              onToolChanged: (t, kind) {
+                _noteDockTapDevice(kind);
                 _pickTool(t);
                 // Switching tool never auto-opens the popup — the user
                 // explicitly asks for it by tapping the active tool again.
                 if (_popupOpen) setState(() => _popupOpen = false);
               },
-              onActiveTap: () => setState(() => _popupOpen = !_popupOpen),
+              onActiveTap: (kind) {
+                _noteDockTapDevice(kind);
+                setState(() => _popupOpen = !_popupOpen);
+              },
               position: dockPosition,
               dragging: _dockDragOffset != null,
               onDragStart: _onDockDragStart,

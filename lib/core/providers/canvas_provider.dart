@@ -14,7 +14,8 @@ import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
-import 'package:abelnotes/features/canvas/data/render_engine.dart' show CanvasRenderEngine;
+import 'package:abelnotes/features/canvas/data/render_engine.dart'
+    show CanvasRenderEngine, shapeEllipseRect;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/rich_paste.dart';
@@ -3440,6 +3441,63 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     ].reduce(min);
   }
 
+  /// True if [p] falls inside the body of [sh] (rotation-aware).
+  ///
+  /// Used only for FILLED shapes: their interior is visible ink, so the
+  /// per-stroke eraser must delete them when the user scrubs inside —
+  /// testing the outline alone made a filled circle feel un-erasable
+  /// unless you happened to graze its edge.
+  static bool _shapeBodyContains(ShapeData sh, Offset p) {
+    var q = p;
+    if (sh.rotation != 0) {
+      final cx = (sh.x1 + sh.x2) / 2, cy = (sh.y1 + sh.y2) / 2;
+      final ca = cos(-sh.rotation), sa = sin(-sh.rotation);
+      final dx = p.dx - cx, dy = p.dy - cy;
+      q = Offset(cx + dx * ca - dy * sa, cy + dx * sa + dy * ca);
+    }
+    final rect = Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
+    switch (sh.shapeType) {
+      case 'line':
+      case 'arrow':
+        return false; // no body to fill
+      case 'circle':
+        final rx = rect.width / 2, ry = rect.height / 2;
+        if (rx == 0 || ry == 0) return false;
+        final vx = q.dx - rect.center.dx, vy = q.dy - rect.center.dy;
+        return (vx * vx) / (rx * rx) + (vy * vy) / (ry * ry) <= 1.0;
+      case 'triangle':
+        return _pointInConvex(q, [
+          Offset(rect.center.dx, rect.top),
+          Offset(rect.left, rect.bottom),
+          Offset(rect.right, rect.bottom),
+        ]);
+      case 'rhombus':
+        return _pointInConvex(q, [
+          Offset(rect.center.dx, rect.top),
+          Offset(rect.right, rect.center.dy),
+          Offset(rect.center.dx, rect.bottom),
+          Offset(rect.left, rect.center.dy),
+        ]);
+      default:
+        return rect.contains(q);
+    }
+  }
+
+  /// Even-odd containment for a small convex vertex list.
+  static bool _pointInConvex(Offset p, List<Offset> poly) {
+    var inside = false;
+    var j = poly.length - 1;
+    for (var i = 0; i < poly.length; i++) {
+      final a = poly[i], b = poly[j];
+      if ((a.dy > p.dy) != (b.dy > p.dy) &&
+          p.dx < (b.dx - a.dx) * (p.dy - a.dy) / (b.dy - a.dy) + a.dx) {
+        inside = !inside;
+      }
+      j = i;
+    }
+    return inside;
+  }
+
   /// Convert a shape outline into sampled edge segments (list of point lists).
   /// Each edge is densely sampled so point-by-point erasure works.
   /// Points are in final (rotated) coordinates.
@@ -3482,15 +3540,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         ]);
         break;
       case 'circle':
-        final cx = (sh.x1 + sh.x2) / 2;
-        final cy = (sh.y1 + sh.y2) / 2;
-        final radius = Offset(sh.x2 - sh.x1, sh.y2 - sh.y1).distance / 2;
-        final n = max(36, (2 * pi * radius / stepSize).ceil());
-        // Circle as one continuous edge of n+1 points
+        // MUST match what the painter draws (the ellipse inscribed in the
+        // bbox). This used to sample a circle of half-DIAGONAL radius —
+        // ~1.41× the drawn outline on the square bbox recognition emits —
+        // so every sampled point sat well outside the ink and the eraser
+        // never hit a circle no matter where the user put it.
+        final oval = shapeEllipseRect(sh);
+        final rx = oval.width / 2, ry = oval.height / 2;
+        final cx = oval.center.dx, cy = oval.center.dy;
+        // Ramanujan's perimeter approximation → point count.
+        final sum = rx + ry;
+        final h = sum == 0 ? 0.0 : ((rx - ry) * (rx - ry)) / (sum * sum);
+        final perimeter = pi * sum * (1 + (3 * h) / (10 + sqrt(4 - 3 * h)));
+        final n = max(36, (perimeter / stepSize).ceil());
+        // Ellipse as one continuous edge of n+1 points
         final pts = <Offset>[];
         for (int i = 0; i <= n; i++) {
           final a = 2 * pi * i / n;
-          pts.add(Offset(cx + radius * cos(a), cy + radius * sin(a)));
+          pts.add(Offset(cx + rx * cos(a), cy + ry * sin(a)));
         }
         rawEdges.add(pts);
         break;
@@ -3640,15 +3707,22 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // outside the axis-aligned x1..x2/y1..y2 rect.
         if (sh.rotation != 0 ||
             rect.inflate(eraseRadius).contains(position)) {
-          final r2 = eraseRadius * eraseRadius;
-          outer:
-          for (final edge in _shapeToSampledEdges(sh, eraseRadius * 0.5)) {
-            for (final p in edge) {
-              final dx = p.x - position.dx;
-              final dy = p.y - position.dy;
-              if (dx * dx + dy * dy < r2) {
-                shouldRemoveWhole = true;
-                break outer;
+          // A filled shape's interior is ink too: scrubbing anywhere
+          // inside it deletes the element, same as touching the outline.
+          if (sh.fillColor != null && _shapeBodyContains(sh, position)) {
+            shouldRemoveWhole = true;
+          }
+          if (!shouldRemoveWhole) {
+            final r2 = eraseRadius * eraseRadius;
+            outer:
+            for (final edge in _shapeToSampledEdges(sh, eraseRadius * 0.5)) {
+              for (final p in edge) {
+                final dx = p.x - position.dx;
+                final dy = p.y - position.dy;
+                if (dx * dx + dy * dy < r2) {
+                  shouldRemoveWhole = true;
+                  break outer;
+                }
               }
             }
           }
@@ -7501,10 +7575,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         canvas.drawRect(rect, strokePaint);
         break;
       case 'circle':
-        final center = Offset((shape.x1 + shape.x2) / 2, (shape.y1 + shape.y2) / 2);
-        final radius = Offset(shape.x2 - shape.x1, shape.y2 - shape.y1).distance / 2;
-        if (fillPaint != null) canvas.drawCircle(center, radius, fillPaint);
-        canvas.drawCircle(center, radius, strokePaint);
+        final oval = shapeEllipseRect(shape);
+        if (fillPaint != null) canvas.drawOval(oval, fillPaint);
+        canvas.drawOval(oval, strokePaint);
         break;
       case 'line':
       case 'arrow':

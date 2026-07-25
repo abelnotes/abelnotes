@@ -104,10 +104,7 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
               canvas.drawRect(Rect.fromLTRB(d.x1, d.y1, d.x2, d.y2), paint);
               break;
             case 'circle':
-              final cx = (d.x1 + d.x2) / 2;
-              final cy = (d.y1 + d.y2) / 2;
-              final r = Offset(d.x2 - d.x1, d.y2 - d.y1).distance / 2;
-              canvas.drawCircle(Offset(cx, cy), r, paint);
+              canvas.drawOval(Rect.fromLTRB(d.x1, d.y1, d.x2, d.y2), paint);
               break;
             case 'line':
             case 'arrow':

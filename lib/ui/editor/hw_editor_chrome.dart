@@ -312,9 +312,20 @@ enum DockPosition { floating, left, right, top, bottom }
 /// Floating tool dock — circular pill with all tools + shape-guess toggle.
 /// Tap a tool to select; tap again (or popOpen=true) opens the tool popup.
 class HwFloatingDock extends StatelessWidget {
+  /// Tool the buttons render as active. On desktop this can be the
+  /// "what would a mouse click do right now" masquerade (lasso while the
+  /// mouse acts as a pure selector) rather than the real tool.
   final CanvasTool currentTool;
-  final ValueChanged<CanvasTool> onToolChanged;
-  final VoidCallback onActiveTap;
+  /// The REAL active tool. A tap that did not come from the mouse (stylus,
+  /// pen, finger, a11y) is judged against this instead of [currentTool] —
+  /// otherwise, after the mouse merely hovered the canvas, the dock thinks
+  /// lasso is active and a stylus tap on the already-active pen button is
+  /// read as "switch to pen" and never opens the tool popup.
+  final CanvasTool? penDeviceTool;
+  /// Called with the device that produced the tap so the parent can track
+  /// which input is really in the user's hand.
+  final void Function(CanvasTool tool, PointerDeviceKind kind) onToolChanged;
+  final void Function(PointerDeviceKind kind) onActiveTap;
   final Color activeInkColor;
   final DockPosition position;
   final bool shapeGuess;
@@ -339,6 +350,7 @@ class HwFloatingDock extends StatelessWidget {
   const HwFloatingDock({
     super.key,
     required this.currentTool,
+    this.penDeviceTool,
     required this.onToolChanged,
     required this.onActiveTap,
     required this.activeInkColor,
@@ -463,9 +475,10 @@ class HwFloatingDock extends StatelessWidget {
     // single button whichever variant is active.
     final isEraserBtn = tool == CanvasTool.eraserStroke ||
         tool == CanvasTool.eraserStandard;
-    final isEraserActive = currentTool == CanvasTool.eraserStroke ||
-        currentTool == CanvasTool.eraserStandard;
-    final active = isEraserBtn ? isEraserActive : currentTool == tool;
+    bool isActiveFor(CanvasTool t) => isEraserBtn
+        ? (t == CanvasTool.eraserStroke || t == CanvasTool.eraserStandard)
+        : t == tool;
+    final active = isActiveFor(currentTool);
     final p = HwThemeScope.of(context);
     final isInkTool = _inkTools.contains(tool);
 
@@ -479,11 +492,17 @@ class HwFloatingDock extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () {
-            if (active) {
-              onActiveTap();
+          // onTapUp (not onTap) so the tap carries the device kind. The
+          // semantics/screen-reader path still fires it, with kind
+          // `unknown` — which correctly takes the non-mouse branch.
+          onTapUp: (d) {
+            final judgeAgainst = d.kind == PointerDeviceKind.mouse
+                ? currentTool
+                : (penDeviceTool ?? currentTool);
+            if (isActiveFor(judgeAgainst)) {
+              onActiveTap(d.kind);
             } else {
-              onToolChanged(tool);
+              onToolChanged(tool, d.kind);
             }
           },
           child: AnimatedContainer(

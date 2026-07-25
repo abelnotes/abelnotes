@@ -73,6 +73,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     try {
       await notifier.retryPendingUploads();
     } catch (_) {}
+    if (!mounted) return;
+    // The uploads flip sync_status/etag rows — reload so the cards drop
+    // their "local only" badge without waiting for the next refresh.
+    await notifier.refresh();
   }
 
   /// Runs a pending OS open request, if any, and clears it so a rebuild
@@ -94,6 +98,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<NextcloudCredentials?>(credentialsProvider, (prev, next) {
+      if (prev != null || next == null) return;
+      unawaited(_onServerConnected());
+    });
     final p = HwThemeScope.of(context);
     final settings = ref.watch(appSettingsProvider);
     final asyncList = ref.watch(notebookListProvider);
@@ -101,14 +109,6 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     // A .ncnote double-click while the app is already running.
     ref.listen<PendingFileOpen?>(fileOpenReceiverProvider, (_, next) {
       if (next != null) _consumePendingFileOpen();
-    });
-
-    // Connecting a server from Settings leaves this screen mounted, so
-    // initState never runs again: without this the library sits empty and
-    // silent until the next restart, and notebooks written in local-only mode
-    // — all dirty, none of them on the server yet — are never pushed up.
-    ref.listen<NextcloudCredentials?>(credentialsProvider, (prev, next) {
-      if (prev == null && next != null) _onServerConnected();
     });
 
     final entries = asyncList.valueOrNull ?? const <NotebookEntry>[];
