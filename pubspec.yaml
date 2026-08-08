@@ -106,6 +106,7 @@ dev_dependencies:
   json_serializable: ^6.7.1
   riverpod_generator: ^2.4.0
   flutter_launcher_icons: ^0.14.4
+  msix: ^3.18.0
 
 flutter:
   uses-material-design: true
@@ -138,3 +139,31 @@ flutter_launcher_icons:
     icon_size: 256
   macos:
     generate: true
+
+# ── MSIX packaging (Microsoft Store) ─────────────────────────────────
+# Test build:   dart run msix:create
+# Store build:  dart run msix:create --store
+# The Store build needs identity_name/publisher from Partner Center and
+# drops the certificate (the Store signs it) — see STORE_RELEASE.md.
+msix_config:
+  display_name: AbelNotes
+  publisher_display_name: AbelNotes
+  identity_name: app.abelnotes.AbelNotes
+  # Four numbers, last one always 0, must increase on every submission.
+  # Independent of the `version:` above — the +41 build number has no place here.
+  msix_version: 0.37.2.0
+  logo_path: assets/icon/app_icon.png
+  architecture: x64
+  # internetClient: WebDAV sync. privateNetworkClientServer: a self-hosted
+  # Nextcloud on the LAN, which is the common setup for this app.
+  capabilities: internetClient, privateNetworkClientServer
+  # Both extensions: .ncnote is the pre-rename name and is still opened.
+  file_extension: .abelnote, .ncnote
+  # Self-signed, for local testing only. Both fields go away for --store,
+  # and `publisher` must equal the certificate's CN exactly.
+  certificate_path: certs/abelnotes_test.pfx
+  certificate_password: abelnotes
+  publisher: CN=AbelNotes Test
+  # Trusting the test cert is a separate, deliberate step (see STORE_RELEASE.md);
+  # leaving this on makes the build prompt and fail in CI or any non-tty shell.
+  install_certificate: false

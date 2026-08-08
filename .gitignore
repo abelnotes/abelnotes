@@ -38,6 +38,13 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# MSIX signing material — private keys, never commit
+*.pfx
+*.pvk
+*.p12
+*.cer
+*.crt
+
 # Symbolication related
 app.*.symbols
 
