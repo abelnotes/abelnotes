@@ -25,18 +25,17 @@ needs the code-signing EKU (`1.3.6.1.5.5.7.3.3`) — without it signing fails.
 
 ## Installing the test package
 
+```powershell
+powershell -ExecutionPolicy Bypass -File tool\install_test_msix.ps1
+```
+
+It elevates itself, trusts the cert and sideloads the package.
+
 The cert is self-signed, so it is its own root: it has to go into **Local
 Machine → Trusted Root**, not Trusted People. Anything less and install fails
-with `0x800B010A` (`CERT_E_CHAINING`) and the publisher shows as Unknown.
-Elevated shell, public half only — no need to hand the private key around:
-
-```powershell
-Export-Certificate -Cert (Get-Item Cert:\CurrentUser\My\<thumbprint>) `
-  -FilePath certs\abelnotes_test.cer -Type CERT     # once, unelevated
-Import-Certificate -FilePath certs\abelnotes_test.cer `
-  -CertStoreLocation Cert:\LocalMachine\Root
-Add-AppxPackage build\windows\x64\runner\Release\abelnotes.msix
-```
+with `0x800B010A` / `0x800B0109` and the publisher shows as Unknown. Writing
+there needs admin — an unelevated shell fails with `E_ACCESSDENIED` and the
+install then fails for the missing root, which reads like two bugs but is one.
 
 A cert in Trusted Root is trusted machine-wide for anything it signs, so pull
 it back out when done testing:
