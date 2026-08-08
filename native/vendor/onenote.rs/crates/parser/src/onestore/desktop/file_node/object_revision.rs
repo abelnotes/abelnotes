@@ -1,8 +1,19 @@
 use crate::Reader;
 use crate::onestore::desktop::file_node::FileNodeDataRef;
-use crate::onestore::desktop::file_node::shared::{ParseWithRef, read_property_set};
+use crate::onestore::desktop::file_node::shared::{
+    ObjectDeclarationNode, ParseWithRef, read_property_set,
+};
 use crate::onestore::shared::compact_id::CompactId;
+use crate::onestore::shared::jcid::JcId;
 use crate::onestore::shared::object_prop_set::ObjectPropSet;
+
+/// Revision nodes carry no JCID field. As in the rest of this legacy
+/// ref-counted family `jci` is fixed at 0x1, and they always carry a property
+/// set, so IsPropertySet is set. See [\[MS-ONESTORE\] 2.6.14] and
+/// `ObjectDeclarationWithRefCountBody::id`.
+///
+/// [\[MS-ONESTORE\] 2.6.14]: https://docs.microsoft.com/en-us/openspecs/office_file_formats/ms-onestore/388c266c-08e4-4ea4-af0e-5e2c5d1b995c
+const REVISED_OBJECT_JC_ID: JcId = JcId(0x1 | 0x20000);
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -29,6 +40,20 @@ impl<'a> ParseWithRef<'a> for ObjectRevisionWithRefCountFNDX {
     }
 }
 
+impl ObjectDeclarationNode for ObjectRevisionWithRefCountFNDX {
+    fn id(&self) -> JcId {
+        REVISED_OBJECT_JC_ID
+    }
+
+    fn compact_id(&self) -> CompactId {
+        self.oid
+    }
+
+    fn props(&self) -> Option<&ObjectPropSet> {
+        Some(&self.property_set)
+    }
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub(crate) struct ObjectRevisionWithRefCount2FNDX {
@@ -51,5 +76,19 @@ impl<'a> ParseWithRef<'a> for ObjectRevisionWithRefCount2FNDX {
             c_ref: reader.get_u32()?,
             property_set,
         })
+    }
+}
+
+impl ObjectDeclarationNode for ObjectRevisionWithRefCount2FNDX {
+    fn id(&self) -> JcId {
+        REVISED_OBJECT_JC_ID
+    }
+
+    fn compact_id(&self) -> CompactId {
+        self.oid
+    }
+
+    fn props(&self) -> Option<&ObjectPropSet> {
+        Some(&self.property_set)
     }
 }

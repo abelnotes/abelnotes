@@ -34,4 +34,8 @@ impl IdMapping {
     pub(crate) fn add_mapping(&mut self, guid_index: u32, guid: Guid) {
         self.0.insert(guid_index, guid);
     }
+
+    pub(crate) fn get_guid(&self, guid_index: u32) -> Option<Guid> {
+        self.0.get(&guid_index).copied()
+    }
 }

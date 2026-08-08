@@ -8,8 +8,21 @@ cd "$(dirname "$0")/onenote_bridge"
 # Remap local build paths (home dir, cargo registry) out of the compiled
 # binary — panic!/source-location strings otherwise bake the dev machine's
 # absolute paths into every release build.
+#
+# --remap-path-prefix matches literally, so on Windows the prefix has to be
+# the Windows-shaped path rustc actually sees: under Git Bash `pwd` yields
+# /c/… while cargo passes C:\…, and only the latter matches. Remap both.
 repo_root="$(cd ../.. && pwd)"
-export RUSTFLAGS="--remap-path-prefix=$HOME=~ --remap-path-prefix=$repo_root=."
+remap="--remap-path-prefix=$HOME=~ --remap-path-prefix=$repo_root=."
+repo_root_win="$(cd ../.. && pwd -W 2>/dev/null || true)"
+if [ -n "$repo_root_win" ]; then
+  remap="$remap --remap-path-prefix=$(printf '%s' "$repo_root_win" | tr '/' '\\')=."
+  remap="$remap --remap-path-prefix=$repo_root_win=."
+fi
+if [ -n "${USERPROFILE:-}" ]; then
+  remap="$remap --remap-path-prefix=$USERPROFILE=~"
+fi
+export RUSTFLAGS="$remap"
 
 cargo build --release
 

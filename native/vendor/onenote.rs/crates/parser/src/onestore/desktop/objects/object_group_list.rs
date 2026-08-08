@@ -31,16 +31,17 @@ impl ObjectGroupList {
         iterator: &mut FileNodeDataIterator<'a>,
         context: &'a ParseContext<'a>,
         objects: &mut HashMap<ExGuid, crate::onestore::Object>,
+        dependency_id_table: Option<&GlobalIdTable>,
     ) -> Result<Option<()>> {
         let current = iterator.peek();
         if let Some(FileNodeData::ObjectGroupListReferenceFND(data)) = current {
             iterator.next();
             let mut list_iterator = data.list.iter_data();
-            Self::parse_into(&mut list_iterator, context, objects)?;
+            Self::parse_into(&mut list_iterator, context, objects, dependency_id_table)?;
 
             Ok(Some(()))
         } else if let Some(FileNodeData::ObjectGroupStartFND(_)) = current {
-            Self::parse_into(iterator, context, objects)?;
+            Self::parse_into(iterator, context, objects, dependency_id_table)?;
 
             Ok(Some(()))
         } else {
@@ -52,6 +53,7 @@ impl ObjectGroupList {
         iterator: &mut FileNodeDataIterator<'a>,
         context: &'a ParseContext<'a>,
         objects: &mut HashMap<ExGuid, crate::onestore::Object>,
+        dependency_id_table: Option<&GlobalIdTable>,
     ) -> Result<()> {
         let _start = match iterator.next() {
             Some(FileNodeData::ObjectGroupStartFND(object)) => object,
@@ -63,7 +65,7 @@ impl ObjectGroupList {
             }
         };
 
-        let id_table = GlobalIdTable::try_parse(iterator)?
+        let id_table = GlobalIdTable::try_parse(iterator, dependency_id_table)?
             .ok_or_else(|| onestore_parse_error!("Global ID table not found in ObjectGroupList"))?;
         let parse_context = context.with_id_table(&id_table);
 

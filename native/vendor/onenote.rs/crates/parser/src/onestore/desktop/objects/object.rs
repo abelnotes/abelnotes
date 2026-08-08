@@ -46,6 +46,14 @@ impl Object {
             Some(FileNodeData::ObjectDeclarationWithRefCountFNDX(data)) => {
                 Some(Self::parse_from_declaration(data, context)?)
             }
+            // A revision node re-declares an object already introduced by a
+            // declaration node, carrying that revision's property set.
+            Some(FileNodeData::ObjectRevisionWithRefCountFNDX(data)) => {
+                Some(Self::parse_from_declaration(data, context)?)
+            }
+            Some(FileNodeData::ObjectRevisionWithRefCount2FNDX(data)) => {
+                Some(Self::parse_from_declaration(data, context)?)
+            }
             Some(_) => None,
             None => None,
         };

@@ -50,9 +50,19 @@ fn resolve_path(path: TypedPath) -> Result<PathBuf, Error> {
     }
     #[cfg(windows)]
     {
-        let win = path
-            .with_windows_encoding_checked()
-            .map_err(|err| Error::new(std::io::ErrorKind::InvalidInput, err))?;
+        // LOCAL PATCH (see ../../../../LOCAL_PATCHES.md).
+        //
+        // `with_windows_encoding_checked` validates for CONVERSION: it rejects
+        // any path that already carries a prefix, so an absolute Windows path
+        // like `C:\dir\section.one` fails with "path contains unexpected
+        // prefix" — every absolute path on Windows. A path that is already
+        // Windows-encoded needs no conversion at all; only Unix input does.
+        let win = match path {
+            TypedPath::Windows(p) => TypedPathBuf::Windows(p.to_path_buf()),
+            TypedPath::Unix(_) => path
+                .with_windows_encoding_checked()
+                .map_err(|err| Error::new(std::io::ErrorKind::InvalidInput, err))?,
+        };
         let s = win.to_str().ok_or_else(|| {
             Error::new(
                 std::io::ErrorKind::InvalidData,

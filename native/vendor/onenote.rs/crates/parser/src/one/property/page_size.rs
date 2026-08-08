@@ -30,9 +30,11 @@ pub(crate) enum PageSize {
 
 impl PageSize {
     pub(crate) fn parse(prop_type: PropertyType, object: &Object) -> Result<Option<PageSize>> {
+        // PageSize's property ID (0x14001C8B) declares property type 0x5, so
+        // the value is stored as a u32 — same as PageWidth/PageHeight.
         let value = match object.props.get(prop_type) {
-            Some(value) => value.to_u8().ok_or_else(|| {
-                ErrorKind::MalformedOneNoteFileData("page size is not a u8".into())
+            Some(value) => value.to_u32().ok_or_else(|| {
+                ErrorKind::MalformedOneNoteFileData("page size is not a u32".into())
             })?,
             None => return Ok(None),
         };

@@ -36,6 +36,7 @@ impl FileNodeListFragment {
         while size - 36 - file_node_size >= 4 && maximum_node_count > 0 {
             let file_node = FileNode::parse(reader, context)?;
             file_node_size += file_node.size;
+            let is_terminator = matches!(file_node.fnd, FileNodeData::ChunkTerminatorFND);
 
             if !matches!(
                 file_node.fnd,
@@ -56,6 +57,13 @@ impl FileNodeListFragment {
                     .into(),
                 )
                 .into());
+            }
+
+            // A ChunkTerminatorFND ends the node sequence. What follows, up to
+            // `next_fragment`, is padding that OneNote does not zero — read on
+            // and stale bytes decode as a plausible FileNode header.
+            if is_terminator {
+                break;
             }
         }
 
@@ -116,5 +124,65 @@ impl Parse for FileNodeListHeader {
             file_node_list_id,
             n_fragment_sequence,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::onestore::desktop::common::FileChunkReference;
+    use crate::reader::Reader;
+
+    const CHUNK_TERMINATOR_FND: u32 = 0x8000_10FF;
+
+    /// A fragment holding a single ChunkTerminatorFND followed by `padding`
+    /// bytes, then the trailer.
+    fn fragment(padding: &[u8]) -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0xA456_7AB1_F5F7_F4C4u64.to_le_bytes());
+        data.extend_from_slice(&0x10u32.to_le_bytes()); // file_node_list_id
+        data.extend_from_slice(&0u32.to_le_bytes()); // n_fragment_sequence
+        data.extend_from_slice(&CHUNK_TERMINATOR_FND.to_le_bytes());
+        data.extend_from_slice(padding);
+        data.extend_from_slice(&u64::MAX.to_le_bytes()); // next_fragment.stp (nil)
+        data.extend_from_slice(&0u32.to_le_bytes()); // next_fragment.cb
+        data.extend_from_slice(&0x8BC2_15C3_8233_BA4Bu64.to_le_bytes()); // footer
+        data
+    }
+
+    fn parse(data: &[u8]) -> Result<FileNodeListFragment> {
+        FileNodeListFragment::parse(&mut Reader::new(data), &mut ParseContext::new(), data.len())
+    }
+
+    /// OneNote does not zero the bytes between a ChunkTerminatorFND and
+    /// `nextFragment`, so leftovers there can decode as a plausible FileNode
+    /// header. The terminator ends the sequence — those bytes are padding.
+    #[test]
+    fn stops_at_chunk_terminator_with_stale_padding() {
+        // Decodes as a node of unknown type declaring 81 bytes, far more than
+        // the fragment has left.
+        let data = fragment(&[0xEF, 0x44, 0x81, 0x00, 0x00, 0x00]);
+
+        let fragment = parse(&data).unwrap();
+
+        assert_eq!(fragment.file_nodes.len(), 1);
+        assert!(matches!(
+            fragment.file_nodes[0].fnd,
+            FileNodeData::ChunkTerminatorFND
+        ));
+        assert!(fragment.next_fragment.is_fcr_nil());
+    }
+
+    #[test]
+    fn stops_at_chunk_terminator_without_padding() {
+        let data = fragment(&[]);
+
+        let fragment = parse(&data).unwrap();
+
+        assert_eq!(fragment.file_nodes.len(), 1);
+        assert!(matches!(
+            fragment.file_nodes[0].fnd,
+            FileNodeData::ChunkTerminatorFND
+        ));
     }
 }

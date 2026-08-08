@@ -6,6 +6,7 @@ use crate::onestore::desktop::file_node::FileNodeData;
 use crate::onestore::desktop::file_structure::FileNodeDataIterator;
 use crate::onestore::desktop::objects::id_mapping::IdMapping;
 use crate::onestore::shared::compact_id::CompactId;
+use crate::shared::guid::Guid;
 
 /// Lower-level structure for mapping local `CompactId`s to global `ExGuid`s. Applies to a
 /// particular region of a OneStore file.
@@ -21,18 +22,39 @@ pub(crate) struct GlobalIdTable {
 }
 
 impl GlobalIdTable {
-    pub(crate) fn try_parse(iterator: &mut FileNodeDataIterator) -> Result<Option<Self>> {
+    pub(crate) fn try_parse(
+        iterator: &mut FileNodeDataIterator,
+        dependency: Option<&GlobalIdTable>,
+    ) -> Result<Option<Self>> {
         let next = iterator.peek();
 
         match next {
             Some(
                 FileNodeData::GlobalIdTableStart2FND | FileNodeData::GlobalIdTableStartFNDX(_),
-            ) => Ok(Some(GlobalIdTable::parse(iterator)?)),
+            ) => Ok(Some(GlobalIdTable::parse(iterator, dependency)?)),
             _ => Ok(None),
         }
     }
 
-    fn parse(iterator: &mut FileNodeDataIterator) -> Result<Self> {
+    /// Resolve an index against the dependency revision's table, which
+    /// `GlobalIdTableEntry2FNDX` / `GlobalIdTableEntry3FNDX` copy entries from.
+    fn copy_from_dependency(dependency: Option<&GlobalIdTable>, index: u32) -> Result<Guid> {
+        dependency
+            .and_then(|table| table.id_map.get_guid(index))
+            .ok_or_else(|| {
+                onestore_parse_error!(
+                    "Global ID table entry copies index {} from the dependency revision, \
+                     which has no such entry",
+                    index
+                )
+                .into()
+            })
+    }
+
+    fn parse(
+        iterator: &mut FileNodeDataIterator,
+        dependency: Option<&GlobalIdTable>,
+    ) -> Result<Self> {
         // Skip the start node
         iterator.next();
 
@@ -48,15 +70,25 @@ impl GlobalIdTable {
                     id_map.add_mapping(entry.index, entry.guid);
                 }
                 FileNodeData::GlobalIdTableEntry2FNDX(entry) => {
+                    // Copies a single entry from the dependency revision's table.
+                    let guid = Self::copy_from_dependency(dependency, entry.i_index_map_from)?;
+                    id_map.add_mapping(entry.i_index_map_to, guid);
+
                     reference_map
                         .parent_references
                         .insert(entry.i_index_map_from, entry.i_index_map_to);
                 }
-                FileNodeData::GlobalIdTableEntry3FNDX(_entry) => {
-                    return Err(onestore_parse_error!(
-                        "FileNodeData::GlobalIdTableEntry3FNDX has not been implemented yet",
-                    )
-                    .into());
+                FileNodeData::GlobalIdTableEntry3FNDX(entry) => {
+                    // Copies a run of entries from the dependency revision's table.
+                    for offset in 0..entry.c_entries_to_copy {
+                        let from = entry.i_index_copy_from_start + offset;
+                        let guid = Self::copy_from_dependency(dependency, from)?;
+                        id_map.add_mapping(entry.i_index_copy_to_start + offset, guid);
+
+                        reference_map
+                            .parent_references
+                            .insert(from, entry.i_index_copy_to_start + offset);
+                    }
                 }
                 FileNodeData::UnknownNode(_node) => {
                     log::warn!(

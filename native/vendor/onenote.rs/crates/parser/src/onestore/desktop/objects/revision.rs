@@ -39,7 +39,8 @@ pub(crate) fn try_parse_into<'a>(
     context: &'a ParseContext<'a>,
     roots: &mut HashMap<RootRole, ExGuid>,
     objects: &mut HashMap<ExGuid, crate::onestore::Object>,
-) -> Result<Option<ExGuid>> {
+    revision_id_tables: &HashMap<ExGuid, GlobalIdTable>,
+) -> Result<Option<(ExGuid, Option<GlobalIdTable>)>> {
     let next = iterator.peek();
 
     match next {
@@ -47,7 +48,13 @@ pub(crate) fn try_parse_into<'a>(
             FileNodeData::RevisionManifestStart4FND(_)
             | FileNodeData::RevisionManifestStart6FND(_)
             | FileNodeData::RevisionManifestStart7FND(_),
-        ) => Ok(Some(parse_into(iterator, context, roots, objects)?)),
+        ) => Ok(Some(parse_into(
+            iterator,
+            context,
+            roots,
+            objects,
+            revision_id_tables,
+        )?)),
         _ => Ok(None),
     }
 }
@@ -57,7 +64,8 @@ fn parse_into<'a>(
     context: &'a ParseContext<'a>,
     roots: &mut HashMap<RootRole, ExGuid>,
     objects: &mut HashMap<ExGuid, crate::onestore::Object>,
-) -> Result<ExGuid> {
+    revision_id_tables: &HashMap<ExGuid, GlobalIdTable>,
+) -> Result<(ExGuid, Option<GlobalIdTable>)> {
     macro_rules! iterator_skip_if_matching {
         ($iterator:expr, $match_condition:pat) => {
             if matches!($iterator.peek(), $match_condition) {
@@ -67,7 +75,7 @@ fn parse_into<'a>(
     }
 
     let start = iterator.next();
-    let (id, _parent_id): (ExGuid, ExGuid) = match start {
+    let (id, parent_id): (ExGuid, ExGuid) = match start {
         Some(FileNodeData::RevisionManifestStart4FND(data)) => {
             (data.rid.into(), data.rid_dependent.into())
         }
@@ -84,6 +92,10 @@ fn parse_into<'a>(
         }
     };
 
+    // A revision's global ID table may be built by copying entries from the
+    // table of the revision it depends on. See [MS-ONESTORE] 2.1.13.
+    let dependency_id_table = revision_id_tables.get(&parent_id);
+
     let mut global_id_tables: Vec<GlobalIdTable> = Vec::new();
 
     let mut last_index = iterator.get_index();
@@ -91,13 +103,17 @@ fn parse_into<'a>(
         if let FileNodeData::RevisionManifestEndFND = current {
             iterator.next();
             break;
-        } else if let Some(()) = ObjectGroupList::try_parse_into(iterator, context, objects)? {
+        } else if let Some(()) =
+            ObjectGroupList::try_parse_into(iterator, context, objects, dependency_id_table)?
+        {
             // Skip: Used for reference counting (which we can ignore here)
             iterator_skip_if_matching!(
                 iterator,
                 Some(FileNodeData::ObjectInfoDependencyOverridesFND(_))
             );
-        } else if let Some(global_id_table) = GlobalIdTable::try_parse(iterator)? {
+        } else if let Some(global_id_table) =
+            GlobalIdTable::try_parse(iterator, dependency_id_table)?
+        {
             // In .onetoc2 files, objects can directly follow GlobalIdTables:
             let parse_context = context.with_id_table(&global_id_table);
             iterator_skip_if_matching!(
@@ -164,5 +180,5 @@ fn parse_into<'a>(
         last_index = current_index;
     }
 
-    Ok(id)
+    Ok((id, global_id_tables.pop()))
 }

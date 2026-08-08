@@ -5,6 +5,7 @@ use crate::fsshttpb::data::exguid::ExGuid;
 use crate::onestore::desktop::file_node::FileNodeData;
 use crate::onestore::desktop::file_node::revision_manifest::RevisionManifestListStartFND;
 use crate::onestore::desktop::file_structure::FileNodeDataIterator;
+use crate::onestore::desktop::objects::global_id_table::GlobalIdTable;
 use crate::onestore::desktop::objects::parse_context::ParseContext;
 use crate::onestore::desktop::objects::revision;
 
@@ -38,6 +39,9 @@ impl<'a> RevisionManifestList {
         objects: &mut HashMap<ExGuid, crate::onestore::Object>,
     ) -> Result<()> {
         let mut revisions_seen: HashSet<ExGuid> = HashSet::new();
+        // A revision can inherit global ID table entries from the revision it
+        // depends on, so keep each revision's table around for later ones.
+        let mut revision_id_tables: HashMap<ExGuid, GlobalIdTable> = HashMap::new();
 
         let mut last_index = iterator.get_index();
         while let Some(current) = iterator.peek() {
@@ -71,14 +75,23 @@ impl<'a> RevisionManifestList {
                     }
                 }
                 node => {
-                    let revision_id = revision::try_parse_into(iterator, context, roots, objects)?
-                        .ok_or_else(|| {
-                            onestore_parse_error!(
-                                "Unexpected node encountered in RevisionManifestList: {:?}",
-                                node
-                            )
-                        })?;
+                    let (revision_id, id_table) = revision::try_parse_into(
+                        iterator,
+                        context,
+                        roots,
+                        objects,
+                        &revision_id_tables,
+                    )?
+                    .ok_or_else(|| {
+                        onestore_parse_error!(
+                            "Unexpected node encountered in RevisionManifestList: {:?}",
+                            node
+                        )
+                    })?;
                     revisions_seen.insert(revision_id);
+                    if let Some(id_table) = id_table {
+                        revision_id_tables.insert(revision_id, id_table);
+                    }
                 }
             }
 
