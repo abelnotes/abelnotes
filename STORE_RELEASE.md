@@ -25,15 +25,29 @@ needs the code-signing EKU (`1.3.6.1.5.5.7.3.3`) — without it signing fails.
 
 ## Installing the test package
 
-Sideloading requires the signing cert in **Local Machine → Trusted People**,
-which needs an elevated shell:
+The cert is self-signed, so it is its own root: it has to go into **Local
+Machine → Trusted Root**, not Trusted People. Anything less and install fails
+with `0x800B010A` (`CERT_E_CHAINING`) and the publisher shows as Unknown.
+Elevated shell, public half only — no need to hand the private key around:
 
 ```powershell
-Import-PfxCertificate -FilePath certs\abelnotes_test.pfx `
-  -CertStoreLocation Cert:\LocalMachine\TrustedPeople `
-  -Password (ConvertTo-SecureString -String "abelnotes" -Force -AsPlainText)
+Export-Certificate -Cert (Get-Item Cert:\CurrentUser\My\<thumbprint>) `
+  -FilePath certs\abelnotes_test.cer -Type CERT     # once, unelevated
+Import-Certificate -FilePath certs\abelnotes_test.cer `
+  -CertStoreLocation Cert:\LocalMachine\Root
 Add-AppxPackage build\windows\x64\runner\Release\abelnotes.msix
 ```
+
+A cert in Trusted Root is trusted machine-wide for anything it signs, so pull
+it back out when done testing:
+
+```powershell
+Get-ChildItem Cert:\LocalMachine\Root |
+  Where-Object Subject -eq "CN=AbelNotes Test" | Remove-Item
+```
+
+None of this applies to the Store build: the Store signs the package with its
+own chain, so users never install a certificate.
 
 `install_certificate: false` is deliberate: the prompt hangs any non-tty shell,
 so trusting the cert stays a separate step.
