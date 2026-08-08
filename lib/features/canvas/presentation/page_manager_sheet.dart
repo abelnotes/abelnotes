@@ -5,6 +5,7 @@
 //  multi-select action bar.  Extracted from canvas_screen.dart.
 // ═══════════════════════════════════════════════════════════════
 
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/providers/page_clipboard_provider.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
+import 'package:abelnotes/features/canvas/data/thumbnail_simplify.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/ui/primitives/hw_button.dart';
@@ -1467,10 +1469,21 @@ class _PageGridReorderableState extends ConsumerState<PageGridReorderable> {
         }
       }
     }
-    return Builder(builder: (ctx) {
+    return LayoutBuilder(builder: (ctx, constraints) {
       final p = HwThemeScope.of(ctx);
       final outline = Theme.of(ctx).colorScheme.outlineVariant;
       final shadowColor = Theme.of(ctx).colorScheme.shadow;
+      // Device pixels per page unit: the fit scale CanvasRenderEngine will
+      // paint this tile at, times the raster density. A free-sketch page is
+      // 6000 units wide, so this lands near 0.04 — see [simplifyForPreview].
+      final previewPage = page == null
+          ? null
+          : simplifyForPreview(
+              page,
+              min(constraints.maxWidth / page.width,
+                      constraints.maxHeight / page.height) *
+                  MediaQuery.devicePixelRatioOf(ctx),
+            );
       return Container(
         decoration: BoxDecoration(
           // Paper-simulate background — CanvasRenderEngine renders page paper
@@ -1493,13 +1506,13 @@ class _PageGridReorderableState extends ConsumerState<PageGridReorderable> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(5),
-          child: page != null
+          child: previewPage != null
               ? Stack(
                   fit: StackFit.expand,
                   children: [
                     CustomPaint(
                       painter: CanvasRenderEngine(
-                        pageData: page,
+                        pageData: previewPage,
                         zoom: 1.0,
                         panOffset: Offset.zero,
                         imageCache: state.imageCache,

@@ -2210,7 +2210,10 @@ class _InterpolatedPoint {
 ///     adaptive Catmull-Rom interpolates more densely at higher zoom,
 ///     and replaying a low-zoom picture at high zoom looks polygonal.
 class _StaticPictureCache {
-  static const int _maxEntries = 6;
+  // Must stay above the page-manager grid's 6-9 on-screen thumbnails, or one
+  // screenful evicts every entry — including the canvas's own page. Preview
+  // pictures are simplified (see simplifyForPreview), so slots are cheap.
+  static const int _maxEntries = 16;
   // Was 0.1 → mouse-wheel zoom (which moves zoom by ~10% per tick) crossed a
   // bucket on every event and invalidated the Picture cache continuously.
   // 0.5 means strokes interpolated for zoom 1.0 are reused up to ~1.49 and
