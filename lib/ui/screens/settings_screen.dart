@@ -913,7 +913,8 @@ class _StorageSection extends ConsumerWidget {
       for (final entry in entries) {
         final bytes = await fileService.readNotebookFile(entry.metadata.id);
         if (bytes == null) continue;
-        final name = '${_sanitiseForFilename(entry.metadata.title)}_${entry.metadata.id}.ncnote';
+        final name = '${_sanitiseForFilename(entry.metadata.title)}'
+            '_${entry.metadata.id}${AppConfig.fileExtension}';
         archive.addFile(ArchiveFile(name, bytes.length, bytes));
       }
       final zipBytes = ZipEncoder().encode(archive);

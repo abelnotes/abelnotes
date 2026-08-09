@@ -85,6 +85,21 @@ class FlutterWindow : public Win32Window {
   // the quantized event position while drawing.
   void NotifyPenPos(double x, double y, bool contact, double pressure);
 
+  // ── File-open bridge (Windows file association) ───────────────────
+  //
+  // A cold start receives the path as a command-line argument, straight to
+  // the Dart entrypoint. A double-click while the app is already running
+  // arrives as WM_COPYDATA from the second process (see app_ipc.h) and is
+  // forwarded to Dart over this channel instead.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      file_open_channel_;
+  // Request that arrived before the engine was up; OnCreate flushes it.
+  std::string pending_open_path_;
+
+  // Returns false if the WM_COPYDATA wasn't ours, so it falls through.
+  bool HandleOpenFileRequest(const COPYDATASTRUCT* data);
+  void SurfaceWindow();
+
   static LRESULT CALLBACK ChildSubclassProc(HWND hwnd, UINT msg,
                                             WPARAM wparam, LPARAM lparam,
                                             UINT_PTR subclass_id,

@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
+import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/thumbnail_service.dart';
 import 'package:abelnotes/features/onboarding/onboarding_screen.dart';
@@ -20,12 +20,12 @@ import 'package:abelnotes/ui/screens/library_screen.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-void main() async {
+/// [args] carries the file the OS asked us to open: on desktop a `.abelnote`
+/// double-click launches the app with the path on the command line, and every
+/// desktop runner forwards it here.
+void main(List<String> args) async {
   await runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    // Load version from Flutter's generated version.json BEFORE CrashLogger
-    // (which stamps fullVersion into the log) so the build id is always right.
-    await AppConfig.loadVersion();
     await CrashLogger.init();
 
     // MPL-2.0 attribution for the Rust onenote_parser crate bundled via the
@@ -50,8 +50,13 @@ void main() async {
       overrides: [
         fileServiceProvider.overrideWithValue(fileService),
         thumbnailServiceProvider.overrideWithValue(thumbnailService),
+        fileOpenReceiverProvider.overrideWith((ref) {
+          final receiver = FileOpenReceiver(initialArgs: args);
+          receiver.start();
+          return receiver;
+        }),
       ],
-      child: const HandWriterApp(),
+      child: const AbelNotesApp(),
     ));
   }, (error, stack) {
     CrashLogger.append('ZoneError: $error\n$stack');
@@ -60,8 +65,8 @@ void main() async {
 
 /// Root app — selects palette/variant based on user setting and wraps the
 /// tree in [HwThemeScope] so the new UI can read tokens via `HwThemeScope.of`.
-class HandWriterApp extends ConsumerWidget {
-  const HandWriterApp({super.key});
+class AbelNotesApp extends ConsumerWidget {
+  const AbelNotesApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

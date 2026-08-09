@@ -24,7 +24,7 @@ class ImportService {
         .replaceAll(RegExp(r'[^\w\s\-]'), '')
         .replaceAll(RegExp(r'\s+'), '_')
         .toLowerCase();
-    return '${AppConfig.defaultRemotePath}${safeName}_$id${AppConfig.fileExtension}';
+    return '${AppConfig.defaultRemotePath}${safeName}_$id${AppConfig.storageExtension}';
   }
 
   /// Zip-encodes the notebook off the UI thread, writes it to local storage

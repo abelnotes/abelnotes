@@ -719,7 +719,7 @@ class NotebookListNotifier
         .replaceAll(RegExp(r'\s+'), '_')
         .toLowerCase();
     final remotePath =
-        '${AppConfig.defaultRemotePath}${safeName}_$notebookId${AppConfig.fileExtension}';
+        '${AppConfig.defaultRemotePath}${safeName}_$notebookId${AppConfig.storageExtension}';
 
     // Always save locally first
     bool isLocal = true;

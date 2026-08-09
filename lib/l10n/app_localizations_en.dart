@@ -623,23 +623,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csExportAsPng => 'Export as PNG';
 
   @override
-  String get csExportAsNcnote => 'Export as .ncnote (native)';
+  String get csExportAsNcnote => 'Export as .abelnote (native)';
 
   @override
   String get csExportNcnoteSubtitle =>
       'Native format, full vector quality (for backup or transfer)';
 
   @override
-  String get csGeneratingNcnote => 'Generating .ncnote…';
+  String get csGeneratingNcnote => 'Generating .abelnote…';
 
   @override
   String csNcnoteExported(String size) {
-    return '.ncnote exported ($size KB)';
+    return '.abelnote exported ($size KB)';
   }
 
   @override
   String csNcnoteExportError(String error) {
-    return '.ncnote export error: $error';
+    return '.abelnote export error: $error';
   }
 
   @override
@@ -785,6 +785,17 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get libImportCorruptedFile =>
+      'This file isn\'t a valid AbelNotes notebook — it may be incomplete or damaged.';
+
+  @override
+  String get libExport => 'Export';
+
+  @override
+  String get libImportOneNoteUnreadable =>
+      'AbelNotes can\'t read this OneNote file — it may use a format the importer doesn\'t support yet, or be damaged.';
+
+  @override
   String libErrorImport(String error) {
     return 'Import error: $error';
   }
@@ -879,7 +890,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libImport => 'Import';
 
   @override
-  String get libImportTooltip => 'Import an .ncnote file';
+  String get libImportTooltip => 'Import an .abelnote file';
 
   @override
   String get libSettingsTooltip => 'Settings';
@@ -2351,7 +2362,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get importSourceTitle => 'Import into library';
 
   @override
-  String get importSourceNcnote => '.ncnote notebook';
+  String get importSourceNcnote => '.abelnote notebook';
 
   @override
   String get importSourceObsidian => 'Obsidian vault';

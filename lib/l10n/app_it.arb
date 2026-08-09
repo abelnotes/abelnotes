@@ -541,13 +541,13 @@
   "@csExportAsPdf": {},
   "csExportAsPng": "Esporta come PNG",
   "@csExportAsPng": {},
-  "csExportAsNcnote": "Esporta come .ncnote (nativo)",
+  "csExportAsNcnote": "Esporta come .abelnote (nativo)",
   "@csExportAsNcnote": {},
   "csExportNcnoteSubtitle": "Formato nativo, qualità vettoriale piena (per backup o trasferimento)",
   "@csExportNcnoteSubtitle": {},
-  "csGeneratingNcnote": "Generazione .ncnote in corso…",
+  "csGeneratingNcnote": "Generazione .abelnote in corso…",
   "@csGeneratingNcnote": {},
-  "csNcnoteExported": ".ncnote esportato ({size} KB)",
+  "csNcnoteExported": ".abelnote esportato ({size} KB)",
   "@csNcnoteExported": {
     "placeholders": {
       "size": {
@@ -555,7 +555,7 @@
       }
     }
   },
-  "csNcnoteExportError": "Errore export .ncnote: {error}",
+  "csNcnoteExportError": "Errore export .abelnote: {error}",
   "@csNcnoteExportError": {
     "placeholders": {
       "error": {
@@ -694,6 +694,12 @@
       }
     }
   },
+  "libImportCorruptedFile": "Questo file non è un taccuino AbelNotes valido: potrebbe essere incompleto o danneggiato.",
+  "@libImportCorruptedFile": {},
+  "libExport": "Esporta",
+  "@libExport": {},
+  "libImportOneNoteUnreadable": "AbelNotes non riesce a leggere questo file OneNote: potrebbe usare un formato non ancora supportato, o essere danneggiato.",
+  "@libImportOneNoteUnreadable": {},
   "libErrorImport": "Errore importazione: {error}",
   "@libErrorImport": {
     "placeholders": {
@@ -774,7 +780,7 @@
   "@libSearchHintNotebooks": {},
   "libImport": "Importa",
   "@libImport": {},
-  "libImportTooltip": "Importa un file .ncnote",
+  "libImportTooltip": "Importa un file .abelnote",
   "@libImportTooltip": {},
   "libSettingsTooltip": "Impostazioni",
   "@libSettingsTooltip": {},
@@ -1984,7 +1990,7 @@
   "@chromeLabelLaser": {},
   "importSourceTitle": "Importa nella libreria",
   "@importSourceTitle": {},
-  "importSourceNcnote": "Taccuino .ncnote",
+  "importSourceNcnote": "Taccuino .abelnote",
   "@importSourceNcnote": {},
   "importSourceObsidian": "Vault Obsidian",
   "@importSourceObsidian": {},

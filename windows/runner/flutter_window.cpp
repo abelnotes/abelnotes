@@ -5,7 +5,9 @@
 #include <optional>
 #include <string>
 
+#include "app_ipc.h"
 #include "flutter/generated_plugin_registrant.h"
+#include "utils.h"
 
 #pragma comment(lib, "comctl32.lib")
 
@@ -31,6 +33,14 @@ bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
   }
+
+  // Marks this window for app_ipc::FindExistingMainWindow. Set before the
+  // engine is built — that's the slow part, and a second instance launched
+  // meanwhile is already polling for us.
+  constexpr DWORD_PTR kMainWindowMarker = 1;
+  SetProp(GetHandle(), app_ipc::kMainWindowProp,
+          reinterpret_cast<HANDLE>(kMainWindowMarker));
+
   // NOTE: we deliberately do NOT call EnableMouseInPointer(TRUE)
   // here. Flutter's Windows runner reads MOUSE input from the
   // legacy WM_LBUTTONDOWN / WM_MOUSEMOVE messages, and forcing
@@ -61,6 +71,20 @@ bool FlutterWindow::OnCreate() {
           flutter_controller_->engine()->messenger(),
           "handwriter/pen_input",
           &flutter::StandardMethodCodec::GetInstance());
+
+  // File-open bridge — see header.
+  file_open_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "abelnotes/file_open",
+          &flutter::StandardMethodCodec::GetInstance());
+
+  // Dart hasn't registered its handler yet; ChannelBuffers holds the message
+  // until it does.
+  if (!pending_open_path_.empty()) {
+    file_open_channel_->InvokeMethod(
+        "open", std::make_unique<flutter::EncodableValue>(pending_open_path_));
+    pending_open_path_.clear();
+  }
 
   // Pointer messages are routed to the window UNDER the cursor — on
   // Flutter Windows that's the renderer CHILD HWND, not the
@@ -105,6 +129,7 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::OnDestroy() {
   // Window properties must be removed before the window is destroyed.
   RemoveProp(GetHandle(), kTabletPenServiceProperty);
+  RemoveProp(GetHandle(), app_ipc::kMainWindowProp);
   if (child_hwnd_) {
     RemoveProp(child_hwnd_, kTabletPenServiceProperty);
     RemoveWindowSubclass(child_hwnd_, &FlutterWindow::ChildSubclassProc, 1);
@@ -150,6 +175,14 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     return kDisablePenFeedback;
   }
 
+  // "Open this file", forwarded by a second instance (see app_ipc.h).
+  if (message == WM_COPYDATA) {
+    if (HandleOpenFileRequest(
+            reinterpret_cast<const COPYDATASTRUCT*>(lparam))) {
+      return TRUE;
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -167,6 +200,38 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+bool FlutterWindow::HandleOpenFileRequest(const COPYDATASTRUCT* data) {
+  if (data == nullptr || data->dwData != app_ipc::kCopyDataOpenFile) {
+    return false;
+  }
+  SurfaceWindow();
+
+  // NUL-terminated UTF-16 path; a lone NUL means "surface only".
+  const size_t chars = data->cbData / sizeof(wchar_t);
+  if (data->lpData == nullptr || chars < 2) {
+    return true;
+  }
+  const std::wstring path(static_cast<const wchar_t*>(data->lpData),
+                          chars - 1);
+  const std::string utf8 = Utf8FromUtf16(path.c_str());
+  if (file_open_channel_) {
+    file_open_channel_->InvokeMethod(
+        "open", std::make_unique<flutter::EncodableValue>(utf8));
+  } else {
+    pending_open_path_ = utf8;
+  }
+  return true;
+}
+
+void FlutterWindow::SurfaceWindow() {
+  const HWND handle = GetHandle();
+  if (handle == nullptr) {
+    return;
+  }
+  ::ShowWindow(handle, ::IsIconic(handle) ? SW_RESTORE : SW_SHOW);
+  ::SetForegroundWindow(handle);
 }
 
 void FlutterWindow::HandlePenPointerMessage(UINT message, WPARAM wparam) {

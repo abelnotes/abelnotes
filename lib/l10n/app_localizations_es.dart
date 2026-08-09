@@ -624,23 +624,23 @@ class AppLocalizationsEs extends AppLocalizations {
   String get csExportAsPng => 'Exportar como PNG';
 
   @override
-  String get csExportAsNcnote => 'Exportar como .ncnote (nativo)';
+  String get csExportAsNcnote => 'Exportar como .abelnote (nativo)';
 
   @override
   String get csExportNcnoteSubtitle =>
       'Formato nativo, calidad vectorial completa (para copia de seguridad o transferencia)';
 
   @override
-  String get csGeneratingNcnote => 'Generando .ncnote…';
+  String get csGeneratingNcnote => 'Generando .abelnote…';
 
   @override
   String csNcnoteExported(String size) {
-    return '.ncnote exportado ($size KB)';
+    return '.abelnote exportado ($size KB)';
   }
 
   @override
   String csNcnoteExportError(String error) {
-    return 'Error al exportar .ncnote: $error';
+    return 'Error al exportar .abelnote: $error';
   }
 
   @override
@@ -788,6 +788,17 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get libImportCorruptedFile =>
+      'Este archivo no es un cuaderno de AbelNotes válido: puede estar incompleto o dañado.';
+
+  @override
+  String get libExport => 'Exportar';
+
+  @override
+  String get libImportOneNoteUnreadable =>
+      'AbelNotes no puede leer este archivo de OneNote: puede usar un formato aún no compatible o estar dañado.';
+
+  @override
   String libErrorImport(String error) {
     return 'Error de importación: $error';
   }
@@ -882,7 +893,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get libImport => 'Importar';
 
   @override
-  String get libImportTooltip => 'Importar un archivo .ncnote';
+  String get libImportTooltip => 'Importar un archivo .abelnote';
 
   @override
   String get libSettingsTooltip => 'Ajustes';
@@ -2357,7 +2368,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get importSourceTitle => 'Importar en la biblioteca';
 
   @override
-  String get importSourceNcnote => 'Cuaderno .ncnote';
+  String get importSourceNcnote => 'Cuaderno .abelnote';
 
   @override
   String get importSourceObsidian => 'Vault de Obsidian';

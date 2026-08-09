@@ -9,6 +9,7 @@ import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
+import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'dart:io';
 
@@ -22,6 +23,7 @@ import 'package:abelnotes/features/import/presentation/import_report_dialog.dart
 import 'package:abelnotes/features/import/presentation/import_source_sheet.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/screens/settings_screen.dart';
+import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/ui/services/notebook_opener.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
@@ -49,6 +51,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     super.initState();
     Future.microtask(() async {
       ref.read(notebookListProvider.notifier).refresh();
+      // A cold start opened via file association already has its request
+      // queued; ref.listen only reports later changes.
+      _consumePendingFileOpen();
       // Best-effort retry of pending uploads on cold boot.
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
@@ -56,6 +61,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
         await ref.read(notebookListProvider.notifier).retryPendingUploads();
       } catch (_) {}
     });
+  }
+
+  /// Runs a pending OS open request, if any, and clears it so a rebuild
+  /// doesn't import the same notebook twice.
+  void _consumePendingFileOpen() {
+    if (!mounted) return;
+    final pending = ref.read(fileOpenReceiverProvider);
+    if (pending == null) return;
+    ref.read(fileOpenReceiverProvider.notifier).consume();
+    _openNcnotePath(pending.path);
   }
 
   @override
@@ -70,6 +85,11 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     final p = HwThemeScope.of(context);
     final settings = ref.watch(appSettingsProvider);
     final asyncList = ref.watch(notebookListProvider);
+
+    // A .ncnote double-click while the app is already running.
+    ref.listen<PendingFileOpen?>(fileOpenReceiverProvider, (_, next) {
+      if (next != null) _consumePendingFileOpen();
+    });
 
     final entries = asyncList.valueOrNull ?? const <NotebookEntry>[];
     final filtered =
@@ -325,10 +345,23 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
       if (!mounted) return;
       // ignore: use_build_context_synchronously
       Navigator.of(ctx).pop();
-      _toast(l10n.libErrorImport(e.toString()));
+      debugPrint('[Import] OneNote import failed: $e');
+      _toast(_oneNoteErrorMessage(l10n, e));
     } finally {
       controller.dispose();
     }
+  }
+
+  /// Bridge failures read like `parse_section: <parser diagnosis>` — useful in
+  /// the log, meaningless on screen. The importer's own FormatExceptions are
+  /// already written for people, so those pass through unwrapped.
+  String _oneNoteErrorMessage(AppLocalizations l10n, Object error) {
+    if (error is! FormatException) return l10n.libErrorImport(error.toString());
+    final message = error.message;
+    if (message.startsWith('parse_') || message.startsWith('bridge OneNote')) {
+      return l10n.libImportOneNoteUnreadable;
+    }
+    return l10n.libErrorImport(message);
   }
 
   /// Foreign-format import (Obsidian / Notion): pick the source, parse it to
@@ -435,7 +468,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     final l10n = AppLocalizations.of(context);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['ncnote', 'zip'],
+      // Legacy spelling stays selectable: exports made before the rename.
+      allowedExtensions: ['abelnote', 'ncnote', 'zip'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
@@ -446,6 +480,107 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
       return;
     }
     if (!mounted) return;
+    await _importNcnoteBytes(bytes, file.name);
+  }
+
+  /// A notebook handed to us by the OS (file association / command line).
+  ///
+  /// A notebook the user already has is OPENED, not imported: double-clicking
+  /// your own file must not silently clone it. Importing stays the explicit
+  /// in-app action, which always makes a copy.
+  Future<void> _openNcnotePath(String path) async {
+    Uint8List bytes;
+    try {
+      bytes = await File(path).readAsBytes();
+    } catch (e) {
+      if (mounted) {
+        _toast(AppLocalizations.of(context).libErrorImport(e.toString()));
+      }
+      return;
+    }
+    if (!mounted) return;
+
+    final syncService = ref.read(syncServiceProvider);
+    if (syncService != null) {
+      try {
+        final incoming = syncService.parseNcnoteMetadataOnly(bytes);
+        final existing = await _findNotebookById(incoming.id);
+        if (!mounted) return;
+        if (existing != null) {
+          _openNotebook(existing);
+          return;
+        }
+      } catch (_) {
+        // Unreadable archive: fall through so the import path reports it with
+        // the friendly message instead of duplicating the diagnosis here.
+      }
+    }
+    if (!mounted) return;
+    await _importNcnoteBytes(bytes, path.split(RegExp(r'[\\/]')).last);
+  }
+
+  /// The library loads asynchronously, so on a cold start the list can still
+  /// be empty when the OS request arrives — deciding "do I already have this?"
+  /// against it would import a duplicate. Waits for the first real value.
+  Future<NotebookEntry?> _findNotebookById(String id) async {
+    var list = ref.read(notebookListProvider);
+    if (!list.hasValue) {
+      final completer = Completer<AsyncValue<List<NotebookEntry>>>();
+      final sub = ref.listenManual<AsyncValue<List<NotebookEntry>>>(
+        notebookListProvider,
+        (_, next) {
+          if (next.hasValue && !completer.isCompleted) completer.complete(next);
+        },
+      );
+      try {
+        list = await completer.future
+            .timeout(const Duration(seconds: 10), onTimeout: () => list);
+      } finally {
+        sub.close();
+      }
+    }
+    for (final entry in list.valueOrNull ?? const <NotebookEntry>[]) {
+      if (entry.metadata.id == id) return entry;
+    }
+    return null;
+  }
+
+  /// Export straight from the library — the same .ncnote package the in-canvas
+  /// export produces, read from disk instead of from live canvas state.
+  Future<void> _exportNotebook(NotebookEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.csGeneratingNcnote)));
+      final bytes =
+          await ref.read(fileServiceProvider).readNotebookFile(entry.metadata.id);
+      messenger.clearSnackBars();
+      if (!mounted) return;
+      if (bytes == null) {
+        _toast(l10n.libImportCannotReadFile);
+        return;
+      }
+      await saveOrShareFile(
+        context,
+        fileName:
+            '${sanitiseForFilename(entry.metadata.title)}${AppConfig.fileExtension}',
+        data: bytes,
+        mimeType: 'application/zip',
+      );
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+          content: Text(
+              l10n.csNcnoteExported((bytes.length / 1024).toStringAsFixed(1)))));
+    } catch (e) {
+      messenger.clearSnackBars();
+      if (!mounted) return;
+      messenger.showSnackBar(
+          SnackBar(content: Text(l10n.csNcnoteExportError(e.toString()))));
+    }
+  }
+
+  Future<void> _importNcnoteBytes(Uint8List bytes, String name) async {
+    final l10n = AppLocalizations.of(context);
 
     // Show progress
     final ctx = context;
@@ -472,8 +607,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
 
     try {
       // Validate ZIP integrity first
-      SyncService.validateNcnoteArchive(bytes,
-          context: 'import ${file.name}');
+      SyncService.validateNcnoteArchive(bytes, context: 'import $name');
 
       final syncService = ref.read(syncServiceProvider);
       final fileService = ref.read(fileServiceProvider);
@@ -531,7 +665,14 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
       if (!mounted) return;
       // ignore: use_build_context_synchronously
       Navigator.of(ctx).pop();
-      _toast(l10n.libErrorImport(e.toString()));
+      // A corrupt archive is a normal thing for a user to hit — a truncated
+      // download, a half-synced file, a double-click on the wrong .ncnote — so
+      // it gets a sentence they can act on. The exception text stays in the
+      // log for diagnosis.
+      debugPrint('[Import] .ncnote import failed: $e');
+      _toast(e is CorruptedArchiveException
+          ? l10n.libImportCorruptedFile
+          : l10n.libErrorImport(e.toString()));
     }
   }
 
@@ -651,6 +792,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
               _menuItem(ctx, 'pen', l10n.libRename, 'rename'),
               _menuItem(ctx, 'palette', l10n.libChangeCover, 'cover'),
               _menuItem(ctx, 'folder', l10n.libMoveToFolder, 'move'),
+              _menuItem(ctx, 'export', l10n.libExport, 'export'),
               _menuItem(ctx, 'trash', l10n.libDelete, 'delete', danger: true),
             ],
           ),
@@ -675,6 +817,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
           break;
         case 'move':
           await _showMoveToFolderSheet(entry);
+          break;
+        case 'export':
+          await _exportNotebook(entry);
           break;
         case 'cover':
           final newColor = await _pickCoverColor(

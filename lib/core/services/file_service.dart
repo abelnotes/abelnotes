@@ -131,7 +131,7 @@ class FileService {
 
   /// Returns the local filesystem path for a notebook.
   String localPath(String notebookId) =>
-      p.join(_notebooksDir, '$notebookId${AppConfig.fileExtension}');
+      p.join(_notebooksDir, '$notebookId${AppConfig.storageExtension}');
 
   /// Saves a raw .ncnote archive to local storage.
   ///
@@ -213,13 +213,13 @@ class FileService {
     final micro = DateTime.now().microsecondsSinceEpoch;
     final seq = (++_tmpCounter).toRadixString(36);
     final stamp = '${micro}_$seq';
-    final dest = File(p.join(dir.path, '$stamp${AppConfig.fileExtension}'));
+    final dest = File(p.join(dir.path, '$stamp${AppConfig.storageExtension}'));
     await source.copy(dest.path);
 
     // Prune old snapshots (keep newest _maxSnapshots).
     final snapshots = await dir
         .list()
-        .where((e) => e is File && e.path.endsWith(AppConfig.fileExtension))
+        .where((e) => e is File && e.path.endsWith(AppConfig.storageExtension))
         .toList();
     snapshots.sort((a, b) => b.path.compareTo(a.path)); // timestamps sort lexically
     for (var i = _maxSnapshots; i < snapshots.length; i++) {
@@ -234,7 +234,7 @@ class FileService {
     if (!await dir.exists()) return const [];
     final out = <(DateTime, String)>[];
     await for (final entry in dir.list()) {
-      if (entry is! File || !entry.path.endsWith(AppConfig.fileExtension)) continue;
+      if (entry is! File || !entry.path.endsWith(AppConfig.storageExtension)) continue;
       final name = p.basenameWithoutExtension(entry.path);
       // Accept both legacy "1700000000000" (ms) and new "1700000000000000_3q"
       // (µs + counter) naming so existing snapshots remain listable.
@@ -721,7 +721,7 @@ class FileService {
       final meta = await getNotebookMeta(notebookId);
       final stamp = DateTime.now().millisecondsSinceEpoch.toString();
       final trashId = '${notebookId}_$stamp';
-      final destFile = File(p.join(_trashDir, '$trashId${AppConfig.fileExtension}'));
+      final destFile = File(p.join(_trashDir, '$trashId${AppConfig.storageExtension}'));
       final metaFile = File(p.join(_trashDir, '$trashId.meta.json'));
 
       // Atomic writes, meta BEFORE data: a crash between the two leaves a
@@ -763,7 +763,7 @@ class FileService {
       try {
         final json = jsonDecode(await entry.readAsString()) as Map<String, dynamic>;
         final trashId = p.basenameWithoutExtension(entry.path).replaceAll('.meta', '');
-        final data = File(p.join(_trashDir, '$trashId${AppConfig.fileExtension}'));
+        final data = File(p.join(_trashDir, '$trashId${AppConfig.storageExtension}'));
         if (!await data.exists()) continue;
         out.add(TrashEntry(
           trashId: trashId,
@@ -780,7 +780,7 @@ class FileService {
   /// Restores a trashed notebook. Returns the restored metadata row, or null
   /// if the trash entry is missing.
   Future<Map<String, dynamic>?> restoreFromTrash(String trashId) async {
-    final dataFile = File(p.join(_trashDir, '$trashId${AppConfig.fileExtension}'));
+    final dataFile = File(p.join(_trashDir, '$trashId${AppConfig.storageExtension}'));
     final metaFile = File(p.join(_trashDir, '$trashId.meta.json'));
     if (!await dataFile.exists() || !await metaFile.exists()) return null;
 
@@ -839,7 +839,7 @@ class FileService {
 
   /// Permanently deletes a single trash entry.
   Future<void> purgeTrashEntry(String trashId) async {
-    final dataFile = File(p.join(_trashDir, '$trashId${AppConfig.fileExtension}'));
+    final dataFile = File(p.join(_trashDir, '$trashId${AppConfig.storageExtension}'));
     final metaFile = File(p.join(_trashDir, '$trashId.meta.json'));
     if (await dataFile.exists()) await dataFile.delete();
     if (await metaFile.exists()) await metaFile.delete();

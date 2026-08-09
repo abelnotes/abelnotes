@@ -234,10 +234,11 @@ class SyncService {
   Future<List<WebDavItem>> listRemoteNotebooks() async {
     await _webdav.ensureBaseDirectory();
     final items = await _webdav.listDirectory(_webdav.basePath);
+    // Accepts both spellings even though uploads still write
+    // storageExtension: a notebook put there by hand, or by a future version
+    // that renames remote files, must not go missing.
     return items
-        .where((item) =>
-            !item.isDirectory &&
-            item.name.endsWith(AppConfig.fileExtension))
+        .where((item) => !item.isDirectory && AppConfig.isNotebookPath(item.name))
         .toList();
   }
 

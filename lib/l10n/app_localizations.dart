@@ -1069,7 +1069,7 @@ abstract class AppLocalizations {
   /// No description provided for @csExportAsNcnote.
   ///
   /// In it, this message translates to:
-  /// **'Esporta come .ncnote (nativo)'**
+  /// **'Esporta come .abelnote (nativo)'**
   String get csExportAsNcnote;
 
   /// No description provided for @csExportNcnoteSubtitle.
@@ -1081,19 +1081,19 @@ abstract class AppLocalizations {
   /// No description provided for @csGeneratingNcnote.
   ///
   /// In it, this message translates to:
-  /// **'Generazione .ncnote in corso…'**
+  /// **'Generazione .abelnote in corso…'**
   String get csGeneratingNcnote;
 
   /// No description provided for @csNcnoteExported.
   ///
   /// In it, this message translates to:
-  /// **'.ncnote esportato ({size} KB)'**
+  /// **'.abelnote esportato ({size} KB)'**
   String csNcnoteExported(String size);
 
   /// No description provided for @csNcnoteExportError.
   ///
   /// In it, this message translates to:
-  /// **'Errore export .ncnote: {error}'**
+  /// **'Errore export .abelnote: {error}'**
   String csNcnoteExportError(String error);
 
   /// No description provided for @csImageOrPdf.
@@ -1336,6 +1336,24 @@ abstract class AppLocalizations {
   /// **'Importato: \"{title}\" ({count, plural, one{{count} pagina} other{{count} pagine}})'**
   String libImportSuccess(String title, int count);
 
+  /// No description provided for @libImportCorruptedFile.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo file non è un taccuino AbelNotes valido: potrebbe essere incompleto o danneggiato.'**
+  String get libImportCorruptedFile;
+
+  /// No description provided for @libExport.
+  ///
+  /// In it, this message translates to:
+  /// **'Esporta'**
+  String get libExport;
+
+  /// No description provided for @libImportOneNoteUnreadable.
+  ///
+  /// In it, this message translates to:
+  /// **'AbelNotes non riesce a leggere questo file OneNote: potrebbe usare un formato non ancora supportato, o essere danneggiato.'**
+  String get libImportOneNoteUnreadable;
+
   /// No description provided for @libErrorImport.
   ///
   /// In it, this message translates to:
@@ -1507,7 +1525,7 @@ abstract class AppLocalizations {
   /// No description provided for @libImportTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Importa un file .ncnote'**
+  /// **'Importa un file .abelnote'**
   String get libImportTooltip;
 
   /// No description provided for @libSettingsTooltip.
@@ -3913,7 +3931,7 @@ abstract class AppLocalizations {
   /// No description provided for @importSourceNcnote.
   ///
   /// In it, this message translates to:
-  /// **'Taccuino .ncnote'**
+  /// **'Taccuino .abelnote'**
   String get importSourceNcnote;
 
   /// No description provided for @importSourceObsidian.

@@ -6,7 +6,7 @@ import 'package:abelnotes/main.dart';
 void main() {
   testWidgets('App starts without errors', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: HandWriterApp()),
+      const ProviderScope(child: AbelNotesApp()),
     );
     await tester.pump();
 
