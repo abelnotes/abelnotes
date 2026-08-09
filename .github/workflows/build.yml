@@ -30,6 +30,50 @@ jobs:
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
 
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # pdfrx ships PDFium as a native asset, not a cmake plugin — without
+      # this the bundle has no pdfium.dll and every PDF fails at runtime.
+      - run: flutter config --enable-native-assets
+      - run: flutter pub get
+      - run: flutter build windows --release --dart-define=GIT_COMMIT=${{ github.sha }}
+      # Fails the job if PDFium didn't make it into the bundle, which is
+      # otherwise only visible when a user opens a PDF.
+      # pdfium.dll only arrives via native assets and super_native_extensions
+      # .dll only via Cargokit's precompiled download; both fail silently at
+      # build time and loudly at runtime, so assert them here.
+      - name: Verify bundled native libraries
+        shell: pwsh
+        run: |
+          $release = "build/windows/x64/runner/Release"
+          $required = @(
+            "flutter_windows.dll",
+            "pdfium.dll",
+            "super_native_extensions.dll",
+            "sqlite3.dll",
+            "onenote_bridge.dll"
+          )
+          foreach ($dll in $required) {
+            if (-not (Test-Path "$release/$dll")) {
+              throw "missing $dll in $release"
+            }
+          }
+      - name: Package build
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath abelnotes-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: abelnotes-windows
+          path: abelnotes-windows.zip
+
   macos:
     needs: check
     runs-on: macos-latest
