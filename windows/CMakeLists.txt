@@ -93,6 +93,19 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
    COMPONENT Runtime)
 
+# OneNote import FFI bridge (Rust, see native/onenote_bridge). The committed
+# prebuilt binary keeps plain `flutter build windows` working without a Rust
+# toolchain; refresh it with native/build_onenote_bridge.sh. Mirrors the rule
+# in linux/CMakeLists.txt. Guarded: without the binary the app still builds and
+# simply hides the OneNote import option.
+set(ONENOTE_BRIDGE_LIB
+    "${CMAKE_CURRENT_SOURCE_DIR}/../native/prebuilt/windows-x64/onenote_bridge.dll")
+if(EXISTS "${ONENOTE_BRIDGE_LIB}")
+  install(FILES "${ONENOTE_BRIDGE_LIB}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()
+
 # Fully re-copy the assets directory on each build to avoid having stale files
 # from a previous install.
 set(FLUTTER_ASSET_DIR_NAME "flutter_assets")
