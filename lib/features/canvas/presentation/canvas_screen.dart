@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
+import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/desktop_window.dart';
 import 'package:abelnotes/core/services/nextcloud_share_service.dart' show ShareLink;
 import 'package:abelnotes/core/services/ocr_service.dart';
@@ -42,6 +43,7 @@ import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/pen_input_channel.dart';
 import 'package:abelnotes/core/services/pen_monitor_service.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_painter_notifiers.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
@@ -6722,17 +6724,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         .toList();
   }
 
-  /// Sanitise a string for use inside a filename on every platform we
-  /// ship on (Windows is the strict one: no `\ / : * ? " < > |` and no
-  /// trailing dots or spaces). Returns a non-empty placeholder when
-  /// nothing survives the filter.
-  String _sanitiseForFilename(String raw) {
-    var out = raw.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
-    while (out.endsWith('.') || out.endsWith(' ')) {
-      out = out.substring(0, out.length - 1).trimRight();
-    }
-    return out.isEmpty ? 'Quaderno' : out;
-  }
+  String _sanitiseForFilename(String raw) => sanitiseForFilename(raw);
 
   /// Build the suggested export filename. For chapter scope we append
   /// ` - <chapter title>` so exports from different chapters don't
@@ -6836,35 +6828,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// Save or share a file cross-platform.
   /// On iOS/macOS, uses the system share sheet (FilePicker.saveFile is broken).
   /// On other platforms, uses FilePicker.saveFile.
-  Future<void> _saveOrShare(String fileName, Uint8List data, String mimeType) async {
-    if (io.Platform.isIOS || io.Platform.isMacOS) {
-      final dir = await io.Directory.systemTemp.createTemp('handwriter_export');
-      final file = io.File('${dir.path}/$fileName');
-      await file.writeAsBytes(data, flush: true);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path, mimeType: mimeType)],
-          subject: fileName,
-          // iPad requires a non-zero anchor rect for the share-sheet
-          // popover; SharePlus throws "PlatformException(error,
-          // sharePositionOrigin must be non-zero...)" otherwise. Use
-          // the centre of the screen — it's always within the view.
-          sharePositionOrigin: _shareOriginRect(),
-        ),
-      );
-    } else {
-      final ext = fileName.split('.').last;
-      final savePath = await FilePicker.platform.saveFile(
-        dialogTitle: AppLocalizations.of(context).csSaveFileDialogTitle(fileName),
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: [ext],
-      );
-      if (savePath != null) {
-        await io.File(savePath).writeAsBytes(data, flush: true);
-      }
-    }
-  }
+  Future<void> _saveOrShare(
+          String fileName, Uint8List data, String mimeType) =>
+      saveOrShareFile(context,
+          fileName: fileName, data: data, mimeType: mimeType);
 
   /// Show the export scope picker, then export as PNG (single page) or
   /// a series of PNGs (multi-page → share sheet with multiple files).
@@ -7906,7 +7873,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             : null,
       );
       final fileName =
-          '${_sanitiseForFilename(state.metadata.title)}.ncnote';
+          '${_sanitiseForFilename(state.metadata.title)}${AppConfig.fileExtension}';
       await _saveOrShare(fileName, bytes, 'application/zip');
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
