@@ -141,14 +141,19 @@ flutter_launcher_icons:
     generate: true
 
 # ── MSIX packaging (Microsoft Store) ─────────────────────────────────
-# Test build:   dart run msix:create
-# Store build:  dart run msix:create --store
-# The Store build needs identity_name/publisher from Partner Center and
-# drops the certificate (the Store signs it) — see STORE_RELEASE.md.
+# Configured for the STORE build, which is what ships:
+#   dart run msix:create --store --build-windows false
+# The output is unsigned on purpose — the Store signs it.
+#
+# A sideload build for local testing needs the opposite of all this (a real
+# signature, and a publisher matching the test cert's CN), so it overrides
+# from the command line instead of editing this file — see STORE_RELEASE.md.
 msix_config:
   display_name: AbelNotes
-  publisher_display_name: AbelNotes
-  identity_name: app.abelnotes.AbelNotes
+  # The three identity fields below are Partner Center's, verbatim
+  # (Product management → Product identity). A mismatch fails the upload.
+  publisher_display_name: joy_dev
+  identity_name: joydev.AbelNotes
   # Four numbers, last one always 0, must increase on every submission.
   # Independent of the `version:` above — the build number has no place here.
   msix_version: 0.37.3.0
@@ -159,10 +164,5 @@ msix_config:
   capabilities: internetClient, privateNetworkClientServer
   # Both extensions: .ncnote is the pre-rename name and is still opened.
   file_extension: .abelnote, .ncnote
-  # Self-signed, for local testing only. Both fields go away for --store,
-  # and `publisher` must equal the certificate's CN exactly.
-  certificate_path: certs/abelnotes_test.pfx
-  publisher: CN=AbelNotes Test
-  # Trusting the test cert is a separate, deliberate step (see STORE_RELEASE.md);
-  # leaving this on makes the build prompt and fail in CI or any non-tty shell.
-  install_certificate: false
+  publisher: CN=D06E1C3A-EBDE-4548-8241-6185A5378F5C
+  store: true

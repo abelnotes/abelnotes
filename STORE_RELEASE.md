@@ -4,12 +4,20 @@ MSIX packaging only. Config lives in `pubspec.yaml` under `msix_config`.
 
 ## Test build
 
+`msix_config` holds the Store values, so a sideload build overrides the three
+that differ on the command line rather than editing the file back and forth —
+`--publisher` has to match the test cert's CN exactly, and `store: true` in the
+yaml is what `--no-store` cancels.
+
 ```bash
 flutter test          # AppConfig.appVersion is hand-maintained; this is the
                       # only thing that catches it drifting from pubspec, and
                       # CI would only catch it after the package is built
 flutter build windows --release --dart-define=GIT_COMMIT=$(git rev-parse HEAD)
-dart run msix:create --build-windows false
+dart run msix:create --build-windows false --no-store `
+  --certificate-path certs/abelnotes_test.pfx `
+  --certificate-password "<the test cert's password>" `
+  --publisher "CN=AbelNotes Test"
 # -> build/windows/x64/runner/Release/abelnotes.msix
 ```
 
@@ -79,12 +87,10 @@ $k = "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe"
 
 ## Store build
 
-Take `identity_name` (Package/Identity/Name) and `publisher` (`CN=<GUID>`) from
-Partner Center → Product identity. Then in `msix_config`:
-
-- set those two values
-- delete `certificate_path` and `certificate_password`
-- add `store: true`
+`msix_config` is already set up for this: the three identity fields are
+Partner Center's own (Product management → Product identity) and must stay
+verbatim — a mismatch fails the upload, not the build, so nothing warns you
+until Partner Center rejects it.
 
 ```bash
 flutter test
