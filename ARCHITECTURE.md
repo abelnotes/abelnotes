@@ -37,7 +37,7 @@ Every operation writes locally first (loose store on disk + SQLite for the dirty
 
 ### 2. Loose store as source of truth
 
-Local persistence is a plain, unpacked directory tree (the "loose store"), not the `.ncnote` ZIP. Each save writes only the pages/assets that actually changed, instead of rewriting the whole archive. The `.ncnote` ZIP is assembled on demand — for export, and as the legacy monolithic format still read as a fallback when no loose store exists yet. See [NCNOTE_FORMAT_GUIDE.md](NCNOTE_FORMAT_GUIDE.md) for the on-disk layout.
+Local persistence is a plain, unpacked directory tree (the "loose store"), not a single-file ZIP. Each save writes only the pages/assets that actually changed, instead of rewriting the whole archive. The ZIP is assembled on demand — as `.abelnote` for export, and as the legacy `.ncnote` monolithic format still read as a fallback when no loose store exists yet. See [ABELNOTE_FORMAT_GUIDE.md](ABELNOTE_FORMAT_GUIDE.md) for the on-disk layout and for why the two extensions differ.
 
 ### 3. Single-pass rendering
 

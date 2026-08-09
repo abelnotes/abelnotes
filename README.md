@@ -7,7 +7,6 @@
 **Handwritten notes for people who write equations.**
 Cross-platform, self-hosted, open source. Your notes sync to *your* WebDAV server — no third-party cloud.
 
-<!-- PLACEHOLDER:BADGES — i link si attivano dopo il primo push / le prime release -->
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-Windows_·_Linux_·_Android-informational)
 
@@ -80,7 +79,6 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 
 ## Download
 
-<!-- PLACEHOLDER:RELEASES — i link puntano alla pagina Releases una volta creata la prima release/tag -->
 Grab the latest build from the [**Releases**](../../releases) page:
 
 - **Windows** — `.exe` (unsigned for now; Windows SmartScreen will warn — *More info → Run anyway*)
@@ -110,13 +108,15 @@ Full details and known limitations: see [SECURITY.md](SECURITY.md).
 
 ## Building from source
 
-<!-- PLACEHOLDER:BUILD — adatta ai comandi reali del tuo progetto (versione Flutter, ecc.) -->
 Requires the [Flutter SDK](https://docs.flutter.dev/get-started/install).
 
 ```bash
 git clone https://github.com/abelnotes/abelnotes.git
 cd abelnotes
 flutter pub get
+
+# Desktop only, once per machine — see the note below
+flutter config --enable-native-assets
 
 # Run
 flutter run
@@ -127,6 +127,24 @@ flutter build appbundle  # Android (.aab, for Play)
 flutter build linux      # Linux
 flutter build windows    # Windows
 ```
+
+**`--enable-native-assets` is not optional for desktop builds.** PDF support
+comes from pdfrx, which ships PDFium as a native asset rather than as a CMake
+plugin — it is listed in neither `windows/flutter/generated_plugins.cmake` nor
+`linux/flutter/generated_plugins.cmake`. Without the flag the build still
+succeeds and PDFium is simply absent from the bundle, so every PDF fails once
+the app is already running. Confirmed by building on Windows; Linux is wired the
+same way.
+
+Rust is **not** required for a normal build. The OneNote import bridge is
+committed prebuilt for Windows and Linux under `native/prebuilt/`; you only need
+a Rust toolchain to rebuild it yourself with `native/build_onenote_bridge.sh`.
+
+### Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how the app is put together and why
+- [ABELNOTE_FORMAT_GUIDE.md](ABELNOTE_FORMAT_GUIDE.md) — the notebook format on disk, file by file
+- [SECURITY.md](SECURITY.md) — threat model, encryption, how to report a vulnerability
 
 ---
 

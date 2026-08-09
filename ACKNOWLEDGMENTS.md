@@ -10,8 +10,9 @@ notable native components.
 
 License audit (last run 2026-07-19, 185 packages from pub.dev):
 **no GPL/AGPL/LGPL dependencies** — everything is BSD, MIT, Apache-2.0,
-plus one MPL-2.0 native component (file-level copyleft, used unmodified,
-attributed below).
+plus one MPL-2.0 native component (file-level copyleft, locally patched —
+see below — which MPL-2.0 permits as long as the modified source stays
+available, as it does here).
 
 ## Framework
 
@@ -58,7 +59,7 @@ attributed below).
 
 | Component | License | Notes |
 |---|---|---|
-| [onenote.rs](https://github.com/msiemens/onenote.rs) (`onenote_parser`) | MPL-2.0 | Rust crate powering the OneNote import bridge (`native/onenote_bridge`). Used unmodified; license text shipped at `assets/licenses/onenote_parser_LICENSE.txt` and registered in the in-app licenses page. |
+| [onenote.rs](https://github.com/msiemens/onenote.rs) (`onenote_parser`) | MPL-2.0 | Rust crate powering the OneNote import bridge (`native/onenote_bridge`), vendored at `native/vendor/onenote.rs` with a handful of local patches — see [native/LOCAL_PATCHES.md](native/LOCAL_PATCHES.md) for what changed and why. License text shipped at `assets/licenses/onenote_parser_LICENSE.txt` and registered in the in-app licenses page. |
 | Rust bridge transitive crates (serde, base64, flate2, …) | MIT / Apache-2.0 dual | Standard Rust ecosystem licensing. |
 | PDFium | BSD-3-Clause | Bundled by `pdfrx` for PDF rendering and text extraction. |
 | KaTeX fonts | MIT | Bundled by `flutter_math_fork` for math rendering. |

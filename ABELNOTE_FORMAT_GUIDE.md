@@ -5,16 +5,27 @@
 A notebook's data exists in two forms:
 
 1. **Loose store** — an unpacked directory tree, the source of truth for local storage and for delta sync. This is what the app actually reads and writes during normal use.
-2. **`.ncnote` archive** — a renamed ZIP, openable with any ZIP tool for manual inspection. It's assembled on demand from the loose store for export/sharing, and it's also the legacy monolithic format the app still reads as a fallback for notebooks that haven't been migrated to a loose store yet.
+2. **Single-file archive** — a renamed ZIP, openable with any ZIP tool for manual inspection. It's assembled on demand from the loose store for export/sharing, and it's also the legacy monolithic format the app still reads as a fallback for notebooks that haven't been migrated to a loose store yet.
 
 The two are structurally identical inside — same `metadata.json`/`document.json`/`pages/*.json` — only the container differs (plain directory vs. ZIP).
+
+### Two extensions, one format
+
+The archive has two spellings, and which one you see depends on who wrote the file, not on its contents:
+
+| | extension | written by |
+|---|---|---|
+| export, file association | `.abelnote` | what the user sees and shares |
+| storage, snapshots, trash, WebDAV, legacy notebooks | `.ncnote` | internal, never renamed |
+
+Both are accepted on open and import. `.ncnote` was the user-facing spelling before the app was renamed; it stays as the *storage* name because renaming it would orphan local notebooks and desync every other device against the server. The three constants live in `AppConfig` (`fileExtension`, `legacyFileExtension`, `storageExtension`) and `test/file_extension_test.dart` locks them down.
 
 ## On-disk layout
 
 ```
 AbelNotes/
 ├── notebooks/
-│   ├── <notebookId>.ncnote        # legacy monolithic file (read as fallback only)
+│   ├── <notebookId>.abelnote        # legacy monolithic file (read as fallback only)
 │   └── <notebookId>/              # loose store — normal case
 │       ├── metadata.json
 │       ├── document.json
@@ -25,8 +36,8 @@ AbelNotes/
 │       ├── assets/
 │       │   └── <assetId>          # images, base PDFs, etc.
 │       └── symbols.json           # optional, per-notebook symbol library
-├── snapshots/<notebookId>/<timestamp>.ncnote   # rolling backups (last 3 saves)
-├── trash/<trashId>.ncnote + <trashId>.meta.json
+├── snapshots/<notebookId>/<timestamp>.abelnote   # rolling backups (last 3 saves)
+├── trash/<trashId>.abelnote + <trashId>.meta.json
 └── abelnotes.db                   # SQLite: dirty-page queue, ETags, notebook index
 ```
 
@@ -34,7 +45,7 @@ An incremental save touches only the pages/assets that actually changed — it d
 
 ### Remote (WebDAV) layout
 
-The server mirrors the loose store's shape under a per-notebook sync folder, not the `.ncnote` ZIP:
+The server mirrors the loose store's shape under a per-notebook sync folder, not the `.abelnote` ZIP:
 
 ```
 .sync/<notebookId>/
