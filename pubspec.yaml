@@ -151,7 +151,7 @@ msix_config:
   identity_name: app.abelnotes.AbelNotes
   # Four numbers, last one always 0, must increase on every submission.
   # Independent of the `version:` above — the +41 build number has no place here.
-  msix_version: 0.37.2.0
+  msix_version: 0.37.3.0
   logo_path: assets/icon/app_icon.png
   architecture: x64
   # internetClient: WebDAV sync. privateNetworkClientServer: a self-hosted
