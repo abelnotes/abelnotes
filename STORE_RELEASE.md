@@ -5,9 +5,23 @@ MSIX packaging only. Config lives in `pubspec.yaml` under `msix_config`.
 ## Test build
 
 ```bash
-dart run msix:create
+flutter test          # AppConfig.appVersion is hand-maintained; this is the
+                      # only thing that catches it drifting from pubspec, and
+                      # CI would only catch it after the package is built
+flutter build windows --release --dart-define=GIT_COMMIT=$(git rev-parse HEAD)
+dart run msix:create --build-windows false
 # -> build/windows/x64/runner/Release/abelnotes.msix
 ```
+
+**Build first, package second.** `msix:create` runs its own `flutter build
+windows` and has no `--dart-define` passthrough, so letting it build leaves
+`AppConfig.gitCommit` at its `'dev'` fallback and the package cannot be traced
+to a commit — that is how the first MSIX shipped as `v0.0.0+0 dev`. CI passes
+the define, but CI does not build the MSIX. `--build-windows false` makes
+`msix:create` package the output above instead of rebuilding it.
+
+Both lines work verbatim in PowerShell. Confirm afterwards in Settings → About,
+which shows the version and the commit on one line.
 
 Uses the self-signed cert at `certs/abelnotes_test.pfx` (gitignored, as is any
 `*.pfx`). Regenerate it with:
@@ -17,7 +31,7 @@ $cert = New-SelfSignedCertificate -Type Custom -Subject "CN=AbelNotes Test" `
   -KeyUsage DigitalSignature -CertStoreLocation "Cert:\CurrentUser\My" `
   -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3","2.5.29.19={text}")
 Export-PfxCertificate -Cert $cert -FilePath certs\abelnotes_test.pfx `
-  -Password (ConvertTo-SecureString -String "abelnotes" -Force -AsPlainText)
+  -Password (ConvertTo-SecureString -String "<scegli-tu-una-password>" -Force -AsPlainText)
 ```
 
 `publisher` in `msix_config` must equal the cert's CN exactly, and the cert
@@ -73,8 +87,13 @@ Partner Center → Product identity. Then in `msix_config`:
 - add `store: true`
 
 ```bash
-dart run msix:create --store
+flutter test
+flutter build windows --release --dart-define=GIT_COMMIT=$(git rev-parse HEAD)
+dart run msix:create --store --build-windows false
 ```
+
+The commit stamp matters most here: this is the package users get, and a crash
+log pasted into an issue is only useful if it names the build it came from.
 
 The output is **unsigned**. That is correct — the Store signs it.
 
@@ -83,6 +102,12 @@ The output is **unsigned**. That is correct — the Store signs it.
 `msix_version` is four numbers, the last always `0`, and must increase on every
 submission. It is independent of `version:` in `pubspec.yaml` — the `+41` build
 number has no place in it. Bump the patch: `0.37.2.0` → `0.37.3.0`.
+
+`version:` is a separate bump, and `AppConfig.appVersion` / `appBuildNumber` in
+`lib/config/app_config.dart` must move with it — that pair is what Settings →
+About and the crash log show. `test/app_version_test.dart` fails if they drift.
+Flutter's generated `version.json` is not an option here: it does not exist on
+Windows or Linux, which is how `0.0.0+0` reached the first MSIX.
 
 ## Data locations under MSIX
 

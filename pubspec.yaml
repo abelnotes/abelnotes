@@ -162,7 +162,6 @@ msix_config:
   # Self-signed, for local testing only. Both fields go away for --store,
   # and `publisher` must equal the certificate's CN exactly.
   certificate_path: certs/abelnotes_test.pfx
-  certificate_password: abelnotes
   publisher: CN=AbelNotes Test
   # Trusting the test cert is a separate, deliberate step (see STORE_RELEASE.md);
   # leaving this on makes the build prompt and fail in CI or any non-tty shell.
