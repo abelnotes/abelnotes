@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
+import 'package:abelnotes/core/providers/auth_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/file_open_receiver.dart';
@@ -63,6 +64,17 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     });
   }
 
+  /// Mirrors the cold-start sequence for a server connected mid-session:
+  /// pull what's on the server, then push the local-only notebooks up.
+  Future<void> _onServerConnected() async {
+    final notifier = ref.read(notebookListProvider.notifier);
+    await notifier.refresh();
+    if (!mounted) return;
+    try {
+      await notifier.retryPendingUploads();
+    } catch (_) {}
+  }
+
   /// Runs a pending OS open request, if any, and clears it so a rebuild
   /// doesn't import the same notebook twice.
   void _consumePendingFileOpen() {
@@ -89,6 +101,14 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     // A .ncnote double-click while the app is already running.
     ref.listen<PendingFileOpen?>(fileOpenReceiverProvider, (_, next) {
       if (next != null) _consumePendingFileOpen();
+    });
+
+    // Connecting a server from Settings leaves this screen mounted, so
+    // initState never runs again: without this the library sits empty and
+    // silent until the next restart, and notebooks written in local-only mode
+    // — all dirty, none of them on the server yet — are never pushed up.
+    ref.listen<NextcloudCredentials?>(credentialsProvider, (prev, next) {
+      if (prev == null && next != null) _onServerConnected();
     });
 
     final entries = asyncList.valueOrNull ?? const <NotebookEntry>[];
