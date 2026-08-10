@@ -75,6 +75,21 @@
 
   <!-- Update on every release. `date` is the release date (YYYY-MM-DD). -->
   <releases>
+    <release version="0.37.4" date="2026-08-10">
+      <description>
+        <p>Disconnecting an account no longer deletes local notebooks: connecting a
+           different account, or the same one with another base directory, used to
+           make the library treat every notebook as deleted on the server and remove
+           it for good.</p>
+        <p>The library re-syncs every five minutes instead of only at startup, so
+           notebooks made on another device show up on their own.</p>
+        <p>Eraser and selection fixes: circles can be erased, the area eraser no
+           longer wipes a filled shape when it grazes the border, erasing reaches the
+           middle of text, and tapping inside a filled shape selects it.</p>
+        <p>A stylus tap on the tool dock opens the tool popup instead of quietly
+           switching the mouse into drawing.</p>
+      </description>
+    </release>
     <release version="0.37.2" date="2026-07-23">
       <description>
         <p>Linux stylus fix: pens that GDK mislabels as a mouse (some Wayland/Xwayland

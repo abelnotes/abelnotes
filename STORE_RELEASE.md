@@ -107,7 +107,7 @@ The output is **unsigned**. That is correct — the Store signs it.
 
 `msix_version` is four numbers, the last always `0`, and must increase on every
 submission. It is independent of `version:` in `pubspec.yaml` — the `+NN` build
-number has no place in it. Bump the patch each time: `0.37.2.0` → `0.37.3.0`.
+number has no place in it. Bump the patch each time: `0.37.3.0` → `0.37.4.0`.
 
 `version:` is a separate bump, and `AppConfig.appVersion` / `appBuildNumber` in
 `lib/config/app_config.dart` must move with it — that pair is what Settings →

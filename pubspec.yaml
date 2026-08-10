@@ -1,6 +1,6 @@
 name: abelnotes
 description: Handwritten notes with LaTeX, PDF annotation, and WebDAV sync to your own server.
-version: 0.37.3+42
+version: 0.37.4+43
 publish_to: 'none'
 
 environment:
@@ -156,7 +156,7 @@ msix_config:
   identity_name: joydev.AbelNotes
   # Four numbers, last one always 0, must increase on every submission.
   # Independent of the `version:` above — the build number has no place here.
-  msix_version: 0.37.3.0
+  msix_version: 0.37.4.0
   logo_path: assets/icon/app_icon.png
   architecture: x64
   # Must track main.dart's supportedLocales. Left unset the packager declares
