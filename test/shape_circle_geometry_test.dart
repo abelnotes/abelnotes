@@ -141,6 +141,24 @@ void main() {
       expect(shapeBodyContains(square, const Offset(90, 10)), isFalse);
     });
 
+    test('circleDragBox keeps the shape tool drawing circles, not ellipses',
+        () {
+      // A deliberately non-square drag: 200 wide, 60 tall.
+      final box = circleDragBox(const Offset(100, 200), const Offset(300, 260));
+      expect(box.width, box.height, reason: 'the stored box must be square');
+      expect(box.width, 200, reason: 'diameter comes from the drag WIDTH');
+      expect(box.center, const Offset(200, 230),
+          reason: 'centred on the drag, as the old painter drew it');
+
+      // Backwards drags describe the same circle.
+      expect(circleDragBox(const Offset(300, 260), const Offset(100, 200)),
+          box);
+
+      // Recognition already emits a square bbox — unchanged by squaring.
+      expect(circleDragBox(const Offset(100, 200), const Offset(300, 400)),
+          const Rect.fromLTRB(100, 200, 300, 400));
+    });
+
     test('triangle body excludes the bbox corners beside the apex', () {
       const tri = ShapeData(
         shapeType: 'triangle',

@@ -15,7 +15,7 @@ import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
-    show CanvasRenderEngine, shapeBodyContains, shapeEllipseRect;
+    show CanvasRenderEngine, circleDragBox, shapeBodyContains, shapeEllipseRect;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/rich_paste.dart';
@@ -3393,13 +3393,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final fileName = s.currentPageFileName;
     final undoStack = _pushUndo(s, fileName, page);
 
+    // A circle stays a circle whatever the drag looked like: store the
+    // squared box so the inscribed ellipse every consumer reads IS a circle.
+    // Every other shape keeps the raw drag endpoints — line and arrow read
+    // direction off them, so normalising the corners would flip arrowheads.
+    var x1 = s.shapeStartPos!.dx, y1 = s.shapeStartPos!.dy;
+    var x2 = s.shapeEndPos!.dx, y2 = s.shapeEndPos!.dy;
+    if (s.toolSettings.shapeType == 'circle') {
+      final box = circleDragBox(s.shapeStartPos!, s.shapeEndPos!);
+      x1 = box.left; y1 = box.top;
+      x2 = box.right; y2 = box.bottom;
+    }
+
     final newElement = ContentElement.shape(
       id: const Uuid().v4(),
       zIndex: _nextZIndex(page),
       data: ShapeData(
         shapeType: s.toolSettings.shapeType,
-        x1: s.shapeStartPos!.dx, y1: s.shapeStartPos!.dy,
-        x2: s.shapeEndPos!.dx, y2: s.shapeEndPos!.dy,
+        x1: x1, y1: y1,
+        x2: x2, y2: y2,
         strokeColor: s.toolSettings.color,
         strokeWidth: s.toolSettings.strokeWidth,
       ),

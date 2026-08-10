@@ -21,6 +21,20 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 Rect shapeEllipseRect(ShapeData sh) =>
     Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
 
+/// Bounding box the shape tool stores for a `circle` dragged from [start] to
+/// [end]: the square centred on the drag, sized off its WIDTH.
+///
+/// The tool draws circles, not ellipses — a drag that happens not to be
+/// square still commits a circle, as it always did. Squaring here rather
+/// than at paint time keeps [shapeEllipseRect] the single source of truth:
+/// an ellipse inscribed in a square IS the circle, so painter, eraser and
+/// hit-tests stay in agreement for free. Shape RECOGNITION already emits a
+/// square bbox, so recognized circles pass through unchanged.
+Rect circleDragBox(Offset start, Offset end) {
+  final rect = Rect.fromPoints(start, end);
+  return Rect.fromCircle(center: rect.center, radius: rect.width / 2);
+}
+
 /// True if [p] falls inside the body of [sh] (rotation-aware).
 ///
 /// Meaningful for shapes carrying a `fillColor`: their interior is visible
@@ -1771,10 +1785,10 @@ class CanvasRenderEngine extends CustomPainter {
         canvas.drawRect(Rect.fromPoints(start, end), previewPaint);
         break;
       case 'circle':
-        // Same inscribed ellipse the committed shape gets — the preview
-        // used to draw the CIRCUMSCRIBED circle (half-diagonal radius),
-        // so the finished shape landed noticeably smaller than the drag.
-        canvas.drawOval(Rect.fromPoints(start, end), previewPaint);
+        // Exactly the box _finalizeShape will store — the preview used to
+        // draw the CIRCUMSCRIBED circle (half-diagonal radius), so the
+        // finished shape landed noticeably smaller than the drag.
+        canvas.drawOval(circleDragBox(start, end), previewPaint);
         break;
       case 'line':
         canvas.drawLine(start, end, previewPaint);
