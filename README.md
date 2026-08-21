@@ -81,15 +81,11 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 
 Grab the latest build from the [**Releases**](../../releases) page:
 
-- **Windows** — `.exe` (unsigned for now; Windows SmartScreen will warn — *More info → Run anyway*)
-- **Linux** — `.deb`, plus Flatpak *(coming soon)*
-- **Android** — `.apk`, plus a Google Play closed beta *(see below)*
+- **Windows** — Installable at the Microsoft Store => https://apps.microsoft.com/detail/9nl7fk76t2fv
+- **Linux** — `.deb`
+- **Android** — `.apk`, Installable at the Google Play Store Now!
+https://play.google.com/store/apps/details?id=app.abelnotes.notes
 - **iPadOS / macOS** — working build, tested on real hardware, but not yet distributed here: an Apple Developer Program membership (paid, $100/year) is required to sign and ship builds outside Xcode. *Coming once that's set up.*
-
-
-### Android beta testers wanted
-
-The Play Store build is in closed testing. If you want in, [open an issue](../../issues) or comment on the pinned testing thread and I'll add you.
 
 ---
 
