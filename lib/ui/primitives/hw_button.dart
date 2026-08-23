@@ -98,12 +98,18 @@ class _HwButtonState extends State<HwButton> {
     }
     if (widget.label != null) {
       if (children.isNotEmpty) children.add(const SizedBox(width: 6));
-      children.add(Text(widget.label!,
-          style: TextStyle(
-              color: fg,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              fontFamily: HwTheme.fontSans)));
+      // Flexible + ellipsis: a button squeezed by a narrow screen shortens
+      // its label instead of overflowing the row it sits in.
+      children.add(Flexible(
+        child: Text(widget.label!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                color: fg,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                fontFamily: HwTheme.fontSans)),
+      ));
     }
     if (widget.trailing != null) {
       if (children.isNotEmpty) children.add(const SizedBox(width: 6));

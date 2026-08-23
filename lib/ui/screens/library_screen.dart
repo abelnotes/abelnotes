@@ -1391,13 +1391,19 @@ class _TopBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Text(l10n.libAppName,
-                style: TextStyle(
-                  fontSize: isCompact ? 18 : 22,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.4,
-                  color: p.ink0,
-                )),
+            // Flexible: at a large system font scale the wordmark alone
+            // eats a narrow phone's bar and pushes the search field out.
+            Flexible(
+              child: Text(l10n.libAppName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: isCompact ? 18 : 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.4,
+                    color: p.ink0,
+                  )),
+            ),
             const Spacer(),
             // Search field — full width on phone, fixed 240 on wide.
             if (isCompact)
@@ -1653,7 +1659,7 @@ class _Body extends StatelessWidget {
                 }
                 final mainExtent =
                     _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
-                        _CoverTile.textBlockHeight;
+                        _CoverTile.textBlockHeightFor(ctx);
                 return SliverGrid(
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: maxExtent,
@@ -2015,6 +2021,14 @@ class _CoverTile extends StatelessWidget {
   // gap between cover and text. Keep in sync with the text block below.
   static const double textBlockHeight = 56;
 
+  /// [textBlockHeight] assumes the default font scale; a phone set to large
+  /// text needs more room or the meta row is clipped out of the grid cell.
+  static double textBlockHeightFor(BuildContext context) {
+    final t = MediaQuery.textScalerOf(context);
+    final scaled = 12 + t.scale(14) * 1.4 + 2 + t.scale(12) * 1.4 + 4;
+    return scaled > textBlockHeight ? scaled : textBlockHeight;
+  }
+
   static double coverWidthFor(double cellWidth) =>
       cellWidth < designMaxWidth ? cellWidth : designMaxWidth;
 
@@ -2218,24 +2232,39 @@ class _FooterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-      decoration: BoxDecoration(
-        color: p.paper0,
-        border: Border(top: BorderSide(color: p.paper3)),
-      ),
-      child: Row(
-        children: [
-          HwIcon('cloud-check', size: 14, color: p.ink2),
-          const SizedBox(width: 6),
-          Text(AppLocalizations.of(context).libFooterWebdav,
-              style: TextStyle(fontSize: 13, color: p.ink2)),
-          const Spacer(),
-          Text(AppLocalizations.of(context).libFooterLocalFirst,
-              style: TextStyle(fontSize: 13, color: p.ink2)),
-        ],
-      ),
-    );
+    return LayoutBuilder(builder: (ctx, c) {
+      // Both captions at full size overflow a phone's width — more so at a
+      // large system font scale — so they share the row and ellipsize.
+      final compact = c.maxWidth < 600;
+      return Container(
+        padding: EdgeInsets.symmetric(
+            horizontal: compact ? 16 : 32, vertical: 14),
+        decoration: BoxDecoration(
+          color: p.paper0,
+          border: Border(top: BorderSide(color: p.paper3)),
+        ),
+        child: Row(
+          children: [
+            HwIcon('cloud-check', size: 14, color: p.ink2),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(AppLocalizations.of(context).libFooterWebdav,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: p.ink2)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(AppLocalizations.of(context).libFooterLocalFirst,
+                  maxLines: 1,
+                  textAlign: TextAlign.right,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 13, color: p.ink2)),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 

@@ -364,31 +364,59 @@ class HwFloatingDock extends StatelessWidget {
     this.dragging = false,
   });
 
+  /// Natural (unshrunk) geometry. Nine 40px buttons plus the rules add up
+  /// to ~400px along the bar — wider than the usable width of a 360dp
+  /// phone — so [metricsFor] scales the whole pill down to fit instead of
+  /// letting the Flex overflow its edge.
+  static const double _btnBase = 40;
+  static const double _iconBase = 18;
+  static const double _padBase = 6;
+  static const double _ruleBase = 20;
+  static const double _rulePadBase = 4;
+  static const double _borderBase = 1;
+  static const int _btnCount = 8;
+  /// Buttons stop shrinking here; narrower than that the bar scrolls.
+  static const double _minScale = 0.8;
+
+  /// Geometry for a dock rendered into [avail] logical pixels along its
+  /// main axis. Also used by the editor to place the tool popup next to
+  /// the bar, which needs the bar's real thickness.
+  static DockMetrics metricsFor(double avail, {bool hasGrip = true}) {
+    final gaps = hasGrip ? 3 : 2;
+    // The 1px separator rules and the pill's 1px border keep their size;
+    // only the rest scales.
+    final fixed = _borderBase * 2 + gaps;
+    final scalable = _padBase * 2 +
+        _btnBase * (_btnCount + (hasGrip ? 1 : 0)) +
+        _rulePadBase * 2 * gaps;
+    var scale = 1.0;
+    if (avail.isFinite && avail > 0 && fixed + scalable > avail) {
+      scale = math.max(_minScale, (avail - fixed) / scalable);
+    }
+    return DockMetrics._(scale, fixed + scalable * scale);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isVert =
         position == DockPosition.left || position == DockPosition.right;
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: HwThemeScope.of(context).paper0,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: HwThemeScope.of(context).paper3),
-        boxShadow: hwShadow2(HwThemeScope.of(context).brightness),
-      ),
-      child: Flex(
+    final hasGrip = onDragUpdate != null;
+    return LayoutBuilder(builder: (ctx, c) {
+      final avail = isVert ? c.maxHeight : c.maxWidth;
+      final m = metricsFor(avail, hasGrip: hasGrip);
+      final bar = Flex(
         direction: isVert ? Axis.vertical : Axis.horizontal,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (onDragUpdate != null) ...[
-            _dragHandle(context, isVert),
-            _gap(isVert, context),
+          if (hasGrip) ...[
+            _dragHandle(context, isVert, m),
+            _gap(isVert, context, m),
           ],
-          _toolBtn(context, CanvasTool.pen, 'pen', l10n.chromeToolPen),
+          _toolBtn(context, CanvasTool.pen, 'pen', l10n.chromeToolPen, m),
           _toolBtn(context, CanvasTool.highlighter, 'highlighter',
-              l10n.chromeToolHighlighter),
-          _gap(isVert, context),
+              l10n.chromeToolHighlighter, m),
+          _gap(isVert, context, m),
           // Eraser button restores whichever sub-mode (per-stroke or
           // per-area) the user picked last. `lastEraserMode` is the
           // memory; flipping it happens in CanvasNotifier.setTool
@@ -396,16 +424,35 @@ class HwFloatingDock extends StatelessWidget {
           // popup. Tapping this dock button when eraser is NOT active
           // restores that memory; tapping it when active opens the
           // popup so the user can flip.
-          _toolBtn(context, lastEraserMode, 'eraser', l10n.chromeToolEraser),
-          _toolBtn(context, CanvasTool.lasso, 'lasso', l10n.chromeToolLasso),
-          _toolBtn(context, CanvasTool.text, 'text', l10n.chromeToolText),
-          _toolBtn(context, CanvasTool.laser, 'laser', l10n.chromeToolLaser),
-          _toolBtn(context, CanvasTool.pan, 'hand', l10n.chromeToolPan),
-          _gap(isVert, context),
-          _shapeGuessBtn(context),
+          _toolBtn(context, lastEraserMode, 'eraser', l10n.chromeToolEraser, m),
+          _toolBtn(context, CanvasTool.lasso, 'lasso', l10n.chromeToolLasso, m),
+          _toolBtn(context, CanvasTool.text, 'text', l10n.chromeToolText, m),
+          _toolBtn(context, CanvasTool.laser, 'laser', l10n.chromeToolLaser, m),
+          _toolBtn(context, CanvasTool.pan, 'hand', l10n.chromeToolPan, m),
+          _gap(isVert, context, m),
+          _shapeGuessBtn(context, m),
         ],
-      ),
-    );
+      );
+      return Container(
+        padding: EdgeInsets.all(m.pad),
+        decoration: BoxDecoration(
+          color: HwThemeScope.of(context).paper0,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: HwThemeScope.of(context).paper3),
+          boxShadow: hwShadow2(HwThemeScope.of(context).brightness),
+        ),
+        // Too narrow even at the smallest button size (small phone, or a
+        // vertical dock in landscape): scroll the bar rather than let it
+        // overflow into a render error.
+        child: m.extent > avail
+            ? SingleChildScrollView(
+                scrollDirection: isVert ? Axis.vertical : Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: bar,
+              )
+            : bar,
+      );
+    });
   }
 
   /// Grip the user drags to move + re-dock the toolbar. Shows the
@@ -413,7 +460,7 @@ class HwFloatingDock extends StatelessWidget {
   /// the horizontal-bars grip when vertical (handle on top), so the
   /// affordance always points "along" the bar. onPan* forwards raw
   /// drag details to the parent, which owns the positioning maths.
-  Widget _dragHandle(BuildContext context, bool isVert) {
+  Widget _dragHandle(BuildContext context, bool isVert, DockMetrics m) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
     return Semantics(
@@ -430,12 +477,12 @@ class HwFloatingDock extends StatelessWidget {
             message: l10n.chromeDragToMoveBar,
             waitDuration: const Duration(milliseconds: 500),
             child: SizedBox(
-              width: 40,
-              height: 40,
+              width: m.btn,
+              height: m.btn,
               child: Center(
                 child: Icon(
                   isVert ? Icons.drag_handle : Icons.drag_indicator,
-                  size: 18,
+                  size: m.icon,
                   color: dragging ? p.accentDeep : p.ink1,
                 ),
               ),
@@ -446,15 +493,15 @@ class HwFloatingDock extends StatelessWidget {
     );
   }
 
-  Widget _gap(bool isVert, BuildContext context) {
+  Widget _gap(bool isVert, BuildContext context, DockMetrics m) {
     final p = HwThemeScope.of(context);
     return Padding(
       padding: isVert
-          ? const EdgeInsets.symmetric(vertical: 4)
-          : const EdgeInsets.symmetric(horizontal: 4),
+          ? EdgeInsets.symmetric(vertical: m.rulePad)
+          : EdgeInsets.symmetric(horizontal: m.rulePad),
       child: Container(
-        width: isVert ? 20 : 1,
-        height: isVert ? 1 : 20,
+        width: isVert ? m.rule : 1,
+        height: isVert ? 1 : m.rule,
         color: p.paper3,
       ),
     );
@@ -468,8 +515,8 @@ class HwFloatingDock extends StatelessWidget {
     CanvasTool.highlighter,
   };
 
-  Widget _toolBtn(
-      BuildContext context, CanvasTool tool, String icon, String tooltip) {
+  Widget _toolBtn(BuildContext context, CanvasTool tool, String icon,
+      String tooltip, DockMetrics m) {
     // The eraser dock button represents both per-stroke and per-area
     // erasers — the user picks the mode in the popup. Highlight the
     // single button whichever variant is active.
@@ -507,8 +554,8 @@ class HwFloatingDock extends StatelessWidget {
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            width: 40,
-            height: 40,
+            width: m.btn,
+            height: m.btn,
             decoration: BoxDecoration(
               color: active ? p.ink0 : Colors.transparent,
               shape: BoxShape.circle,
@@ -517,13 +564,13 @@ class HwFloatingDock extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 HwIcon(icon,
-                    size: 18, color: active ? p.paper0 : p.ink1),
+                    size: m.icon, color: active ? p.paper0 : p.ink1),
                 // Color stripe under active ink tool
                 if (active && isInkTool)
                   Positioned(
-                    bottom: 6,
+                    bottom: 6 * m.scale,
                     child: Container(
-                      width: 14,
+                      width: 14 * m.scale,
                       height: 3,
                       decoration: BoxDecoration(
                         color: activeInkColor,
@@ -540,7 +587,7 @@ class HwFloatingDock extends StatelessWidget {
     );
   }
 
-  Widget _shapeGuessBtn(BuildContext context) {
+  Widget _shapeGuessBtn(BuildContext context, DockMetrics m) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
     final label =
@@ -558,15 +605,15 @@ class HwFloatingDock extends StatelessWidget {
             onTap: () => onShapeGuessChanged(!shapeGuess),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
-              width: 40,
-              height: 40,
+              width: m.btn,
+              height: m.btn,
               decoration: BoxDecoration(
                 color: shapeGuess ? p.accentSoft : Colors.transparent,
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: HwIcon('shape-guess',
-                    size: 18,
+                    size: m.icon,
                     color: shapeGuess ? p.accentDeep : p.ink1),
               ),
             ),
@@ -575,6 +622,24 @@ class HwFloatingDock extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Sizes for one rendering of [HwFloatingDock]. Everything derives from a
+/// single scale, so a shrunken bar keeps the pill's proportions.
+class DockMetrics {
+  final double scale;
+  /// Extent along the main axis, outer padding included.
+  final double extent;
+  const DockMetrics._(this.scale, this.extent);
+
+  double get btn => HwFloatingDock._btnBase * scale;
+  double get icon => HwFloatingDock._iconBase * scale;
+  double get pad => HwFloatingDock._padBase * scale;
+  double get rule => HwFloatingDock._ruleBase * scale;
+  double get rulePad => HwFloatingDock._rulePadBase * scale;
+  /// Thickness across the bar: button, padding and border on both sides.
+  double get thickness =>
+      btn + (pad + HwFloatingDock._borderBase) * 2;
 }
 
 /// Popup with color preset + thickness slider + per-tool extras.
@@ -701,11 +766,15 @@ class HwToolPopup extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(_label(l10n),
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: p.ink0)),
+              Flexible(
+                child: Text(_label(l10n),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: p.ink0)),
+              ),
               const Spacer(),
               HwButton.icon(
                   icon: const HwIcon('x', size: 14), onPressed: onClose),
@@ -753,8 +822,8 @@ class HwToolPopup extends StatelessWidget {
           if (_showThickness) ...[
             Row(
               children: [
-                _section(l10n.chromeThicknessSection, p),
-                const Spacer(),
+                Flexible(child: _section(l10n.chromeThicknessSection, p)),
+                const SizedBox(width: 8),
                 Text(l10n.chromeThicknessPx(thickness.toStringAsFixed(1)),
                     style: TextStyle(
                       fontSize: 12,
@@ -787,17 +856,37 @@ class HwToolPopup extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: p.paper2)),
               ),
+              // The 160px preview and the label together overflow the
+              // 300px panel once the system font scale goes up, so both
+              // give ground: the label ellipsizes, the stroke preview
+              // shrinks to whatever width is left.
               child: Row(
                 children: [
-                  Text(l10n.chromePreview,
-                      style: TextStyle(fontSize: 12, color: p.ink2)),
-                  const Spacer(),
-                  CustomPaint(
-                    size: const Size(160, 20),
-                    painter: _StrokePreviewPainter(
-                        color: color,
-                        width: thickness,
-                        isHighlighter: tool == CanvasTool.highlighter),
+                  Flexible(
+                    child: Text(l10n.chromePreview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: p.ink2)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: LayoutBuilder(builder: (ctx, c) {
+                      final w = c.maxWidth.isFinite
+                          ? math.min(160.0, c.maxWidth)
+                          : 160.0;
+                      return Align(
+                        alignment: Alignment.centerRight,
+                        child: CustomPaint(
+                          size: Size(w, 20),
+                          painter: _StrokePreviewPainter(
+                              color: color,
+                              width: thickness,
+                              isHighlighter:
+                                  tool == CanvasTool.highlighter),
+                        ),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -853,6 +942,8 @@ class HwToolPopup extends StatelessWidget {
 
   Widget _section(String label, HwPalette p) => Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 11,
           color: p.ink2,
@@ -1168,28 +1259,37 @@ class _HwBottomPageStripState extends State<HwBottomPageStrip> {
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(builder: (ctx, c) {
+    // Phone width: the chapter label (160px) plus a labelled "all pages"
+    // button leaves the thumbnails nothing and overflows the row, so the
+    // label goes and the button turns icon-only.
+    final isCompact = c.maxWidth < 600;
     return Container(
       height: 84,
       decoration: BoxDecoration(
         color: p.paper0,
         border: Border(top: BorderSide(color: p.paper3)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 10 : 20, vertical: 10),
       child: Row(
         children: [
-          if (widget.chapterLabel != null &&
+          if (!isCompact &&
+              widget.chapterLabel != null &&
               widget.chapterLabel!.isNotEmpty) ...[
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Text(
-                widget.chapterLabel!.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: p.ink2,
-                  letterSpacing: 0.6,
-                  fontWeight: FontWeight.w600,
+            Flexible(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  widget.chapterLabel!.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: p.ink2,
+                    letterSpacing: 0.6,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -1255,12 +1355,22 @@ class _HwBottomPageStripState extends State<HwBottomPageStrip> {
                   ),
                   ),
           ),
-          const SizedBox(width: 12),
-          HwButton(
-            leading: const HwIcon('grid', size: 14),
-            label: l10n.chromeAllPages,
-            onPressed: widget.onAllPagesTap,
-          ),
+          SizedBox(width: isCompact ? 6 : 12),
+          if (isCompact)
+            Tooltip(
+              message: l10n.chromeAllPages,
+              waitDuration: const Duration(milliseconds: 400),
+              child: HwButton.icon(
+                icon: const HwIcon('grid', size: 14),
+                onPressed: widget.onAllPagesTap,
+              ),
+            )
+          else
+            HwButton(
+              leading: const HwIcon('grid', size: 14),
+              label: l10n.chromeAllPages,
+              onPressed: widget.onAllPagesTap,
+            ),
           if (widget.onCollapse != null) ...[
             const SizedBox(width: 6),
             Tooltip(
@@ -1275,6 +1385,7 @@ class _HwBottomPageStripState extends State<HwBottomPageStrip> {
         ],
       ),
     );
+    });
   }
 }
 

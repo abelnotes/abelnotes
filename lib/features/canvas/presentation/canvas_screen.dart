@@ -211,7 +211,6 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   static const double _dockTopInset = 64;
   static const double _dockBottomInset = 110;
   static const double _dockSideInset = 16;
-  static const double _dockThickness = 52;
   static const double _dockPopupGap = 12;
 
   // ── Arrow-key hold acceleration ────────────────────────────────
@@ -464,6 +463,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// being a separate hidden toggle the toolbar selection can contradict.
   void _pickTool(CanvasTool tool) {
     ref.read(canvasProvider.notifier).setTool(tool);
+    // Remembered across notebooks and restarts, so the editor reopens with
+    // the tool the user last held instead of resetting under them.
+    ref.read(appSettingsProvider.notifier).setLastTool(tool.name);
     if (_lastPointerWasMouse != true) return;
     if (_mouseSelectTools.contains(tool)) {
       ref.read(appSettingsProvider.notifier).setMouseDraws(true);
@@ -760,7 +762,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   Widget _popupPositioned(
       DockPosition pos, double align, Size area, Widget child) {
     final axis = _alignToAxis(align);
-    const offset = _dockSideInset + _dockThickness + _dockPopupGap;
+    // The dock shrinks itself to fit narrow screens, so ask it how thick
+    // it actually is instead of assuming the full-size bar.
+    final isVert = pos == DockPosition.left || pos == DockPosition.right;
+    final dockExtent = isVert
+        ? area.height - _dockTopInset - _dockBottomInset
+        : area.width - _dockSideInset * 2;
+    final thickness = HwFloatingDock.metricsFor(dockExtent).thickness;
+    final offset = _dockSideInset + thickness + _dockPopupGap;
     switch (pos) {
       case DockPosition.left:
       case DockPosition.right:
@@ -781,7 +790,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         return Positioned(
           left: _dockSideInset,
           right: _dockSideInset,
-          top: _dockTopInset + _dockThickness + _dockPopupGap,
+          top: _dockTopInset + thickness + _dockPopupGap,
           child: Align(alignment: Alignment(axis, 0), child: child),
         );
       case DockPosition.bottom:
@@ -789,7 +798,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         return Positioned(
           left: _dockSideInset,
           right: _dockSideInset,
-          bottom: _dockBottomInset + _dockThickness + _dockPopupGap,
+          bottom: _dockBottomInset + thickness + _dockPopupGap,
           child: Align(alignment: Alignment(axis, 0), child: child),
         );
     }
@@ -819,6 +828,31 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // Cleared in dispose() before the notifier itself is disposed.
     ref.read(canvasProvider.notifier).strokeActiveProbe =
         () => _activeStrokeNotifier.isActive;
+  }
+
+  /// Tool the editor arms when a notebook opens: the one the user last
+  /// picked, or — the first time — pan on a phone/tablet and the pen on
+  /// desktop. Starting a touch device in navigate mode means a resting hand
+  /// can't scribble on the page, and arming the pen is one tap in the dock.
+  CanvasTool _startupTool() {
+    final saved = ref.read(appSettingsProvider).lastTool;
+    if (saved != null) {
+      for (final t in CanvasTool.values) {
+        if (t.name == saved) return t;
+      }
+    }
+    return _isMobilePlatform ? CanvasTool.pan : CanvasTool.pen;
+  }
+
+  /// Applied once, on the first build that has a loaded notebook —
+  /// `setTool` is a no-op while the canvas state is still null.
+  bool _startupToolApplied = false;
+  void _applyStartupTool() {
+    if (_startupToolApplied) return;
+    _startupToolApplied = true;
+    final tool = _startupTool();
+    if (tool == ref.read(canvasProvider)?.currentTool) return;
+    ref.read(canvasProvider.notifier).setTool(tool);
   }
 
   /// Pressure for the active pen sample, with the Linux fallback applied.
@@ -2054,12 +2088,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           defaultTargetPlatform == TargetPlatform.android);
 
   /// Whether touch should be treated as pan-only (true) or as a drawing
-  /// device on par with the stylus (false). Follows the user's explicit
-  /// Settings → Stylus & Input override when set, else the platform
-  /// default (on for Android/iOS, off for desktop/web).
+  /// device on par with the stylus (false). Off unless the user turns on
+  /// Settings → Stylus & Input → stylus only: a finger draws whatever tool
+  /// is armed, and the dock's pan tool is how the user says "don't draw".
   bool _effectiveStylusOnly() {
-    final override = ref.read(appSettingsProvider).stylusOnlyDrawing;
-    return override ?? _isMobilePlatform;
+    return ref.read(appSettingsProvider).stylusOnlyDrawing ?? false;
   }
 
   bool _shouldTouchPan(PointerDeviceKind kind, CanvasTool tool) {
@@ -4157,6 +4190,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // pull the full state synchronously for the build body's many
     // canvasState.X reads. ref.read does NOT subscribe.
     final canvasState = ref.read(canvasProvider);
+    if (canvasState != null && !_startupToolApplied) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyStartupTool();
+      });
+    }
 
     // Mouse mode (draw vs select) — watched so the top-bar toggle reflects
     // and the pointer pipeline sees changes immediately. Changes rarely.

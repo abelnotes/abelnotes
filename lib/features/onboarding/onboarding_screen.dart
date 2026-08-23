@@ -147,8 +147,7 @@ class _OnboardCardState extends State<_OnboardCard> {
     return Opacity(
       opacity: disabled ? 0.55 : 1,
       child: MouseRegion(
-        cursor:
-            disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
+        cursor: disabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),
         child: GestureDetector(
@@ -174,8 +173,7 @@ class _OnboardCardState extends State<_OnboardCard> {
                     borderRadius: BorderRadius.circular(HwTheme.rMd),
                   ),
                   child: HwIcon(widget.icon,
-                      size: 22,
-                      color: widget.accent ? p.accentDeep : p.ink1),
+                      size: 22, color: widget.accent ? p.accentDeep : p.ink1),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -197,21 +195,28 @@ class _OnboardCardState extends State<_OnboardCard> {
                           ),
                           if (widget.badge != null) ...[
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: HwTheme.teal.withValues(
-                                    alpha: HwTheme.alphaMedium),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                widget.badge!,
-                                style: const TextStyle(
-                                  fontFamily: HwTheme.fontSans,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: HwTheme.teal,
+                            // Flexible: at a large system font scale the
+                            // badge alone can push the title row past a
+                            // narrow phone's width.
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: HwTheme.teal
+                                      .withValues(alpha: HwTheme.alphaMedium),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  widget.badge!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: HwTheme.fontSans,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: HwTheme.teal,
+                                  ),
                                 ),
                               ),
                             ),

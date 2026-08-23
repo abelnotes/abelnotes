@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/config/app_config.dart';
@@ -363,32 +362,46 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
+    final label = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title,
+            style: TextStyle(
+                fontSize: 14, color: p.ink0, fontWeight: FontWeight.w500)),
+        if (sub != null) ...[
+          const SizedBox(height: 2),
+          Text(sub!,
+              style: TextStyle(fontSize: 12, color: p.ink2, height: 1.5)),
+        ],
+      ],
+    );
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: p.paper2)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: TextStyle(
-                        fontSize: 14, color: p.ink0, fontWeight: FontWeight.w500)),
-                if (sub != null) ...[
-                  const SizedBox(height: 2),
-                  Text(sub!,
-                      style: TextStyle(
-                          fontSize: 12, color: p.ink2, height: 1.5)),
-                ],
-              ],
-            ),
-          ),
-          control,
-        ],
-      ),
+      // A label and a labelled button side by side don't fit a phone (worse
+      // at a large font scale), so below this width the control drops onto
+      // its own line instead of being pushed off the screen.
+      child: LayoutBuilder(builder: (ctx, c) {
+        if (c.maxWidth < 380) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              label,
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerLeft, child: control),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: label),
+            const SizedBox(width: 12),
+            Flexible(child: control),
+          ],
+        );
+      }),
     );
   }
 }
@@ -561,10 +574,10 @@ class _InputSection extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final override = ref.watch(
         appSettingsProvider.select((s) => s.stylusOnlyDrawing));
-    final stylusOnly = override ??
-        (!kIsWeb &&
-            (defaultTargetPlatform == TargetPlatform.iOS ||
-                defaultTargetPlatform == TargetPlatform.android));
+    // Off by default everywhere: a finger draws the armed tool, and the
+    // editor's pan tool is the "don't draw" state. This switch is the
+    // palm-rejection opt-in for people who write with a stylus.
+    final stylusOnly = override ?? false;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1148,9 +1161,15 @@ class _AboutSection extends StatelessWidget {
               filterQuality: FilterQuality.medium,
             ),
             const SizedBox(width: 12),
-            Text(l10n.setAboutAppName,
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w600, color: p.ink0)),
+            Flexible(
+              child: Text(l10n.setAboutAppName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: p.ink0)),
+            ),
           ],
         ),
         const SizedBox(height: 8),

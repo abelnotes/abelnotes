@@ -126,10 +126,16 @@ class AppSettings {
   final bool mouseDraws;
 
   /// Whether touch (finger) input is ignored for drawing tools, treating it
-  /// as pan/scroll instead — only stylus/pen draws. Null means "follow the
-  /// platform default" (on: Android/iOS, off: desktop/web); non-null is an
-  /// explicit user override from Settings → Stylus & Input.
+  /// as pan/scroll instead — only stylus/pen draws. Null means off: a finger
+  /// draws whatever tool is armed, and the pan tool is how the user says
+  /// "don't draw". Stylus owners turn it on from Settings → Stylus & Input
+  /// to get palm rejection.
   final bool? stylusOnlyDrawing;
+
+  /// Tool the editor arms when a notebook is opened, by [CanvasTool.name].
+  /// Null until the user picks one: the editor then starts in navigate mode
+  /// (pan) on phones and with the pen on desktop.
+  final String? lastTool;
 
   /// Whether the bottom page-strip (chapter label + page thumbnails) is
   /// shown. Defaults to true; the user can collapse it via its own
@@ -157,6 +163,7 @@ class AppSettings {
     this.toolDock = const ToolDockConfig(),
     this.mouseDraws = false,
     this.stylusOnlyDrawing,
+    this.lastTool,
     this.showPageStrip = true,
     this.localeCode = 'system',
   });
@@ -180,6 +187,7 @@ class AppSettings {
     ToolDockConfig? toolDock,
     bool? mouseDraws,
     bool? stylusOnlyDrawing,
+    String? lastTool,
     bool? showPageStrip,
     String? localeCode,
   }) =>
@@ -195,6 +203,7 @@ class AppSettings {
         toolDock: toolDock ?? this.toolDock,
         mouseDraws: mouseDraws ?? this.mouseDraws,
         stylusOnlyDrawing: stylusOnlyDrawing ?? this.stylusOnlyDrawing,
+        lastTool: lastTool ?? this.lastTool,
         showPageStrip: showPageStrip ?? this.showPageStrip,
         localeCode: localeCode ?? this.localeCode,
       );
@@ -269,6 +278,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         toolDock: dock,
         mouseDraws: map['mouse_draws'] as bool? ?? false,
         stylusOnlyDrawing: map['stylus_only_drawing'] as bool?,
+        lastTool: map['last_tool'] as String?,
         showPageStrip: map['show_page_strip'] as bool? ?? true,
         localeCode: map['locale'] as String? ?? 'system',
       );
@@ -293,6 +303,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         'mouse_draws': state.mouseDraws,
         if (state.stylusOnlyDrawing != null)
           'stylus_only_drawing': state.stylusOnlyDrawing,
+        if (state.lastTool != null) 'last_tool': state.lastTool,
         'show_page_strip': state.showPageStrip,
         'locale': state.localeCode,
       }));
@@ -362,6 +373,12 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setStylusOnlyDrawing(bool v) {
     state = state.copyWith(stylusOnlyDrawing: v);
+    _persist();
+  }
+
+  void setLastTool(String toolName) {
+    if (state.lastTool == toolName) return;
+    state = state.copyWith(lastTool: toolName);
     _persist();
   }
 
