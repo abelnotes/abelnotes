@@ -862,31 +862,19 @@ class HwToolPopup extends StatelessWidget {
               // shrinks to whatever width is left.
               child: Row(
                 children: [
-                  Flexible(
+                  Expanded(
                     child: Text(l10n.chromePreview,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontSize: 12, color: p.ink2)),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(
-                    flex: 2,
-                    child: LayoutBuilder(builder: (ctx, c) {
-                      final w = c.maxWidth.isFinite
-                          ? math.min(160.0, c.maxWidth)
-                          : 160.0;
-                      return Align(
-                        alignment: Alignment.centerRight,
-                        child: CustomPaint(
-                          size: Size(w, 20),
-                          painter: _StrokePreviewPainter(
-                              color: color,
-                              width: thickness,
-                              isHighlighter:
-                                  tool == CanvasTool.highlighter),
-                        ),
-                      );
-                    }),
+                  CustomPaint(
+                    size: const Size(160, 20),
+                    painter: _StrokePreviewPainter(
+                        color: color,
+                        width: thickness,
+                        isHighlighter: tool == CanvasTool.highlighter),
                   ),
                 ],
               ),
@@ -1277,19 +1265,21 @@ class _HwBottomPageStripState extends State<HwBottomPageStrip> {
           if (!isCompact &&
               widget.chapterLabel != null &&
               widget.chapterLabel!.isNotEmpty) ...[
-            Flexible(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 160),
-                child: Text(
-                  widget.chapterLabel!.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: p.ink2,
-                    letterSpacing: 0.6,
-                    fontWeight: FontWeight.w600,
-                  ),
+            // Rigid, NOT Flexible: a loose flexible child here would be
+            // allotted half the free width, and the share it doesn't use is
+            // left as a hole at the end of the row instead of going to the
+            // thumbnails.
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                widget.chapterLabel!.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: p.ink2,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),

@@ -69,6 +69,7 @@ bool _inkedNear(ByteData pixels, int x, int y, {int radius = 4}) {
 }
 
 void main() {
+  _circleResizeTests();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('circle shape paints the ellipse inscribed in its bounding box',
@@ -171,6 +172,37 @@ void main() {
       );
       expect(shapeBodyContains(tri, const Offset(50, 80)), isTrue);
       expect(shapeBodyContains(tri, const Offset(5, 5)), isFalse);
+    });
+  });
+}
+
+// Regression: dragging on out of hold-to-recognize resized the circle by
+// half-width and half-height independently, so any drag that wasn't exactly
+// diagonal turned it into an oval — the shape recognition had just replaced.
+void _circleResizeTests() {
+  group('circleResizeBox', () {
+    const center = Offset(200, 300);
+
+    test('stays a circle whatever direction the cursor moves', () {
+      for (final cursor in [
+        const Offset(300, 300), // straight right
+        const Offset(200, 100), // straight up
+        const Offset(260, 380), // diagonal
+        const Offset(120, 260), // up-left
+      ]) {
+        final box = circleResizeBox(center, cursor);
+        expect(box.width, closeTo(box.height, 0.001),
+            reason: 'oval for cursor $cursor');
+        expect(box.center.dx, closeTo(center.dx, 0.001));
+        expect(box.center.dy, closeTo(center.dy, 0.001));
+        // The cursor rides the outline.
+        expect((cursor - center).distance, closeTo(box.width / 2, 0.001));
+      }
+    });
+
+    test('never collapses to nothing', () {
+      final box = circleResizeBox(center, center);
+      expect(box.width / 2, 5.0);
     });
   });
 }

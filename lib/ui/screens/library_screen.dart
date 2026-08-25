@@ -1391,20 +1391,33 @@ class _TopBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Flexible: at a large system font scale the wordmark alone
-            // eats a narrow phone's bar and pushes the search field out.
-            Flexible(
-              child: Text(l10n.libAppName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            // On a phone the wordmark yields (at a large font scale it alone
+            // pushed the search field off the bar) and there is no Spacer:
+            // the search field owns the rest of the row. On wide layouts the
+            // wordmark is rigid and the Spacer pins everything else right.
+            if (isCompact)
+              Flexible(
+                child: Text(l10n.libAppName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.4,
+                      color: p.ink0,
+                    )),
+              )
+            else ...[
+              Text(l10n.libAppName,
                   style: TextStyle(
-                    fontSize: isCompact ? 18 : 22,
+                    fontSize: 22,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.4,
                     color: p.ink0,
                   )),
-            ),
-            const Spacer(),
+              const Spacer(),
+            ],
+            const SizedBox(width: 8),
             // Search field — full width on phone, fixed 240 on wide.
             if (isCompact)
               Expanded(
@@ -2244,17 +2257,25 @@ class _FooterBar extends StatelessWidget {
           border: Border(top: BorderSide(color: p.paper3)),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            HwIcon('cloud-check', size: 14, color: p.ink2),
-            const SizedBox(width: 6),
             Flexible(
-              child: Text(AppLocalizations.of(context).libFooterWebdav,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: p.ink2)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  HwIcon('cloud-check', size: 14, color: p.ink2),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(AppLocalizations.of(context).libFooterWebdav,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 13, color: p.ink2)),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
               child: Text(AppLocalizations.of(context).libFooterLocalFirst,
                   maxLines: 1,
                   textAlign: TextAlign.right,

@@ -394,11 +394,14 @@ class _Row extends StatelessWidget {
             ],
           );
         }
+        // The control stays rigid: as a loose flexible child it would be
+        // allotted half the row and leave the unused half as a hole,
+        // un-pinning it from the right edge.
         return Row(
           children: [
             Expanded(child: label),
             const SizedBox(width: 12),
-            Flexible(child: control),
+            control,
           ],
         );
       }),

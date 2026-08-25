@@ -35,6 +35,19 @@ Rect circleDragBox(Offset start, Offset end) {
   return Rect.fromCircle(center: rect.center, radius: rect.width / 2);
 }
 
+/// Bounding box for a recognized `circle` the user is resizing: centred on
+/// [center], radius = the cursor's distance from it, so the cursor rides the
+/// outline and the shape can only grow or shrink AS A CIRCLE.
+///
+/// Both resize paths (drag straight out of hold-to-recognize, and the later
+/// adjust drag) go through this. They used to compute their own geometry and
+/// one of them sized half-width and half-height independently, which turned
+/// the recognized circle into the oval the recogniser had just rejected.
+Rect circleResizeBox(Offset center, Offset cursor, {double minRadius = 5}) {
+  final r = max((cursor - center).distance, minRadius);
+  return Rect.fromCircle(center: center, radius: r);
+}
+
 /// True if [p] falls inside the body of [sh] (rotation-aware).
 ///
 /// Meaningful for shapes carrying a `fillColor`: their interior is visible

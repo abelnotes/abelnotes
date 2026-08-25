@@ -13,7 +13,7 @@ class AppConfig {
   // The build number after "+" is the absolute counter — never resets when
   // the semver bumps.
   static const String appVersion = '0.37.4';
-  static const int appBuildNumber = 43;
+  static const int appBuildNumber = 45;
   static String get fullVersion => '$appVersion+$appBuildNumber';
 
   /// Short git commit the binary was built from, injected at build time via

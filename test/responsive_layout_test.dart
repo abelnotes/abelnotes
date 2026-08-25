@@ -246,6 +246,41 @@ void main() {
     });
   });
 
+  testWidgets('wide page strip gives the thumbnails the whole row',
+      (tester) async {
+    // Regression: a loose Flexible chapter label was allotted half the free
+    // width and left the unused half as a hole, so the thumbnails only got
+    // half the bar on desktop.
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_app(
+      1.0,
+      Scaffold(
+        body: Column(children: [
+          HwBottomPageStrip(
+            chapterLabel: 'ESAMI (24 PAGES)',
+            pageNumbers: List.generate(24, (i) => i + 1),
+            currentPage: 24,
+            onPageTap: (_) {},
+            onAllPagesTap: () {},
+          ),
+        ]),
+      ),
+    ));
+    collect(tester, 'PageStripWide', 1400, 1.0);
+    final strip = tester.getRect(find.byType(HwBottomPageStrip));
+    final list = tester.getRect(find.byType(ListView));
+    final button = tester.getRect(find.text('All pages'));
+    // The thumbnails run from just after the label to just before the
+    // button, and the button itself sits against the right edge — a hole
+    // anywhere in between would show up in one of these two.
+    expect(list.width, greaterThan(strip.width * 0.6),
+        reason: 'thumbnail strip is not using the available width');
+    expect(strip.right - button.right, lessThan(60),
+        reason: 'the row ends in dead space instead of the button');
+  });
+
   testWidgets('text editor dialog', (tester) async {
     addTearDown(tester.view.reset);
     for (final w in _widths) {

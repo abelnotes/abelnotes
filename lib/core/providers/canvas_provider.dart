@@ -15,7 +15,12 @@ import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
-    show CanvasRenderEngine, circleDragBox, shapeBodyContains, shapeEllipseRect;
+    show
+        CanvasRenderEngine,
+        circleDragBox,
+        circleResizeBox,
+        shapeBodyContains,
+        shapeEllipseRect;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/rich_paste.dart';
@@ -2733,12 +2738,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         updated = shape.copyWith(x2: snapped[0], y2: snapped[1]);
         break;
       case 'circle':
-        final cx = (shape.x1 + shape.x2) / 2;
-        final cy = (shape.y1 + shape.y2) / 2;
-        final radius = sqrt(pow(position.dx - cx, 2) + pow(position.dy - cy, 2));
+        final box = circleResizeBox(
+            Offset((shape.x1 + shape.x2) / 2, (shape.y1 + shape.y2) / 2),
+            position);
         updated = shape.copyWith(
-          x1: cx - radius, y1: cy - radius,
-          x2: cx + radius, y2: cy + radius,
+          x1: box.left, y1: box.top,
+          x2: box.right, y2: box.bottom,
         );
         break;
       case 'triangle':
@@ -2768,14 +2773,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (state == null || state!.recognizedShape == null) return;
     final s = state!.recognizedShape!;
 
-    if (s.shapeType == 'circle' || s.shapeType == 'triangle') {
-      // Keep center fixed, compute new size from cursor distance to center
+    if (s.shapeType == 'circle') {
+      final box = circleResizeBox(
+          Offset((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2), position);
+      state = state!.copyWith(
+        recognizedShape: s.copyWith(
+          x1: box.left, y1: box.top,
+          x2: box.right, y2: box.bottom,
+        ),
+      );
+      return;
+    }
+
+    if (s.shapeType == 'triangle') {
+      // Keep centre fixed, size each axis from the cursor distance.
       final cx = (s.x1 + s.x2) / 2;
       final cy = (s.y1 + s.y2) / 2;
-      final dx = (position.dx - cx).abs();
-      final dy = (position.dy - cy).abs();
-      final halfW = max(dx, 5.0);
-      final halfH = max(dy, 5.0);
+      final halfW = max((position.dx - cx).abs(), 5.0);
+      final halfH = max((position.dy - cy).abs(), 5.0);
       state = state!.copyWith(
         recognizedShape: s.copyWith(
           x1: cx - halfW, y1: cy - halfH,
