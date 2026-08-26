@@ -9,10 +9,12 @@ import 'package:abelnotes/core/services/google_oauth.dart';
 import 'package:abelnotes/core/services/native_google_auth.dart';
 
 class _FakeGateway implements GoogleSignInGateway {
-  _FakeGateway({this.silentToken, this.hasSession = true});
+  _FakeGateway({this.silentToken});
 
   String? silentToken;
-  bool hasSession;
+  // Starts true: the interesting cases flip it from inside the fake (a
+  // sign-out, a successful sign-in), never from the constructor.
+  bool hasSession = true;
   final List<String> calls = [];
   final List<String> discarded = [];
   Object? signInError;
