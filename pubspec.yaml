@@ -1,6 +1,6 @@
 name: abelnotes
 description: Handwritten notes with LaTeX, PDF annotation, and WebDAV sync to your own server.
-version: 0.37.4+45
+version: 0.37.4+53
 publish_to: 'none'
 
 environment:
@@ -41,6 +41,16 @@ dependencies:
   # prefs. Backed by Keychain (iOS/macOS), Keystore (Android), DPAPI
   # (Windows), Secret Service via libsecret (Linux).
   flutter_secure_storage: ^9.2.2
+
+  # Opens the Google consent page in the user's browser during Drive sign-in
+  # on desktop, where the redirect comes back to a local port. Mobile uses
+  # the platform account sheet instead and needs no browser.
+  url_launcher: ^6.3.0
+
+  # Native Google account sheet on Android and iOS. Not a nicety: Google
+  # switched off browser redirects for new Android OAuth clients, so this is
+  # the sign-in that still works there.
+  google_sign_in: ^7.2.0
 
   # SHA-256 for TLS certificate pinning (trust-on-first-use on the WebDAV
   # client — see webdav_service.dart)
@@ -118,6 +128,10 @@ flutter:
     - assets/icon/app_icon.png
     # In-app brand mark (onboarding header, Settings → About).
     - assets/branding/logo.png
+    # Third-party marks shown on the onboarding sync choices. Official
+    # artwork, unmodified in shape — see ACKNOWLEDGMENTS.md.
+    - assets/branding/google-drive.png
+    - assets/branding/nextcloud.png
     # MPL-2.0 attribution for the onenote_parser crate used by the OneNote
     # import bridge (native/onenote_bridge) — registered in LicenseRegistry.
     - assets/licenses/onenote_parser_LICENSE.txt

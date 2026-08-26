@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
+import 'package:abelnotes/features/sync/drive_connect.dart';
 import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
-import 'package:abelnotes/ui/theme/hw_icons.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 
-/// First-run screen. Lets the user start immediately (local-only), connect
-/// their own Nextcloud/WebDAV server, or (soon) use the managed AbelNotes
-/// server. Themed with HwTheme so it matches the rest of the modern UI.
+/// First-run screen. Asks one question — where the notebooks should live —
+/// and answers it with the two services by their own marks, because a
+/// generic cloud glyph made the user tap to find out which was which.
+/// Starting with no sync at all stays a full-width button underneath: it is
+/// subordinate to the question, not hidden from it.
 class OnboardingScreen extends ConsumerWidget {
   const OnboardingScreen({super.key});
 
@@ -59,38 +62,90 @@ class OnboardingScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 32),
 
-                  // ── Option 1: local-only, try now ──
-                  _OnboardCard(
-                    icon: 'pen',
-                    accent: true,
-                    title: l10n.onbTryNowTitle,
-                    subtitle: l10n.onbTryNowSubtitle,
+                  // ── The question ──
+                  Text(
+                    l10n.onbSyncQuestion,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: HwTheme.fontSans,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: p.ink0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.onbSyncQuestionSub,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: HwTheme.fontSans,
+                      fontSize: 13,
+                      height: 1.4,
+                      color: p.ink2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── The two answers, side by side and equal ──
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _SyncChoice(
+                            logo: 'assets/branding/google-drive.png',
+                            label: l10n.onbDriveShort,
+                            note: driveSignInSupported
+                                ? null
+                                : l10n.onbDriveUnavailable,
+                            onTap: driveSignInSupported
+                                ? () async {
+                                    if (await connectDrive(context, ref)) {
+                                      // Onboarding's question is answered;
+                                      // the gate also accepts a Drive account
+                                      // on its own.
+                                      await ref
+                                          .read(localModeProvider.notifier)
+                                          .enable();
+                                    }
+                                  }
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SyncChoice(
+                            logo: 'assets/branding/nextcloud.png',
+                            label: l10n.onbNextcloudShort,
+                            onTap: () {
+                              Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => const LoginScreen(),
+                              ));
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Neither: local-only ──
+                  _SecondaryButton(
+                    label: l10n.onbStartWithoutSync,
                     onTap: () async {
                       await ref.read(localModeProvider.notifier).enable();
                     },
                   ),
-                  const SizedBox(height: 12),
-
-                  // ── Option 2: personal server ──
-                  _OnboardCard(
-                    icon: 'cloud',
-                    title: l10n.onbConnectNextcloudTitle,
-                    subtitle: l10n.onbConnectNextcloudSubtitle,
-                    onTap: () {
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
-                      ));
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ── Option 3: managed server (placeholder) ──
-                  _OnboardCard(
-                    icon: 'globe',
-                    title: l10n.onbManagedServerTitle,
-                    subtitle: l10n.onbManagedServerSubtitle,
-                    badge: l10n.onbComingSoonBadge,
-                    onTap: null, // disabled until the hosted server is live
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.onbTryNowSubtitle,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: HwTheme.fontSans,
+                      fontSize: 12,
+                      height: 1.4,
+                      color: p.ink3,
+                    ),
                   ),
 
                   const SizedBox(height: 24),
@@ -114,35 +169,42 @@ class OnboardingScreen extends ConsumerWidget {
   }
 }
 
-class _OnboardCard extends StatefulWidget {
-  final String icon;
-  final String title;
-  final String subtitle;
-  final String? badge;
-  final bool accent;
+/// One sync destination, shown by its own mark.
+///
+/// Both marks are the services' official artwork and are never tinted: their
+/// colours are the recognisable part, and recolouring them is what their
+/// brand guidelines forbid.
+class _SyncChoice extends StatefulWidget {
+  final String logo;
+  final String label;
+  final String? note;
   final VoidCallback? onTap;
 
-  const _OnboardCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.badge,
-    this.accent = false,
+  const _SyncChoice({
+    required this.logo,
+    required this.label,
+    this.note,
     required this.onTap,
   });
 
   @override
-  State<_OnboardCard> createState() => _OnboardCardState();
+  State<_SyncChoice> createState() => _SyncChoiceState();
 }
 
-class _OnboardCardState extends State<_OnboardCard> {
+class _SyncChoiceState extends State<_SyncChoice> {
   bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final disabled = widget.onTap == null;
-    final borderColor = widget.accent && !disabled ? p.accent : p.paper3;
+
+    final logo = Image.asset(
+      widget.logo,
+      height: 32,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+    );
 
     return Opacity(
       opacity: disabled ? 0.55 : 1,
@@ -155,92 +217,92 @@ class _OnboardCardState extends State<_OnboardCard> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
             decoration: BoxDecoration(
               color: (_hover && !disabled) ? p.paper2 : p.paper0,
-              border: Border.all(
-                  color: borderColor, width: widget.accent ? 1.5 : 1),
+              border: Border.all(color: p.paper3),
               borderRadius: BorderRadius.circular(HwTheme.rLg),
             ),
-            child: Row(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: widget.accent ? p.accentSoft : p.paper2,
-                    borderRadius: BorderRadius.circular(HwTheme.rMd),
-                  ),
-                  child: HwIcon(widget.icon,
-                      size: 22, color: widget.accent ? p.accentDeep : p.ink1),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              widget.title,
-                              style: TextStyle(
-                                fontFamily: HwTheme.fontSans,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: p.ink0,
-                              ),
-                            ),
-                          ),
-                          if (widget.badge != null) ...[
-                            const SizedBox(width: 8),
-                            // Flexible: at a large system font scale the
-                            // badge alone can push the title row past a
-                            // narrow phone's width.
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: HwTheme.teal
-                                      .withValues(alpha: HwTheme.alphaMedium),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  widget.badge!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: HwTheme.fontSans,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: HwTheme.teal,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.subtitle,
-                        style: TextStyle(
-                          fontFamily: HwTheme.fontSans,
-                          fontSize: 13,
-                          height: 1.4,
-                          color: p.ink2,
-                        ),
-                      ),
-                    ],
+                SizedBox(height: 52, child: Center(child: logo)),
+                const SizedBox(height: 12),
+                Text(
+                  widget.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: HwTheme.fontSans,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: p.ink0,
                   ),
                 ),
-                if (!disabled) ...[
-                  const SizedBox(width: 8),
-                  HwIcon('chevron-right', size: 18, color: p.ink3),
+                if (widget.note != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.note!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: HwTheme.fontSans,
+                      fontSize: 11,
+                      height: 1.3,
+                      color: p.ink3,
+                    ),
+                  ),
                 ],
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full-width, quiet, and still unmistakably a button: the way out of the
+/// question without making it look like the wrong answer.
+class _SecondaryButton extends StatefulWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _SecondaryButton({required this.label, required this.onTap});
+
+  @override
+  State<_SecondaryButton> createState() => _SecondaryButtonState();
+}
+
+class _SecondaryButtonState extends State<_SecondaryButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HwThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hover ? p.paper2 : Colors.transparent,
+            border: Border.all(color: p.paper3),
+            borderRadius: BorderRadius.circular(HwTheme.rLg),
+          ),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontFamily: HwTheme.fontSans,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: p.ink1,
             ),
           ),
         ),

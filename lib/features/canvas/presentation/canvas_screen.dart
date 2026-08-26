@@ -89,6 +89,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   int _activePointers = 0;
   double _baseZoom = 1.0;
   Offset _lastFocalPoint = Offset.zero;
+  /// Set while [_lastFocalPoint] holds a pinch's focal point — the midpoint
+  /// between two fingers — instead of a single pointer's position. The
+  /// single-pointer pan paths must re-anchor before using it as their origin.
+  bool _panAnchorFromPinch = false;
 
   // Lasso drag
   bool _isDraggingSelection = false;
@@ -2117,6 +2121,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       return;
     }
     _activePointers++;
+    _panAnchorFromPinch = false;
     _lastPointerWasMouse = event.kind == PointerDeviceKind.mouse;
 
     // A pen/touch interaction reverts the cursor to the tool default (so a
@@ -2701,6 +2706,22 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     return local;
   }
 
+  /// Re-anchors the pan origin after a pinch, returning true when the caller
+  /// must skip this move.
+  ///
+  /// Two fingers never leave the glass together. When the first one lifts,
+  /// [_onPointerMove] starts seeing the survivor while [_lastFocalPoint] still
+  /// holds the midpoint the pinch left there — so the pan paths read the
+  /// difference between the two as user movement and jump by half the finger
+  /// spread. Only the pan tool shows it, because it is the only thing that
+  /// treats that field as its origin.
+  bool _reanchorPanAfterPinch(Offset position) {
+    if (!_panAnchorFromPinch) return false;
+    _panAnchorFromPinch = false;
+    _lastFocalPoint = position;
+    return true;
+  }
+
   void _onPointerMove(PointerMoveEvent event, CanvasState state, Size canvasSize) {
     if (_suppressedSynthBarrelPointers.contains(event.pointer)) return;
     // Palm resting next to the stylus: its own moves must not draw/pan.
@@ -2721,6 +2742,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
 
     if (_isTouchPanning) {
+      if (_reanchorPanAfterPinch(event.position)) return;
       // Cancel long-press if finger moved significantly
       if (_longPressTimer != null) {
         final moved = (event.position - _longPressGlobalPos).distance;
@@ -2748,6 +2770,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
 
     if (tool == CanvasTool.pan) {
+      if (_reanchorPanAfterPinch(event.position)) return;
       final delta = event.position - _lastFocalPoint;
       _lastFocalPoint = event.position;
       final latest = ref.read(canvasProvider);
@@ -3431,6 +3454,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     if (state == null) return;
     _baseZoom = state.zoom;
     _lastFocalPoint = details.focalPoint;
+    _panAnchorFromPinch = true;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
@@ -3463,6 +3487,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
     notifier.setZoomAndPan(newZoom, newPan);
     _lastFocalPoint = details.focalPoint;
+    _panAnchorFromPinch = true;
   }
 
   // ── Text insertion / editing ──

@@ -67,6 +67,17 @@ available, as it does here).
 Pen pressure on Linux is read directly from the kernel evdev interface
 (`/dev/input`) — no external library involved.
 
+## Third-party marks
+
+Shown on the onboarding screen so the two sync choices are recognisable
+before they are tapped. Trademarks of their owners, used to identify the
+service each option connects to; no endorsement is implied.
+
+| Mark | Source | Terms |
+|---|---|---|
+| Google Drive (`assets/branding/google-drive.png`) | Google's product icon set (`gstatic.com/images/branding/product`) | Official artwork, shipped unmodified. The product logo, not the "G" sign-in mark: the card names a destination, not a sign-in method. Never tinted for dark mode. |
+| Nextcloud logo (`assets/branding/nextcloud.png`) | [nextcloud/server](https://github.com/nextcloud/server) (`core/img/logo/logo.svg`) | Rasterised from the official SVG in the Nextcloud brand blue (`#0082C9`); shape unaltered. |
+
 ## Development-only dependencies
 
 `flutter_test`, `flutter_lints`, `build_runner`, `freezed`,

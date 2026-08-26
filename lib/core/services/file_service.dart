@@ -108,7 +108,9 @@ class FileService {
         cover_color INTEGER,
         paper_type TEXT,
         page_count INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        local_only INTEGER NOT NULL DEFAULT 0,
+        download_skipped INTEGER NOT NULL DEFAULT 0
       )
     ''');
 
@@ -124,7 +126,21 @@ class FileService {
   }
 
   Future<void> _upgradeTables(Database db, int oldVersion, int newVersion) async {
-    // Future schema migrations go here
+    if (oldVersion < 2) {
+      // Notebooks the user chose to keep off the remote. Defaults to 0 so
+      // every existing notebook keeps syncing exactly as it did — an opt-out
+      // that silently opted people out would be the worst of both worlds.
+      await db.execute(
+          'ALTER TABLE notebooks ADD COLUMN local_only INTEGER NOT NULL '
+          'DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      // Notebooks that live on the remote but that this device was told not
+      // to keep. Per-device, so it is never uploaded anywhere.
+      await db.execute(
+          'ALTER TABLE notebooks ADD COLUMN download_skipped INTEGER NOT NULL '
+          'DEFAULT 0');
+    }
   }
 
   // ── Local File I/O ──
@@ -560,6 +576,12 @@ class FileService {
   // ── Sync Metadata DB ──
 
   /// Upserts notebook metadata in the local DB.
+  ///
+  /// The per-device flags ([local_only], [download_skipped]) are carried over
+  /// from the existing row rather than taken as parameters. The upsert is a
+  /// REPLACE, so every caller that forgot to pass them would silently reset
+  /// them — and for `local_only` that means a notebook the user took off the
+  /// cloud starts uploading again after one save.
   Future<void> upsertNotebookMeta({
     required String id,
     required String title,
@@ -574,10 +596,20 @@ class FileService {
     int pageCount = 0,
     DateTime? createdAt,
   }) async {
+    final existing = await _db.query(
+      'notebooks',
+      columns: ['local_only', 'download_skipped'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    final flags = existing.isEmpty ? const <String, Object?>{} : existing.first;
     await _db.insert(
       'notebooks',
       {
         'id': id,
+        'local_only': (flags['local_only'] as int?) ?? 0,
+        'download_skipped': (flags['download_skipped'] as int?) ?? 0,
         'title': title,
         'remote_path': remotePath,
         'etag': etag,
@@ -656,7 +688,15 @@ class FileService {
   /// server owns. The cleanup skips those rows, and the pending-upload retry
   /// bootstraps them onto whatever server comes next (or just re-marks them
   /// synced when the delta folder is already there).
+  ///
+  /// Rows for notebooks this device does not hold are dropped instead. There
+  /// is nothing local to keep: the content was only ever on the server the
+  /// user just disconnected. Marking them `modified` like the rest would
+  /// leave a card that cannot be opened (the new server has never heard of
+  /// it) and that the deletion cleanup never removes, because it skips
+  /// anything that isn't `synced`.
   Future<int> markAllNotebooksLocal() async {
+    await _db.delete('notebooks', where: 'download_skipped = 1');
     return _db.update(
       'notebooks',
       {'sync_status': 'modified', 'etag': null, 'remote_modified_at': null},
@@ -665,11 +705,149 @@ class FileService {
     );
   }
 
+  /// Marks a notebook as staying on this device, or lets it sync again.
+  ///
+  /// Local-only notebooks are skipped by every upload path AND by the
+  /// library's remote-deletion cleanup: absent from the remote is their
+  /// normal state, not evidence that the user deleted them elsewhere.
+  Future<void> setNotebookLocalOnly(String id, bool localOnly) async {
+    await _db.update(
+      'notebooks',
+      {'local_only': localOnly ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Whether [id] is kept on this device only.
+  Future<bool> isNotebookLocalOnly(String id) async {
+    final rows = await _db.query(
+      'notebooks',
+      columns: ['local_only'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return false;
+    return (rows.first['local_only'] as int? ?? 0) == 1;
+  }
+
+  /// Marks a notebook as one this device should not download, or clears it.
+  ///
+  /// Per-device and never uploaded: the notebook stays on the remote and on
+  /// the devices that do want it. Setting the flag does not delete anything —
+  /// [evictLocalCopy] does that.
+  Future<void> setNotebookDownloadSkipped(String id, bool skipped) async {
+    await _db.update(
+      'notebooks',
+      {'download_skipped': skipped ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Whether [id] is one this device was told not to download.
+  Future<bool> isNotebookDownloadSkipped(String id) async {
+    final rows = await _db.query(
+      'notebooks',
+      columns: ['download_skipped'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return false;
+    return (rows.first['download_skipped'] as int? ?? 0) == 1;
+  }
+
+  /// Frees the local content of a notebook, keeping its library row.
+  ///
+  /// The opposite of [deleteNotebook]: the row survives so the card stays in
+  /// the library and the user can get the notebook back by opening it, which
+  /// downloads it from the remote. Refuses when the remote does not have
+  /// everything: a notebook with unsynced changes, or one the user keeps off
+  /// the cloud, has nowhere to come back from and evicting it would be a
+  /// silent delete. Returns the bytes freed.
+  Future<int> evictLocalCopy(String notebookId) async {
+    final meta = await getNotebookMeta(notebookId);
+    if (meta == null) return 0;
+    if ((meta['local_only'] as int? ?? 0) == 1) {
+      throw StateError('Refusing to evict a local-only notebook: the remote '
+          'has no copy to restore from');
+    }
+    if ((meta['sync_status'] as String? ?? '') != 'synced') {
+      throw StateError('Refusing to evict a notebook with unsynced changes');
+    }
+    final dirty = await _db.query(
+      'dirty_pages',
+      where: 'notebook_id = ?',
+      whereArgs: [notebookId],
+      limit: 1,
+    );
+    if (dirty.isNotEmpty) {
+      throw StateError('Refusing to evict a notebook with dirty pages');
+    }
+
+    // Same lock every other writer takes: without it an in-flight autosave
+    // recreates the loose store right after we delete it, leaving a partial
+    // store that shadows a notebook we have just declared absent.
+    final prev = _saveLocks[notebookId];
+    final completer = Completer<void>();
+    _saveLocks[notebookId] = completer.future;
+    try {
+      if (prev != null) {
+        try { await prev; } catch (_) {}
+      }
+      final freed = await localFootprintBytes(notebookId);
+      await deleteNotebookFile(notebookId);
+      // Snapshots are local history of a notebook that is no longer here.
+      try {
+        final dir = Directory(p.join(_snapshotsDir, notebookId));
+        if (await dir.exists()) await dir.delete(recursive: true);
+      } catch (_) {}
+      await _db.update(
+        'notebooks',
+        {'download_skipped': 1, 'file_size': null},
+        where: 'id = ?',
+        whereArgs: [notebookId],
+      );
+      return freed;
+    } finally {
+      completer.complete();
+      if (identical(_saveLocks[notebookId], completer.future)) {
+        _saveLocks.remove(notebookId);
+      }
+    }
+  }
+
+  /// Bytes a notebook occupies on this device: loose store, legacy file and
+  /// snapshots together. Best effort — used to tell the user what evicting
+  /// it frees.
+  Future<int> localFootprintBytes(String notebookId) async {
+    var total = 0;
+    Future<void> addDir(Directory d) async {
+      if (!await d.exists()) return;
+      await for (final e in d.list(recursive: true, followLinks: false)) {
+        if (e is File) {
+          try { total += await e.length(); } catch (_) {}
+        }
+      }
+    }
+    await addDir(Directory(notebookStoreDir(notebookId)));
+    await addDir(Directory(p.join(_snapshotsDir, notebookId)));
+    final legacy = File(localPath(notebookId));
+    if (await legacy.exists()) {
+      try { total += await legacy.length(); } catch (_) {}
+    }
+    return total;
+  }
+
   /// Returns all notebook IDs that need syncing.
   Future<List<Map<String, dynamic>>> getDirtyNotebooks() async {
     return _db.query(
       'notebooks',
-      where: 'sync_status != ?',
+      // local_only rows are never "pending upload": there is nowhere they
+      // are meant to go.
+      where: 'sync_status != ? AND local_only = 0',
       whereArgs: ['synced'],
     );
   }

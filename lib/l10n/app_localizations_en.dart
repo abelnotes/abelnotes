@@ -1471,6 +1471,198 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onbComingSoonBadge => 'Coming soon';
 
   @override
+  String get onbDriveTitle => 'Sync with Google Drive';
+
+  @override
+  String get onbDriveSubtitle =>
+      'Nothing to set up: your notebooks sync through your own Google Drive.';
+
+  @override
+  String get driveSignInFailed =>
+      'Google sign-in didn\'t complete. Nothing was changed.';
+
+  @override
+  String get driveSignInCancelled => 'Sign-in cancelled.';
+
+  @override
+  String get driveNotConfigured =>
+      'This build has no Google credentials, so Drive sync is unavailable.';
+
+  @override
+  String get driveNoKeyring =>
+      'This system has no secure storage, so the Google account can\'t be kept safely. Drive sync is unavailable here.';
+
+  @override
+  String get driveConnectedTitle => 'Google Drive connected';
+
+  @override
+  String get setSyncDriveTitle => 'Google Drive';
+
+  @override
+  String get setSyncDriveConnected =>
+      'Notebooks sync through your Google Drive.';
+
+  @override
+  String get setSyncDriveNotConnected => 'Not connected.';
+
+  @override
+  String get setSyncDriveDesktopOnly => 'Available on computer for now.';
+
+  @override
+  String get setDriveDisconnectTitle => 'Disconnect Google Drive?';
+
+  @override
+  String get setDriveDisconnectBody =>
+      'Notebooks already in your Drive stay there — this app only stops syncing to them. Notebooks on this device are untouched.';
+
+  @override
+  String get setDriveDisconnectConfirm => 'Disconnect';
+
+  @override
+  String get setSyncOneBackendNote =>
+      'Notebooks sync to one place at a time: your own server or your Google Drive.';
+
+  @override
+  String get setSyncSwitchTitle => 'Move sync to Google Drive?';
+
+  @override
+  String get setSyncSwitchBody =>
+      'Your notebooks stay on this device and are uploaded to your Google Drive. The copies already on your server stay where they are, but stop receiving updates from then on. Nothing is deleted.';
+
+  @override
+  String get setSyncSwitchConfirm => 'Move to Drive';
+
+  @override
+  String get setSyncInactiveNote =>
+      'Configured, but not in use: sync is going to the other destination.';
+
+  @override
+  String libPendingUploadsDrive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notebooks still to upload to Google Drive',
+      one: '$count notebook still to upload to Google Drive',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String libPendingUploadsServer(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notebooks still to upload to your server',
+      one: '$count notebook still to upload to your server',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get libPendingUploadsHint =>
+      'They stay on this device meanwhile. Leave the app open a moment.';
+
+  @override
+  String get libStorageFullDrive => 'Your Google Drive is full';
+
+  @override
+  String get libStorageFullServer => 'Your server is out of space';
+
+  @override
+  String get libStorageFullBody =>
+      'Notebooks stay safe on this device, but they can\'t be uploaded until you free some space. Google Drive is shared with Gmail and Photos.';
+
+  @override
+  String get libStorageFullBodyServer =>
+      'Notebooks stay safe on this device, but they can\'t be uploaded until space is freed on the server.';
+
+  @override
+  String get libKeepOnDevice => 'Keep on this device only';
+
+  @override
+  String get libResumeSync => 'Sync this notebook again';
+
+  @override
+  String get libLocalOnlyBadge => 'This device only';
+
+  @override
+  String get libKeepOnDeviceTitle => 'Keep this notebook on this device?';
+
+  @override
+  String get libKeepOnDeviceBody =>
+      'It stops being uploaded, and other devices won\'t receive it any more. It stays fully usable here.';
+
+  @override
+  String get libKeepOnDeviceRemoveCopy =>
+      'Also delete the copy already uploaded';
+
+  @override
+  String get libKeepOnDeviceConfirm => 'Keep here only';
+
+  @override
+  String get libLocalOnlyDone => 'Kept on this device only.';
+
+  @override
+  String get libSyncResumedDone => 'This notebook will sync again.';
+
+  @override
+  String get syncLocalOnlyTooltip => 'Kept on this device only';
+
+  @override
+  String get libFreeSpace => 'Free up space on this device';
+
+  @override
+  String get libKeepOnThisDevice => 'Download to this device';
+
+  @override
+  String get libFreeSpaceTitle => 'Remove this notebook from this device?';
+
+  @override
+  String get libFreeSpaceBody =>
+      'The notebook stays on the remote and on your other devices. Here it becomes a card you can tap to download it again. Until you do, it can\'t be opened offline and search won\'t look inside it.';
+
+  @override
+  String get libFreeSpaceConfirm => 'Free up space';
+
+  @override
+  String libFreeSpaceDone(String size) {
+    return 'Removed from this device. $size freed.';
+  }
+
+  @override
+  String get libFreeSpaceNotSynced =>
+      'This notebook has changes the remote doesn\'t have yet. It will be possible once they\'re uploaded.';
+
+  @override
+  String get libFreeSpaceOpenNotebook => 'Close the notebook first.';
+
+  @override
+  String get libKeepOnThisDeviceDone =>
+      'It will be downloaded to this device again.';
+
+  @override
+  String get syncNotOnDeviceTooltip => 'On the remote, not on this device';
+
+  @override
+  String get onbSyncQuestion => 'Sync your notes';
+
+  @override
+  String get onbSyncQuestionSub =>
+      'Choose where your notebooks live. You can change this later.';
+
+  @override
+  String get onbDriveShort => 'Google Drive';
+
+  @override
+  String get onbNextcloudShort => 'Nextcloud / WebDAV';
+
+  @override
+  String get onbStartWithoutSync => 'Start without syncing';
+
+  @override
+  String get onbDriveUnavailable => 'Not available in this build';
+
+  @override
   String get onbLicenseNote =>
       'By opening the app you accept the AGPL-3.0 license. \"AbelNotes\" is a trademark of the project.';
 

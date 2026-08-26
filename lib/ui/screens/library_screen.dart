@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
+import 'package:abelnotes/core/providers/canvas_provider.dart';
+import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
@@ -221,6 +223,13 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
             // which main.dart no longer renders — this is the
             // production screen.
             _SyncBanner(notifier: notebookNotifier),
+            // A notebook waiting to be uploaded shows a small cloud badge on
+            // its row, which answers the question only if you know to hover
+            // it. After switching remotes there can be a dozen of them at
+            // once, and "did my old notebooks make it across?" deserves a
+            // sentence, not an icon.
+            _StorageFullNotice(notifier: notebookNotifier),
+            _PendingUploadsNotice(entries: notebooks),
             Expanded(
               child: asyncList.when(
                 data: (_) => _Body(
@@ -793,6 +802,136 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     ref.read(appSettingsProvider.notifier).toggleFavorite(entry.metadata.id);
   }
 
+  /// Takes a notebook off the remote, or puts it back on.
+  ///
+  /// Turning it off asks first, because of the copy that may already be
+  /// uploaded: deleting someone's file is not something to do as a side
+  /// effect of a preference, so the checkbox offering it starts unticked and
+  /// the default is to leave that copy alone.
+  Future<void> _toggleLocalOnly(NotebookEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final files = ref.read(fileServiceProvider);
+
+    if (entry.localOnly) {
+      await files.setNotebookLocalOnly(entry.metadata.id, false);
+      ref.read(canvasProvider.notifier).forgetLocalOnly(entry.metadata.id);
+      await ref.read(notebookListProvider.notifier).refresh(showProgress: false);
+      messenger.showSnackBar(SnackBar(content: Text(l10n.libSyncResumedDone)));
+      return;
+    }
+
+    var removeRemote = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setLocal) => AlertDialog(
+          title: Text(l10n.libKeepOnDeviceTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.libKeepOnDeviceBody),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: removeRemote,
+                onChanged: (v) => setLocal(() => removeRemote = v ?? false),
+                title: Text(l10n.libKeepOnDeviceRemoveCopy,
+                    style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dCtx, false),
+                child: Text(l10n.libCancel)),
+            TextButton(
+                onPressed: () => Navigator.pop(dCtx, true),
+                child: Text(l10n.libKeepOnDeviceConfirm)),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    await files.setNotebookLocalOnly(entry.metadata.id, true);
+    ref.read(canvasProvider.notifier).forgetLocalOnly(entry.metadata.id);
+    if (removeRemote) {
+      // Best effort: the local setting is what the user asked for and must
+      // stick even if the remote is unreachable right now.
+      try {
+        await ref
+            .read(notebookListProvider.notifier)
+            .deleteRemoteCopy(entry);
+      } catch (_) {}
+    }
+    await ref.read(notebookListProvider.notifier).refresh(showProgress: false);
+    messenger.showSnackBar(SnackBar(content: Text(l10n.libLocalOnlyDone)));
+  }
+
+  /// Frees this device's copy of a notebook, or asks for it back.
+  ///
+  /// The opposite trade from [_toggleLocalOnly]: there the notebook stays
+  /// here and leaves the cloud, here it stays in the cloud and leaves the
+  /// device. Only offered for notebooks the remote is known to hold, because
+  /// the remote copy is the one the user gets back.
+  Future<void> _toggleOnDevice(NotebookEntry entry) async {
+    final l10n = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final notifier = ref.read(notebookListProvider.notifier);
+
+    if (entry.notOnDevice) {
+      await notifier.keepOnDevice(entry);
+      await notifier.refresh(showProgress: true);
+      messenger.showSnackBar(SnackBar(content: Text(l10n.libKeepOnThisDeviceDone)));
+      return;
+    }
+
+    // Evicting the notebook the canvas is holding would pull the files out
+    // from under a live editor.
+    if (ref.read(canvasProvider)?.metadata.id == entry.metadata.id) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.libFreeSpaceOpenNotebook)));
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text(l10n.libFreeSpaceTitle),
+        content: Text(l10n.libFreeSpaceBody),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: Text(l10n.libCancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: Text(l10n.libFreeSpaceConfirm)),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final int freed;
+    try {
+      freed = await notifier.evictLocalCopy(entry);
+    } on StateError {
+      // The guards in FileService: unsynced changes, or a notebook the
+      // remote never had. Both mean there is nothing to come back from.
+      messenger.showSnackBar(SnackBar(content: Text(l10n.libFreeSpaceNotSynced)));
+      return;
+    }
+    await notifier.refresh(showProgress: false);
+    messenger.showSnackBar(
+        SnackBar(content: Text(l10n.libFreeSpaceDone(_formatFreedSize(freed)))));
+  }
+
+  String _formatFreedSize(int bytes) {
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   Future<void> _showNotebookMenu(NotebookEntry entry) async {
     // Long-press is a hidden affordance; the bottom sheet feels more
     // intentional with a confirmatory haptic.
@@ -844,6 +983,25 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
               _menuItem(ctx, 'palette', l10n.libChangeCover, 'cover'),
               _menuItem(ctx, 'folder', l10n.libMoveToFolder, 'move'),
               _menuItem(ctx, 'export', l10n.libExport, 'export'),
+              // Only offered when there is a remote to withhold it from.
+              if (ref.read(remoteStoreProvider) != null)
+                _menuItem(
+                    ctx,
+                    entry.localOnly ? 'cloud' : 'cloud-off',
+                    entry.localOnly ? l10n.libResumeSync : l10n.libKeepOnDevice,
+                    'localOnly'),
+              // The remote copy is what the user gets back, so this is only
+              // offered for notebooks it already holds.
+              if (ref.read(remoteStoreProvider) != null &&
+                  !entry.localOnly &&
+                  (entry.notOnDevice || !entry.isLocal))
+                _menuItem(
+                    ctx,
+                    entry.notOnDevice ? 'cloud-download' : 'trash',
+                    entry.notOnDevice
+                        ? l10n.libKeepOnThisDevice
+                        : l10n.libFreeSpace,
+                    'onDevice'),
               _menuItem(ctx, 'trash', l10n.libDelete, 'delete', danger: true),
             ],
           ),
@@ -857,6 +1015,12 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
           ref
               .read(appSettingsProvider.notifier)
               .toggleFavorite(entry.metadata.id);
+          break;
+        case 'localOnly':
+          await _toggleLocalOnly(entry);
+          break;
+        case 'onDevice':
+          await _toggleOnDevice(entry);
           break;
         case 'rename':
           final t = await _renameDialog(entry.metadata.title);
@@ -1628,21 +1792,36 @@ class _Body extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(AppLocalizations.of(context).libYourNotebooks,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: p.ink0,
-                    )),
+                // Both yield on a narrow phone: the heading and its count
+                // together are wider than a 412dp row once the text scales.
+                Flexible(
+                  child: Text(AppLocalizations.of(context).libYourNotebooks,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: p.ink0,
+                      )),
+                ),
                 const SizedBox(width: 12),
-                Text(AppLocalizations.of(context).libItemsCount(entries.length),
-                    style: TextStyle(fontSize: 13, color: p.ink2)),
+                Flexible(
+                  child: Text(
+                      AppLocalizations.of(context).libItemsCount(entries.length),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: p.ink2)),
+                ),
                 const Spacer(),
-                HwButton(
-                  leading: const HwIcon('plus', size: 16),
-                  label: AppLocalizations.of(context).libNewNotebook,
-                  style: HwButtonStyle.primary,
-                  onPressed: onCreate,
+                // Flexible so a narrow phone shortens the button's label
+                // rather than pushing the whole header off the screen.
+                Flexible(
+                  child: HwButton(
+                    leading: const HwIcon('plus', size: 16),
+                    label: AppLocalizations.of(context).libNewNotebook,
+                    style: HwButtonStyle.primary,
+                    onPressed: onCreate,
+                  ),
                 ),
               ],
             ),
@@ -1742,21 +1921,33 @@ class _SketchSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(AppLocalizations.of(context).libSketches,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: p.ink0,
-                  )),
+              Flexible(
+                child: Text(AppLocalizations.of(context).libSketches,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: p.ink0,
+                    )),
+              ),
               const SizedBox(width: 12),
-              Text(AppLocalizations.of(context).libInfiniteSpace,
-                  style: TextStyle(fontSize: 13, color: p.ink2)),
+              Flexible(
+                child: Text(AppLocalizations.of(context).libInfiniteSpace,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: p.ink2)),
+              ),
               const Spacer(),
-              HwButton(
-                leading: const HwIcon('plus', size: 16),
-                label: AppLocalizations.of(context).libNewSketch,
-                style: HwButtonStyle.primary,
-                onPressed: onCreateSketch,
+              // Flexible so a narrow phone shortens the button's label
+              // rather than pushing the whole header off the screen.
+              Flexible(
+                child: HwButton(
+                  leading: const HwIcon('plus', size: 16),
+                  label: AppLocalizations.of(context).libNewSketch,
+                  style: HwButtonStyle.primary,
+                  onPressed: onCreateSketch,
+                ),
               ),
             ],
           ),
@@ -1834,10 +2025,23 @@ class _SketchTile extends StatelessWidget {
                       color: p.ink0,
                     )),
                 const SizedBox(height: 1),
-                Text(
-                    _relativeTime(AppLocalizations.of(context),
-                        entry.metadata.modifiedAt),
-                    style: TextStyle(fontSize: 11, color: p.ink2)),
+                // Sketches sync exactly like notebooks, so they need the same
+                // badge: without it a sketch kept off the cloud, waiting to
+                // upload, or not held on this device looks identical to one
+                // that is fully synced.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                          _relativeTime(AppLocalizations.of(context),
+                              entry.metadata.modifiedAt),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: p.ink2)),
+                    ),
+                    SyncBadge(state: _syncStateOf(entry), size: 13),
+                  ],
+                ),
               ],
             ),
           ),
@@ -2134,10 +2338,17 @@ class _CoverTile extends StatelessWidget {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Text(
-                            AppLocalizations.of(context)
-                                .libPagesAbbrev(entry.metadata.pageCount),
-                            style: TextStyle(fontSize: 12, color: p.ink2)),
+                        // Flexible: on a 160px tile the page count, the
+                        // separator and the sync badge together leave the
+                        // date nothing, and the row spills past the tile.
+                        Flexible(
+                          child: Text(
+                              AppLocalizations.of(context)
+                                  .libPagesAbbrev(entry.metadata.pageCount),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: p.ink2)),
+                        ),
                         Text(' · ',
                             style: TextStyle(fontSize: 12, color: p.ink3)),
                         Expanded(
@@ -2291,6 +2502,124 @@ class _FooterBar extends StatelessWidget {
 
 /// Slim progress banner shown while a background sync with the server is
 /// running. Returns [SizedBox.shrink] when idle so it costs no layout space.
+/// Shown when the remote refuses writes for lack of space.
+///
+/// Louder than the pending-uploads line on purpose: that one resolves itself
+/// in a few seconds, this one never does until the user goes and deletes
+/// something. It also names where the space ran out, because on Drive the
+/// quota is shared with Gmail and Photos and people don't expect that.
+class _StorageFullNotice extends ConsumerWidget {
+  final NotebookListNotifier notifier;
+  const _StorageFullNotice({required this.notifier});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    final onDrive =
+        ref.watch(appSettingsProvider.select((s) => s.syncBackend)) ==
+            SyncBackend.drive;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: notifier.storageFull,
+      builder: (_, full, __) {
+        if (!full) return const SizedBox.shrink();
+        return LayoutBuilder(builder: (ctx, c) {
+          final compact = c.maxWidth < 600;
+          return Container(
+            width: double.infinity,
+            color: HwTheme.syncConflict.withValues(alpha: 0.12),
+            padding: EdgeInsets.symmetric(
+                horizontal: compact ? 16 : 32, vertical: 12),
+            child: Row(
+              children: [
+                const HwIcon('cloud-off', size: 16,
+                    color: HwTheme.syncConflict),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        onDrive
+                            ? l10n.libStorageFullDrive
+                            : l10n.libStorageFullServer,
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: p.ink0),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        onDrive
+                            ? l10n.libStorageFullBody
+                            : l10n.libStorageFullBodyServer,
+                        style: TextStyle(
+                            fontSize: 12, color: p.ink2, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+}
+
+/// Says in words how many notebooks are still queued for upload.
+class _PendingUploadsNotice extends ConsumerWidget {
+  final List<NotebookEntry> entries;
+  const _PendingUploadsNotice({required this.entries});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = entries.where((e) => e.isLocal).length;
+    if (pending == 0) return const SizedBox.shrink();
+
+    final backend = ref.watch(appSettingsProvider.select((s) => s.syncBackend));
+    // Local-only has no destination to name and nothing is queued for one.
+    final remote = ref.watch(remoteStoreProvider);
+    if (remote == null) return const SizedBox.shrink();
+
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(builder: (ctx, c) {
+      final compact = c.maxWidth < 600;
+      return Container(
+        width: double.infinity,
+        color: p.paper2,
+        padding: EdgeInsets.symmetric(
+            horizontal: compact ? 16 : 32, vertical: 10),
+        child: Row(
+          children: [
+            const HwIcon('cloud-pending',
+                size: 14, color: HwTheme.syncPending),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    backend == SyncBackend.drive
+                        ? l10n.libPendingUploadsDrive(pending)
+                        : l10n.libPendingUploadsServer(pending),
+                    style: TextStyle(fontSize: 13, color: p.ink1),
+                  ),
+                  Text(l10n.libPendingUploadsHint,
+                      style: TextStyle(fontSize: 11, color: p.ink3)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
 class _SyncBanner extends StatelessWidget {
   final NotebookListNotifier notifier;
   const _SyncBanner({required this.notifier});
@@ -2404,6 +2733,11 @@ class _LoadingState extends StatelessWidget {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 HwSyncState _syncStateOf(NotebookEntry e) {
+  // Kept here on purpose: not syncing is the desired state, not a failure.
+  if (e.localOnly) return HwSyncState.localOnly;
+  // On the remote, deliberately not here. Checked before [isLocal] so the
+  // stub card never reads as "waiting to upload".
+  if (e.notOnDevice) return HwSyncState.notOnDevice;
   if (e.isLocal) return HwSyncState.pending;
   return HwSyncState.ok;
 }

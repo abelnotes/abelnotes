@@ -15,6 +15,8 @@ import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
+import 'package:abelnotes/features/sync/drive_connect.dart';
+import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/screens/trash_screen.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
@@ -614,6 +616,69 @@ class _InputSection extends ConsumerWidget {
   }
 }
 
+/// The mark for one sync backend, with its state as a dot rather than as the
+/// colour of the mark itself.
+///
+/// The glyph these replaced carried the state in its own colour, which a
+/// brand logo cannot do — recolouring it is exactly what the guidelines
+/// forbid, and a green Drive triangle would be nonsense anyway. So the logo
+/// stays untouched on a neutral ground and the dot says connected or not.
+class _BackendAvatar extends StatelessWidget {
+  /// Asset path of the service's mark, or null to fall back to [glyph] —
+  /// used for the server card when no server is set up and there is no
+  /// service to show.
+  final String? logo;
+  final String glyph;
+  final bool ok;
+
+  const _BackendAvatar({this.logo, required this.glyph, required this.ok});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HwThemeScope.of(context);
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: logo != null
+                  ? p.paper2
+                  : (ok ? HwTheme.syncOk : p.ink3).withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: logo != null
+                  ? Image.asset(logo!,
+                      width: 22, height: 22, fit: BoxFit.contain,
+                      filterQuality: FilterQuality.medium)
+                  : HwIcon(glyph, size: 20, color: ok ? HwTheme.syncOk : p.ink2),
+            ),
+          ),
+          if (logo != null)
+            Positioned(
+              right: -1,
+              bottom: -1,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: ok ? HwTheme.syncOk : p.ink3,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: p.paper0, width: 2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SyncSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -621,6 +686,9 @@ class _SyncSection extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final creds = ref.watch(credentialsProvider);
     final connected = creds != null;
+    final driveIsActive =
+        ref.watch(appSettingsProvider.select((s) => s.syncBackend)) ==
+            SyncBackend.drive;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,18 +710,12 @@ class _SyncSection extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: (connected ? HwTheme.syncOk : p.ink3)
-                      .withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                    child: HwIcon(connected ? 'cloud-check' : 'cloud-off',
-                        size: 20,
-                        color: connected ? HwTheme.syncOk : p.ink2)),
+              // No server set up means there is no service to show a mark
+              // for — that state keeps the glyph.
+              _BackendAvatar(
+                logo: connected ? 'assets/branding/nextcloud.png' : null,
+                glyph: 'cloud-off',
+                ok: connected,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -672,6 +734,15 @@ class _SyncSection extends ConsumerWidget {
                                 _hostOf(creds.serverUrl), creds.username)
                             : l10n.setSyncNoServer,
                         style: TextStyle(fontSize: 12, color: p.ink2)),
+                    // Credentials outlive the choice of backend, so a
+                    // connected server can sit here doing nothing. Saying
+                    // "connected" alone would read as "your notebooks are
+                    // going here", which would be false.
+                    if (connected && driveIsActive) ...[
+                      const SizedBox(height: 2),
+                      Text(l10n.setSyncInactiveNote,
+                          style: TextStyle(fontSize: 11, color: p.ink3)),
+                    ],
                   ],
                 ),
               ),
@@ -701,6 +772,11 @@ class _SyncSection extends ConsumerWidget {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        _DriveCard(),
+        const SizedBox(height: 8),
+        Text(l10n.setSyncOneBackendNote,
+            style: TextStyle(fontSize: 12, color: p.ink3, height: 1.5)),
       ],
     );
   }
@@ -863,6 +939,131 @@ class _ShortcutsSection extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+
+/// Connect / disconnect the user's Google Drive.
+///
+/// Sign-in state is asked of [GoogleDriveAuth] rather than kept in settings:
+/// the refresh token can die between launches (revoked, expired, keyring
+/// wiped), and a stored "connected" flag would then lie to the user.
+class _DriveCard extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_DriveCard> createState() => _DriveCardState();
+}
+
+class _DriveCardState extends ConsumerState<_DriveCard> {
+  var _busy = false;
+
+  void _recheck() => ref.invalidate(googleDriveSignedInProvider);
+
+  Future<void> _connect() async {
+    setState(() => _busy = true);
+    try {
+      await connectDrive(context, ref);
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+        _recheck();
+      }
+    }
+  }
+
+  Future<void> _disconnect() async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text(l10n.setDriveDisconnectTitle),
+        content: Text(l10n.setDriveDisconnectBody),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, false),
+              child: Text(l10n.setCancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx, true),
+              child: Text(l10n.setDriveDisconnectConfirm)),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await disconnectDrive(ref);
+    if (mounted) _recheck();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    final active =
+        ref.watch(appSettingsProvider.select((s) => s.syncBackend)) ==
+            SyncBackend.drive;
+
+    return Consumer(
+      builder: (context, ref, _) {
+        final linked =
+            ref.watch(googleDriveSignedInProvider).valueOrNull ?? false;
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: p.paper0,
+            border: Border.all(color: p.paper3),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              _BackendAvatar(
+                logo: 'assets/branding/google-drive.png',
+                glyph: 'cloud',
+                ok: linked && active,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.setSyncDriveTitle,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: p.ink0)),
+                    const SizedBox(height: 2),
+                    Text(
+                      linked
+                          ? (active
+                              ? l10n.setSyncDriveConnected
+                              : l10n.setSyncInactiveNote)
+                          : (driveSignInSupported
+                              ? l10n.setSyncDriveNotConnected
+                              // Web has neither a loopback port nor a
+                              // custom scheme to come back through.
+                              : l10n.setSyncDriveDesktopOnly),
+                      style: TextStyle(fontSize: 12, color: p.ink2),
+                    ),
+                  ],
+                ),
+              ),
+              if (_busy)
+                const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+              else if (linked)
+                HwButton(
+                    label: l10n.setDisconnect,
+                    style: HwButtonStyle.solid,
+                    onPressed: _disconnect)
+              else
+                HwButton(
+                    label: l10n.setConnect,
+                    style: HwButtonStyle.primary,
+                    onPressed: driveSignInSupported ? _connect : null),
+            ],
+          ),
+        );
+      },
     );
   }
 }

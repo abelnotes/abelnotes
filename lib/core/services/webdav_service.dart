@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart' as http_io;
 import 'package:xml/xml.dart';
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/core/services/remote_store.dart';
 
 /// Tipo di server WebDAV a cui si è connessi.
 ///
@@ -29,31 +30,15 @@ enum WebDavServerType {
 }
 
 /// Informazioni su un file/cartella remoto WebDAV.
-class WebDavItem {
-  final String path;
-  final String name;
-  final bool isDirectory;
-  final int? contentLength;
-  final String? etag;
-  final DateTime? lastModified;
-  final String? contentType;
-
-  WebDavItem({
-    required this.path,
-    required this.name,
-    required this.isDirectory,
-    this.contentLength,
-    this.etag,
-    this.lastModified,
-    this.contentType,
-  });
-}
+/// Kept as an alias so existing WebDAV-side code reads naturally; the class
+/// itself is backend-neutral and lives with [RemoteStore].
+typedef WebDavItem = RemoteItem;
 
 /// Client WebDAV per connessione diretta a Nextcloud.
 ///
 /// Supporta: PROPFIND (listing), GET (download), PUT (upload),
 /// MKCOL (crea cartella), DELETE.
-class WebDavService {
+class WebDavService implements RemoteStore {
   /// Parallel-connection limit per host.
   ///
   /// Dart's default `HttpClient.maxConnectionsPerHost` is 6 — matching the
@@ -88,6 +73,7 @@ class WebDavService {
   final String serverUrl;
   final String username;
   final String password;
+  @override
   final String basePath;
   final WebDavServerType serverType;
 
@@ -389,6 +375,7 @@ class WebDavService {
   }
 
   /// Lista file e cartelle in un path remoto.
+  @override
   Future<List<WebDavItem>> listDirectory(String remotePath) async {
     try {
       final request = http.Request('PROPFIND', Uri.parse(_fullUrl(remotePath)));
@@ -478,6 +465,7 @@ class WebDavService {
   /// the body was silently cut mid-stream. The +1 RTT is well worth it:
   /// without this, a single bad metadata download wedges the notebook
   /// in the 0-of-N pull loop forever.
+  @override
   Future<Uint8List> downloadFile(String remotePath,
       {int? timeoutSeconds,
       bool criticalVerify = false,
@@ -777,6 +765,7 @@ class WebDavService {
   ///
   /// The verification is skipped only for files small enough that no
   /// real-world HTTP buffer/proxy would truncate them ([_uploadVerifyMin]).
+  @override
   Future<String?> uploadFile(String remotePath, Uint8List data,
       {int? timeoutSeconds,
        bool criticalVerify = false,
@@ -795,6 +784,13 @@ class WebDavService {
 
         if (response.statusCode != 201 && response.statusCode != 204) {
           _recordFailure('uploadFile', 'status ${response.statusCode}');
+          // 507 Insufficient Storage: the server has no room, and the retry
+          // loop around this would only delay the same answer. Own type so
+          // the app can say what happened instead of "sync failed".
+          if (response.statusCode == 507) {
+            throw RemoteStorageFullException(
+                'PUT failed: server is out of space', 507);
+          }
           throw WebDavException(
             'PUT failed: ${response.statusCode}',
             response.statusCode,
@@ -881,7 +877,7 @@ class WebDavService {
         // lo mandano sempre). Best-effort: un ETag null è già gestito
         // dai chiamanti, un PUT riuscito non deve fallire per questo.
         try {
-          return await getEtag(remotePath);
+          return await getVersion(remotePath);
         } catch (_) {
           return null;
         }
@@ -927,6 +923,7 @@ class WebDavService {
   static const int _uploadMaxAttempts = 3;
 
   /// Crea una cartella remota.
+  @override
   Future<void> createDirectory(String remotePath) async {
     final request = http.Request('MKCOL', Uri.parse(_fullUrl(remotePath)));
     request.headers.addAll(_authHeaders);
@@ -946,6 +943,7 @@ class WebDavService {
   }
 
   /// Elimina un file o cartella remota.
+  @override
   Future<void> delete(String remotePath) async {
     final response = await _client.delete(
       Uri.parse(_fullUrl(remotePath)),
@@ -984,7 +982,8 @@ class WebDavService {
 
   /// Ottieni ETag + Last-Modified di un file remoto in una sola PROPFIND.
   /// Usato dal sync per decidere chi vince in caso di conflitto (remote vs local).
-  Future<({String? etag, DateTime? lastModified})?> getFileInfo(
+  @override
+  Future<({String? version, DateTime? lastModified})?> getFileInfo(
       String remotePath) async {
     try {
       final request = http.Request('PROPFIND', Uri.parse(_fullUrl(remotePath)));
@@ -1022,14 +1021,15 @@ class WebDavService {
       if (lmEls.isNotEmpty && lmEls.first.innerText.isNotEmpty) {
         lastModified = _parseHttpDate(lmEls.first.innerText);
       }
-      return (etag: etag, lastModified: lastModified);
+      return (version: etag, lastModified: lastModified);
     } catch (_) {
       return null;
     }
   }
 
   /// Ottieni l'ETag di un file remoto (per conflict detection).
-  Future<String?> getEtag(String remotePath) async {
+  @override
+  Future<String?> getVersion(String remotePath) async {
     try {
       final request = http.Request('PROPFIND', Uri.parse(_fullUrl(remotePath)));
       request.headers.addAll({
@@ -1089,12 +1089,14 @@ class WebDavService {
   }
 
   /// Assicura che la cartella base dell'app esista sul server.
+  @override
   Future<void> ensureBaseDirectory() async {
     await createDirectory(basePath);
   }
 
   /// Ottieni la dimensione di un file remoto (Content-Length).
   /// Returns null if the file doesn't exist or size can't be determined.
+  @override
   Future<int?> getContentLength(String remotePath) async {
     final request = http.Request('PROPFIND', Uri.parse(_fullUrl(remotePath)));
     request.headers.addAll({
@@ -1136,7 +1138,8 @@ class WebDavService {
   /// Fast ETag check via HEAD — single request, no XML parse.
   /// Falls back to null on any error (caller retries via PROPFIND).
   /// Feeds the zombie-client detector: repeated nulls rebuild the client.
-  Future<String?> getEtagFast(String remotePath) async {
+  @override
+  Future<String?> getVersionFast(String remotePath) async {
     if (_headEtagUnsupported) return null;
     try {
       final response = await _client.head(
@@ -1276,7 +1279,7 @@ class WebDavService {
           name: name,
           isDirectory: isDir,
           contentLength: contentLength,
-          etag: etag,
+          version: etag,
           lastModified: lastModified,
           contentType: contentType,
         ));
@@ -1309,11 +1312,8 @@ List<WebDavItem> _parseMultiStatusEntry(_MultiStatusArgs a) =>
     WebDavService.parseMultiStatus(a.xml, a.requestPath, a.davUrl);
 
 /// Eccezione specifica per errori WebDAV.
-class WebDavException implements Exception {
-  final String message;
-  final int statusCode;
-
-  WebDavException(this.message, this.statusCode);
+class WebDavException extends RemoteStoreException {
+  WebDavException(super.message, super.statusCode);
 
   @override
   String toString() => 'WebDavException($statusCode): $message';

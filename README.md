@@ -5,7 +5,7 @@
 # AbelNotes
 
 **Handwritten notes for people who write equations.**
-Cross-platform, self-hosted, open source. Your notes sync to *your* WebDAV server — no third-party cloud.
+Cross-platform, self-hostable, open source. Your notes sync to a place *you* control — your own WebDAV/Nextcloud server, or your own Google Drive. Never through a cloud we run.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-Windows_·_Linux_·_Android-informational)
@@ -24,7 +24,7 @@ Cross-platform, self-hosted, open source. Your notes sync to *your* WebDAV serve
 
 Most handwriting apps are walled gardens: your notes live on someone else's cloud, in a format you don't control, on the platforms they decide to support. AbelNotes takes the opposite bet.
 
-- **Your data, your server.** Sync over WebDAV to your own Nextcloud (or ownCloud). Nothing passes through a cloud we run.
+- **Your data, your account.** Sync over WebDAV to your own Nextcloud (or ownCloud), or to your own Google Drive. Nothing passes through a cloud we run.
 - **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, and paper types that actually matter for technical work — Cornell, isometric, music staff, and more.
 - **Actually cross-platform.** Not "mobile-first, desktop-someday." Windows, Linux and Android are first-class today, with real per-platform work under the hood.
 - **Open source, AGPL-3.0.** You can read exactly how your notes are handled. Build it yourself for free, or grab a store build to support development.
@@ -52,6 +52,9 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 
 **Sync & offline**
 - **Local-first**: everything works offline; changes sync when you reconnect
+- **Two backends, your pick**: your own WebDAV/Nextcloud server, or your own Google Drive — one at a time, switchable
+- **Per-notebook opt-out**: any notebook can be kept on this device only, never uploaded, while the rest keep syncing
+- **Per-device opt-out**: a notebook can be taken off one device without leaving the account; opening it downloads it again
 - **Delta sync**: only changed pages/assets are uploaded, not the whole notebook
 - **Real conflict handling**: element-level 3-way merge, with a dedicated resolution screen when edits genuinely diverge — no silent last-write-wins
 - Connection pooling tuned for real self-hosted setups (including flaky Tailscale links)
@@ -95,6 +98,7 @@ Short version, being honest rather than impressive:
 
 - WebDAV connections use TLS with **certificate pinning** (trust-on-first-use) — a certificate change without re-authenticating fails the connection instead of silently trusting it.
 - Your Nextcloud password is stored in the OS secure keystore (Keychain / Android Keystore / DPAPI / Secret Service), never in plain prefs.
+- Google Drive sync asks for the **`drive.file` scope only** — the app can see and manage the files it created, and nothing else in your Drive. No password reaches the app: mobile hands the tokens to the platform, desktop keeps a refresh token in the same OS keystore as the WebDAV password.
 - **Notebook content is not encrypted at rest** — it's plain JSON/ZIP, on-device and on your server. End-to-end encryption is on the roadmap, not yet built.
 - Known gap: headless Linux with no Secret Service daemon falls back to storing the credential in plaintext.
 

@@ -13,7 +13,7 @@ class AppConfig {
   // The build number after "+" is the absolute counter — never resets when
   // the semver bumps.
   static const String appVersion = '0.37.4';
-  static const int appBuildNumber = 45;
+  static const int appBuildNumber = 53;
   static String get fullVersion => '$appVersion+$appBuildNumber';
 
   /// Short git commit the binary was built from, injected at build time via
@@ -127,7 +127,9 @@ class AppConfig {
 
   // ── Database ──
   static const String dbName = 'abelnotes.db';
-  static const int dbVersion = 1;
+  /// 2: notebooks.local_only — per-notebook opt-out from syncing.
+  /// 3: notebooks.download_skipped — per-device opt-out from downloading.
+  static const int dbVersion = 3;
 
   // ── Local storage directory ──
   /// Root folder name under the app documents dir.

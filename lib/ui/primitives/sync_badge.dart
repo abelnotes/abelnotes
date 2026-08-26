@@ -3,7 +3,11 @@ import 'package:abelnotes/l10n/app_localizations.dart';
 import '../theme/hw_theme.dart';
 import '../theme/hw_icons.dart';
 
-enum HwSyncState { ok, pending, offline, conflict }
+/// [localOnly] is a deliberate choice, not a failure: the user asked for
+/// this notebook to stay put. Distinct from [offline], which means the
+/// remote couldn't be reached and is a problem. [notOnDevice] is its mirror:
+/// the notebook is safe on the remote and this device chose not to hold it.
+enum HwSyncState { ok, pending, offline, conflict, localOnly, notOnDevice }
 
 /// Cloud icon colored by sync state.
 class SyncBadge extends StatelessWidget {
@@ -23,6 +27,10 @@ class SyncBadge extends StatelessWidget {
       HwSyncState.offline => ('cloud-off', p.ink3, l10n.syncOfflineTooltip),
       HwSyncState.conflict =>
         ('cloud-conflict', HwTheme.syncConflict, l10n.syncConflictTooltip),
+      HwSyncState.localOnly =>
+        ('cloud-off', p.ink2, l10n.syncLocalOnlyTooltip),
+      HwSyncState.notOnDevice =>
+        ('cloud-download', p.ink2, l10n.syncNotOnDeviceTooltip),
     };
     return Tooltip(
       message: tooltip,

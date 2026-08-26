@@ -159,6 +159,10 @@ Future<void> openNotebookAndNavigate(
         pageCount: result.metadata.pageCount,
         createdAt: result.metadata.createdAt,
       );
+      // Opening it is the user asking for it back: the notebook is on this
+      // device now, so the "don't download this one" flag no longer describes
+      // reality and would make the badge lie.
+      await fileService.setNotebookDownloadSkipped(result.metadata.id, false);
     } catch (e) {
       debugPrint('[NotebookOpener] persist after download failed: $e');
     }

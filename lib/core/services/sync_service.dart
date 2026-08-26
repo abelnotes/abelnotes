@@ -8,7 +8,7 @@ import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
     show compactPageJson, decodePageData;
 import 'package:abelnotes/core/services/file_service.dart';
-import 'package:abelnotes/core/services/webdav_service.dart';
+import 'package:abelnotes/core/services/remote_store.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 /// Engine di sincronizzazione offline-first.
@@ -19,21 +19,21 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 /// 3. Upload solo delle pagine dirty (delta sync)
 /// 4. Conflict detection via ETag comparison
 class SyncService {
-  final WebDavService? _webdavOrNull;
+  final RemoteStore? _remoteOrNull;
   final Set<String> _explodedDirsReady = {}; // notebook IDs with confirmed folders
 
-  SyncService(this._webdavOrNull, [FileService? fileService]);
+  SyncService(this._remoteOrNull, [FileService? fileService]);
 
   /// True when no server is connected (local-only mode): every pure ZIP /
   /// loose-store helper still works, only genuine network calls are blocked.
-  bool get isOffline => _webdavOrNull == null;
+  bool get isOffline => _remoteOrNull == null;
 
   /// Network client. Throws a clear error in local-only mode. Pure helpers
   /// (createNcnotePackage, extractNotebookContents, loadLooseStoreFromDisk,
   /// parseNcnoteMetadata, buildPackageBytes) never touch this, so they run
   /// offline; only real network operations reach this getter.
-  WebDavService get _webdav =>
-      _webdavOrNull ??
+  RemoteStore get _remote =>
+      _remoteOrNull ??
       (throw StateError(
           'Operazione di rete richiesta senza server connesso '
           '(modalità solo-locale).'));
@@ -231,9 +231,9 @@ class SyncService {
 
   /// Lista i notebook .ncnote presenti sul server nella cartella base.
   /// Throws on network/server errors so the UI can show them.
-  Future<List<WebDavItem>> listRemoteNotebooks() async {
-    await _webdav.ensureBaseDirectory();
-    final items = await _webdav.listDirectory(_webdav.basePath);
+  Future<List<RemoteItem>> listRemoteNotebooks() async {
+    await _remote.ensureBaseDirectory();
+    final items = await _remote.listDirectory(_remote.basePath);
     // Accepts both spellings even though uploads still write
     // storageExtension: a notebook put there by hand, or by a future version
     // that renames remote files, must not go missing.
@@ -277,18 +277,18 @@ class SyncService {
     debugPrint('[Sync] Validated package for "${metadata.title}": '
         '${package.length} bytes, uploading...');
 
-    final etag = await _webdav.uploadFile(remotePath, package);
+    final etag = await _remote.uploadFile(remotePath, package);
 
     // ── Post-upload size verification ──
     try {
-      final remoteSize = await _webdav.getContentLength(remotePath);
+      final remoteSize = await _remote.getContentLength(remotePath);
       if (remoteSize != null && remoteSize != package.length) {
         debugPrint('[Sync] WARNING: Upload size mismatch for '
             '"${metadata.title}": local=${package.length}, '
             'remote=$remoteSize — deleting corrupted upload!');
         // Remove the corrupted file so other devices don't download it.
         try {
-          await _webdav.delete(remotePath);
+          await _remote.delete(remotePath);
         } catch (_) {}
         throw CorruptedArchiveException(
           'Upload size mismatch: expected ${package.length} bytes, '
@@ -313,16 +313,16 @@ class SyncService {
     debugPrint('[Sync] Uploading pre-built package: '
         '${package.length} bytes → $remotePath');
 
-    final etag = await _webdav.uploadFile(remotePath, package);
+    final etag = await _remote.uploadFile(remotePath, package);
 
     // Post-upload size verification
     try {
-      final remoteSize = await _webdav.getContentLength(remotePath);
+      final remoteSize = await _remote.getContentLength(remotePath);
       if (remoteSize != null && remoteSize != package.length) {
         debugPrint('[Sync] WARNING: Upload size mismatch: '
             'local=${package.length}, remote=$remoteSize — deleting corrupted upload!');
         try {
-          await _webdav.delete(remotePath);
+          await _remote.delete(remotePath);
         } catch (_) {}
         throw CorruptedArchiveException(
           'Upload size mismatch: expected ${package.length} bytes, '
@@ -349,7 +349,7 @@ class SyncService {
   ///          /HandWriter/.sync/<id>/assets/images/foo.png
   ///          /HandWriter/.sync/<id>/symbols.json
   String _deltaDir(String notebookId) =>
-      '${_webdav.basePath}${AppConfig.deltaSyncDir}$notebookId/';
+      '${_remote.basePath}${AppConfig.deltaSyncDir}$notebookId/';
 
   /// Creates the exploded folder structure on the server (idempotent).
   /// Throws if any directory creation fails (except 405 = already exists).
@@ -359,17 +359,17 @@ class SyncService {
     debugPrint('[Sync] Ensuring delta dir: $dir');
 
     // MKCOL tolerates 405 (already exists) inside createDirectory().
-    // Only catch WebDavException with 405 — propagate real errors.
+    // Only catch RemoteStoreException with 405 — propagate real errors.
     try {
-      await _webdav.createDirectory(
-          '${_webdav.basePath}${AppConfig.deltaSyncDir}');
-    } on WebDavException catch (e) {
+      await _remote.createDirectory(
+          '${_remote.basePath}${AppConfig.deltaSyncDir}');
+    } on RemoteStoreException catch (e) {
       if (e.statusCode != 405) rethrow;
     }
     // These are critical — propagate real errors.
-    await _webdav.createDirectory(dir);
-    await _webdav.createDirectory('${dir}pages/');
-    await _webdav.createDirectory('${dir}assets/');
+    await _remote.createDirectory(dir);
+    await _remote.createDirectory('${dir}pages/');
+    await _remote.createDirectory('${dir}assets/');
 
     _explodedDirsReady.add(notebookId);
   }
@@ -378,7 +378,7 @@ class SyncService {
   /// This keeps the ZIP in sync with the delta folder so other devices
   /// that download the .ncnote can see the latest changes.
   Future<String?> uploadNcnoteZip(String remotePath, Uint8List package) async {
-    return _webdav.uploadFile(remotePath, package);
+    return _remote.uploadFile(remotePath, package);
   }
 
   /// Delta upload: sends only the changed pages + metadata + document.
@@ -435,7 +435,7 @@ class SyncService {
       // so the next save re-runs MKCOL instead of failing with 409 forever
       // (until app restart, since _explodedDirsReady was never invalidated).
       final cause = e is MetadataCommitFailedException ? e.cause : e;
-      if (cause is WebDavException &&
+      if (cause is RemoteStoreException &&
           (cause.statusCode == 409 || cause.statusCode == 404)) {
         _explodedDirsReady.remove(notebookId);
       }
@@ -473,8 +473,8 @@ class SyncService {
     if (deletedPageFileNames != null && deletedPageFileNames.isNotEmpty) {
       for (final fileName in deletedPageFileNames) {
         deleteFutures.add(
-          _webdav.delete('${dir}pages/$fileName').catchError((Object e) {
-            if (e is WebDavException && e.statusCode == 404) return;
+          _remote.delete('${dir}pages/$fileName').catchError((Object e) {
+            if (e is RemoteStoreException && e.statusCode == 404) return;
             failedPageDeletes.add(fileName);
             debugPrint('[Sync] Delete of pages/$fileName failed: $e');
           }),
@@ -484,8 +484,8 @@ class SyncService {
     if (deletedAssetFileNames != null && deletedAssetFileNames.isNotEmpty) {
       for (final assetName in deletedAssetFileNames) {
         deleteFutures.add(
-          _webdav.delete('${dir}assets/$assetName').catchError((Object e) {
-            if (e is WebDavException && e.statusCode == 404) return;
+          _remote.delete('${dir}assets/$assetName').catchError((Object e) {
+            if (e is RemoteStoreException && e.statusCode == 404) return;
             failedAssetDeletes.add(assetName);
             debugPrint('[Sync] Delete of assets/$assetName failed: $e');
           }),
@@ -520,7 +520,7 @@ class SyncService {
       // produced the exact same bytes for the local ZIP build.
       final bytes = preEncodedPages?[e.key] ??
           Uint8List.fromList(utf8.encode(compactPageJson(e.value)));
-      pageUploads[e.key] = _webdav.uploadFile(
+      pageUploads[e.key] = _remote.uploadFile(
           '${dir}pages/${e.key}', bytes, timeoutSeconds: dt);
     }
 
@@ -535,7 +535,7 @@ class SyncService {
     if (dirtyAssets != null && dirtyAssets.isNotEmpty) {
       for (final e in dirtyAssets.entries) {
         expectedAssetSizes[e.key] = e.value.length;
-        dataUploads.add(_webdav.uploadFile(
+        dataUploads.add(_remote.uploadFile(
             '${dir}assets/${e.key}', e.value,
             timeoutSeconds: dt, skipVerify: true));
       }
@@ -545,7 +545,7 @@ class SyncService {
       final symBytes = Uint8List.fromList(
         utf8.encode(jsonEncode(symbolLibraries)),
       );
-      dataUploads.add(_webdav.uploadFile('${dir}symbols.json', symBytes,
+      dataUploads.add(_remote.uploadFile('${dir}symbols.json', symBytes,
           timeoutSeconds: dt));
     }
 
@@ -580,7 +580,7 @@ class SyncService {
     if (expectedAssetSizes.isNotEmpty) {
       Map<String, int>? remoteSizes;
       try {
-        final items = await _webdav
+        final items = await _remote
             .listDirectory('${dir}assets/')
             .timeout(const Duration(seconds: 30));
         remoteSizes = <String, int>{};
@@ -621,7 +621,7 @@ class SyncService {
         final sizes = await Future.wait(
           expectedAssetSizes.keys.map((k) async {
             try {
-              final sz = await _webdav
+              final sz = await _remote
                   .getContentLength('${dir}assets/$k')
                   .timeout(const Duration(seconds: 15));
               return MapEntry(k, sz);
@@ -650,7 +650,7 @@ class SyncService {
         // exhausted — propagate, do NOT continue to commit markers.
         await Future.wait(retriesNeeded.map((k) {
           final bytes = dirtyAssets![k]!;
-          return _webdav.uploadFile('${dir}assets/$k', bytes,
+          return _remote.uploadFile('${dir}assets/$k', bytes,
               timeoutSeconds: dt, criticalVerify: true);
         }));
       }
@@ -660,7 +660,7 @@ class SyncService {
     final docBytes = Uint8List.fromList(
       utf8.encode(jsonEncode(document.toJson())),
     );
-    await _webdav.uploadFile('${dir}document.json', docBytes,
+    await _remote.uploadFile('${dir}document.json', docBytes,
         timeoutSeconds: dt, criticalVerify: true);
 
     // ── Phase 2: Upload metadata.json LAST (commit marker) ──
@@ -677,7 +677,7 @@ class SyncService {
     );
     String? metaEtag;
     try {
-      metaEtag = await _webdav.uploadFile('${dir}metadata.json', metaBytes,
+      metaEtag = await _remote.uploadFile('${dir}metadata.json', metaBytes,
           timeoutSeconds: dt, criticalVerify: true);
     } catch (e) {
       throw MetadataCommitFailedException(
@@ -722,7 +722,7 @@ class SyncService {
     required Uint8List metadataBytes,
   }) async {
     final dir = _deltaDir(notebookId);
-    return await _webdav.uploadFile(
+    return await _remote.uploadFile(
       '${dir}metadata.json',
       metadataBytes,
       timeoutSeconds: AppConfig.webdavDeltaTimeoutSeconds,
@@ -741,13 +741,13 @@ class SyncService {
   /// that want a tolerant default can catch and interpret themselves.
   Future<Map<String, String>> getRemotePageEtags(String notebookId) async {
     final dir = _deltaDir(notebookId);
-    final items = await _webdav.listDirectory('${dir}pages/');
+    final items = await _remote.listDirectory('${dir}pages/');
     return {
       for (final item in items)
         if (!item.isDirectory &&
             item.name.endsWith('.json') &&
-            item.etag != null)
-          item.name: item.etag!,
+            item.version != null)
+          item.name: item.version!,
     };
   }
 
@@ -769,8 +769,8 @@ class SyncService {
   /// Uses HEAD request — faster than PROPFIND.
   Future<String?> getDeltaMetaEtag(String notebookId) async {
     try {
-      return await _webdav.getEtagFast('${_deltaDir(notebookId)}metadata.json')
-          ?? await _webdav.getEtag('${_deltaDir(notebookId)}metadata.json');
+      return await _remote.getVersionFast('${_deltaDir(notebookId)}metadata.json')
+          ?? await _remote.getVersion('${_deltaDir(notebookId)}metadata.json');
     } catch (_) {
       return null;
     }
@@ -780,8 +780,8 @@ class SyncService {
   /// Uses HEAD request — faster than PROPFIND.
   Future<String?> getNcnoteEtag(String remotePath) async {
     try {
-      return await _webdav.getEtagFast(remotePath)
-          ?? await _webdav.getEtag(remotePath);
+      return await _remote.getVersionFast(remotePath)
+          ?? await _remote.getVersion(remotePath);
     } catch (_) {
       return null;
     }
@@ -791,12 +791,14 @@ class SyncService {
   /// Returns null on any error or if the file doesn't exist.
   Future<({String? etag, DateTime? lastModified})?> getNcnoteInfo(
       String remotePath) async {
-    return _webdav.getFileInfo(remotePath);
+    final info = await _remote.getFileInfo(remotePath);
+    if (info == null) return null;
+    return (etag: info.version, lastModified: info.lastModified);
   }
 
   /// Downloads raw bytes from a remote path.
   Future<Uint8List> downloadFile(String remotePath) async {
-    return _webdav.downloadFile(remotePath);
+    return _remote.downloadFile(remotePath);
   }
 
   /// Downloads a single page from the exploded folder.
@@ -804,7 +806,7 @@ class SyncService {
     String notebookId,
     String pageFileName,
   ) async {
-    final data = await _webdav.downloadFile(
+    final data = await _remote.downloadFile(
       '${_deltaDir(notebookId)}pages/$pageFileName',
     );
     final json = jsonDecode(utf8.decode(data));
@@ -820,7 +822,7 @@ class SyncService {
   /// .ncnote metadata without propagating a failure.
   Future<NotebookMetadata?> downloadDeltaMetadataOnly(String notebookId) async {
     try {
-      final bytes = await _webdav
+      final bytes = await _remote
           .downloadFile('${_deltaDir(notebookId)}metadata.json',
               criticalVerify: true)
           .timeout(const Duration(seconds: 10));
@@ -847,8 +849,8 @@ class SyncService {
       downloadDeltaMeta(String notebookId) async {
     final dir = _deltaDir(notebookId);
     final results = await Future.wait([
-      _webdav.downloadFile('${dir}metadata.json', criticalVerify: true),
-      _webdav.downloadFile('${dir}document.json', criticalVerify: true),
+      _remote.downloadFile('${dir}metadata.json', criticalVerify: true),
+      _remote.downloadFile('${dir}document.json', criticalVerify: true),
     ]);
 
     return (
@@ -866,7 +868,7 @@ class SyncService {
     String notebookId,
     String assetPath,
   ) async {
-    return _webdav.downloadFile(
+    return _remote.downloadFile(
       '${_deltaDir(notebookId)}assets/$assetPath',
     );
   }
@@ -883,10 +885,10 @@ class SyncService {
     // Fast path: already confirmed in this session
     if (_explodedDirsReady.contains(notebookId)) return true;
     try {
-      await _webdav.getEtag('${_deltaDir(notebookId)}metadata.json');
+      await _remote.getVersion('${_deltaDir(notebookId)}metadata.json');
       _explodedDirsReady.add(notebookId);
       return true;
-    } on WebDavException catch (e) {
+    } on RemoteStoreException catch (e) {
       if (e.statusCode == 404) return false;
       rethrow;
     }
@@ -901,7 +903,7 @@ class SyncService {
   /// WebDAV DELETE on a collection is recursive; 404 is tolerated.
   Future<void> deleteDeltaFolder(String notebookId) async {
     _explodedDirsReady.remove(notebookId);
-    await _webdav.delete(_deltaDir(notebookId));
+    await _remote.delete(_deltaDir(notebookId));
   }
 
   /// One-time migration: explodes a .ncnote ZIP into the per-page folder.
@@ -922,13 +924,13 @@ class SyncService {
       }
     }
     for (final sub in subDirs) {
-      await _webdav.createDirectory('$dir$sub/');
+      await _remote.createDirectory('$dir$sub/');
     }
 
     // Upload all files in parallel
     final futures = archive.files
         .where((f) => f.isFile)
-        .map((f) => _webdav.uploadFile(
+        .map((f) => _remote.uploadFile(
               '$dir${f.name}',
               Uint8List.fromList(f.content as List<int>),
             ))
@@ -947,14 +949,14 @@ class SyncService {
     final meta = await downloadDeltaMeta(notebookId);
 
     // Download all pages with per-page retry
-    final pageItems = await _webdav.listDirectory('${dir}pages/');
+    final pageItems = await _remote.listDirectory('${dir}pages/');
     final pages = <String, PageData>{};
 
     Future<void> downloadPage(String fileName) async {
       const maxPageRetries = 3;
       for (var attempt = 0; attempt < maxPageRetries; attempt++) {
         try {
-          final data = await _webdav.downloadFile('${dir}pages/$fileName');
+          final data = await _remote.downloadFile('${dir}pages/$fileName');
           final json = jsonDecode(utf8.decode(data));
           pages[fileName] = decodePageData(json as Map<String, dynamic>);
           return;
@@ -1008,13 +1010,13 @@ class SyncService {
     final assets = <String, Uint8List>{};
     final failedAssets = <String>[];
     try {
-      final assetItems = await _webdav.listDirectory('${dir}assets/');
+      final assetItems = await _remote.listDirectory('${dir}assets/');
 
       Future<void> downloadAsset(String name) async {
         const maxAssetRetries = 3;
         for (var attempt = 0; attempt < maxAssetRetries; attempt++) {
           try {
-            final data = await _webdav.downloadFile('${dir}assets/$name');
+            final data = await _remote.downloadFile('${dir}assets/$name');
             assets[name] = data;
             return;
           } catch (e) {
@@ -1049,7 +1051,7 @@ class SyncService {
     // Download symbols
     var symbols = <Map<String, dynamic>>[];
     try {
-      final symData = await _webdav.downloadFile('${dir}symbols.json');
+      final symData = await _remote.downloadFile('${dir}symbols.json');
       symbols = (jsonDecode(utf8.decode(symData)) as List)
           .cast<Map<String, dynamic>>();
     } catch (_) {}
@@ -1176,7 +1178,7 @@ class SyncService {
   /// Validates ZIP integrity before parsing.
   Future<({NotebookMetadata metadata, DocumentStructure document, Map<String, PageData> pages, Map<String, Uint8List> assets, List<Map<String, dynamic>> symbolLibraries})>
       downloadNotebookFull(String remotePath) async {
-    final data = await _webdav.downloadFile(remotePath);
+    final data = await _remote.downloadFile(remotePath);
 
     // ── Validate before any parsing ──
     validateNcnoteArchive(data, context: 'downloadFull $remotePath');

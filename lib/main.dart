@@ -8,6 +8,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
+import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
@@ -136,9 +137,16 @@ class _AuthGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final creds = ref.watch(credentialsProvider);
     final localMode = ref.watch(localModeProvider);
-    // Enter the library when a server is connected OR the user picked
-    // local-only mode; otherwise show onboarding (server choice / try now).
-    if (creds != null || localMode) return const LibraryScreenV2();
+    final backend =
+        ref.watch(appSettingsProvider.select((s) => s.syncBackend));
+    // Enter the library when a remote is set up — the user's own server or
+    // their Drive — or when they picked local-only. Otherwise onboarding.
+    // Drive counts here on its own: it has no credentialsProvider entry,
+    // and without this a user who just signed in would be sent back to the
+    // welcome screen on the next launch.
+    if (creds != null || localMode || backend == SyncBackend.drive) {
+      return const LibraryScreenV2();
+    }
     return const OnboardingScreen();
   }
 }

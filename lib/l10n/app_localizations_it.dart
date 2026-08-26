@@ -1476,6 +1476,199 @@ class AppLocalizationsIt extends AppLocalizations {
   String get onbComingSoonBadge => 'In arrivo';
 
   @override
+  String get onbDriveTitle => 'Sincronizza con Google Drive';
+
+  @override
+  String get onbDriveSubtitle =>
+      'Niente da configurare: i tuoi quaderni si sincronizzano nel tuo Google Drive.';
+
+  @override
+  String get driveSignInFailed =>
+      'L\'accesso a Google non è andato a buon fine. Non è stato cambiato nulla.';
+
+  @override
+  String get driveSignInCancelled => 'Accesso annullato.';
+
+  @override
+  String get driveNotConfigured =>
+      'Questa build non ha le credenziali Google, quindi la sincronizzazione con Drive non è disponibile.';
+
+  @override
+  String get driveNoKeyring =>
+      'Questo sistema non ha un archivio sicuro, quindi l\'account Google non può essere conservato in sicurezza. Qui la sincronizzazione con Drive non è disponibile.';
+
+  @override
+  String get driveConnectedTitle => 'Google Drive collegato';
+
+  @override
+  String get setSyncDriveTitle => 'Google Drive';
+
+  @override
+  String get setSyncDriveConnected =>
+      'I quaderni si sincronizzano nel tuo Google Drive.';
+
+  @override
+  String get setSyncDriveNotConnected => 'Non collegato.';
+
+  @override
+  String get setSyncDriveDesktopOnly => 'Per ora disponibile su computer.';
+
+  @override
+  String get setDriveDisconnectTitle => 'Scollegare Google Drive?';
+
+  @override
+  String get setDriveDisconnectBody =>
+      'I quaderni già presenti nel tuo Drive restano dove sono: l\'app smette solo di sincronizzarli. I quaderni su questo dispositivo non vengono toccati.';
+
+  @override
+  String get setDriveDisconnectConfirm => 'Scollega';
+
+  @override
+  String get setSyncOneBackendNote =>
+      'I quaderni si sincronizzano in un posto alla volta: il tuo server oppure il tuo Google Drive.';
+
+  @override
+  String get setSyncSwitchTitle =>
+      'Spostare la sincronizzazione su Google Drive?';
+
+  @override
+  String get setSyncSwitchBody =>
+      'I tuoi quaderni restano su questo dispositivo e vengono caricati sul tuo Google Drive. Le copie già presenti sul tuo server restano dove sono, ma da quel momento non ricevono più aggiornamenti. Non viene cancellato nulla.';
+
+  @override
+  String get setSyncSwitchConfirm => 'Sposta su Drive';
+
+  @override
+  String get setSyncInactiveNote =>
+      'Configurato, ma non in uso: la sincronizzazione va sull\'altra destinazione.';
+
+  @override
+  String libPendingUploadsDrive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quaderni ancora da caricare su Google Drive',
+      one: '$count quaderno ancora da caricare su Google Drive',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String libPendingUploadsServer(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count quaderni ancora da caricare sul tuo server',
+      one: '$count quaderno ancora da caricare sul tuo server',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get libPendingUploadsHint =>
+      'Intanto restano su questo dispositivo. Lascia l\'app aperta un momento.';
+
+  @override
+  String get libStorageFullDrive => 'Il tuo Google Drive è pieno';
+
+  @override
+  String get libStorageFullServer => 'Il tuo server non ha più spazio';
+
+  @override
+  String get libStorageFullBody =>
+      'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non liberi spazio. Lo spazio di Google Drive è condiviso con Gmail e Foto.';
+
+  @override
+  String get libStorageFullBodyServer =>
+      'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non viene liberato spazio sul server.';
+
+  @override
+  String get libKeepOnDevice => 'Tieni solo su questo dispositivo';
+
+  @override
+  String get libResumeSync => 'Torna a sincronizzare questo quaderno';
+
+  @override
+  String get libLocalOnlyBadge => 'Solo qui';
+
+  @override
+  String get libKeepOnDeviceTitle => 'Tenere questo quaderno solo qui?';
+
+  @override
+  String get libKeepOnDeviceBody =>
+      'Smette di essere caricato e gli altri dispositivi non lo riceveranno più. Su questo dispositivo resta pienamente utilizzabile.';
+
+  @override
+  String get libKeepOnDeviceRemoveCopy => 'Elimina anche la copia già caricata';
+
+  @override
+  String get libKeepOnDeviceConfirm => 'Tieni solo qui';
+
+  @override
+  String get libLocalOnlyDone => 'Tenuto solo su questo dispositivo.';
+
+  @override
+  String get libSyncResumedDone => 'Questo quaderno tornerà a sincronizzarsi.';
+
+  @override
+  String get syncLocalOnlyTooltip => 'Tenuto solo su questo dispositivo';
+
+  @override
+  String get libFreeSpace => 'Libera spazio su questo dispositivo';
+
+  @override
+  String get libKeepOnThisDevice => 'Scarica su questo dispositivo';
+
+  @override
+  String get libFreeSpaceTitle =>
+      'Togliere questo quaderno da questo dispositivo?';
+
+  @override
+  String get libFreeSpaceBody =>
+      'Il quaderno resta sul remoto e sugli altri dispositivi. Qui diventa una scheda da toccare per riscaricarlo. Fino ad allora non si apre offline e la ricerca non guarda al suo interno.';
+
+  @override
+  String get libFreeSpaceConfirm => 'Libera spazio';
+
+  @override
+  String libFreeSpaceDone(String size) {
+    return 'Tolto da questo dispositivo. Liberati $size.';
+  }
+
+  @override
+  String get libFreeSpaceNotSynced =>
+      'Questo quaderno ha modifiche che il remoto non ha ancora. Sarà possibile una volta caricate.';
+
+  @override
+  String get libFreeSpaceOpenNotebook => 'Chiudi prima il quaderno.';
+
+  @override
+  String get libKeepOnThisDeviceDone =>
+      'Verrà di nuovo scaricato su questo dispositivo.';
+
+  @override
+  String get syncNotOnDeviceTooltip => 'Sul remoto, non su questo dispositivo';
+
+  @override
+  String get onbSyncQuestion => 'Sincronizza i tuoi appunti';
+
+  @override
+  String get onbSyncQuestionSub =>
+      'Scegli dove vivono i tuoi quaderni. Puoi cambiare in seguito.';
+
+  @override
+  String get onbDriveShort => 'Google Drive';
+
+  @override
+  String get onbNextcloudShort => 'Nextcloud / WebDAV';
+
+  @override
+  String get onbStartWithoutSync => 'Inizia senza sincronizzare';
+
+  @override
+  String get onbDriveUnavailable => 'Non disponibile in questa build';
+
+  @override
   String get onbLicenseNote =>
       'Aprendo l\'app accetti la licenza AGPL-3.0. \"AbelNotes\" è un marchio del progetto.';
 

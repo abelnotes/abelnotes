@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:abelnotes/core/providers/canvas_state.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/features/canvas/presentation/text_editor_dialog.dart';
@@ -342,6 +345,44 @@ void main() {
         collect(tester, 'Library', w, s);
       }
     }
+  });
+
+  testWidgets('the library says how many notebooks are still to upload',
+      (tester) async {
+    // The per-row cloud badge only answers the question if you know to hover
+    // it, and after switching remotes there can be a dozen pending at once.
+    SharedPreferences.setMockInitialValues({
+      'app_settings_v1': jsonEncode({'sync_backend': 'drive'}),
+    });
+    tester.view.physicalSize = const Size(412, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    late AppLocalizations l10n;
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        notebookListProvider.overrideWith((ref) => _FakeLibrary(ref)),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(builder: (context) {
+          l10n = AppLocalizations.of(context);
+          return const LibraryScreenV2();
+        }),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 400));
+    collect(tester, 'PendingNotice', 412, 1.0);
+
+    // The fake library marks the odd-numbered entries local.
+    expect(find.text(l10n.libPendingUploadsDrive(3)), findsOneWidget);
+
+    // The library arms a 2s delayed retry and a periodic background sync on
+    // open. Let the delayed one fire, then dispose the tree so the periodic
+    // one is cancelled — a timer left pending fails the run.
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('every settings section', (tester) async {

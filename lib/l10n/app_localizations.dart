@@ -2446,6 +2446,318 @@ abstract class AppLocalizations {
   /// **'In arrivo'**
   String get onbComingSoonBadge;
 
+  /// No description provided for @onbDriveTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizza con Google Drive'**
+  String get onbDriveTitle;
+
+  /// No description provided for @onbDriveSubtitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Niente da configurare: i tuoi quaderni si sincronizzano nel tuo Google Drive.'**
+  String get onbDriveSubtitle;
+
+  /// No description provided for @driveSignInFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'L\'accesso a Google non è andato a buon fine. Non è stato cambiato nulla.'**
+  String get driveSignInFailed;
+
+  /// No description provided for @driveSignInCancelled.
+  ///
+  /// In it, this message translates to:
+  /// **'Accesso annullato.'**
+  String get driveSignInCancelled;
+
+  /// No description provided for @driveNotConfigured.
+  ///
+  /// In it, this message translates to:
+  /// **'Questa build non ha le credenziali Google, quindi la sincronizzazione con Drive non è disponibile.'**
+  String get driveNotConfigured;
+
+  /// No description provided for @driveNoKeyring.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo sistema non ha un archivio sicuro, quindi l\'account Google non può essere conservato in sicurezza. Qui la sincronizzazione con Drive non è disponibile.'**
+  String get driveNoKeyring;
+
+  /// No description provided for @driveConnectedTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Google Drive collegato'**
+  String get driveConnectedTitle;
+
+  /// No description provided for @setSyncDriveTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Google Drive'**
+  String get setSyncDriveTitle;
+
+  /// No description provided for @setSyncDriveConnected.
+  ///
+  /// In it, this message translates to:
+  /// **'I quaderni si sincronizzano nel tuo Google Drive.'**
+  String get setSyncDriveConnected;
+
+  /// No description provided for @setSyncDriveNotConnected.
+  ///
+  /// In it, this message translates to:
+  /// **'Non collegato.'**
+  String get setSyncDriveNotConnected;
+
+  /// No description provided for @setSyncDriveDesktopOnly.
+  ///
+  /// In it, this message translates to:
+  /// **'Per ora disponibile su computer.'**
+  String get setSyncDriveDesktopOnly;
+
+  /// No description provided for @setDriveDisconnectTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Scollegare Google Drive?'**
+  String get setDriveDisconnectTitle;
+
+  /// No description provided for @setDriveDisconnectBody.
+  ///
+  /// In it, this message translates to:
+  /// **'I quaderni già presenti nel tuo Drive restano dove sono: l\'app smette solo di sincronizzarli. I quaderni su questo dispositivo non vengono toccati.'**
+  String get setDriveDisconnectBody;
+
+  /// No description provided for @setDriveDisconnectConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Scollega'**
+  String get setDriveDisconnectConfirm;
+
+  /// No description provided for @setSyncOneBackendNote.
+  ///
+  /// In it, this message translates to:
+  /// **'I quaderni si sincronizzano in un posto alla volta: il tuo server oppure il tuo Google Drive.'**
+  String get setSyncOneBackendNote;
+
+  /// No description provided for @setSyncSwitchTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Spostare la sincronizzazione su Google Drive?'**
+  String get setSyncSwitchTitle;
+
+  /// No description provided for @setSyncSwitchBody.
+  ///
+  /// In it, this message translates to:
+  /// **'I tuoi quaderni restano su questo dispositivo e vengono caricati sul tuo Google Drive. Le copie già presenti sul tuo server restano dove sono, ma da quel momento non ricevono più aggiornamenti. Non viene cancellato nulla.'**
+  String get setSyncSwitchBody;
+
+  /// No description provided for @setSyncSwitchConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Sposta su Drive'**
+  String get setSyncSwitchConfirm;
+
+  /// No description provided for @setSyncInactiveNote.
+  ///
+  /// In it, this message translates to:
+  /// **'Configurato, ma non in uso: la sincronizzazione va sull\'altra destinazione.'**
+  String get setSyncInactiveNote;
+
+  /// No description provided for @libPendingUploadsDrive.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{{count} quaderno ancora da caricare su Google Drive} other{{count} quaderni ancora da caricare su Google Drive}}'**
+  String libPendingUploadsDrive(int count);
+
+  /// No description provided for @libPendingUploadsServer.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{{count} quaderno ancora da caricare sul tuo server} other{{count} quaderni ancora da caricare sul tuo server}}'**
+  String libPendingUploadsServer(int count);
+
+  /// No description provided for @libPendingUploadsHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Intanto restano su questo dispositivo. Lascia l\'app aperta un momento.'**
+  String get libPendingUploadsHint;
+
+  /// No description provided for @libStorageFullDrive.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo Google Drive è pieno'**
+  String get libStorageFullDrive;
+
+  /// No description provided for @libStorageFullServer.
+  ///
+  /// In it, this message translates to:
+  /// **'Il tuo server non ha più spazio'**
+  String get libStorageFullServer;
+
+  /// No description provided for @libStorageFullBody.
+  ///
+  /// In it, this message translates to:
+  /// **'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non liberi spazio. Lo spazio di Google Drive è condiviso con Gmail e Foto.'**
+  String get libStorageFullBody;
+
+  /// No description provided for @libStorageFullBodyServer.
+  ///
+  /// In it, this message translates to:
+  /// **'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non viene liberato spazio sul server.'**
+  String get libStorageFullBodyServer;
+
+  /// No description provided for @libKeepOnDevice.
+  ///
+  /// In it, this message translates to:
+  /// **'Tieni solo su questo dispositivo'**
+  String get libKeepOnDevice;
+
+  /// No description provided for @libResumeSync.
+  ///
+  /// In it, this message translates to:
+  /// **'Torna a sincronizzare questo quaderno'**
+  String get libResumeSync;
+
+  /// No description provided for @libLocalOnlyBadge.
+  ///
+  /// In it, this message translates to:
+  /// **'Solo qui'**
+  String get libLocalOnlyBadge;
+
+  /// No description provided for @libKeepOnDeviceTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Tenere questo quaderno solo qui?'**
+  String get libKeepOnDeviceTitle;
+
+  /// No description provided for @libKeepOnDeviceBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Smette di essere caricato e gli altri dispositivi non lo riceveranno più. Su questo dispositivo resta pienamente utilizzabile.'**
+  String get libKeepOnDeviceBody;
+
+  /// No description provided for @libKeepOnDeviceRemoveCopy.
+  ///
+  /// In it, this message translates to:
+  /// **'Elimina anche la copia già caricata'**
+  String get libKeepOnDeviceRemoveCopy;
+
+  /// No description provided for @libKeepOnDeviceConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Tieni solo qui'**
+  String get libKeepOnDeviceConfirm;
+
+  /// No description provided for @libLocalOnlyDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Tenuto solo su questo dispositivo.'**
+  String get libLocalOnlyDone;
+
+  /// No description provided for @libSyncResumedDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo quaderno tornerà a sincronizzarsi.'**
+  String get libSyncResumedDone;
+
+  /// No description provided for @syncLocalOnlyTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Tenuto solo su questo dispositivo'**
+  String get syncLocalOnlyTooltip;
+
+  /// No description provided for @libFreeSpace.
+  ///
+  /// In it, this message translates to:
+  /// **'Libera spazio su questo dispositivo'**
+  String get libFreeSpace;
+
+  /// No description provided for @libKeepOnThisDevice.
+  ///
+  /// In it, this message translates to:
+  /// **'Scarica su questo dispositivo'**
+  String get libKeepOnThisDevice;
+
+  /// No description provided for @libFreeSpaceTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Togliere questo quaderno da questo dispositivo?'**
+  String get libFreeSpaceTitle;
+
+  /// No description provided for @libFreeSpaceBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Il quaderno resta sul remoto e sugli altri dispositivi. Qui diventa una scheda da toccare per riscaricarlo. Fino ad allora non si apre offline e la ricerca non guarda al suo interno.'**
+  String get libFreeSpaceBody;
+
+  /// No description provided for @libFreeSpaceConfirm.
+  ///
+  /// In it, this message translates to:
+  /// **'Libera spazio'**
+  String get libFreeSpaceConfirm;
+
+  /// No description provided for @libFreeSpaceDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Tolto da questo dispositivo. Liberati {size}.'**
+  String libFreeSpaceDone(String size);
+
+  /// No description provided for @libFreeSpaceNotSynced.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo quaderno ha modifiche che il remoto non ha ancora. Sarà possibile una volta caricate.'**
+  String get libFreeSpaceNotSynced;
+
+  /// No description provided for @libFreeSpaceOpenNotebook.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi prima il quaderno.'**
+  String get libFreeSpaceOpenNotebook;
+
+  /// No description provided for @libKeepOnThisDeviceDone.
+  ///
+  /// In it, this message translates to:
+  /// **'Verrà di nuovo scaricato su questo dispositivo.'**
+  String get libKeepOnThisDeviceDone;
+
+  /// No description provided for @syncNotOnDeviceTooltip.
+  ///
+  /// In it, this message translates to:
+  /// **'Sul remoto, non su questo dispositivo'**
+  String get syncNotOnDeviceTooltip;
+
+  /// No description provided for @onbSyncQuestion.
+  ///
+  /// In it, this message translates to:
+  /// **'Sincronizza i tuoi appunti'**
+  String get onbSyncQuestion;
+
+  /// No description provided for @onbSyncQuestionSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Scegli dove vivono i tuoi quaderni. Puoi cambiare in seguito.'**
+  String get onbSyncQuestionSub;
+
+  /// No description provided for @onbDriveShort.
+  ///
+  /// In it, this message translates to:
+  /// **'Google Drive'**
+  String get onbDriveShort;
+
+  /// No description provided for @onbNextcloudShort.
+  ///
+  /// In it, this message translates to:
+  /// **'Nextcloud / WebDAV'**
+  String get onbNextcloudShort;
+
+  /// No description provided for @onbStartWithoutSync.
+  ///
+  /// In it, this message translates to:
+  /// **'Inizia senza sincronizzare'**
+  String get onbStartWithoutSync;
+
+  /// No description provided for @onbDriveUnavailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Non disponibile in questa build'**
+  String get onbDriveUnavailable;
+
   /// No description provided for @onbLicenseNote.
   ///
   /// In it, this message translates to:

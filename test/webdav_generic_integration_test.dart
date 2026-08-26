@@ -44,12 +44,12 @@ void main() {
     expect(meta.isDirectory, isFalse);
     expect(meta.contentLength, payload.length);
 
-    final propfindEtag = await dav.getEtag('/AbelNotes/metadata.json');
+    final propfindEtag = await dav.getVersion('/AbelNotes/metadata.json');
     expect(propfindEtag, putEtag);
 
     // getEtagFast: o l'ETag via HEAD, o null (server senza ETag su HEAD,
     // il capability-flag scatta) — mai un'eccezione.
-    final fastEtag = await dav.getEtagFast('/AbelNotes/metadata.json');
+    final fastEtag = await dav.getVersionFast('/AbelNotes/metadata.json');
     expect(fastEtag == null || fastEtag == putEtag, isTrue);
 
     final downloaded = await dav.downloadFile('/AbelNotes/metadata.json');

@@ -130,14 +130,17 @@ class _HwIconPainter extends CustomPainter {
         p('M3 14l4-3 4 3 3-2 3 2');
         break;
       case 'symbol':
+        // A saved element in its card, NOT the four squares of 'grid': that
+        // one already means "all pages" one toolbar down, and two identical
+        // glyphs opening different panels is a coin toss for the user. The
+        // star matches the symbols panel's own empty state.
         canvas.drawRRect(
-            RRect.fromLTRBR(3, 3, 9, 9, const Radius.circular(1)), stroke);
-        canvas.drawRRect(
-            RRect.fromLTRBR(11, 3, 17, 9, const Radius.circular(1)), stroke);
-        canvas.drawRRect(
-            RRect.fromLTRBR(3, 11, 9, 17, const Radius.circular(1)), stroke);
-        canvas.drawRRect(
-            RRect.fromLTRBR(11, 11, 17, 17, const Radius.circular(1)), stroke);
+            RRect.fromLTRBR(3, 4, 17, 16, const Radius.circular(2)), stroke);
+        canvas.save();
+        canvas.translate(5.8, 5.4);
+        canvas.scale(0.42);
+        pf('M10 3l2.2 4.5 5 .7-3.6 3.5.85 5L10 14.3 5.55 16.7l.85-5L2.8 8.2l5-.7L10 3z');
+        canvas.restore();
         break;
       case 'undo':
         p('M5 9h7a4 4 0 0 1 0 8h-2');
@@ -201,15 +204,13 @@ class _HwIconPainter extends CustomPainter {
         p('M11 13l3 3 3-3');
         break;
       case 'settings':
-        circle(10, 10, 2.5);
-        p('M10 3v2');
-        p('M10 15v2');
-        p('M3 10h2');
-        p('M15 10h2');
-        p('M5.5 5.5l1.4 1.4');
-        p('M13.1 13.1l1.4 1.4');
-        p('M5.5 14.5l1.4-1.4');
-        p('M13.1 6.9l1.4-1.4');
+        // Sliders, not a ringed circle with rays: that glyph is 'sun' below,
+        // down to the same eight strokes, so the settings button read as a
+        // theme switch.
+        p('M3 7h14');
+        p('M3 13h14');
+        circle(7.5, 7, 2, filled: true);
+        circle(12.5, 13, 2, filled: true);
         break;
       case 'trash':
         p('M4 6h12');
@@ -232,6 +233,11 @@ class _HwIconPainter extends CustomPainter {
       case 'cloud-off':
         p('M6 14h9a3 3 0 0 0 .5-6 4.5 4.5 0 0 0-8.7-1A3.5 3.5 0 0 0 6 14z');
         p('M3 3l14 14');
+        break;
+      case 'cloud-download':
+        p('M6 14h9a3 3 0 0 0 .5-6 4.5 4.5 0 0 0-8.7-1A3.5 3.5 0 0 0 6 14z');
+        p('M10.5 8.5v4');
+        p('M8.5 10.8l2 2 2-2');
         break;
       case 'cloud-conflict':
         p('M6 14h9a3 3 0 0 0 .5-6 4.5 4.5 0 0 0-8.7-1A3.5 3.5 0 0 0 6 14z');

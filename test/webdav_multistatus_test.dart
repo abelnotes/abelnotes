@@ -59,7 +59,7 @@ void main() {
 
     final file = items.firstWhere((i) => !i.isDirectory);
     expect(file.name, 'notebook.json');
-    expect(file.etag, 'abc123');
+    expect(file.version, 'abc123');
     expect(file.contentLength, 42);
     expect(file.contentType, 'application/json');
     expect(file.lastModified, isNotNull);
@@ -99,6 +99,6 @@ void main() {
         WebDavService.parseMultiStatus(broken, requestPath, davUrl);
     expect(items, hasLength(1));
     expect(items.single.name, 'ok.json');
-    expect(items.single.etag, 'e1');
+    expect(items.single.version, 'e1');
   });
 }

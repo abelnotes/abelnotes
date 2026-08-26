@@ -132,6 +132,12 @@ class AppSettings {
   /// to get palm rejection.
   final bool? stylusOnlyDrawing;
 
+  /// Which remote the notebooks sync to: 'webdav' for the user's own
+  /// server, 'drive' for their Google Drive, null for local-only. One
+  /// backend at a time — a notebook living in two places at once would give
+  /// the engine two sources of truth to reconcile.
+  final String? syncBackend;
+
   /// Tool the editor arms when a notebook is opened, by [CanvasTool.name].
   /// Null until the user picks one: the editor then starts in navigate mode
   /// (pan) on phones and with the pen on desktop.
@@ -164,6 +170,7 @@ class AppSettings {
     this.mouseDraws = false,
     this.stylusOnlyDrawing,
     this.lastTool,
+    this.syncBackend,
     this.showPageStrip = true,
     this.localeCode = 'system',
   });
@@ -188,6 +195,11 @@ class AppSettings {
     bool? mouseDraws,
     bool? stylusOnlyDrawing,
     String? lastTool,
+    String? syncBackend,
+    /// copyWith can't tell "leave it" from "set it to null", and going back
+    /// to local-only has to be expressible. Same trick as CanvasState's
+    /// clear* flags.
+    bool clearSyncBackend = false,
     bool? showPageStrip,
     String? localeCode,
   }) =>
@@ -204,6 +216,8 @@ class AppSettings {
         mouseDraws: mouseDraws ?? this.mouseDraws,
         stylusOnlyDrawing: stylusOnlyDrawing ?? this.stylusOnlyDrawing,
         lastTool: lastTool ?? this.lastTool,
+        syncBackend:
+            clearSyncBackend ? null : (syncBackend ?? this.syncBackend),
         showPageStrip: showPageStrip ?? this.showPageStrip,
         localeCode: localeCode ?? this.localeCode,
       );
@@ -279,6 +293,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         mouseDraws: map['mouse_draws'] as bool? ?? false,
         stylusOnlyDrawing: map['stylus_only_drawing'] as bool?,
         lastTool: map['last_tool'] as String?,
+        syncBackend: map['sync_backend'] as String?,
         showPageStrip: map['show_page_strip'] as bool? ?? true,
         localeCode: map['locale'] as String? ?? 'system',
       );
@@ -304,6 +319,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         if (state.stylusOnlyDrawing != null)
           'stylus_only_drawing': state.stylusOnlyDrawing,
         if (state.lastTool != null) 'last_tool': state.lastTool,
+        if (state.syncBackend != null) 'sync_backend': state.syncBackend,
         'show_page_strip': state.showPageStrip,
         'locale': state.localeCode,
       }));
@@ -373,6 +389,13 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setStylusOnlyDrawing(bool v) {
     state = state.copyWith(stylusOnlyDrawing: v);
+    _persist();
+  }
+
+  /// Switches which remote new syncs talk to. Null goes back to local-only.
+  void setSyncBackend(String? backend) {
+    state = state.copyWith(
+        syncBackend: backend, clearSyncBackend: backend == null);
     _persist();
   }
 

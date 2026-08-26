@@ -1476,6 +1476,197 @@ class AppLocalizationsEs extends AppLocalizations {
   String get onbComingSoonBadge => 'Próximamente';
 
   @override
+  String get onbDriveTitle => 'Sincroniza con Google Drive';
+
+  @override
+  String get onbDriveSubtitle =>
+      'Nada que configurar: tus cuadernos se sincronizan en tu propio Google Drive.';
+
+  @override
+  String get driveSignInFailed =>
+      'El acceso con Google no se completó. No se ha cambiado nada.';
+
+  @override
+  String get driveSignInCancelled => 'Acceso cancelado.';
+
+  @override
+  String get driveNotConfigured =>
+      'Esta versión no tiene credenciales de Google, así que la sincronización con Drive no está disponible.';
+
+  @override
+  String get driveNoKeyring =>
+      'Este sistema no tiene almacenamiento seguro, así que la cuenta de Google no puede guardarse de forma segura. Aquí la sincronización con Drive no está disponible.';
+
+  @override
+  String get driveConnectedTitle => 'Google Drive conectado';
+
+  @override
+  String get setSyncDriveTitle => 'Google Drive';
+
+  @override
+  String get setSyncDriveConnected =>
+      'Los cuadernos se sincronizan en tu Google Drive.';
+
+  @override
+  String get setSyncDriveNotConnected => 'No conectado.';
+
+  @override
+  String get setSyncDriveDesktopOnly => 'Por ahora disponible en ordenador.';
+
+  @override
+  String get setDriveDisconnectTitle => '¿Desconectar Google Drive?';
+
+  @override
+  String get setDriveDisconnectBody =>
+      'Los cuadernos que ya están en tu Drive se quedan ahí: la aplicación solo deja de sincronizarlos. Los cuadernos de este dispositivo no se tocan.';
+
+  @override
+  String get setDriveDisconnectConfirm => 'Desconectar';
+
+  @override
+  String get setSyncOneBackendNote =>
+      'Los cuadernos se sincronizan en un solo sitio a la vez: tu propio servidor o tu Google Drive.';
+
+  @override
+  String get setSyncSwitchTitle => '¿Mover la sincronización a Google Drive?';
+
+  @override
+  String get setSyncSwitchBody =>
+      'Tus cuadernos se quedan en este dispositivo y se suben a tu Google Drive. Las copias que ya están en tu servidor se quedan donde están, pero dejan de recibir actualizaciones. No se borra nada.';
+
+  @override
+  String get setSyncSwitchConfirm => 'Mover a Drive';
+
+  @override
+  String get setSyncInactiveNote =>
+      'Configurado, pero sin usar: la sincronización va al otro destino.';
+
+  @override
+  String libPendingUploadsDrive(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cuadernos aún por subir a Google Drive',
+      one: '$count cuaderno aún por subir a Google Drive',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String libPendingUploadsServer(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count cuadernos aún por subir a tu servidor',
+      one: '$count cuaderno aún por subir a tu servidor',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get libPendingUploadsHint =>
+      'Mientras tanto se quedan en este dispositivo. Deja la aplicación abierta un momento.';
+
+  @override
+  String get libStorageFullDrive => 'Tu Google Drive está lleno';
+
+  @override
+  String get libStorageFullServer => 'Tu servidor se ha quedado sin espacio';
+
+  @override
+  String get libStorageFullBody =>
+      'Los cuadernos siguen a salvo en este dispositivo, pero no pueden subirse hasta que liberes espacio. El espacio de Google Drive se comparte con Gmail y Fotos.';
+
+  @override
+  String get libStorageFullBodyServer =>
+      'Los cuadernos siguen a salvo en este dispositivo, pero no pueden subirse hasta que se libere espacio en el servidor.';
+
+  @override
+  String get libKeepOnDevice => 'Mantener solo en este dispositivo';
+
+  @override
+  String get libResumeSync => 'Volver a sincronizar este cuaderno';
+
+  @override
+  String get libLocalOnlyBadge => 'Solo aquí';
+
+  @override
+  String get libKeepOnDeviceTitle => '¿Mantener este cuaderno solo aquí?';
+
+  @override
+  String get libKeepOnDeviceBody =>
+      'Dejará de subirse y los demás dispositivos ya no lo recibirán. Aquí sigue siendo plenamente utilizable.';
+
+  @override
+  String get libKeepOnDeviceRemoveCopy => 'Eliminar también la copia ya subida';
+
+  @override
+  String get libKeepOnDeviceConfirm => 'Mantener solo aquí';
+
+  @override
+  String get libLocalOnlyDone => 'Guardado solo en este dispositivo.';
+
+  @override
+  String get libSyncResumedDone => 'Este cuaderno volverá a sincronizarse.';
+
+  @override
+  String get syncLocalOnlyTooltip => 'Guardado solo en este dispositivo';
+
+  @override
+  String get libFreeSpace => 'Liberar espacio en este dispositivo';
+
+  @override
+  String get libKeepOnThisDevice => 'Descargar en este dispositivo';
+
+  @override
+  String get libFreeSpaceTitle => '¿Quitar este cuaderno de este dispositivo?';
+
+  @override
+  String get libFreeSpaceBody =>
+      'El cuaderno sigue en el remoto y en tus otros dispositivos. Aquí queda como una tarjeta que puedes tocar para volver a descargarlo. Hasta entonces no se puede abrir sin conexión y la búsqueda no mira dentro.';
+
+  @override
+  String get libFreeSpaceConfirm => 'Liberar espacio';
+
+  @override
+  String libFreeSpaceDone(String size) {
+    return 'Quitado de este dispositivo. $size liberados.';
+  }
+
+  @override
+  String get libFreeSpaceNotSynced =>
+      'Este cuaderno tiene cambios que el remoto todavía no tiene. Será posible cuando se hayan subido.';
+
+  @override
+  String get libFreeSpaceOpenNotebook => 'Cierra primero el cuaderno.';
+
+  @override
+  String get libKeepOnThisDeviceDone =>
+      'Volverá a descargarse en este dispositivo.';
+
+  @override
+  String get syncNotOnDeviceTooltip => 'En el remoto, no en este dispositivo';
+
+  @override
+  String get onbSyncQuestion => 'Sincroniza tus apuntes';
+
+  @override
+  String get onbSyncQuestionSub =>
+      'Elige dónde viven tus cuadernos. Puedes cambiarlo más adelante.';
+
+  @override
+  String get onbDriveShort => 'Google Drive';
+
+  @override
+  String get onbNextcloudShort => 'Nextcloud / WebDAV';
+
+  @override
+  String get onbStartWithoutSync => 'Empezar sin sincronizar';
+
+  @override
+  String get onbDriveUnavailable => 'No disponible en esta compilación';
+
+  @override
   String get onbLicenseNote =>
       'Al abrir la aplicación aceptas la licencia AGPL-3.0. \"AbelNotes\" es una marca del proyecto.';
 

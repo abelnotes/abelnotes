@@ -382,20 +382,27 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
             ),
             // ── Bottom bar: add symbol from selection hint ──
             Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              // Grows instead of overflowing: the hint is a full sentence and
+              // on a phone the panel is only as wide as the screen minus 48.
+              constraints: const BoxConstraints(minHeight: 36),
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
               decoration: BoxDecoration(
                 color: isDark ? surfaceContainerHighest : Colors.white,
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
                 border: Border(top: BorderSide(color: outlineVariant)),
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Icon(Icons.info_outline_rounded, size: 13, color: textMuted),
                   const SizedBox(width: 6),
-                  Text(
-                    l10n.symLassoSaveHint,
-                    style: TextStyle(fontSize: 11, color: textMuted),
+                  Expanded(
+                    child: Text(
+                      l10n.symLassoSaveHint,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: textMuted),
+                    ),
                   ),
                 ],
               ),

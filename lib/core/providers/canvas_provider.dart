@@ -8541,6 +8541,31 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     return true;
   }
 
+  /// Whether the open notebook is one the user keeps off the remote.
+  ///
+  /// Cached per notebook: it is read on every save and every pull tick, and
+  /// it only changes when the user flips it, which goes through
+  /// [forgetLocalOnly].
+  final Map<String, bool> _localOnlyCache = {};
+
+  Future<bool> _isLocalOnly(String notebookId) async {
+    final cached = _localOnlyCache[notebookId];
+    if (cached != null) return cached;
+    try {
+      final flag =
+          await _ref.read(fileServiceProvider).isNotebookLocalOnly(notebookId);
+      return _localOnlyCache[notebookId] = flag;
+    } catch (_) {
+      // Unknown: assume it syncs, which is the pre-existing behaviour. The
+      // opposite guess would silently stop syncing a notebook.
+      return false;
+    }
+  }
+
+  /// Drops the cached answer after the user changes the setting.
+  void forgetLocalOnly(String notebookId) =>
+      _localOnlyCache.remove(notebookId);
+
   Future<void> _remoteSync({
     required SyncService syncService,
     required dynamic fileService,
@@ -8579,6 +8604,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         _pendingPageDeletes.take(deleteBatchPerSave).toList();
     final mergedDeletedAssets =
         _pendingAssetDeletes.take(deleteBatchPerSave).toList();
+
+    if (await _isLocalOnly(updatedMeta.id)) {
+      debugPrint('[Canvas] Skipping delta sync for ${updatedMeta.id} — '
+          'notebook is kept on this device only');
+      return;
+    }
 
     debugPrint('[Canvas] Starting delta sync: ${dirtyPages.length} pages '
         '(retrying ${_pendingPageDeletes.length} pending page deletes, '
@@ -8897,6 +8928,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // doc comment) — local-only mode is signaled by isOffline, not null.
       if (syncService == null || syncService.isOffline) return;
       final pullNotebookId = state!.metadata.id;
+      // Nothing to pull for a notebook that was never meant to leave.
+      if (await _isLocalOnly(pullNotebookId)) return;
       final s0 = state!;
       unawaited(CrashLogger.append(
         '[Pull] start nb=${pullNotebookId.substring(0, 8)} '

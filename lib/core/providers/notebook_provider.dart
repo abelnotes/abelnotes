@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
-import 'package:abelnotes/core/providers/auth_provider.dart';
+import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart' show canvasProvider;
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/search_service.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
-import 'package:abelnotes/core/services/webdav_service.dart';
+import 'package:abelnotes/core/services/remote_store.dart';
 
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:uuid/uuid.dart';
@@ -29,11 +29,22 @@ class NotebookEntry {
   final DateTime? lastSynced;
   final bool isLocal; // creato localmente, non ancora sincronizzato
 
+  /// The user asked for this notebook to stay on this device. Different from
+  /// [isLocal], which means "not uploaded yet": this one is never going.
+  final bool localOnly;
+
+  /// The mirror image of [localOnly]: the notebook lives on the remote and
+  /// this device was told not to keep it. The card is a stub — title and page
+  /// count only — until the user opens it, which downloads it.
+  final bool notOnDevice;
+
   const NotebookEntry({
     required this.metadata,
     required this.remotePath,
     this.lastSynced,
     this.isLocal = false,
+    this.localOnly = false,
+    this.notOnDevice = false,
   });
 
   NotebookEntry copyWith({
@@ -41,12 +52,16 @@ class NotebookEntry {
     String? remotePath,
     DateTime? lastSynced,
     bool? isLocal,
+    bool? localOnly,
+    bool? notOnDevice,
   }) =>
       NotebookEntry(
         metadata: metadata ?? this.metadata,
         remotePath: remotePath ?? this.remotePath,
         lastSynced: lastSynced ?? this.lastSynced,
         isLocal: isLocal ?? this.isLocal,
+        localOnly: localOnly ?? this.localOnly,
+        notOnDevice: notOnDevice ?? this.notOnDevice,
       );
 }
 
@@ -56,9 +71,9 @@ final syncServiceProvider = Provider<SyncService?>((ref) {
   // in local-only mode (no server). `webdav` is null then, and any genuine
   // network call throws a clear "modalità solo-locale" error. Nullable type
   // kept for source compatibility with existing `== null` guards.
-  final webdav = ref.watch(webdavServiceProvider);
+  final remote = ref.watch(remoteStoreProvider);
   final fileService = ref.watch(fileServiceProvider);
-  final service = SyncService(webdav, fileService);
+  final service = SyncService(remote, fileService);
   ref.onDispose(() => service.dispose());
   return service;
 });
@@ -81,6 +96,14 @@ class NotebookListNotifier
   /// no notebooks" when the local DB is empty.
   final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
 
+  /// True once the remote has refused a write for lack of space.
+  ///
+  /// Worth its own flag rather than a passing error: it does not fix itself
+  /// by waiting, the user has to go and free space, and until they do every
+  /// upload will fail the same way. The library shows it until a sync
+  /// succeeds.
+  final ValueNotifier<bool> storageFull = ValueNotifier<bool>(false);
+
   /// Progress during first sync: "downloaded/total" where 0/0 means PROPFIND
   /// is still in flight. UI shows this beside the spinner so first-install
   /// users can tell work is happening.
@@ -90,6 +113,7 @@ class NotebookListNotifier
   @override
   void dispose() {
     isSyncing.dispose();
+    storageFull.dispose();
     syncProgress.dispose();
     super.dispose();
   }
@@ -109,10 +133,13 @@ class NotebookListNotifier
     if (showProgress) isSyncing.value = true;
     try {
       final syncService = _ref.read(syncServiceProvider);
-      final webdav = _ref.read(webdavServiceProvider);
+      final webdav = _ref.read(remoteStoreProvider);
       if (syncService == null || webdav == null) return;
 
       await _syncWithServer(syncService, webdav, fileService);
+    } on RemoteStorageFullException catch (e) {
+      debugPrint('[Library] Remote is out of space: $e');
+      storageFull.value = true;
     } catch (e) {
       debugPrint('[Library] Remote sync failed: $e');
       // Local data is already shown — no need to show error
@@ -160,6 +187,8 @@ class NotebookListNotifier
           ? DateTime.tryParse(row['remote_modified_at'] as String)
           : null,
       isLocal: row['sync_status'] != 'synced',
+      localOnly: (row['local_only'] as int? ?? 0) == 1,
+      notOnDevice: (row['download_skipped'] as int? ?? 0) == 1,
     );
   }
 
@@ -167,10 +196,10 @@ class NotebookListNotifier
   /// Detects remote deletions and parallelizes downloads.
   Future<void> _syncWithServer(
     SyncService syncService,
-    dynamic webdav,
+    RemoteStore remote,
     FileService fileService,
   ) async {
-    await webdav.ensureBaseDirectory();
+    await remote.ensureBaseDirectory();
     final remoteFiles = await syncService.listRemoteNotebooks();
     debugPrint('[Library] PROPFIND returned ${remoteFiles.length} .ncnote files');
 
@@ -188,7 +217,10 @@ class NotebookListNotifier
     final skipped = <String>[];
 
     // ── Identify which notebooks need downloading ──
-    final toDownload = <({String remotePath, WebDavItem file})>[];
+    final toDownload = <({String remotePath, RemoteItem file})>[];
+    // Rows we deliberately don't download but still want an accurate card
+    // for: refreshed from the tiny delta metadata further down.
+    final metaOnlyRows = <Map<String, dynamic>>[];
     for (final file in remoteFiles) {
       final remotePath = '${AppConfig.defaultRemotePath}${file.name}';
       seenRemotePaths.add(remotePath);
@@ -196,8 +228,15 @@ class NotebookListNotifier
       final localRow = localByPath[remotePath];
       final localEtag = localRow?['etag'] as String?;
 
+      // This device was told not to keep this notebook. It stays a stub card
+      // until the user opens it; the opener downloads on demand.
+      if (localRow != null && (localRow['download_skipped'] as int? ?? 0) == 1) {
+        metaOnlyRows.add(localRow);
+        continue;
+      }
+
       // Skip if ETag matches — notebook hasn't changed on the server.
-      if (localEtag != null && localEtag == file.etag) continue;
+      if (localEtag != null && localEtag == file.version) continue;
 
       // Skip if the currently-open notebook in the canvas owns this row.
       // The canvas has an authoritative in-memory state and just persisted
@@ -307,7 +346,7 @@ class NotebookListNotifier
         if (!mounted) return; // notifier disposed
         final batch = toDownload.skip(i).take(maxConcurrent);
         final futures = batch.map((item) =>
-            _downloadAndCache(webdav, syncService, fileService, item.remotePath, item.file));
+            _downloadAndCache(remote, syncService, fileService, item.remotePath, item.file));
         final results = await Future.wait(futures);
         if (results.any((ok) => ok)) changed = true;
         skipped.addAll(results
@@ -341,9 +380,12 @@ class NotebookListNotifier
       final localRow = localByPath[remotePath];
       if (localRow == null) continue;
       final localEtag = localRow['etag'] as String?;
-      if (localEtag == null || localEtag != file.etag) continue;
+      if (localEtag == null || localEtag != file.version) continue;
       // Only ETag-unchanged notebooks that we didn't already redownload.
       etagUnchanged.add(localRow);
+    }
+    for (final row in metaOnlyRows) {
+      if (!etagUnchanged.any((r) => r['id'] == row['id'])) etagUnchanged.add(row);
     }
     if (etagUnchanged.isNotEmpty && mounted) {
       const metaConcurrency = 6;
@@ -361,10 +403,18 @@ class NotebookListNotifier
           final id = row['id'] as String;
           final existingCount = row['page_count'] as int? ?? 0;
           final existingTitle = row['title'] as String? ?? '';
+          final existingModified =
+              DateTime.tryParse(row['local_modified_at'] as String? ?? '');
           // Skip the UPDATE when nothing user-visible differs — avoids
-          // spurious SQLite writes and library rebuilds.
+          // spurious SQLite writes and library rebuilds. The timestamp has
+          // to be part of that: a sketch is always one page with the same
+          // title, so on count+title alone its card would never move, and
+          // editing it on another device would leave this one showing a
+          // stale "modified 3 days ago" forever.
           if (existingCount == deltaMeta.pageCount &&
-              existingTitle == deltaMeta.title) {
+              existingTitle == deltaMeta.title &&
+              existingModified != null &&
+              !deltaMeta.modifiedAt.isAfter(existingModified)) {
             continue;
           }
           await fileService.upsertNotebookMeta(
@@ -406,6 +456,9 @@ class NotebookListNotifier
       final syncStatus = row['sync_status'] as String? ?? '';
       final id = row['id'] as String;
       if (rp.isEmpty || syncStatus != 'synced') continue;
+      // Kept on this device on purpose: not being on the remote is its
+      // normal state, not proof the user deleted it elsewhere.
+      if ((row['local_only'] as int? ?? 0) == 1) continue;
       if (seenRemotePaths.contains(rp)) continue;
       if (id == openIdForRemoval) {
         debugPrint('[Library] Skipping remote-delete cleanup for $id — notebook is currently open');
@@ -471,7 +524,7 @@ class NotebookListNotifier
     SyncService syncService,
     FileService fileService,
     String remotePath,
-    WebDavItem file,
+    RemoteItem file,
   ) async {
     const maxRetries = 2;
     for (var attempt = 0; attempt < maxRetries; attempt++) {
@@ -621,7 +674,7 @@ class NotebookListNotifier
           id: rootMeta.id,
           title: libraryMeta.title,
           remotePath: remotePath,
-          etag: file.etag,
+          etag: file.version,
           localModifiedAt: libraryModifiedAt,
           remoteModifiedAt: file.lastModified,
           syncStatus: 'synced',
@@ -778,10 +831,50 @@ class NotebookListNotifier
     return entry;
   }
 
+  /// Removes only the remote copy, leaving the notebook here untouched.
+  ///
+  /// For the user who takes a notebook off sync and asks for the uploaded
+  /// copy to go too. Deliberately separate from [deleteNotebook]: this must
+  /// never touch the local file or the trash.
+  Future<void> deleteRemoteCopy(NotebookEntry entry) async {
+    final remote = _ref.read(remoteStoreProvider);
+    if (remote == null) return;
+    try {
+      await remote.delete(entry.remotePath);
+    } catch (e) {
+      debugPrint('[Library] Remote copy delete failed: $e');
+    }
+    // The exploded folder is the real content; leaving it behind would let
+    // another device treat the notebook as alive and re-upload it.
+    try {
+      await _ref.read(syncServiceProvider)?.deleteDeltaFolder(entry.metadata.id);
+    } catch (e) {
+      debugPrint('[Library] Delta folder delete failed: $e');
+    }
+  }
+
+  /// Frees this device's copy, leaving the notebook on the remote.
+  ///
+  /// Not a deletion: the row stays, the card stays, and opening it downloads
+  /// the notebook again. Never touches the remote or the trash. Returns the
+  /// bytes freed. Throws [StateError] when the remote isn't known to hold
+  /// everything (unsynced changes, or a local-only notebook).
+  Future<int> evictLocalCopy(NotebookEntry entry) {
+    final id = entry.metadata.id;
+    return _ref.read(fileServiceProvider).evictLocalCopy(id);
+  }
+
+  /// Puts a notebook back in this device's care, without downloading it yet:
+  /// the next library sync (or opening it) brings the content down.
+  Future<void> keepOnDevice(NotebookEntry entry) async {
+    final id = entry.metadata.id;
+    await _ref.read(fileServiceProvider).setNotebookDownloadSkipped(id, false);
+  }
+
   /// Soft-deletes a notebook: moves it to the local trash and removes it from
   /// the remote server (when reachable). Can be undone via [restoreFromTrash].
   Future<String?> deleteNotebook(NotebookEntry entry) async {
-    final webdav = _ref.read(webdavServiceProvider);
+    final webdav = _ref.read(remoteStoreProvider);
     final fileService = _ref.read(fileServiceProvider);
     final thumbs = _ref.read(thumbnailServiceProvider);
 
@@ -846,7 +939,7 @@ class NotebookListNotifier
   /// background sync picks it up when offline.
   Future<void> updateNotebookTags(NotebookEntry entry, List<String> tags) async {
     final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(webdavServiceProvider);
+    final webdav = _ref.read(remoteStoreProvider);
     final fileService = _ref.read(fileServiceProvider);
 
     final localData = await fileService.readNotebookFile(entry.metadata.id);
@@ -923,7 +1016,7 @@ class NotebookListNotifier
   Future<void> updateNotebookCover(
       NotebookEntry entry, int newCoverColor) async {
     final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(webdavServiceProvider);
+    final webdav = _ref.read(remoteStoreProvider);
     final fileService = _ref.read(fileServiceProvider);
 
     final localData = await fileService.readNotebookFile(entry.metadata.id);
@@ -989,7 +1082,7 @@ class NotebookListNotifier
   /// Rinomina un notebook.
   Future<void> renameNotebook(NotebookEntry entry, String newTitle) async {
     final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(webdavServiceProvider);
+    final webdav = _ref.read(remoteStoreProvider);
     final fileService = _ref.read(fileServiceProvider);
 
     // Use the local copy instead of downloading from remote.
