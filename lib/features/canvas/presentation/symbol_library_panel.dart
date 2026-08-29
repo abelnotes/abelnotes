@@ -368,7 +368,21 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
                                     symbol: sym,
                                     preview: _previewCache[sym.id],
                                     onInsert: () {
-                                      ref.read(canvasProvider.notifier).setPendingSymbol(sym);
+                                      // Place it NOW, selected, where the user
+                                      // is looking — then they drag it home.
+                                      //
+                                      // This used to arm a pending "tap to
+                                      // place" mode instead, which cost an
+                                      // extra aimed tap for a position the
+                                      // drag re-decides anyway, and which the
+                                      // mouse could not satisfy at all: a left
+                                      // click on the canvas was swallowed by
+                                      // the marquee handler long before the
+                                      // placement check ran, so on desktop the
+                                      // banner appeared and nothing landed.
+                                      ref
+                                          .read(canvasProvider.notifier)
+                                          .insertSymbol(sym, widget.insertPos);
                                       widget.onClose();
                                     },
                                     onDelete: () => _deleteSymbol(selLib.id, sym.id),

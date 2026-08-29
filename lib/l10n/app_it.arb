@@ -1286,9 +1286,21 @@
   "setSyncInactiveNote": "Configurato, ma non in uso: la sincronizzazione va sull'altra destinazione.",
   "@setSyncInactiveNote": {},
   "libPendingUploadsDrive": "{count, plural, one{{count} quaderno ancora da caricare su Google Drive} other{{count} quaderni ancora da caricare su Google Drive}}",
-  "@libPendingUploadsDrive": {"placeholders": {"count": {"type": "int"}}},
+  "@libPendingUploadsDrive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "libPendingUploadsServer": "{count, plural, one{{count} quaderno ancora da caricare sul tuo server} other{{count} quaderni ancora da caricare sul tuo server}}",
-  "@libPendingUploadsServer": {"placeholders": {"count": {"type": "int"}}},
+  "@libPendingUploadsServer": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "libPendingUploadsHint": "Intanto restano su questo dispositivo. Lascia l'app aperta un momento.",
   "@libPendingUploadsHint": {},
   "libStorageFullDrive": "Il tuo Google Drive è pieno",
@@ -2161,5 +2173,7 @@
   "setOpenSourceLicensesSub": "Componenti di terze parti inclusi nell'app",
   "@setOpenSourceLicensesSub": {},
   "csBackToContent": "Torna al contenuto",
-  "@csBackToContent": {}
+  "@csBackToContent": {},
+  "setLanguageGerman": "Deutsch",
+  "setLanguageFrench": "Français"
 }

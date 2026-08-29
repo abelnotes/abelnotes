@@ -411,9 +411,21 @@
   "setSyncSwitchConfirm": "Move to Drive",
   "setSyncInactiveNote": "Configured, but not in use: sync is going to the other destination.",
   "libPendingUploadsDrive": "{count, plural, one{{count} notebook still to upload to Google Drive} other{{count} notebooks still to upload to Google Drive}}",
-  "@libPendingUploadsDrive": {"placeholders": {"count": {"type": "int"}}},
+  "@libPendingUploadsDrive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "libPendingUploadsServer": "{count, plural, one{{count} notebook still to upload to your server} other{{count} notebooks still to upload to your server}}",
-  "@libPendingUploadsServer": {"placeholders": {"count": {"type": "int"}}},
+  "@libPendingUploadsServer": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "libPendingUploadsHint": "They stay on this device meanwhile. Leave the app open a moment.",
   "@libPendingUploadsHint": {},
   "libStorageFullDrive": "Your Google Drive is full",
@@ -718,5 +730,7 @@
   "importSourceOneNoteHint": ".one section or .onetoc2 notebook",
   "setOpenSourceLicenses": "Open-source licenses",
   "setOpenSourceLicensesSub": "Third-party components bundled with the app",
-  "csBackToContent": "Back to content"
+  "csBackToContent": "Back to content",
+  "setLanguageGerman": "Deutsch",
+  "setLanguageFrench": "Français"
 }

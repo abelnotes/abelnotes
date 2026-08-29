@@ -17,10 +17,34 @@ class NoLocalCopyOfflineException implements Exception {
       'NoLocalCopyOfflineException: no local copy and not connected to a server';
 }
 
+/// True while an open is between "loader shown" and "CanvasScreen pushed".
+///
+/// Opening is slow enough to be tapped twice (loading + parsing, and on a
+/// fresh notebook the create that precedes it), and every extra tap used to
+/// push its own CanvasScreen. Two editors on the stack is how the user got
+/// trapped: back popped the top one, `closeNotebook()` nulled the shared
+/// canvasProvider, and the second editor underneath rebuilt into the
+/// "no notebook open" fallback with nothing left to open.
+bool _openInFlight = false;
+
 /// Opens a notebook: loads it (local first, server fallback), populates
 /// canvasProvider, then pushes the editor screen. Mirrors the legacy
 /// flow so the new UI inherits all the corruption-recovery logic.
 Future<void> openNotebookAndNavigate(
+  BuildContext context,
+  WidgetRef ref,
+  NotebookEntry entry,
+) async {
+  if (_openInFlight) return;
+  _openInFlight = true;
+  try {
+    await _openNotebookAndNavigate(context, ref, entry);
+  } finally {
+    _openInFlight = false;
+  }
+}
+
+Future<void> _openNotebookAndNavigate(
   BuildContext context,
   WidgetRef ref,
   NotebookEntry entry,

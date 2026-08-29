@@ -96,6 +96,8 @@ class AbelNotesApp extends ConsumerWidget {
         Locale('en'),
         Locale('it'),
         Locale('es'),
+        Locale('de'),
+        Locale('fr'),
       ],
       theme: buildHwThemeData(variant),
       home: HwThemeScope(

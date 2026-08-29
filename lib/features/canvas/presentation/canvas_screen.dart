@@ -49,6 +49,7 @@ import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
 import 'package:abelnotes/ui/editor/hw_editor_chrome.dart';
 import 'package:abelnotes/ui/primitives/sync_badge.dart';
+import 'package:abelnotes/ui/screens/library_screen.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
 
@@ -83,6 +84,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   bool _isSaving = false;
   Future<void>? _saveInFlight;
   bool _closing = false;
+  /// One-shot latch for the auto-pop in [build]'s no-notebook fallback, so a
+  /// second rebuild while the route is already animating out doesn't queue a
+  /// second pop (which would take the library with it).
+  bool _autoPopScheduled = false;
   bool _isTouchPanning = false;
 
   // Pinch-to-zoom state
@@ -2165,6 +2170,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       return;
     }
 
+    // Pending symbol placement via mouse LEFT click — the same hole the paste
+    // branch above plugs, and for the same reason: the marquee block below
+    // returns on every left click with a drawing/lasso tool armed, so the
+    // touch/pen placement check further down never ran on desktop. The
+    // "tocca per posizionare" banner appeared and the click did nothing.
+    // Nothing arms pendingSymbol today (the library places on tap instead),
+    // but leaving the path broken is how it silently breaks again.
+    if (event.kind == PointerDeviceKind.mouse &&
+        event.buttons == kPrimaryMouseButton &&
+        state.pendingSymbol != null) {
+      final pagePos = _toPageCoords(event.localPosition, state, canvasSize);
+      ref.read(canvasProvider.notifier).insertSymbol(state.pendingSymbol!, pagePos);
+      return;
+    }
+
     if (event.kind == PointerDeviceKind.mouse &&
         event.buttons == kPrimaryMouseButton &&
         !_linuxPenAsMouse(event) &&
@@ -2533,33 +2553,41 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           (event.kind == PointerDeviceKind.mouse && event.pressure > 0) ||
           _linuxPenAsMouse(event) ||
           (event.kind == PointerDeviceKind.touch && !_effectiveStylusOnly());
-      if (_isDrawLikeTool(tool) && isPenLikeDevice) {
+      // The lasso counts as "draw-like" everywhere else, but it is a
+      // SELECTION tool: a pen or finger landing on the current selection
+      // means "move this", never "deselect and mark here". Without the
+      // exclusion, a symbol dropped into selection mode (insertSymbol arms
+      // the lasso and selects the new element) deselected itself the instant
+      // it was touched, so it could be seen selected but never dragged.
+      // Mouse users never hit this — a pressure-less mouse isn't pen-like.
+      final drawsThrough = _isDrawLikeTool(tool) && tool != CanvasTool.lasso;
+      if (drawsThrough && isPenLikeDevice) {
         // Stylus/tablet pen in draw mode: deselect image and proceed to draw
         ref.read(canvasProvider.notifier).deselectElement();
       } else {
-        final isPlainMouseInDrawMode = _isDrawLikeTool(tool) && !isPenLikeDevice;
-        if (!_isDrawLikeTool(tool) || isPlainMouseInDrawMode) {
-          final selBounds = _getSelectedElementBounds(state);
-          // Expand bounds to include action bar/handles above
-          final scale = state.zoom * _getRenderScale(state, canvasSize);
-          final topPad = 100.0 / scale;
-          final sidePad = 20.0 / scale;
-          final extended = selBounds == null ? null : Rect.fromLTRB(
-            selBounds.left - sidePad,
-            selBounds.top - topPad,
-            selBounds.right + sidePad,
-            selBounds.bottom + sidePad,
-          );
-          if (extended != null && extended.contains(pagePos)) {
-            // Let ImageHandleOverlay or selection tool handle this interaction
-            return;
-          }
-          // Tapped outside selection — deselect. Return so a plain-mouse
-          // deselect click doesn't fall through and start a 1-point stroke
-          // (the stray "black dot on deselect" the user reported).
-          ref.read(canvasProvider.notifier).deselectElement();
+        final selBounds = _getSelectedElementBounds(state);
+        // Expand bounds to include action bar/handles above
+        final scale = state.zoom * _getRenderScale(state, canvasSize);
+        final topPad = 100.0 / scale;
+        final sidePad = 20.0 / scale;
+        final extended = selBounds == null ? null : Rect.fromLTRB(
+          selBounds.left - sidePad,
+          selBounds.top - topPad,
+          selBounds.right + sidePad,
+          selBounds.bottom + sidePad,
+        );
+        if (extended != null && extended.contains(pagePos)) {
+          // Let ImageHandleOverlay or selection tool handle this interaction
           return;
         }
+        // Tapped outside selection — deselect. Return so a plain-mouse
+        // deselect click doesn't fall through and start a 1-point stroke
+        // (the stray "black dot on deselect" the user reported)...
+        ref.read(canvasProvider.notifier).deselectElement();
+        // ...except for the lasso, which must still open a fresh marquee
+        // from this point: returning here would make the first drag after
+        // a deselect do nothing at all.
+        if (tool != CanvasTool.lasso) return;
       }
     }
 
@@ -3539,6 +3567,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         alignment: result.alignment,
       );
     }
+
+    // Confirming a text box ends the text gesture: fall back to pan.
+    //
+    // Staying armed meant the very next tap — to scroll, to look at what was
+    // just written, to reach a control — reopened the editor on an empty box.
+    // Writing two boxes in a row is the rare case and costs one dock tap;
+    // pan is the neutral state that can't do anything destructive. (Restoring
+    // the tool used *before* text was the alternative, but dropping the user
+    // back into a pen after they finish typing invites accidental marks.)
+    notifier.setTool(CanvasTool.pan);
   }
 
   // ── Clipboard paste (system image or internal) ──
@@ -4263,7 +4301,60 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
 
     if (canvasState == null) {
-      return Scaffold(body: Center(child: Text(AppLocalizations.of(context).csNoNotebookOpen)));
+      // A null canvasProvider means the notebook is closed, so this editor has
+      // nothing left to edit — leave rather than sit here. This used to be a
+      // bare Scaffold with one line of text: no app bar, no PopScope (that is
+      // built further down, past this early return), so on desktop and on any
+      // gesture-less shell the user was stuck here until they killed the app.
+      // `_closing` is the crucial exclusion: on the ordinary way out,
+      // _onWillPop has ALREADY popped this route and closeNotebook() nulls the
+      // state a moment later, so these frames are the exit animation. Popping
+      // again there would take the library down with us.
+      if (!_closing && !_autoPopScheduled) {
+        _autoPopScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          // Second belt: only the route the user is actually looking at may
+          // pop itself. A route already mid-pop is no longer `isCurrent`.
+          if (ModalRoute.of(context)?.isCurrent != true) return;
+          final navigator = Navigator.of(context);
+          if (navigator.canPop()) navigator.pop();
+        });
+      }
+      final p = HwThemeScope.of(context);
+      return Scaffold(
+        backgroundColor: p.paper1,
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(AppLocalizations.of(context).csNoNotebookOpen,
+                  style: TextStyle(color: p.ink2)),
+              const SizedBox(height: 16),
+              // Safety net for the case the auto-pop can't fire — this route
+              // being the only one on the stack. Rebuilding the library is
+              // still an exit; being trapped is not. Hidden while `_closing`,
+              // where this is just the last frames of an exit already underway
+              // and popping again would land on an empty stack.
+              if (!_closing)
+                FilledButton(
+                  onPressed: () {
+                    final navigator = Navigator.of(context);
+                    if (navigator.canPop()) {
+                      navigator.pop();
+                    } else {
+                      navigator.pushReplacement(MaterialPageRoute(
+                        builder: (_) => const LibraryScreenV2(),
+                      ));
+                    }
+                  },
+                  child: Text(
+                      AppLocalizations.of(context).chromeBackToLibraryTooltip),
+                ),
+            ],
+          ),
+        ),
+      );
     }
     final currentPage = canvasState.currentPage;
     if (currentPage == null) {

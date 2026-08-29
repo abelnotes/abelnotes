@@ -2621,4 +2621,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get csBackToContent => 'Volver al contenido';
+
+  @override
+  String get setLanguageGerman => 'Deutsch';
+
+  @override
+  String get setLanguageFrench => 'Français';
 }

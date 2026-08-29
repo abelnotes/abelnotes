@@ -126,6 +126,13 @@ class NotebookListNotifier
   Future<void> refresh({bool showProgress = true}) async {
     final fileService = _ref.read(fileServiceProvider);
 
+    // The symbol library rides along with the library refresh — which runs at
+    // launch and on pull-to-refresh — instead of owning a timer of its own.
+    // Costs one version check when nothing changed, and means the symbols are
+    // already there by the time the user opens a notebook. Unawaited: the
+    // notebook list must never wait on it.
+    unawaited(_ref.read(symbolLibraryServiceProvider).reconcile());
+
     // ── Step 1: Show cached notebooks instantly from local DB ──
     await _loadFromLocalDb(fileService);
 
@@ -782,7 +789,6 @@ class NotebookListNotifier
         '${AppConfig.defaultRemotePath}${safeName}_$notebookId${AppConfig.storageExtension}';
 
     // Always save locally first
-    bool isLocal = true;
     if (syncService != null) {
       final package = syncService.createNcnotePackage(
         metadata: metadata,
@@ -802,26 +808,51 @@ class NotebookListNotifier
         createdAt: now,
       );
 
-      // Try uploading to server
-      try {
-        await syncService.uploadNotebook(
-          remotePath: remotePath,
-          metadata: metadata,
-          document: document,
-          pages: {'page_001.json': pageData},
-        );
-        await fileService.markNotebookSynced(notebookId, null);
-        isLocal = false;
-      } catch (e) {
-        debugPrint('[Library] Created notebook locally, sync deferred: $e');
-      }
+      // Upload in the BACKGROUND — never on the path to the editor.
+      //
+      // This used to be awaited, so "new notebook"/"new sketch" sat on a
+      // frozen library for as long as the first PUT took: ~2 s on a normal
+      // connection, the full socket timeout on a flaky one, for a notebook
+      // that is already safely on disk. Offline-first means the local write
+      // above is the commit; the remote copy is catch-up work. The row stays
+      // `modified` until the upload lands, which is what the pending-upload
+      // badge is for, and a failure is just the next sync's job.
+      unawaited(() async {
+        try {
+          await syncService.uploadNotebook(
+            remotePath: remotePath,
+            metadata: metadata,
+            document: document,
+            pages: {'page_001.json': pageData},
+          );
+          await fileService.markNotebookSynced(notebookId, null);
+          // Flip the card's "local only" badge off without a full refetch.
+          final list = mounted ? state.valueOrNull : null;
+          if (list != null) {
+            state = AsyncValue.data([
+              for (final e in list)
+                if (e.metadata.id == notebookId)
+                  NotebookEntry(
+                    metadata: e.metadata,
+                    remotePath: e.remotePath,
+                    lastSynced: DateTime.now(),
+                    isLocal: false,
+                  )
+                else
+                  e,
+            ]);
+          }
+        } catch (e) {
+          debugPrint('[Library] Created notebook locally, sync deferred: $e');
+        }
+      }());
     }
 
     final entry = NotebookEntry(
       metadata: metadata,
       remotePath: remotePath,
-      lastSynced: isLocal ? null : DateTime.now(),
-      isLocal: isLocal,
+      lastSynced: null,
+      isLocal: true,
     );
 
     // Aggiungi alla lista

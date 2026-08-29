@@ -13,6 +13,7 @@ import 'package:abelnotes/core/providers/cross_notebook_clipboard_provider.dart'
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
+import 'package:abelnotes/core/services/symbol_library_service.dart';
 import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
@@ -1201,18 +1202,34 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // unique key into the pages map.
     final repaired = CanvasNotifier._repairDuplicateFileNames(document, pages);
 
+    // Fold whatever symbols this notebook carries into the device-wide
+    // library. That covers the collection a user had before the library was
+    // shared, and a symbol made on another device that arrived inside this
+    // notebook. Awaited: the symbol panel must never open on a library that
+    // is still loading.
+    final mergedSymbols = await _symbols.merge(
+      SymbolCollection(libraries: symbolLibraries ?? const []),
+    );
+    _deletedSymbolIds = {...mergedSymbols.deletedSymbolIds};
+    _deletedLibraryIds = {...mergedSymbols.deletedLibraryIds};
+
     state = CanvasState(
       metadata: metadata,
       document: repaired.document,
       pages: Map.of(repaired.pages),
       remotePath: remotePath,
       assetBytes: assets != null ? Map.of(assets) : const {},
-      symbolLibraries: symbolLibraries ?? const [],
+      symbolLibraries: mergedSymbols.libraries,
       activeChapterId: restoredChapterId,
       currentPageIndex: startPageIndex,
       zoom: initialZoom,
       panOffset: initialPan,
     );
+
+    // Catch up with the other devices in the background. Deliberately not
+    // awaited and deliberately NOT marking the notebook dirty: opening a
+    // notebook must neither wait on the network nor schedule a save.
+    unawaited(_symbols.reconcile());
 
     // Initialize delta sync tracking
     _disposed = false;
@@ -5226,13 +5243,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   // ── Text ──
 
-  /// Measure the laid-out height of a text block so new/edited elements
-  /// fit their content instead of clipping at the legacy fixed 50 px.
-  static double _measureTextHeight(
+  /// How far a new text box lets its content run before wrapping. Doubles as
+  /// the legacy fixed box width — every text element used to be born exactly
+  /// this wide regardless of what it held.
+  static const double _kTextWrapWidth = 300;
+
+  /// The styled runs of a text block, shared by the width/height measures
+  /// so the two can never lay the same content out differently.
+  static TextSpan _textSpanFor(
     String content,
     List<TextSpanData> spans,
     double baseFontSize,
-    double width,
   ) {
     final children = <TextSpan>[];
     if (spans.isEmpty) {
@@ -5251,8 +5272,19 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         ));
       }
     }
+    return TextSpan(children: children);
+  }
+
+  /// Measure the laid-out height of a text block so new/edited elements
+  /// fit their content instead of clipping at the legacy fixed 50 px.
+  static double _measureTextHeight(
+    String content,
+    List<TextSpanData> spans,
+    double baseFontSize,
+    double width,
+  ) {
     final tp = TextPainter(
-      text: TextSpan(children: children),
+      text: _textSpanFor(content, spans, baseFontSize),
       textDirection: TextDirection.ltr,
       maxLines: null,
     )..layout(maxWidth: width);
@@ -5261,6 +5293,46 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     return h.clamp(30.0, 2000.0);
   }
 
+  /// Width that actually hugs the text: the longest laid-out line, once the
+  /// content has wrapped at [maxWidth].
+  ///
+  /// New text boxes used to be born [kTextBoxMaxWidth] wide whatever they
+  /// held, so a one-word note carried a selection frame half the page across
+  /// — handles and action bar floating far from the glyphs they belong to.
+  /// Laying out at [maxWidth] first and taking the longest line keeps the line
+  /// breaks the wrap width produced (a line that fitted in [maxWidth] still
+  /// fits in the longest line), so this narrows the frame without ever
+  /// reflowing the text.
+  static double _measureTextWidth(
+    String content,
+    List<TextSpanData> spans,
+    double baseFontSize,
+    double maxWidth,
+  ) {
+    final tp = TextPainter(
+      text: _textSpanFor(content, spans, baseFontSize),
+      textDirection: TextDirection.ltr,
+      maxLines: null,
+    )..layout(maxWidth: maxWidth);
+    // TextPainter.width reports the CONSTRAINT it laid out against, not the
+    // ink — it would hand back maxWidth and fit nothing. The per-line metrics
+    // are the real extents.
+    final lines = tp.computeLineMetrics();
+    final longest = lines.isEmpty
+        ? tp.width
+        : lines.map((m) => m.width).reduce(max);
+    // Same breathing room the height gets: guards the last glyph, italic
+    // overhang, and the sub-pixel rounding of re-laying out at this width.
+    final w = longest + 8;
+    tp.dispose();
+    return w.clamp(40.0, maxWidth);
+  }
+
+  /// [width] is the WRAP width — how far the text may run before breaking,
+  /// not the width of the resulting box. The box is then fitted to the
+  /// longest line it actually produced, so a short note gets a frame around
+  /// its own glyphs instead of one stretching to the wrap limit. Drag the
+  /// side handles afterwards to widen it back out.
   void addTextElement(
     Offset position,
     String content, {
@@ -5268,7 +5340,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     List<TextSpanData> spans = const [],
     int? color,
     String alignment = 'left',
-    double width = 300,
+    double width = _kTextWrapWidth,
   }) {
     if (state == null) return;
     final s = state!;
@@ -5277,13 +5349,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final fileName = s.currentPageFileName;
     final undoStack = _pushUndo(s, fileName, page);
 
+    final fittedWidth = _measureTextWidth(content, spans, fontSize, width);
+
     final newElement = ContentElement.text(
       id: const Uuid().v4(),
       zIndex: _nextZIndex(page),
       data: TextData(
         x: position.dx, y: position.dy,
-        width: width,
-        height: _measureTextHeight(content, spans, fontSize, width),
+        width: fittedWidth,
+        height: _measureTextHeight(content, spans, fontSize, fittedWidth),
         content: content,
         spans: spans,
         fontSize: fontSize,
@@ -5444,6 +5518,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final old = page.layers.content[idx] as TextElement;
 
     final undoStack = _pushUndo(s, fileName, page);
+
+    // Does this box still have the width we gave it, or one the user set?
+    // Compare against what its OLD content measured to: if they agree the box
+    // is still auto-fitted and follows the new content. Any other width —
+    // dragged wider OR narrower — is a deliberate wrap setting and becomes
+    // the wrap limit instead of being overwritten.
+    //
+    // A box sitting at exactly [_kTextWrapWidth] also counts as auto: that is
+    // the fixed width every box was born with before they were fitted, so
+    // editing an old note is what finally trims its oversized frame.
+    final oldFitted = _measureTextWidth(
+        old.data.content, old.data.spans, old.data.fontSize, _kTextWrapWidth);
+    final isAutoWidth = (old.data.width - oldFitted).abs() <= 1.0 ||
+        (old.data.width - _kTextWrapWidth).abs() <= 0.5;
+    final newWidth = isAutoWidth
+        ? _measureTextWidth(content, spans, fontSize, _kTextWrapWidth)
+        : old.data.width;
+
     final newData = old.data.copyWith(
       content: content,
       spans: spans,
@@ -5454,12 +5546,18 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // editor baked them into spans on load, so clear them here.
       bold: false,
       italic: false,
+      // Auto-fit the box to the new content, but keep a width the user had
+      // widened past its content — that width is a deliberate wrap setting,
+      // and re-hugging it on every edit would undo their layout. Same test
+      // the height uses below: a box still sitting at its own measured size
+      // was never resized by hand, so it is ours to re-fit.
+      width: newWidth,
       // Auto-fit the box to the new content, but keep a height the user had
       // previously extended past the content (a fixed/taller frame) so editing
       // text doesn't collapse it back to hugging the text.
       height: () {
         final measured =
-            _measureTextHeight(content, spans, fontSize, old.data.width);
+            _measureTextHeight(content, spans, fontSize, newWidth);
         final oldMeasured = _measureTextHeight(
             old.data.content, old.data.spans, old.data.fontSize, old.data.width);
         final wasExtended = old.data.height > oldMeasured + 1.0;
@@ -6975,12 +7073,50 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   // ── Reusable Symbols & Libraries ──
+  //
+  // The library is DEVICE-WIDE, not per notebook: a symbol saved while
+  // writing in one notebook has to be there when you open the next one.
+  // It lives in FileService.globalSymbolsPath, and `state.symbolLibraries`
+  // is the in-memory view of it.
+  //
+  // Each notebook still carries its own `symbols.json`, because that is what
+  // travels to the server and into an exported .abelnote. On open the two are
+  // merged, which is also how a symbol made on another device arrives here,
+  // and how the symbols that existed before this was device-wide are kept.
+
+  /// Ids the user has deleted, mirrored from the shared library so the
+  /// mutators below can add to them. The service owns the durable copy.
+  Set<String> _deletedSymbolIds = {};
+  Set<String> _deletedLibraryIds = {};
+
+  SymbolLibraryService get _symbols =>
+      _ref.read(symbolLibraryServiceProvider);
+
+  /// The live libraries plus the tombstones, as one value to hand the service.
+  SymbolCollection _symbolCollection() => SymbolCollection(
+        libraries: state?.symbolLibraries ?? const [],
+        deletedSymbolIds: _deletedSymbolIds,
+        deletedLibraryIds: _deletedLibraryIds,
+      );
+
+  /// Persist a symbol change to the shared library and let the other devices
+  /// know. Fire-and-forget: saving a symbol must feel instant, and both the
+  /// disk write and the upload are safe to lose — the next change or the next
+  /// library refresh redoes them.
+  void _publishSymbols() {
+    final collection = _symbolCollection();
+    unawaited(() async {
+      await _symbols.save(collection);
+      await _symbols.reconcile();
+    }());
+  }
 
   /// Returns the first library, or creates a default one if none exists.
   SymbolLibrary _defaultLibrary() {
     if (state!.symbolLibraries.isEmpty) {
       final lib = SymbolLibrary(id: const Uuid().v4(), name: 'Simboli');
-      state = state!.copyWith(symbolLibraries: [lib]);
+      state = state!.copyWith(symbolLibraries: [lib], isDirty: true);
+      _publishSymbols();
       return lib;
     }
     return state!.symbolLibraries.first;
@@ -6989,21 +7125,34 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   void createSymbolLibrary(String name) {
     if (state == null) return;
     final lib = SymbolLibrary(id: const Uuid().v4(), name: name);
-    state = state!.copyWith(symbolLibraries: [...state!.symbolLibraries, lib]);
+    state = state!.copyWith(
+        symbolLibraries: [...state!.symbolLibraries, lib], isDirty: true);
+    _publishSymbols();
   }
 
   void renameSymbolLibrary(String libId, String newName) {
     if (state == null) return;
     state = state!.copyWith(
       symbolLibraries: state!.symbolLibraries.map((l) => l.id == libId ? l.copyWith(name: newName) : l).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   void deleteSymbolLibrary(String libId) {
     if (state == null) return;
+    // Tombstone the symbols too, not just the library: another notebook may
+    // carry them under a library id that survives, and the merge on open
+    // would put them back.
+    for (final l in state!.symbolLibraries.where((l) => l.id == libId)) {
+      _deletedSymbolIds.addAll(l.symbols.map((sym) => sym.id));
+    }
+    _deletedLibraryIds.add(libId);
     state = state!.copyWith(
       symbolLibraries: state!.symbolLibraries.where((l) => l.id != libId).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   void renameSymbol(String libId, String symbolId, String newName) {
@@ -7015,17 +7164,22 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             ? ReusableSymbol(id: s.id, name: newName, elements: s.elements, bounds: s.bounds, createdAt: s.createdAt)
             : s).toList());
       }).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   void deleteSymbolFromLibrary(String libId, String symbolId) {
     if (state == null) return;
+    _deletedSymbolIds.add(symbolId);
     state = state!.copyWith(
       symbolLibraries: state!.symbolLibraries.map((l) {
         if (l.id != libId) return l;
         return l.copyWith(symbols: l.symbols.where((s) => s.id != symbolId).toList());
       }).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   /// Creates a symbol from the current lasso selection and adds it to the
@@ -7060,7 +7214,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         if (l.id != targetId) return l;
         return l.copyWith(symbols: [...l.symbols, symbol]);
       }).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   void createSymbolFromElement(String elementId, String name) {
@@ -7092,17 +7248,22 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         if (l.id != targetId) return l;
         return l.copyWith(symbols: [...l.symbols, symbol]);
       }).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   // Legacy: keep for backward compatibility
   void deleteSymbol(String symbolId) {
     if (state == null) return;
+    _deletedSymbolIds.add(symbolId);
     state = state!.copyWith(
       symbolLibraries: state!.symbolLibraries.map((l) =>
           l.copyWith(symbols: l.symbols.where((s) => s.id != symbolId).toList())
       ).toList(),
+      isDirty: true,
     );
+    _publishSymbols();
   }
 
   void setPendingSymbol(ReusableSymbol symbol) {
@@ -11316,3 +11477,4 @@ TransferableTypedData _buildPackageInIsolate(_PackageParams p) {
   // Transfer ownership back to the caller (no copy on the receiving isolate).
   return TransferableTypedData.fromList([bytes]);
 }
+

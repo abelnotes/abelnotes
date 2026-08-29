@@ -1,6 +1,6 @@
 name: abelnotes
 description: Handwritten notes with LaTeX, PDF annotation, and WebDAV sync to your own server.
-version: 0.37.4+53
+version: 0.37.4+54
 publish_to: 'none'
 
 environment:
@@ -176,7 +176,7 @@ msix_config:
   # Must track main.dart's supportedLocales. Left unset the packager declares
   # en-us alone, and the Store then advertises an English-only app whose UI is
   # in fact fully translated.
-  languages: en-us, it-it, es-es
+  languages: en-us, it-it, es-es, de-de, fr-fr
   # internetClient: WebDAV sync. privateNetworkClientServer: a self-hosted
   # Nextcloud on the LAN, which is the common setup for this app.
   capabilities: internetClient, privateNetworkClientServer

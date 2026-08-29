@@ -398,6 +398,51 @@ class _HwIconPainter extends CustomPainter {
       case 'home':
         p('M3 10l7-6 7 6v6a1 1 0 0 1-1 1h-3v-5H7v5H4a1 1 0 0 1-1-1z');
         break;
+
+      // ── Import-source marks ────────────────────────────────────────────
+      //
+      // Deliberately OUR OWN drawings, not the vendors' logos. Shipping the
+      // real OneNote / Obsidian / Notion marks would put third-party
+      // trademarks in the binary: Microsoft's brand guidelines forbid reusing
+      // their product icons outright, and both app stores reject bundled
+      // third-party logos without a licence. Naming the product in the row's
+      // label is nominative use and is fine — the picture next to it has to
+      // be ours. Each glyph evokes the format instead of copying the mark:
+      // a bound notebook, a crystal, a stack of blocks, a tabbed binder.
+
+      // AbelNotes' own .abelnote archive: bound notebook, ribbon marker.
+      case 'src-abelnote':
+        canvas.drawRRect(
+            RRect.fromLTRBR(4, 3, 16, 17, const Radius.circular(1.5)), stroke);
+        p('M7 3v14');
+        p('M10.5 3v7l1.75-1.4 1.75 1.4V3');
+        break;
+      // Obsidian vault: a cut gemstone (the mineral, not their mark).
+      case 'src-obsidian':
+        p('M4 7.5l3-4.5h6l3 4.5-6 9.5z');
+        p('M4 7.5h12');
+        p('M7.2 7.5L10 17');
+        p('M12.8 7.5L10 17');
+        break;
+      // Notion export: the block stack the format is actually made of.
+      case 'src-notion':
+        canvas.drawRRect(
+            RRect.fromLTRBR(3, 3.5, 17, 8, const Radius.circular(1.5)), stroke);
+        canvas.drawRRect(
+            RRect.fromLTRBR(3, 10, 17, 16.5, const Radius.circular(1.5)), stroke);
+        p('M6 13h8');
+        break;
+      // OneNote package: a binder with section tabs down its edge.
+      case 'src-onenote':
+        canvas.drawRRect(
+            RRect.fromLTRBR(3.5, 3, 14, 17, const Radius.circular(1.5)), stroke);
+        p('M14 5.5h2.5');
+        p('M14 9.5h2.5');
+        p('M14 13.5h2.5');
+        p('M6.5 7h5');
+        p('M6.5 10.5h5');
+        break;
+
       default:
         circle(10, 10, 6);
     }

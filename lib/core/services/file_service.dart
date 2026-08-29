@@ -321,6 +321,33 @@ class FileService {
   String notebookStoreDir(String notebookId) =>
       p.join(_notebooksDir, notebookId);
 
+  /// The device-wide symbol library, shared by every notebook.
+  ///
+  /// Symbols used to live only inside each notebook's loose store, so one
+  /// saved in notebook A simply did not exist in notebook B. This file is the
+  /// library of record; the per-notebook `symbols.json` stays written as the
+  /// carrier that takes symbols to the server and into exported `.abelnote`
+  /// files, and is merged back in on open.
+  String get globalSymbolsPath => p.join(_basePath, 'symbols.json');
+
+  /// Raw bytes of the shared library, or null when none has been written yet
+  /// (fresh install, or a user who has never saved a symbol).
+  Future<Uint8List?> readGlobalSymbols() async {
+    try {
+      final f = File(globalSymbolsPath);
+      if (!await f.exists()) return null;
+      return await f.readAsBytes();
+    } catch (e) {
+      debugPrint('[FileService] global symbols read failed: $e');
+      return null;
+    }
+  }
+
+  /// Atomic so a crash mid-write can never leave a truncated library — the
+  /// user's whole symbol collection is in this one file.
+  Future<void> writeGlobalSymbols(List<int> data) =>
+      _writeStoreFileAtomic(globalSymbolsPath, data);
+
   /// True when the incremental loose store exists for [notebookId].
   Future<bool> hasLooseStore(String notebookId) =>
       Directory(notebookStoreDir(notebookId)).exists();
