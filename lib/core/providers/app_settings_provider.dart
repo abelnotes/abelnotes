@@ -150,7 +150,8 @@ class AppSettings {
   final bool showPageStrip;
 
   /// UI language override: 'system' (default) follows the OS locale;
-  /// otherwise a supported language code ('it' / 'en' / 'es').
+  /// otherwise a supported language code — keep in sync with
+  /// MaterialApp's supportedLocales in main.dart.
   final String localeCode;
 
   /// The [Locale] to force on MaterialApp, or null to follow the system.

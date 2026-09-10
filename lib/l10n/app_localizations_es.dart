@@ -2634,4 +2634,10 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get setLanguageFrench => 'Français';
+
+  @override
+  String get setLanguagePortuguese => 'Português';
+
+  @override
+  String get setLanguageChinese => '中文';
 }

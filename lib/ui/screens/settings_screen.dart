@@ -525,6 +525,10 @@ class _GeneralSection extends ConsumerWidget {
         return l10n.setLanguageGerman;
       case 'fr':
         return l10n.setLanguageFrench;
+      case 'pt':
+        return l10n.setLanguagePortuguese;
+      case 'zh':
+        return l10n.setLanguageChinese;
       default:
         return l10n.setLanguageSystem;
     }
@@ -543,6 +547,8 @@ class _GeneralSection extends ConsumerWidget {
       ('es', l10n.setLanguageSpanish),
       ('de', l10n.setLanguageGerman),
       ('fr', l10n.setLanguageFrench),
+      ('pt', l10n.setLanguagePortuguese),
+      ('zh', l10n.setLanguageChinese),
     ];
     final picked = await showModalBottomSheet<String>(
       context: context,

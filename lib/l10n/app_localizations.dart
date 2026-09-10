@@ -10,6 +10,8 @@ import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
 import 'app_localizations_it.dart';
+import 'app_localizations_pt.dart';
+import 'app_localizations_zh.dart';
 
 // ignore_for_file: type=lint
 
@@ -101,7 +103,9 @@ abstract class AppLocalizations {
     Locale('en'),
     Locale('es'),
     Locale('fr'),
-    Locale('it')
+    Locale('it'),
+    Locale('pt'),
+    Locale('zh')
   ];
 
   /// No description provided for @csPdfTextCopied.
@@ -4381,6 +4385,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Français'**
   String get setLanguageFrench;
+
+  /// No description provided for @setLanguagePortuguese.
+  ///
+  /// In it, this message translates to:
+  /// **'Português'**
+  String get setLanguagePortuguese;
+
+  /// No description provided for @setLanguageChinese.
+  ///
+  /// In it, this message translates to:
+  /// **'中文'**
+  String get setLanguageChinese;
 }
 
 class _AppLocalizationsDelegate
@@ -4393,8 +4409,15 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  bool isSupported(Locale locale) =>
-      <String>['de', 'en', 'es', 'fr', 'it'].contains(locale.languageCode);
+  bool isSupported(Locale locale) => <String>[
+        'de',
+        'en',
+        'es',
+        'fr',
+        'it',
+        'pt',
+        'zh'
+      ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -4413,6 +4436,10 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsFr();
     case 'it':
       return AppLocalizationsIt();
+    case 'pt':
+      return AppLocalizationsPt();
+    case 'zh':
+      return AppLocalizationsZh();
   }
 
   throw FlutterError(

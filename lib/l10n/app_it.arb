@@ -2179,5 +2179,9 @@
   "csBackToContent": "Torna al contenuto",
   "@csBackToContent": {},
   "setLanguageGerman": "Deutsch",
-  "setLanguageFrench": "Français"
+  "setLanguageFrench": "Français",
+  "setLanguagePortuguese": "Português",
+  "@setLanguagePortuguese": {},
+  "setLanguageChinese": "中文",
+  "@setLanguageChinese": {}
 }

@@ -734,5 +734,7 @@
   "setOpenSourceLicensesSub": "In der App enthaltene Komponenten von Dritten",
   "csBackToContent": "Zurück zum Inhalt",
   "setLanguageGerman": "Deutsch",
-  "setLanguageFrench": "Français"
+  "setLanguageFrench": "Français",
+  "setLanguagePortuguese": "Português",
+  "setLanguageChinese": "中文"
 }
