@@ -64,6 +64,13 @@ echo "→ Staging bundle"
 cp -r "${BUNDLE}/abelnotes" "${BUNDLE}/lib" "${BUNDLE}/data" "${STAGE}/usr/lib/abelnotes/"
 ln -sf "/usr/lib/abelnotes/abelnotes" "${STAGE}/usr/bin/abelnotes"
 
+# Flutter links every plugin .so against the absolute path of
+# linux/flutter/ephemeral, which does not exist on a user's machine and names
+# the build machine's home directory. Everything sits in lib/ here, so $ORIGIN
+# is both correct and anonymous.
+echo "→ Rewriting plugin runpaths"
+"${PROJECT_ROOT}/tool/strip_build_rpath.py" "${STAGE}/usr/lib/abelnotes/lib"
+
 echo "→ Icons"
 cp "${PROJECT_ROOT}/web/icons/Icon-512.png" \
    "${STAGE}/usr/share/icons/hicolor/512x512/apps/abelnotes.png"
