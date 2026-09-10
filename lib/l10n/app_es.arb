@@ -432,6 +432,8 @@
   "libStorageFullServer": "Tu servidor se ha quedado sin espacio",
   "libStorageFullBody": "Los cuadernos siguen a salvo en este dispositivo, pero no pueden subirse hasta que liberes espacio. El espacio de Google Drive se comparte con Gmail y Fotos.",
   "libStorageFullBodyServer": "Los cuadernos siguen a salvo en este dispositivo, pero no pueden subirse hasta que se libere espacio en el servidor.",
+  "libLocalOnlyTitle": "Solo en este dispositivo",
+  "libLocalOnlyBody": "Tus cuadernos se quedan en este dispositivo. Conecta tu servidor o Google Drive para tenerlos en todas partes: puedes hacerlo cuando quieras.",
   "libKeepOnDevice": "Mantener solo en este dispositivo",
   "libResumeSync": "Volver a sincronizar este cuaderno",
   "libLocalOnlyBadge": "Solo aquí",

@@ -872,6 +872,9 @@ class _SyncSection extends ConsumerWidget {
     // to onboarding (the user still has their local notebooks).
     await ref.read(credentialsProvider.notifier).logout();
     await ref.read(localModeProvider.notifier).enable();
+    // Back to local-only by choice: let the library's reminder appear again,
+    // even if it was dismissed during an earlier local-only stretch.
+    await ref.read(localOnlyNoticeDismissedProvider.notifier).reset();
   }
 }
 

@@ -1583,6 +1583,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non viene liberato spazio sul server.';
 
   @override
+  String get libLocalOnlyTitle => 'Solo su questo dispositivo';
+
+  @override
+  String get libLocalOnlyBody =>
+      'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi — puoi farlo quando vuoi.';
+
+  @override
   String get libKeepOnDevice => 'Tieni solo su questo dispositivo';
 
   @override

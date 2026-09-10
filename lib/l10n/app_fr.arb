@@ -432,6 +432,8 @@
   "libStorageFullServer": "Votre serveur n'a plus d'espace",
   "libStorageFullBody": "Les carnets restent en sécurité sur cet appareil, mais ne peuvent pas être envoyés tant que vous ne libérez pas d'espace. Google Drive partage son espace avec Gmail et Photos.",
   "libStorageFullBodyServer": "Les carnets restent en sécurité sur cet appareil, mais ne peuvent pas être envoyés tant que de l'espace n'est pas libéré sur le serveur.",
+  "libLocalOnlyTitle": "Sur cet appareil uniquement",
+  "libLocalOnlyBody": "Vos carnets restent sur cet appareil. Connectez votre serveur ou Google Drive pour les retrouver partout — vous pouvez le faire à tout moment.",
   "libKeepOnDevice": "Garder uniquement sur cet appareil",
   "libResumeSync": "Synchroniser à nouveau ce carnet",
   "libLocalOnlyBadge": "Ici uniquement",

@@ -1587,6 +1587,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les carnets restent en sécurité sur cet appareil, mais ne peuvent pas être envoyés tant que de l\'espace n\'est pas libéré sur le serveur.';
 
   @override
+  String get libLocalOnlyTitle => 'Sur cet appareil uniquement';
+
+  @override
+  String get libLocalOnlyBody =>
+      'Vos carnets restent sur cet appareil. Connectez votre serveur ou Google Drive pour les retrouver partout — vous pouvez le faire à tout moment.';
+
+  @override
   String get libKeepOnDevice => 'Garder uniquement sur cet appareil';
 
   @override

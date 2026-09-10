@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/core/providers/app_mode_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
@@ -16,6 +17,7 @@ import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'dart:io';
 
+import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/features/import/data/import_models.dart';
 import 'package:abelnotes/features/import/data/import_service.dart';
 import 'package:abelnotes/features/import/data/notion_importer.dart';
@@ -228,6 +230,11 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
             // it. After switching remotes there can be a dozen of them at
             // once, and "did my old notebooks make it across?" deserves a
             // sentence, not an icon.
+            // Onboarding asks once whether to sync; picking "start without
+            // sync" left nothing on screen saying so. With notebooks in a
+            // shared folder (a flatpak reinstall, a restored home directory)
+            // the library looks fully populated while uploading nowhere.
+            const _LocalOnlyNotice(),
             _StorageFullNotice(notifier: notebookNotifier),
             _PendingUploadsNotice(entries: notebooks),
             Expanded(
@@ -2502,6 +2509,88 @@ class _FooterBar extends StatelessWidget {
 
 /// Slim progress banner shown while a background sync with the server is
 /// running. Returns [SizedBox.shrink] when idle so it costs no layout space.
+/// Local-only reminder: no server, no Drive, nothing leaving the device.
+///
+/// Deliberately quiet and dismissible — the choice was already offered at
+/// onboarding and saying "no" there has to keep working. This only makes the
+/// state visible, and puts the same Connect action as Settings one tap away.
+class _LocalOnlyNotice extends ConsumerWidget {
+  const _LocalOnlyNotice();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Credentials outlive the active backend, so check both: a saved server
+    // with sync pointed elsewhere is not "local only".
+    if (ref.watch(credentialsProvider) != null) return const SizedBox.shrink();
+    if (ref.watch(remoteStoreProvider) != null) return const SizedBox.shrink();
+    if (ref.watch(localOnlyNoticeDismissedProvider)) {
+      return const SizedBox.shrink();
+    }
+
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(builder: (ctx, c) {
+      final compact = c.maxWidth < 600;
+      final text = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l10n.libLocalOnlyTitle,
+              style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600, color: p.ink0)),
+          const SizedBox(height: 2),
+          Text(l10n.libLocalOnlyBody,
+              style: TextStyle(fontSize: 12, color: p.ink2, height: 1.4)),
+        ],
+      );
+      final connect = HwButton(
+          label: l10n.setConnect,
+          style: HwButtonStyle.primary,
+          onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const LoginScreen())));
+      final dismiss = TextButton(
+          onPressed: () =>
+              ref.read(localOnlyNoticeDismissedProvider.notifier).dismiss(),
+          child: Text(l10n.rcbDismiss,
+              style: TextStyle(fontSize: 12, color: p.ink2)));
+      return Container(
+        width: double.infinity,
+        color: p.paper2,
+        padding:
+            EdgeInsets.symmetric(horizontal: compact ? 16 : 32, vertical: 10),
+        child: compact
+            // Narrow: the buttons cannot share the row with the body text
+            // without squeezing both, so they drop below it.
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    HwIcon('cloud-off', size: 14, color: p.ink3),
+                    const SizedBox(width: 8),
+                    Expanded(child: text),
+                  ]),
+                  const SizedBox(height: 8),
+                  // Wrap, not Row: at 320 px with large text the two
+                  // buttons don't fit side by side and a Row overflows.
+                  Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: [connect, dismiss]),
+                ],
+              )
+            : Row(children: [
+                HwIcon('cloud-off', size: 14, color: p.ink3),
+                const SizedBox(width: 8),
+                Expanded(child: text),
+                connect,
+                const SizedBox(width: 4),
+                dismiss,
+              ]),
+      );
+    });
+  }
+}
+
 /// Shown when the remote refuses writes for lack of space.
 ///
 /// Louder than the pending-uploads line on purpose: that one resolves itself

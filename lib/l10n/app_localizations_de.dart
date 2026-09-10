@@ -1586,6 +1586,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Notizbücher bleiben auf diesem Gerät sicher, können aber erst hochgeladen werden, wenn auf dem Server Platz frei wird.';
 
   @override
+  String get libLocalOnlyTitle => 'Nur auf diesem Gerät';
+
+  @override
+  String get libLocalOnlyBody =>
+      'Deine Notizbücher bleiben auf diesem Gerät. Verbinde deinen Server oder Google Drive, um sie überall zu haben — du kannst das jederzeit tun.';
+
+  @override
   String get libKeepOnDevice => 'Nur auf diesem Gerät behalten';
 
   @override

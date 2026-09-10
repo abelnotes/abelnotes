@@ -1577,6 +1577,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Notebooks stay safe on this device, but they can\'t be uploaded until space is freed on the server.';
 
   @override
+  String get libLocalOnlyTitle => 'This device only';
+
+  @override
+  String get libLocalOnlyBody =>
+      'Your notebooks stay on this device. Connect your server or Google Drive to have them everywhere — you can do it whenever you like.';
+
+  @override
   String get libKeepOnDevice => 'Keep on this device only';
 
   @override

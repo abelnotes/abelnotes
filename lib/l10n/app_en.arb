@@ -432,6 +432,8 @@
   "libStorageFullServer": "Your server is out of space",
   "libStorageFullBody": "Notebooks stay safe on this device, but they can't be uploaded until you free some space. Google Drive is shared with Gmail and Photos.",
   "libStorageFullBodyServer": "Notebooks stay safe on this device, but they can't be uploaded until space is freed on the server.",
+  "libLocalOnlyTitle": "This device only",
+  "libLocalOnlyBody": "Your notebooks stay on this device. Connect your server or Google Drive to have them everywhere — you can do it whenever you like.",
   "libKeepOnDevice": "Keep on this device only",
   "libResumeSync": "Sync this notebook again",
   "libLocalOnlyBadge": "This device only",

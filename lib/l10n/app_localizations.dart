@@ -2606,6 +2606,18 @@ abstract class AppLocalizations {
   /// **'I quaderni restano al sicuro su questo dispositivo, ma non possono essere caricati finché non viene liberato spazio sul server.'**
   String get libStorageFullBodyServer;
 
+  /// No description provided for @libLocalOnlyTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Solo su questo dispositivo'**
+  String get libLocalOnlyTitle;
+
+  /// No description provided for @libLocalOnlyBody.
+  ///
+  /// In it, this message translates to:
+  /// **'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi — puoi farlo quando vuoi.'**
+  String get libLocalOnlyBody;
+
   /// No description provided for @libKeepOnDevice.
   ///
   /// In it, this message translates to:

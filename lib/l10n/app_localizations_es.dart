@@ -1582,6 +1582,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los cuadernos siguen a salvo en este dispositivo, pero no pueden subirse hasta que se libere espacio en el servidor.';
 
   @override
+  String get libLocalOnlyTitle => 'Solo en este dispositivo';
+
+  @override
+  String get libLocalOnlyBody =>
+      'Tus cuadernos se quedan en este dispositivo. Conecta tu servidor o Google Drive para tenerlos en todas partes: puedes hacerlo cuando quieras.';
+
+  @override
   String get libKeepOnDevice => 'Mantener solo en este dispositivo';
 
   @override
