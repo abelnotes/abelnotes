@@ -12,7 +12,7 @@ class AppConfig {
   // Patch every commit that only fixes bugs; minor for visible feature work.
   // The build number after "+" is the absolute counter — never resets when
   // the semver bumps.
-  static const String appVersion = '0.37.4';
+  static const String appVersion = '0.37.5';
   static const int appBuildNumber = 54;
   static String get fullVersion => '$appVersion+$appBuildNumber';
 
