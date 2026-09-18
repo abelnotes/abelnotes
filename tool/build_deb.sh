@@ -13,6 +13,7 @@
 # Usage:
 #   ./tool/build_deb.sh            # build using existing release bundle
 #   ./tool/build_deb.sh --rebuild  # `flutter build linux --release` first
+#   ./tool/build_deb.sh --rebuild -- --dart-define=K=V ...  # extra build args
 
 set -euo pipefail
 
@@ -20,7 +21,10 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 REBUILD=0
-[[ "${1:-}" == "--rebuild" ]] && REBUILD=1
+[[ "${1:-}" == "--rebuild" ]] && { REBUILD=1; shift; }
+# Everything after `--` goes to `flutter build linux`, e.g. the Drive defines.
+[[ "${1:-}" == "--" ]] && shift
+BUILD_ARGS=("$@")
 
 # Version composition:
 #   pubspec.yaml `version: 0.36.9+38`     → upstream 0.36.9, revision 38
@@ -48,7 +52,7 @@ BUNDLE="${PROJECT_ROOT}/build/linux/x64/release/bundle"
 
 if (( REBUILD )) || [[ ! -x "${BUNDLE}/abelnotes" ]]; then
   echo "→ flutter build linux --release"
-  flutter build linux --release
+  flutter build linux --release "${BUILD_ARGS[@]}"
 fi
 
 STAGE="${PROJECT_ROOT}/build/deb/${PKG}"

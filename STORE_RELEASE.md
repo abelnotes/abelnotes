@@ -25,7 +25,8 @@ dart run msix:create --build-windows false --no-store `
 windows` and has no `--dart-define` passthrough, so letting it build leaves
 `AppConfig.gitCommit` at its `'dev'` fallback and the package cannot be traced
 to a commit — that is how the first MSIX shipped as `v0.0.0+0 dev`. CI passes
-the define, but CI does not build the MSIX. `--build-windows false` makes
+the define, and its Windows job also packages the Store MSIX (artifact
+`abelnotes-msix`). `--build-windows false` makes
 `msix:create` package the output above instead of rebuilding it.
 
 Both lines work verbatim in PowerShell. Confirm afterwards in Settings → About,
@@ -94,9 +95,15 @@ until Partner Center rejects it.
 
 ```bash
 flutter test
-flutter build windows --release --dart-define=GIT_COMMIT=$(git rev-parse HEAD)
+flutter build windows --release --dart-define=GIT_COMMIT=$(git rev-parse HEAD) \
+  --dart-define=GOOGLE_CLIENT_ID=<desktop client id> \
+  --dart-define=GOOGLE_CLIENT_SECRET=<desktop client secret>
 dart run msix:create --store --build-windows false
 ```
+
+The CI Windows job runs the same steps, taking the Drive pair from the
+`GOOGLE_DESKTOP_CLIENT_ID` / `GOOGLE_DESKTOP_CLIENT_SECRET` Actions secrets;
+without them Drive shows as not available in the package.
 
 The commit stamp matters most here: this is the package users get, and a crash
 log pasted into an issue is only useful if it names the build it came from.

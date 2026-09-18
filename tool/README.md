@@ -161,7 +161,12 @@ the existing `build/linux/x64/release/bundle/` by default; pass
 ```bash
 ./tool/build_deb.sh             # use existing bundle
 ./tool/build_deb.sh --rebuild   # rebuild Flutter first
+./tool/build_deb.sh --rebuild -- --dart-define=GOOGLE_CLIENT_ID=... \
+    --dart-define=GOOGLE_CLIENT_SECRET=...   # args after -- go to flutter build
 ```
+
+Without the two Drive defines the package builds fine and Drive shows as not
+available.
 
 Output: `build/deb/abelnotes_<version>_amd64.deb`. The package installs
 to:
