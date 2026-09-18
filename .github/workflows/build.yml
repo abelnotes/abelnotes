@@ -44,7 +44,12 @@ jobs:
       # this the bundle has no pdfium.dll and every PDF fails at runtime.
       - run: flutter config --enable-native-assets
       - run: flutter pub get
-      - run: flutter build windows --release --dart-define=GIT_COMMIT=${{ github.sha }}
+      # Drive stays "not available in this build" when the secrets are unset.
+      - run: >-
+          flutter build windows --release
+          --dart-define=GIT_COMMIT=${{ github.sha }}
+          --dart-define=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          --dart-define=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
       # Fails the job if PDFium didn't make it into the bundle, which is
       # otherwise only visible when a user opens a PDF.
       # pdfium.dll only arrives via native assets and super_native_extensions
@@ -73,6 +78,13 @@ jobs:
         with:
           name: abelnotes-windows
           path: abelnotes-windows.zip
+      # Unsigned Store package from the bundle above; Partner Center signs it.
+      - run: dart run msix:create --store --build-windows false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: abelnotes-msix
+          path: build/windows/x64/runner/Release/*.msix
+          if-no-files-found: error
 
   macos:
     needs: check
