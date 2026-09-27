@@ -52,6 +52,7 @@ import 'package:abelnotes/ui/primitives/sync_badge.dart';
 import 'package:abelnotes/ui/screens/library_screen.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 enum _ExportScope { currentPage, currentChapter, entireNotebook }
 
@@ -2033,17 +2034,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// directly (no extra plugin dependency); this is a desktop-only path,
   /// which is fine because Ctrl+click is a desktop interaction.
   Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    final ok = uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+    if (!ok) {
+      _toast(AppLocalizations.of(context).csCannotOpenLink);
+      return;
+    }
     try {
-      if (io.Platform.isLinux) {
-        await io.Process.start('xdg-open', [url]);
-      } else if (io.Platform.isMacOS) {
-        await io.Process.start('open', [url]);
-      } else if (io.Platform.isWindows) {
-        await io.Process.start('cmd', ['/c', 'start', '', url]);
+      if (await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        _toast(AppLocalizations.of(context).csOpeningLink);
       } else {
-        return;
+        _toast(AppLocalizations.of(context).csCannotOpenLink);
       }
-      _toast(AppLocalizations.of(context).csOpeningLink);
     } catch (e) {
       CrashLogger.append('[Link] failed to open $url: $e');
       _toast(AppLocalizations.of(context).csCannotOpenLink);
