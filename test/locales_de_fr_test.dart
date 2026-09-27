@@ -4,7 +4,6 @@
 // inside a German build without any error anywhere.
 
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:abelnotes/l10n/app_localizations.dart';
