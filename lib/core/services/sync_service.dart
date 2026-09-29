@@ -21,6 +21,10 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 class SyncService {
   final RemoteStore? _remoteOrNull;
   final Set<String> _explodedDirsReady = {}; // notebook IDs with confirmed folders
+  // Delta folders known to hold metadata.json. Separate from the MKCOL cache:
+  // an upload that failed after MKCOL left an empty folder that
+  // deltaFolderExists called alive, and callers marked the notebook synced.
+  final Set<String> _deltaCommitted = {};
 
   SyncService(this._remoteOrNull, [FileService? fileService]);
 
@@ -374,6 +378,11 @@ class SyncService {
     _explodedDirsReady.add(notebookId);
   }
 
+  /// Whether [remotePath] is on the server. A backend that can't tell
+  /// (WebDAV maps errors to null) reads as absent.
+  Future<bool> remoteFileExists(String remotePath) async =>
+      (await _remote.getFileInfo(remotePath)) != null;
+
   /// Upload the full .ncnote ZIP to the server at the given remotePath.
   /// This keeps the ZIP in sync with the delta folder so other devices
   /// that download the .ncnote can see the latest changes.
@@ -438,6 +447,7 @@ class SyncService {
       if (cause is RemoteStoreException &&
           (cause.statusCode == 409 || cause.statusCode == 404)) {
         _explodedDirsReady.remove(notebookId);
+        _deltaCommitted.remove(notebookId);
       }
       rethrow;
     }
@@ -679,6 +689,7 @@ class SyncService {
     try {
       metaEtag = await _remote.uploadFile('${dir}metadata.json', metaBytes,
           timeoutSeconds: dt, criticalVerify: true);
+      _deltaCommitted.add(notebookId);
     } catch (e) {
       throw MetadataCommitFailedException(
         notebookId: notebookId,
@@ -722,12 +733,14 @@ class SyncService {
     required Uint8List metadataBytes,
   }) async {
     final dir = _deltaDir(notebookId);
-    return await _remote.uploadFile(
+    final etag = await _remote.uploadFile(
       '${dir}metadata.json',
       metadataBytes,
       timeoutSeconds: AppConfig.webdavDeltaTimeoutSeconds,
       criticalVerify: true,
     );
+    _deltaCommitted.add(notebookId);
+    return etag;
   }
 
   /// Gets ETags for all pages in the exploded folder.
@@ -883,9 +896,10 @@ class SyncService {
   /// wipe the local .ncnote of a notebook that's actually still alive.
   Future<bool> deltaFolderExists(String notebookId) async {
     // Fast path: already confirmed in this session
-    if (_explodedDirsReady.contains(notebookId)) return true;
+    if (_deltaCommitted.contains(notebookId)) return true;
     try {
       await _remote.getVersion('${_deltaDir(notebookId)}metadata.json');
+      _deltaCommitted.add(notebookId);
       _explodedDirsReady.add(notebookId);
       return true;
     } on RemoteStoreException catch (e) {
@@ -903,6 +917,7 @@ class SyncService {
   /// WebDAV DELETE on a collection is recursive; 404 is tolerated.
   Future<void> deleteDeltaFolder(String notebookId) async {
     _explodedDirsReady.remove(notebookId);
+    _deltaCommitted.remove(notebookId);
     await _remote.delete(_deltaDir(notebookId));
   }
 
