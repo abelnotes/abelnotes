@@ -70,6 +70,11 @@ class WebDavService implements RemoteStore {
   /// amortising the TLS handshake across back-to-back requests.
   static const Duration _idleTimeout = Duration(seconds: 20);
 
+  /// Cap on the TCP connect alone. Without it an unreachable server (home
+  /// LAN address while on mobile data) hung each attempt for the full
+  /// request timeout, behind the undismissable "opening notebook" loader.
+  static const Duration _connectTimeout = Duration(seconds: 15);
+
   final String serverUrl;
   final String username;
   final String password;
@@ -182,6 +187,7 @@ class WebDavService implements RemoteStore {
     _innerHttpClient = io.HttpClient()
       ..maxConnectionsPerHost = _maxConnectionsPerHost
       ..idleTimeout = _idleTimeout
+      ..connectionTimeout = _connectTimeout
       ..autoUncompress = true
       ..badCertificateCallback = _badCertificateCallback;
     _client = http_io.IOClient(_innerHttpClient);
