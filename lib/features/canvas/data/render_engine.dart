@@ -48,6 +48,23 @@ Rect circleResizeBox(Offset center, Offset cursor, {double minRadius = 5}) {
   return Rect.fromCircle(center: center, radius: r);
 }
 
+/// Bounding box for a recognized triangle/rhombus being resized: [base]
+/// scaled about its centre by how far [cursor] is from it relative to
+/// [grip], the pen position at recognition. The pen then rests on a vertex,
+/// which for these shapes lies on a bbox edge, so sizing an axis straight
+/// from the cursor collapsed that axis on the first move.
+Rect scaledShapeResizeBox(Rect base, Offset grip, Offset cursor,
+    {double minHalf = 5}) {
+  final c = base.center;
+  final gripDist = (grip - c).distance;
+  final k = gripDist < 1 ? 1.0 : (cursor - c).distance / gripDist;
+  return Rect.fromCenter(
+    center: c,
+    width: max(base.width * k, 2 * minHalf),
+    height: max(base.height * k, 2 * minHalf),
+  );
+}
+
 /// True if [p] falls inside the body of [sh] (rotation-aware).
 ///
 /// Meaningful for shapes carrying a `fillColor`: their interior is visible

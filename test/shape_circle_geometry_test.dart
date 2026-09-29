@@ -70,6 +70,7 @@ bool _inkedNear(ByteData pixels, int x, int y, {int radius = 4}) {
 
 void main() {
   _circleResizeTests();
+  _scaledResizeTests();
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('circle shape paints the ellipse inscribed in its bounding box',
@@ -203,6 +204,40 @@ void _circleResizeTests() {
     test('never collapses to nothing', () {
       final box = circleResizeBox(center, center);
       expect(box.width / 2, 5.0);
+    });
+  });
+}
+
+// Regression: a rhombus drawn from its left vertex back to it ended with the
+// pen on the bbox's left edge; the first move after recognition sized the
+// box from the cursor and collapsed it.
+void _scaledResizeTests() {
+  group('scaledShapeResizeBox', () {
+    const base = Rect.fromLTRB(100, 100, 300, 200);
+    const leftVertex = Offset(100, 150);
+
+    test('no jump while the pen stays where recognition left it', () {
+      final box = scaledShapeResizeBox(base, leftVertex, leftVertex);
+      expect(box, base);
+    });
+
+    test('grows and shrinks keeping centre and proportions', () {
+      final bigger =
+          scaledShapeResizeBox(base, leftVertex, const Offset(50, 150));
+      expect(bigger.center, base.center);
+      expect(bigger.width, closeTo(300, 0.001));
+      expect(bigger.height, closeTo(150, 0.001));
+
+      final smaller =
+          scaledShapeResizeBox(base, leftVertex, const Offset(150, 150));
+      expect(smaller.width, closeTo(100, 0.001));
+      expect(smaller.height, closeTo(50, 0.001));
+    });
+
+    test('never collapses to nothing', () {
+      final box = scaledShapeResizeBox(base, leftVertex, base.center);
+      expect(box.width, 10);
+      expect(box.height, 10);
     });
   });
 }

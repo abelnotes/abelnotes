@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
+import 'package:abelnotes/ui/editor/hw_editor_chrome.dart' show showHwColorPicker;
 
 /// Unstyled character: all flags off, color/size inherited from the
 /// element. Stored with an empty `text` — the controller only uses the
@@ -365,6 +366,16 @@ class _TextEditorDialogState extends State<_TextEditorDialog> {
     }
   }
 
+  Future<void> _pickCustomColor() async {
+    // The dialog takes focus, and a TextField that loses focus may collapse
+    // its selection: keep it so the colour lands on the selected range.
+    final selection = _controller.selection;
+    final picked = await showHwColorPicker(context, Color(_baseColor));
+    if (picked == null || !mounted) return;
+    _controller.selection = selection;
+    _setColor(picked.toARGB32());
+  }
+
   void _confirm() {
     final content = _controller.text;
     if (content.trim().isEmpty) {
@@ -537,6 +548,27 @@ class _TextEditorDialogState extends State<_TextEditorDialog> {
                       ),
                     ),
                   ),
+                InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: _pickCustomColor,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: cs.outlineVariant),
+                      gradient: const SweepGradient(colors: [
+                        Colors.red,
+                        Colors.yellow,
+                        Colors.green,
+                        Colors.cyan,
+                        Colors.blue,
+                        Colors.purple,
+                        Colors.red,
+                      ]),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 10),

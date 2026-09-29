@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
+import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/cross_notebook_clipboard_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
@@ -20,6 +21,7 @@ import 'package:abelnotes/features/canvas/data/render_engine.dart'
         CanvasRenderEngine,
         circleDragBox,
         circleResizeBox,
+        scaledShapeResizeBox,
         shapeBodyContains,
         shapeEllipseRect;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
@@ -1042,7 +1044,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Restore per-tool preferences from SharedPreferences ASAP so the
     // very first tool the user touches already shows the previous
     // session's width/color/eraser size.
-    unawaited(_loadToolPrefs());
+    _toolPrefsLoaded = _loadToolPrefs();
+  }
+  late final Future<void> _toolPrefsLoaded;
+
+  /// Pen a freshly opened notebook starts with: the first saved pen preset,
+  /// else the pen as last left, else the defaults.
+  ToolSettings _startupPenSettings() {
+    final remembered = _toolPrefs[CanvasTool.pen] ?? const ToolSettings();
+    for (final p
+        in _ref.read(appSettingsProvider).presetsFor(CanvasTool.pen)) {
+      if (p != null) {
+        return remembered.copyWith(
+          color: p.color,
+          strokeWidth: p.strokeWidth,
+          opacity: p.opacity,
+        );
+      }
+    }
+    return remembered;
   }
 
   void setViewportSize(Size size) {
@@ -1212,8 +1232,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
     _deletedSymbolIds = {...mergedSymbols.deletedSymbolIds};
     _deletedLibraryIds = {...mergedSymbols.deletedLibraryIds};
+    await _toolPrefsLoaded;
 
     state = CanvasState(
+      // Starting on the const defaults, a switch away from the pen recorded
+      // black 1.5 as the pen's memory and wiped the user's last pen.
+      toolSettings: _startupPenSettings(),
       metadata: metadata,
       document: repaired.document,
       pages: Map.of(repaired.pages),
@@ -2726,12 +2750,18 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final recognized = _recognizeShape(points);
     if (recognized != null) {
+      _heldShapeBase = recognized;
+      _heldShapeGrip = Offset(points.last.x, points.last.y);
       state = state!.copyWith(
         activeStroke: [],
         recognizedShape: recognized,
       );
     }
   }
+
+  // Shape and pen position at hold-to-recognize time, for resizeRecognizedShape.
+  ShapeData? _heldShapeBase;
+  Offset? _heldShapeGrip;
 
   /// Called when user starts adjusting a recognized shape (pointer down while adjusting).
   void startAdjustRecognized(Offset position) {
@@ -2802,16 +2832,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       return;
     }
 
-    if (s.shapeType == 'triangle') {
-      // Keep centre fixed, size each axis from the cursor distance.
-      final cx = (s.x1 + s.x2) / 2;
-      final cy = (s.y1 + s.y2) / 2;
-      final halfW = max((position.dx - cx).abs(), 5.0);
-      final halfH = max((position.dy - cy).abs(), 5.0);
+    if (s.shapeType == 'triangle' || s.shapeType == 'rhombus') {
+      final base = _heldShapeBase ?? s;
+      final box = scaledShapeResizeBox(
+        Rect.fromPoints(Offset(base.x1, base.y1), Offset(base.x2, base.y2)),
+        _heldShapeGrip ?? Offset(s.x2, s.y2),
+        position,
+      );
       state = state!.copyWith(
         recognizedShape: s.copyWith(
-          x1: cx - halfW, y1: cy - halfH,
-          x2: cx + halfW, y2: cy + halfH,
+          x1: box.left, y1: box.top,
+          x2: box.right, y2: box.bottom,
         ),
       );
       return;
@@ -4607,7 +4638,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       if (!sel.selectedIds.contains(id)) return element;
       return element.map(
         stroke: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),
-        text: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),
+        // Span colours would otherwise override the new base colour.
+        text: (e) => e.copyWith(
+          data: e.data.copyWith(
+            color: newColor,
+            spans: [
+              for (final sp in e.data.spans)
+                sp.color == null ? sp : sp.copyWith(color: null),
+            ],
+          ),
+        ),
         image: (e) => e, // images don't have a stroke color
         shape: (e) => e.copyWith(data: e.data.copyWith(strokeColor: newColor)),
         math: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),

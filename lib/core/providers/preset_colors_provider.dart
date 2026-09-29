@@ -19,7 +19,7 @@ class PresetColorsNotifier extends StateNotifier<List<int>> {
     0xFFC62828, // red
     0xFFFFFFFF, // white
     0xFFFF9800, // orange
-    0xFF2196F3, // light blue
+    0xFF2E7D32, // green
   ];
 
   PresetColorsNotifier() : super(defaults) {

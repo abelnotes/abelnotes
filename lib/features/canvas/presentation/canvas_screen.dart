@@ -6121,6 +6121,31 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                         ),
                       ),
                     ),
+                  GestureDetector(
+                    onTap: () async {
+                      final c = await showHwColorPicker(
+                          ctx, Color(presets.first));
+                      if (c != null && ctx.mounted) {
+                        Navigator.of(ctx).pop(c.toARGB32());
+                      }
+                    },
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: SweepGradient(colors: [
+                          Colors.red,
+                          Colors.yellow,
+                          Colors.green,
+                          Colors.cyan,
+                          Colors.blue,
+                          Colors.purple,
+                          Colors.red,
+                        ]),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
