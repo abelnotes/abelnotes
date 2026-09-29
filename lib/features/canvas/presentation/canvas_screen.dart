@@ -2030,9 +2030,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     return false;
   }
 
-  /// Open [url] with the platform's default handler. Uses the OS opener
-  /// directly (no extra plugin dependency); this is a desktop-only path,
-  /// which is fine because Ctrl+click is a desktop interaction.
+  /// Open [url] with the platform's default handler. Only http(s) URLs with
+  /// a host are accepted: the text comes from note content.
   Future<void> _openUrl(String url) async {
     final uri = Uri.tryParse(url);
     final ok = uri != null &&
@@ -2043,13 +2042,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       return;
     }
     try {
-      if (await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        _toast(AppLocalizations.of(context).csOpeningLink);
-      } else {
-        _toast(AppLocalizations.of(context).csCannotOpenLink);
-      }
+      final opened =
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!mounted) return;
+      final l = AppLocalizations.of(context);
+      _toast(opened ? l.csOpeningLink : l.csCannotOpenLink);
     } catch (e) {
       CrashLogger.append('[Link] failed to open $url: $e');
+      if (!mounted) return;
       _toast(AppLocalizations.of(context).csCannotOpenLink);
     }
   }
