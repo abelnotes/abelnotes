@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/file_service.dart';
+import 'package:abelnotes/core/services/pending_root_uploads.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/import/data/block_paginator.dart';
 import 'package:abelnotes/features/import/data/import_models.dart';
@@ -62,6 +63,7 @@ class ImportService {
       pageCount: metadata.pageCount,
       createdAt: metadata.createdAt,
     );
+    await PendingRootUploads.add(metadata.id);
     return bytes.length;
   }
 

@@ -8,6 +8,7 @@ import 'package:abelnotes/core/providers/canvas_provider.dart' show canvasProvid
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/file_service.dart';
+import 'package:abelnotes/core/services/pending_root_uploads.dart';
 import 'package:abelnotes/core/services/search_service.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
@@ -817,6 +818,7 @@ class NotebookListNotifier
       // above is the commit; the remote copy is catch-up work. The row stays
       // `modified` until the upload lands, which is what the pending-upload
       // badge is for, and a failure is just the next sync's job.
+      await PendingRootUploads.add(notebookId);
       unawaited(() async {
         try {
           await syncService.uploadNotebook(
@@ -825,6 +827,7 @@ class NotebookListNotifier
             document: document,
             pages: {'page_001.json': pageData},
           );
+          await PendingRootUploads.remove(notebookId);
           await fileService.markNotebookSynced(notebookId, null);
           // Flip the card's "local only" badge off without a full refetch.
           final list = mounted ? state.valueOrNull : null;
@@ -1186,6 +1189,40 @@ class NotebookListNotifier
     }).toList());
   }
 
+  /// Uploads the root `.ncnote` of notebooks whose create/import PUT never
+  /// landed. A 404 check first: a rename or another retry may have written
+  /// it since.
+  Future<void> _uploadPendingRoots(
+    SyncService syncService,
+    FileService fileService,
+  ) async {
+    final pending = await PendingRootUploads.load();
+    for (final id in pending) {
+      try {
+        final row = await fileService.getNotebookMeta(id);
+        final remotePath = row?['remote_path'] as String? ?? '';
+        final localOnly = (row?['local_only'] as int? ?? 0) == 1;
+        final bytes = row == null || localOnly || remotePath.isEmpty
+            ? null
+            : await fileService.readNotebookFile(id);
+        if (bytes == null) {
+          // Deleted, taken off the cloud, or nothing to send: not pending.
+          await PendingRootUploads.remove(id);
+          continue;
+        }
+        if (!await syncService.remoteFileExists(remotePath)) {
+          SyncService.validateNcnoteArchive(bytes,
+              context: 'root retry $id');
+          await syncService.uploadNcnoteZip(remotePath, bytes);
+          debugPrint('[Library] Uploaded missing root .ncnote for $id');
+        }
+        await PendingRootUploads.remove(id);
+      } catch (e) {
+        debugPrint('[Library] Root upload for $id failed: $e (will retry)');
+      }
+    }
+  }
+
   /// Best-effort re-upload of every notebook whose local sync status is still
   /// `modified` — i.e. previous save() couldn't reach the server (offline,
   /// Tailscale drop, Nextcloud restart). Driven by the library screen: once
@@ -1201,6 +1238,8 @@ class NotebookListNotifier
     // Local-only mode: nothing to upload, and every server probe would just
     // throw. Bail before the loop instead of throwing once per notebook.
     if (syncService == null || syncService.isOffline) return;
+
+    await _uploadPendingRoots(syncService, fileService);
 
     final dirtyRows = await fileService.getDirtyNotebooks();
     if (dirtyRows.isEmpty) return;
