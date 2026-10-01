@@ -106,6 +106,9 @@ class FakeRemoteStore implements RemoteStore {
   }
 
   @override
+  bool get nullVersionMeansAbsent => true;
+
+  @override
   Future<String?> getVersion(String remotePath) async {
     calls.add('version $remotePath');
     return _versions[remotePath];

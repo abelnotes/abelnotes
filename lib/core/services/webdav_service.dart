@@ -1033,6 +1033,9 @@ class WebDavService implements RemoteStore {
     }
   }
 
+  @override
+  bool get nullVersionMeansAbsent => false;
+
   /// Ottieni l'ETag di un file remoto (per conflict detection).
   @override
   Future<String?> getVersion(String remotePath) async {

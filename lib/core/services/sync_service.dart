@@ -898,7 +898,11 @@ class SyncService {
     // Fast path: already confirmed in this session
     if (_deltaCommitted.contains(notebookId)) return true;
     try {
-      await _remote.getVersion('${_deltaDir(notebookId)}metadata.json');
+      final version =
+          await _remote.getVersion('${_deltaDir(notebookId)}metadata.json');
+      // Drive reports a missing file as null; counting that as alive marked
+      // never-uploaded notebooks synced and kept ones deleted elsewhere.
+      if (version == null && _remote.nullVersionMeansAbsent) return false;
       _deltaCommitted.add(notebookId);
       _explodedDirsReady.add(notebookId);
       return true;

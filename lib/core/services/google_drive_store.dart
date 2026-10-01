@@ -208,6 +208,9 @@ class GoogleDriveStore implements RemoteStore {
   }
 
   @override
+  bool get nullVersionMeansAbsent => true;
+
+  @override
   Future<String?> getVersion(String remotePath) async =>
       (await _metadata(remotePath))?['md5Checksum'] as String?;
 

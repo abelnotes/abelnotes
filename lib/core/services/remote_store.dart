@@ -126,6 +126,11 @@ abstract class RemoteStore {
   /// Version token of [remotePath], null if absent or unavailable.
   Future<String?> getVersion(String remotePath);
 
+  /// Whether a null from [getVersion] means the file is absent. WebDAV
+  /// throws a 404 for that and returns null only for an ETag-less answer
+  /// about a file that exists.
+  bool get nullVersionMeansAbsent;
+
   /// Same as [getVersion] but allowed to use a cheaper call that some
   /// servers don't support, returning null instead of failing. Backends
   /// with no cheap path may just delegate to [getVersion].

@@ -280,7 +280,14 @@ class SymbolLibraryService {
     final local = await load();
 
     try {
-      final version = await store.getVersion(path);
+      String? version;
+      try {
+        version = await store.getVersion(path);
+      } on RemoteStoreException catch (e) {
+        // WebDAV answers a missing file with 404 (Drive with null): the
+        // library has simply never been uploaded, so push ours.
+        if (e.statusCode != 404) rethrow;
+      }
 
       if (version != null && version == _lastRemoteVersion) {
         // Remote is what we last merged. Only work left is pushing anything

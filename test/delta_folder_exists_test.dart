@@ -57,4 +57,22 @@ void main() {
     );
     expect(await sync.deltaFolderExists('nb'), isTrue);
   });
+
+  test('a backend that reports a missing file as null (Drive) is not alive',
+      () async {
+    final store = FakeRemoteStore();
+    final sync = SyncService(store);
+    expect(store.nullVersionMeansAbsent, isTrue);
+    expect(await sync.deltaFolderExists('nb'), isFalse);
+
+    await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: metadata,
+      document: document,
+      dirtyPages: const {},
+    );
+    expect(await sync.deltaFolderExists('nb'), isTrue);
+    // A fresh engine has no session cache: it must read the server.
+    expect(await SyncService(store).deltaFolderExists('nb'), isTrue);
+  });
 }
