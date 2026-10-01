@@ -1573,6 +1573,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'En attendant, ils restent sur cet appareil. Laissez l\'application ouverte un instant.';
 
   @override
+  String get libServerUnreachable => 'Serveur injoignable';
+
+  @override
+  String get libServerUnreachableHint =>
+      'Les modifications restent sur cet appareil et sont envoyées dès le retour de la connexion.';
+
+  @override
   String get libStorageFullDrive => 'Votre Google Drive est plein';
 
   @override

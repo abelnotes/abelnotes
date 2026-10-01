@@ -50,22 +50,52 @@ Future<void> _openNotebookAndNavigate(
   NotebookEntry entry,
 ) async {
   final l10n = AppLocalizations.of(context);
+  // A download from an unreachable server can take minutes: the user may
+  // walk away from it. System back is blocked because the pop below would
+  // then close the library instead of the loader.
+  var loaderOpen = true;
+  var cancelled = false;
+  void dismissLoader() {
+    if (!loaderOpen) return;
+    loaderOpen = false;
+    Navigator.of(context).pop();
+  }
+
   showDialog(
     context: context,
     barrierDismissible: false,
-    builder: (_) => Center(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(l10n.nbOpeningNotebook),
-          ]),
+    builder: (dctx) => PopScope(
+      canPop: false,
+      child: Center(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(l10n.nbOpeningNotebook),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  cancelled = true;
+                  loaderOpen = false;
+                  Navigator.of(dctx).pop();
+                },
+                child: Text(l10n.libCancel),
+              ),
+            ]),
+          ),
         ),
       ),
     ),
   );
+
+  /// After an await: true when the user cancelled, closing anything opened.
+  Future<bool> abandoned() async {
+    if (!cancelled) return false;
+    await ref.read(canvasProvider.notifier).closeNotebook();
+    return true;
+  }
 
   try {
     final syncService = ref.read(syncServiceProvider);
@@ -102,8 +132,8 @@ Future<void> _openNotebookAndNavigate(
                     : null,
               );
 
-          if (!context.mounted) return;
-          Navigator.of(context).pop(); // dismiss the loader
+          if (await abandoned() || !context.mounted) return;
+          dismissLoader();
           await Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => const CanvasScreen(),
           ));
@@ -146,8 +176,8 @@ Future<void> _openNotebookAndNavigate(
                   : null,
             );
 
-        if (!context.mounted) return;
-        Navigator.of(context).pop(); // dismiss the loader
+        if (await abandoned() || !context.mounted) return;
+        dismissLoader();
         await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const CanvasScreen(),
         ));
@@ -204,14 +234,14 @@ Future<void> _openNotebookAndNavigate(
               : null,
         );
 
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+    if (await abandoned() || !context.mounted) return;
+    dismissLoader();
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => const CanvasScreen(),
     ));
   } catch (e) {
-    if (!context.mounted) return;
-    Navigator.of(context).pop();
+    if (!context.mounted || cancelled) return;
+    dismissLoader();
     // Typed exceptions carry no user-facing text: localize them here, at the
     // point of display. Everything else falls back to the generic message.
     final String message;

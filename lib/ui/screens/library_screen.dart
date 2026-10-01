@@ -236,6 +236,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
             // the library looks fully populated while uploading nowhere.
             const _LocalOnlyNotice(),
             _StorageFullNotice(notifier: notebookNotifier),
+            _ServerUnreachableNotice(notifier: notebookNotifier),
             _PendingUploadsNotice(entries: notebooks),
             Expanded(
               child: asyncList.when(
@@ -2671,7 +2672,10 @@ class _PendingUploadsNotice extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pending = entries.where((e) => e.isLocal).length;
+    // Kept-here and not-downloaded notebooks are never going up.
+    final pending = entries
+        .where((e) => e.isLocal && !e.localOnly && !e.notOnDevice)
+        .length;
     if (pending == 0) return const SizedBox.shrink();
 
     final backend = ref.watch(appSettingsProvider.select((s) => s.syncBackend));
@@ -2712,6 +2716,49 @@ class _PendingUploadsNotice extends ConsumerWidget {
         ),
       );
     });
+  }
+}
+
+class _ServerUnreachableNotice extends StatelessWidget {
+  final NotebookListNotifier notifier;
+  const _ServerUnreachableNotice({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: notifier.serverUnreachable,
+      builder: (_, down, __) {
+        if (!down) return const SizedBox.shrink();
+        return LayoutBuilder(builder: (ctx, c) {
+          final compact = c.maxWidth < 600;
+          return Container(
+            width: double.infinity,
+            color: p.paper2,
+            padding: EdgeInsets.symmetric(
+                horizontal: compact ? 16 : 32, vertical: 10),
+            child: Row(
+              children: [
+                HwIcon('cloud-off', size: 14, color: p.ink3),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.libServerUnreachable,
+                          style: TextStyle(fontSize: 13, color: p.ink1)),
+                      Text(l10n.libServerUnreachableHint,
+                          style: TextStyle(fontSize: 11, color: p.ink3)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
   }
 }
 
@@ -2829,7 +2876,7 @@ class _LoadingState extends StatelessWidget {
 // ─── Helpers ──────────────────────────────────────────────────────
 HwSyncState _syncStateOf(NotebookEntry e) {
   // Kept here on purpose: not syncing is the desired state, not a failure.
-  if (e.localOnly) return HwSyncState.localOnly;
+  if (e.localOnly || e.serverless) return HwSyncState.localOnly;
   // On the remote, deliberately not here. Checked before [isLocal] so the
   // stub card never reads as "waiting to upload".
   if (e.notOnDevice) return HwSyncState.notOnDevice;

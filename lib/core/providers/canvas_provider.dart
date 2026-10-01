@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
+import 'package:abelnotes/core/services/remote_store.dart' show RemoteStorageFullException;
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/cross_notebook_clipboard_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
@@ -1296,7 +1297,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Initialize delta sync tracking
     _disposed = false;
     _consecutiveSyncFailures = 0;
+    _pullUnreachable = false;
     hasSyncFailure.value = false;
+    remoteSaveInFlight.value = false;
+    keptLocal.value = (_ref.read(syncServiceProvider)?.isOffline ?? true) ||
+        await _isLocalOnly(metadata.id);
     // Hold the same ref — _lastSyncedPages is a dirty-detection sidetable
     // (we only ever read identity via `identical(s.pages[k], _lastSyncedPages[k])`),
     // and `pages` itself is treated as immutable: every edit replaces it
@@ -2037,6 +2042,79 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   final ValueNotifier<bool> hasSyncFailure = ValueNotifier<bool>(false);
   int _consecutiveSyncFailures = 0;
 
+  /// An upload is running: isDirty is cleared before it starts, so without
+  /// this the pill read "synced" for the whole upload.
+  final ValueNotifier<bool> remoteSaveInFlight = ValueNotifier<bool>(false);
+
+  /// The open notebook never syncs: kept on this device, or no server.
+  final ValueNotifier<bool> keptLocal = ValueNotifier<bool>(false);
+
+  /// The pull's last probe failed for a notebook known to be on the server.
+  bool _pullUnreachable = false;
+  Timer? _remoteRetryTimer;
+
+  /// Anything this session holds that the server doesn't.
+  bool _hasUnpushed() {
+    final st = state;
+    if (st == null) return false;
+    if (_dirtyAssetKeys.isNotEmpty ||
+        _pendingPageDeletes.isNotEmpty ||
+        _pendingAssetDeletes.isNotEmpty) {
+      return true;
+    }
+    for (final e in st.pages.entries) {
+      if (!identical(e.value, _lastSyncedPages[e.key])) return true;
+    }
+    return false;
+  }
+
+  /// Re-runs the save for what a failed upload left behind. A failed save
+  /// clears isDirty, so nothing else would retry until the next edit.
+  void _retryUnpushed() {
+    _remoteRetryTimer?.cancel();
+    _remoteRetryTimer = null;
+    final st = state;
+    if (_disposed || st == null || st.isDirty || !_hasUnpushed()) return;
+    state = st.copyWith(isDirty: true); // the editor autosaves on this edge
+  }
+
+  void _scheduleRemoteRetry() {
+    _remoteRetryTimer?.cancel();
+    final secs = (15 * (1 << (_consecutiveSyncFailures - 1).clamp(0, 5)))
+        .clamp(15, 300);
+    _remoteRetryTimer = Timer(Duration(seconds: secs), _retryUnpushed);
+  }
+
+  /// Drives the library's out-of-space notice, which only the library's own
+  /// sync used to set and nothing ever cleared.
+  void _reportStorageFull(bool full) {
+    try {
+      final n = _ref.read(notebookListProvider.notifier).storageFull;
+      if (n.value != full) n.value = full;
+    } catch (_) {}
+  }
+
+  /// Keeps the library's "server not reachable" notice in step with what
+  /// the editor sees.
+  void _reportReachable(bool reachable) {
+    try {
+      final n = _ref.read(notebookListProvider.notifier).serverUnreachable;
+      if (n.value == reachable) n.value = !reachable;
+    } catch (_) {}
+  }
+
+  /// The server answered: the offline state is over, push what is waiting.
+  void _onRemoteReachable() {
+    _reportReachable(true);
+    final wasFailing = _consecutiveSyncFailures > 0 || _pullUnreachable;
+    _pullUnreachable = false;
+    if (_consecutiveSyncFailures > 0) {
+      _consecutiveSyncFailures = 0;
+      _retryUnpushed();
+    }
+    if (wasFailing) _recomputeSyncStatus();
+  }
+
   static String _pendingPageDeletesPrefsKey(String notebookId) =>
       'pending_page_deletes_$notebookId';
   static String _pendingAssetDeletesPrefsKey(String notebookId) =>
@@ -2106,7 +2184,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   void _recomputeSyncStatus() {
     final next = _consecutiveSyncFailures > 0 ||
-        _pendingMetaCommitBytes != null;
+        _pendingMetaCommitBytes != null ||
+        _pullUnreachable;
     if (hasSyncFailure.value != next) hasSyncFailure.value = next;
   }
 
@@ -2328,6 +2407,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     isPullingFromRemote.value = false;
     _pendingMetaCommitTimer?.cancel();
     _pendingMetaCommitTimer = null;
+    _remoteRetryTimer?.cancel();
+    _remoteRetryTimer = null;
+    remoteSaveInFlight.value = false;
     _forceReleaseSyncLock();
     _dirtyAssetKeys.clear();
     _lastSyncedPages = {};
@@ -8673,13 +8755,18 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Without this, the user can exit mid-upload and the sync ends up
     // half-committed on the server (pages uploaded, metadata.json never
     // rewritten), which the next pull then has to reconcile as a conflict.
+    remoteSaveInFlight.value = true;
     _pendingRemoteSave = () async {
       try {
         await remoteSyncFuture;
         // Remote commit succeeded — clear the failure streak so the
         // pill flips back from offline to pending/ok.
-        if (_consecutiveSyncFailures > 0) {
+        _reportStorageFull(false);
+        _reportReachable(true);
+        if (_consecutiveSyncFailures > 0 || _pullUnreachable) {
           _consecutiveSyncFailures = 0;
+          _pullUnreachable = false;
+          _remoteRetryTimer?.cancel();
           _recomputeSyncStatus();
         }
         // The full chain (pages + document + metadata) just landed,
@@ -8749,6 +8836,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // metadata-only retry timer typically wins first.
         debugPrint('[Canvas] Remote sync: pages+document committed but '
             'metadata.json failed — staging for replay: $e');
+        if (e.cause is RemoteStorageFullException) _reportStorageFull(true);
         _pendingMetaCommitBytes = e.metadataBytes;
         await _persistPendingMetaCommit(updatedMeta.id, e.metadataBytes);
         _scheduleMetaCommitRetry();
@@ -8759,8 +8847,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         } catch (_) {}
       } catch (e) {
         debugPrint('[Canvas] Remote sync deferred (offline?): $e');
+        if (e is RemoteStorageFullException) _reportStorageFull(true);
         _consecutiveSyncFailures++;
         _recomputeSyncStatus();
+        _scheduleRemoteRetry();
         // Leave _lastSyncedPages and _dirtyAssetKeys untouched so the
         // failed pages are detected as dirty again on the next save.
         try {
@@ -8776,6 +8866,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         } catch (_) {}
       } finally {
         _releaseSyncLock(lockToken);
+        remoteSaveInFlight.value = false;
       }
     }();
     // Clear the tracking slot when this particular save settles — a later
@@ -8811,8 +8902,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   /// Drops the cached answer after the user changes the setting.
-  void forgetLocalOnly(String notebookId) =>
-      _localOnlyCache.remove(notebookId);
+  void forgetLocalOnly(String notebookId) {
+    _localOnlyCache.remove(notebookId);
+    final st = state;
+    if (st != null && st.metadata.id == notebookId) {
+      unawaited(_isLocalOnly(notebookId).then((v) => keptLocal.value =
+          v || (_ref.read(syncServiceProvider)?.isOffline ?? true)));
+    }
+  }
 
   Future<void> _remoteSync({
     required SyncService syncService,
@@ -8853,7 +8950,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final mergedDeletedAssets =
         _pendingAssetDeletes.take(deleteBatchPerSave).toList();
 
-    if (await _isLocalOnly(updatedMeta.id)) {
+    if (syncService.isOffline || await _isLocalOnly(updatedMeta.id)) {
       debugPrint('[Canvas] Skipping delta sync for ${updatedMeta.id} — '
           'notebook is kept on this device only');
       return;
@@ -9221,6 +9318,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       } catch (e) {
         unawaited(CrashLogger.append('[Pull] meta-HEAD failed: $e'));
         return;
+      }
+      // getDeltaMetaEtag folds errors into null; null for a notebook we
+      // already know is on the server means the server isn't answering.
+      if (fastMetaEtag != null) {
+        _onRemoteReachable();
+      } else if (_remoteMetaEtag != null && !_pullUnreachable) {
+        _pullUnreachable = true;
+        _reportReachable(false);
+        _recomputeSyncStatus();
       }
       final metaMoved = fastMetaEtag != null &&
           (_remoteMetaEtag == null || fastMetaEtag != _remoteMetaEtag);

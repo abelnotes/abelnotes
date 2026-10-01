@@ -4545,18 +4545,25 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               Column(
                 children: [
                   if (!_presentationMode)
-                  ValueListenableBuilder<bool>(
-                    valueListenable: notifier.hasSyncFailure,
-                    builder: (_, syncFailing, __) {
-                      // Honest state: conflict > offline > pending > ok.
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      notifier.hasSyncFailure,
+                      notifier.remoteSaveInFlight,
+                      notifier.keptLocal,
+                    ]),
+                    builder: (_, __) {
+                      // Honest state: conflict > offline > local > pending > ok.
                       // The previous binary "isDirty ? pending : ok" hid
                       // 20-minute Tailscale flaps under the green cloud.
                       final HwSyncState syncState;
                       if (canvasState.pendingConflicts.isNotEmpty) {
                         syncState = HwSyncState.conflict;
-                      } else if (syncFailing) {
+                      } else if (notifier.hasSyncFailure.value) {
                         syncState = HwSyncState.offline;
-                      } else if (canvasState.isDirty) {
+                      } else if (notifier.keptLocal.value) {
+                        syncState = HwSyncState.localOnly;
+                      } else if (canvasState.isDirty ||
+                          notifier.remoteSaveInFlight.value) {
                         syncState = HwSyncState.pending;
                       } else {
                         syncState = HwSyncState.ok;

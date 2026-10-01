@@ -1525,6 +1525,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get libPendingUploadsHint => '在此期间它们留在这台设备上。请让应用再开一会儿。';
 
   @override
+  String get libServerUnreachable => '无法连接服务器';
+
+  @override
+  String get libServerUnreachableHint => '更改保留在此设备上，连接恢复后会自动上传。';
+
+  @override
   String get libStorageFullDrive => '你的 Google Drive 已满';
 
   @override

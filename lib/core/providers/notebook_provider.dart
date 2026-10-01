@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show HandshakeException, SocketException;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart' show canvasProvider;
@@ -40,6 +43,9 @@ class NotebookEntry {
   /// count only — until the user opens it, which downloads it.
   final bool notOnDevice;
 
+  /// No server is configured at all: nothing is pending, everything is local.
+  final bool serverless;
+
   const NotebookEntry({
     required this.metadata,
     required this.remotePath,
@@ -47,6 +53,7 @@ class NotebookEntry {
     this.isLocal = false,
     this.localOnly = false,
     this.notOnDevice = false,
+    this.serverless = false,
   });
 
   NotebookEntry copyWith({
@@ -56,6 +63,7 @@ class NotebookEntry {
     bool? isLocal,
     bool? localOnly,
     bool? notOnDevice,
+    bool? serverless,
   }) =>
       NotebookEntry(
         metadata: metadata ?? this.metadata,
@@ -64,6 +72,7 @@ class NotebookEntry {
         isLocal: isLocal ?? this.isLocal,
         localOnly: localOnly ?? this.localOnly,
         notOnDevice: notOnDevice ?? this.notOnDevice,
+        serverless: serverless ?? this.serverless,
       );
 }
 
@@ -106,6 +115,10 @@ class NotebookListNotifier
   /// succeeds.
   final ValueNotifier<bool> storageFull = ValueNotifier<bool>(false);
 
+  /// The last library sync failed on the network, not on the server's
+  /// answer: shown so a silent offline isn't mistaken for "all synced".
+  final ValueNotifier<bool> serverUnreachable = ValueNotifier<bool>(false);
+
   /// Progress during first sync: "downloaded/total" where 0/0 means PROPFIND
   /// is still in flight. UI shows this beside the spinner so first-install
   /// users can tell work is happening.
@@ -116,6 +129,7 @@ class NotebookListNotifier
   void dispose() {
     isSyncing.dispose();
     storageFull.dispose();
+    serverUnreachable.dispose();
     syncProgress.dispose();
     super.dispose();
   }
@@ -146,11 +160,13 @@ class NotebookListNotifier
       if (syncService == null || webdav == null) return;
 
       await _syncWithServer(syncService, webdav, fileService);
+      if (mounted) serverUnreachable.value = false;
     } on RemoteStorageFullException catch (e) {
       debugPrint('[Library] Remote is out of space: $e');
       storageFull.value = true;
     } catch (e) {
       debugPrint('[Library] Remote sync failed: $e');
+      if (mounted && _isNetworkError(e)) serverUnreachable.value = true;
       // Local data is already shown — no need to show error
     } finally {
       if (mounted) {
@@ -163,6 +179,12 @@ class NotebookListNotifier
     }
   }
 
+  static bool _isNetworkError(Object e) =>
+      e is SocketException ||
+      e is TimeoutException ||
+      e is HandshakeException ||
+      e is http.ClientException;
+
   /// Build notebook entries directly from local SQLite metadata (no ZIP parsing).
   Future<void> _loadFromLocalDb(FileService fileService) async {
     final allMeta = await fileService.getAllNotebookMeta();
@@ -171,9 +193,17 @@ class NotebookListNotifier
       return;
     }
 
+    // A root file still queued means other devices can't see the notebook,
+    // whatever the delta sync says: the card must not read as synced.
+    final pendingRoots = await PendingRootUploads.load();
+    final serverless = _ref.read(syncServiceProvider)?.isOffline ?? true;
     final entries = <NotebookEntry>[];
     for (final row in allMeta) {
-      entries.add(_notebookEntryFromRow(row));
+      final e = _notebookEntryFromRow(row);
+      entries.add(e.copyWith(
+        isLocal: e.isLocal || pendingRoots.contains(e.metadata.id),
+        serverless: serverless,
+      ));
     }
     entries.sort((a, b) => b.metadata.modifiedAt.compareTo(a.metadata.modifiedAt));
     state = AsyncValue.data(entries);
@@ -413,6 +443,9 @@ class NotebookListNotifier
           final deltaMeta = metas[k];
           if (deltaMeta == null) continue;
           final id = row['id'] as String;
+          // A rename/cover/tag edit not yet on the server: the remote copy is
+          // the stale side, and copying it here would undo the edit.
+          if ((await fileService.dirtyPagesOf(id)).contains('meta')) continue;
           final existingCount = row['page_count'] as int? ?? 0;
           final existingTitle = row['title'] as String? ?? '';
           final existingModified =
@@ -1044,6 +1077,7 @@ class NotebookListNotifier
       createdAt: updatedMeta.createdAt,
     );
 
+    var remoteDone = false;
     try {
       if (webdav != null) {
         final etag = await syncService.uploadNotebook(
@@ -1054,18 +1088,22 @@ class NotebookListNotifier
           assets: allAssets.isNotEmpty ? allAssets : null,
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
-        await fileService.markNotebookSynced(updatedMeta.id, etag);
         await _patchDeltaMetadata(syncService, updatedMeta.id,
             (m) => m.copyWith(tags: cleanTags, modifiedAt: updatedMeta.modifiedAt));
+        await fileService.markNotebookSynced(updatedMeta.id, etag);
+        remoteDone = true;
       }
     } catch (e) {
       debugPrint('[Library] Tags uploaded locally, remote sync deferred: $e');
+      // Stays pending until the delta metadata carries it: the library
+      // retry patches it once the server answers.
+      await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
     }
 
     final current = state.valueOrNull ?? [];
     state = AsyncValue.data(current.map((e) {
       if (e.metadata.id == entry.metadata.id) {
-        return e.copyWith(metadata: updatedMeta);
+        return e.copyWith(metadata: updatedMeta, isLocal: !remoteDone);
       }
       return e;
     }).toList());
@@ -1115,6 +1153,7 @@ class NotebookListNotifier
       createdAt: updatedMeta.createdAt,
     );
 
+    var remoteDone = false;
     try {
       if (webdav != null) {
         final etag = await syncService.uploadNotebook(
@@ -1125,19 +1164,23 @@ class NotebookListNotifier
           assets: allAssets.isNotEmpty ? allAssets : null,
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
-        await fileService.markNotebookSynced(updatedMeta.id, etag);
         await _patchDeltaMetadata(syncService, updatedMeta.id,
             (m) => m.copyWith(
               coverColor: newCoverColor, modifiedAt: updatedMeta.modifiedAt));
+        await fileService.markNotebookSynced(updatedMeta.id, etag);
+        remoteDone = true;
       }
     } catch (e) {
       debugPrint('[Library] Cover change saved locally, remote sync deferred: $e');
+      // Stays pending until the delta metadata carries it: the library
+      // retry patches it once the server answers.
+      await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
     }
 
     final current = state.valueOrNull ?? [];
     state = AsyncValue.data(current.map((e) {
       if (e.metadata.id == entry.metadata.id) {
-        return e.copyWith(metadata: updatedMeta);
+        return e.copyWith(metadata: updatedMeta, isLocal: !remoteDone);
       }
       return e;
     }).toList());
@@ -1194,6 +1237,7 @@ class NotebookListNotifier
     );
 
     // Try to upload to server (best-effort — succeeds when online)
+    var remoteDone = false;
     try {
       if (webdav != null) {
         final etag = await syncService.uploadNotebook(
@@ -1204,18 +1248,22 @@ class NotebookListNotifier
           assets: allAssets.isNotEmpty ? allAssets : null,
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
-        await fileService.markNotebookSynced(updatedMeta.id, etag);
         await _patchDeltaMetadata(syncService, updatedMeta.id,
             (m) => m.copyWith(title: newTitle, modifiedAt: updatedMeta.modifiedAt));
+        await fileService.markNotebookSynced(updatedMeta.id, etag);
+        remoteDone = true;
       }
     } catch (e) {
       debugPrint('[Library] Rename uploaded locally, remote sync deferred: $e');
+      // Stays pending until the delta metadata carries it: the library
+      // retry patches it once the server answers.
+      await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
     }
 
     final current = state.valueOrNull ?? [];
     state = AsyncValue.data(current.map((e) {
       if (e.metadata.id == entry.metadata.id) {
-        return e.copyWith(metadata: updatedMeta);
+        return e.copyWith(metadata: updatedMeta, isLocal: !remoteDone);
       }
       return e;
     }).toList());
@@ -1274,12 +1322,16 @@ class NotebookListNotifier
       if (!await syncService.remoteFileExists(remotePath)) {
         SyncService.validateNcnoteArchive(bytes, context: 'root retry $id');
         await syncService.uploadNcnoteZip(remotePath, bytes);
+        storageFull.value = false;
         debugPrint('[Library] Uploaded missing root .ncnote for $id');
         unawaited(CrashLogger.append(
             '[Root] $id uploaded (${bytes.length} bytes) to $remotePath'));
       }
       await PendingRootUploads.remove(id);
+      // The card reads the pending set: drop its pending badge now.
+      if (mounted) await _loadFromLocalDb(fileService);
     } catch (e) {
+      if (e is RemoteStorageFullException) storageFull.value = true;
       debugPrint('[Library] Root upload for $id failed: $e (will retry)');
       unawaited(CrashLogger.append('[Root] $id retry failed: $e'));
     } finally {
@@ -1313,6 +1365,70 @@ class NotebookListNotifier
     } finally {
       if (mounted) await _loadFromLocalDb(fileService);
     }
+  }
+
+  /// Pushes what a closed notebook failed to upload (dirty_pages), but only
+  /// when nobody changed it since this device last synced: the local copy is
+  /// then a superset of the server's and needs no merge. Otherwise the
+  /// editor does it on open, with its 3-way merge. A pending rename/cover/
+  /// tag edit alone ('meta') is patched field by field either way.
+  Future<void> _pushUnpushed(
+      SyncService syncService, FileService fileService, String id) async {
+    final keys = await fileService.dirtyPagesOf(id);
+    if (keys.isEmpty) return;
+    if (_ref.read(canvasProvider)?.metadata.id == id) return; // editor owns it
+    final local = await syncService
+        .loadLooseStoreFromDisk(fileService.notebookStoreDir(id));
+    if (local == null) return;
+    final m = local.metadata;
+    if (keys.length == 1 && keys.contains('meta')) {
+      await _patchDeltaMetadata(
+          syncService,
+          id,
+          (r) => r.copyWith(
+              title: m.title,
+              coverColor: m.coverColor,
+              tags: m.tags,
+              modifiedAt: m.modifiedAt));
+      await fileService.clearDirtyPages(id);
+      unawaited(CrashLogger.append('[Unpushed] $id metadata patched'));
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final known = prefs.getString('delta_meta_etag_$id');
+    final remote = await syncService.getDeltaMetaEtag(id);
+    if (known == null || remote == null || remote != known) {
+      unawaited(CrashLogger.append(
+          '[Unpushed] $id left for the editor (server moved)'));
+      return;
+    }
+    final pages = {
+      for (final k in keys)
+        if (local.pages.containsKey(k)) k: local.pages[k]!,
+    };
+    final assets = <String, Uint8List>{
+      for (final k in keys)
+        if (k.startsWith('asset:') && local.assets.containsKey(k.substring(6)))
+          k.substring(6): local.assets[k.substring(6)]!,
+    };
+    final res = await syncService.syncDelta(
+      notebookId: id,
+      metadata: m,
+      document: local.document,
+      dirtyPages: pages,
+      dirtyAssets: assets.isEmpty ? null : assets,
+      symbolLibraries:
+          local.symbolLibraries.isNotEmpty ? local.symbolLibraries : null,
+    );
+    // Same key the editor reads, so its first pull knows this is ours.
+    final etag = res.metaEtag;
+    if (etag != null && etag.isNotEmpty) {
+      await prefs.setString('delta_meta_etag_$id', etag);
+    }
+    await fileService.clearDirtyPages(id);
+    storageFull.value = false; // the server just took a write
+    unawaited(CrashLogger.append(
+        '[Unpushed] $id pushed ${pages.length} pages, ${assets.length} assets'));
   }
 
   Future<void> _retryDirtyRows(
@@ -1350,6 +1466,16 @@ class NotebookListNotifier
           debugPrint('[Library] Skipping full-notebook retry for $id — '
               'delta folder is alive on server, canvas pull/save handles '
               'per-page reconciliation');
+          try {
+            await _pushUnpushed(syncService, fileService, id);
+          } catch (e) {
+            if (e is RemoteStorageFullException ||
+                (e is MetadataCommitFailedException &&
+                    e.cause is RemoteStorageFullException)) {
+              storageFull.value = true;
+            }
+            unawaited(CrashLogger.append('[Unpushed] $id push failed: $e'));
+          }
           // Clear the dirty flag since the delta folder IS the committed
           // state; the DB's 'modified' flag was a vestige from an earlier
           // save path that never got cleared.

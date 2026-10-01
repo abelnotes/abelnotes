@@ -24,7 +24,8 @@ class SyncBadge extends StatelessWidget {
         ('cloud-check', HwTheme.syncOk, l10n.syncOkTooltip),
       HwSyncState.pending =>
         ('cloud-pending', HwTheme.syncPending, l10n.syncPendingTooltip),
-      HwSyncState.offline => ('cloud-off', p.ink3, l10n.syncOfflineTooltip),
+      HwSyncState.offline =>
+        ('cloud-off', HwTheme.syncPending, l10n.syncOfflineTooltip),
       HwSyncState.conflict =>
         ('cloud-conflict', HwTheme.syncConflict, l10n.syncConflictTooltip),
       HwSyncState.localOnly =>

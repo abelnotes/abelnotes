@@ -413,6 +413,8 @@
   "libPendingUploadsDrive": "{count, plural, one{{count} caderno ainda para enviar ao Google Drive} other{{count} cadernos ainda para enviar ao Google Drive}}",
   "libPendingUploadsServer": "{count, plural, one{{count} caderno ainda para enviar ao seu servidor} other{{count} cadernos ainda para enviar ao seu servidor}}",
   "libPendingUploadsHint": "Enquanto isso, eles ficam neste dispositivo. Deixe o app aberto um instante.",
+  "libServerUnreachable": "Servidor inacessível",
+  "libServerUnreachableHint": "As alterações ficam neste dispositivo e são enviadas assim que a conexão voltar.",
   "libStorageFullDrive": "O seu Google Drive está cheio",
   "libStorageFullServer": "O seu servidor está sem espaço",
   "libStorageFullBody": "Os cadernos ficam a salvo neste dispositivo, mas não podem ser enviados até você liberar espaço. O espaço do Google Drive é compartilhado com o Gmail e o Fotos.",

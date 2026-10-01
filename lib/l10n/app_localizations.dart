@@ -2586,6 +2586,18 @@ abstract class AppLocalizations {
   /// **'Intanto restano su questo dispositivo. Lascia l\'app aperta un momento.'**
   String get libPendingUploadsHint;
 
+  /// No description provided for @libServerUnreachable.
+  ///
+  /// In it, this message translates to:
+  /// **'Server non raggiungibile'**
+  String get libServerUnreachable;
+
+  /// No description provided for @libServerUnreachableHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Le modifiche restano su questo dispositivo e si caricano appena torna la connessione.'**
+  String get libServerUnreachableHint;
+
   /// No description provided for @libStorageFullDrive.
   ///
   /// In it, this message translates to:

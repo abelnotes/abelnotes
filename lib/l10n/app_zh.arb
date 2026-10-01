@@ -413,6 +413,8 @@
   "libPendingUploadsDrive": "{count, plural, one{还有 {count} 个笔记本待上传到 Google Drive} other{还有 {count} 个笔记本待上传到 Google Drive}}",
   "libPendingUploadsServer": "{count, plural, one{还有 {count} 个笔记本待上传到你的服务器} other{还有 {count} 个笔记本待上传到你的服务器}}",
   "libPendingUploadsHint": "在此期间它们留在这台设备上。请让应用再开一会儿。",
+  "libServerUnreachable": "无法连接服务器",
+  "libServerUnreachableHint": "更改保留在此设备上，连接恢复后会自动上传。",
   "libStorageFullDrive": "你的 Google Drive 已满",
   "libStorageFullServer": "你的服务器空间不足",
   "libStorageFullBody": "笔记本在这台设备上是安全的，但在你腾出空间之前无法上传。Google Drive 的空间与 Gmail 和相册共用。",

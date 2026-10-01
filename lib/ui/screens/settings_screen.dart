@@ -712,6 +712,19 @@ class _SyncSection extends ConsumerWidget {
               : l10n.setSyncLocalOnlyDesc,
           style: TextStyle(fontSize: 14, color: p.ink2, height: 1.5),
         ),
+        if (connected)
+          ValueListenableBuilder<bool>(
+            valueListenable:
+                ref.watch(notebookListProvider.notifier).serverUnreachable,
+            builder: (_, down, __) => down
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(l10n.libServerUnreachable,
+                        style: const TextStyle(
+                            fontSize: 12, color: HwTheme.syncConflict)),
+                  )
+                : const SizedBox.shrink(),
+          ),
         const SizedBox(height: 24),
         Container(
           padding: const EdgeInsets.all(16),
