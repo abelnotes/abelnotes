@@ -676,10 +676,13 @@ class FileService {
 
   /// Marks a notebook as synced with a new etag.
   Future<void> markNotebookSynced(String notebookId, String? etag) async {
+    // A pull or a retry also lands here; while pages are recorded as never
+    // pushed, the notebook is not synced whatever the server's state.
+    final unpushed = (await dirtyPagesOf(notebookId)).isNotEmpty;
     await _db.update(
       'notebooks',
       {
-        'sync_status': 'synced',
+        if (!unpushed) 'sync_status': 'synced',
         'etag': etag,
         'remote_modified_at': DateTime.now().toIso8601String(),
       },
@@ -890,6 +893,29 @@ class FileService {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Records pages (and `asset:<id>` entries) whose upload failed, so they
+  /// survive closing the notebook and are pushed when it is next opened.
+  Future<void> addDirtyPages(String notebookId, Iterable<String> keys) async {
+    final now = DateTime.now().toIso8601String();
+    final batch = _db.batch();
+    for (final k in keys) {
+      batch.insert(
+        'dirty_pages',
+        {'notebook_id': notebookId, 'page_id': k, 'modified_at': now},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
+  Future<Set<String>> dirtyPagesOf(String notebookId) async {
+    final rows = await _db.query('dirty_pages',
+        columns: ['page_id'],
+        where: 'notebook_id = ?',
+        whereArgs: [notebookId]);
+    return {for (final r in rows) r['page_id'] as String};
   }
 
   /// Clears all dirty pages for a notebook (after successful sync).

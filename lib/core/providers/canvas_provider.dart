@@ -1065,6 +1065,44 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     return remembered;
   }
 
+  /// Pages and assets a previous session failed to upload: dropped from the
+  /// baseline so the next save pushes them, and a save is scheduled.
+  Future<void> _restoreUnpushed(
+      String notebookId, Map<String, PageData> pages) async {
+    final Set<String> keys;
+    try {
+      keys = await _ref.read(fileServiceProvider).dirtyPagesOf(notebookId);
+    } catch (_) {
+      return;
+    }
+    if (keys.isEmpty) return;
+    final pageKeys = keys.where((k) => !k.startsWith('asset:')).toSet();
+    // Baseline for those pages: the page emptied. The server's real
+    // baseline is unknown, and an empty one makes a page that another
+    // device also edited merge as a union instead of being overwritten.
+    _lastSyncedPages = {
+      for (final e in pages.entries)
+        e.key: pageKeys.contains(e.key)
+            ? e.value.copyWith(
+                layers: RenderingLayers(
+                    background: e.value.layers.background, content: const []))
+            : e.value,
+    };
+    for (final k in keys) {
+      if (k.startsWith('asset:')) _dirtyAssetKeys.add(k.substring(6));
+    }
+    unawaited(CrashLogger.append(
+        '[Canvas] $notebookId reopening with ${keys.length} unpushed items'));
+    // The editor autosaves on the transition to dirty; state does not exist
+    // yet here, so flip it once the notebook is on screen.
+    unawaited(Future<void>.delayed(const Duration(seconds: 2), () {
+      final st = state;
+      if (st != null && st.metadata.id == notebookId && !st.isDirty) {
+        state = st.copyWith(isDirty: true);
+      }
+    }));
+  }
+
   void setViewportSize(Size size) {
     final wasNull = _viewportSize == null;
     _viewportSize = size;
@@ -1279,6 +1317,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _assetIndexBuilt = false;
     _pageJsonCache.clear();
     _dirtyAssetKeys.clear();
+    await _restoreUnpushed(metadata.id, repaired.pages);
     // If the cached ETags belong to a different notebook, flush them so
     // notebook-A's diff never bleeds into notebook-B's first pull.
     if (_etagNotebookId != metadata.id) {
@@ -8726,6 +8765,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // failed pages are detected as dirty again on the next save.
         try {
           await fileService.markNotebookDirty(updatedMeta.id);
+          // In-memory state dies with the editor: persist what failed so
+          // reopening pushes it instead of treating it as synced.
+          if (!syncService.isOffline) {
+            await fileService.addDirtyPages(updatedMeta.id, [
+              ...changedPages.keys,
+              for (final k in snapshotDirtyAssetKeys) 'asset:$k',
+            ]);
+          }
         } catch (_) {}
       } finally {
         _releaseSyncLock(lockToken);
@@ -8872,6 +8919,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         _lastPageEtags.remove(fn);
       }
     }
+    // Everything outstanding went up with this delta: failed pages stay
+    // dirty against _lastSyncedPages, and reopening restores them.
+    await fileService.clearDirtyPages(updatedMeta.id);
     await fileService.markNotebookSynced(updatedMeta.id, result.metaEtag);
     unawaited(_ref
         .read(notebookListProvider.notifier)
