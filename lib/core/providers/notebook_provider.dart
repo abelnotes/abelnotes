@@ -847,6 +847,7 @@ class NotebookListNotifier
           }
         } catch (e) {
           debugPrint('[Library] Created notebook locally, sync deferred: $e');
+          unawaited(CrashLogger.append('[Root] create upload $notebookId failed: $e'));
         }
       }());
     }
@@ -1197,6 +1198,9 @@ class NotebookListNotifier
     FileService fileService,
   ) async {
     final pending = await PendingRootUploads.load();
+    if (pending.isNotEmpty) {
+      unawaited(CrashLogger.append('[Root] pending: ${pending.join(', ')}'));
+    }
     for (final id in pending) {
       try {
         final row = await fileService.getNotebookMeta(id);
@@ -1207,6 +1211,8 @@ class NotebookListNotifier
             : await fileService.readNotebookFile(id);
         if (bytes == null) {
           // Deleted, taken off the cloud, or nothing to send: not pending.
+          unawaited(CrashLogger.append('[Root] $id dropped: '
+              'row=${row != null} localOnly=$localOnly path=$remotePath'));
           await PendingRootUploads.remove(id);
           continue;
         }
@@ -1215,10 +1221,13 @@ class NotebookListNotifier
               context: 'root retry $id');
           await syncService.uploadNcnoteZip(remotePath, bytes);
           debugPrint('[Library] Uploaded missing root .ncnote for $id');
+          unawaited(CrashLogger.append(
+              '[Root] $id uploaded (${bytes.length} bytes) to $remotePath'));
         }
         await PendingRootUploads.remove(id);
       } catch (e) {
         debugPrint('[Library] Root upload for $id failed: $e (will retry)');
+        unawaited(CrashLogger.append('[Root] $id retry failed: $e'));
       }
     }
   }
@@ -1243,6 +1252,19 @@ class NotebookListNotifier
 
     final dirtyRows = await fileService.getDirtyNotebooks();
     if (dirtyRows.isEmpty) return;
+    // Rows cleared below only reach the pending-uploads banner on a reload.
+    try {
+      await _retryDirtyRows(syncService, fileService, dirtyRows);
+    } finally {
+      if (mounted) await _loadFromLocalDb(fileService);
+    }
+  }
+
+  Future<void> _retryDirtyRows(
+    SyncService syncService,
+    FileService fileService,
+    List<Map<String, dynamic>> dirtyRows,
+  ) async {
     debugPrint('[Library] Retrying ${dirtyRows.length} pending notebook uploads');
     unawaited(CrashLogger.append(
       '[Retry] ${dirtyRows.length} pending notebooks to re-upload',
