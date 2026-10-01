@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -287,6 +288,9 @@ class NotebookListNotifier
           if (deltaAlive) {
             debugPrint('[Library] Skipping .ncnote download for $remotePath '
                 '(delta folder on server is authoritative)');
+            // The root changed (rename, cover, tags): pick up the title and
+            // cover from the delta metadata, which those edits also patch.
+            metaOnlyRows.add(localRow);
             continue;
           }
         }
@@ -975,6 +979,23 @@ class NotebookListNotifier
   /// Replaces the tag list on a notebook. Persists locally and re-uploads
   /// (best-effort). The `syncStatus` is flipped to `modified` so the next
   /// background sync picks it up when offline.
+  /// Other devices read title, cover and tags from the delta metadata.json,
+  /// not the root file the edits below rewrite. Patches only those fields on
+  /// the server copy: the local metadata may be behind another device's.
+  Future<void> _patchDeltaMetadata(
+    SyncService syncService,
+    String id,
+    NotebookMetadata Function(NotebookMetadata) patch,
+  ) async {
+    final remote = await syncService.downloadDeltaMetadataOnly(id);
+    if (remote == null) return; // no delta folder yet
+    await syncService.replayMetadataCommit(
+      notebookId: id,
+      metadataBytes:
+          Uint8List.fromList(utf8.encode(jsonEncode(patch(remote).toJson()))),
+    );
+  }
+
   Future<void> updateNotebookTags(NotebookEntry entry, List<String> tags) async {
     final syncService = _ref.read(syncServiceProvider);
     final webdav = _ref.read(remoteStoreProvider);
@@ -1034,6 +1055,8 @@ class NotebookListNotifier
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
         await fileService.markNotebookSynced(updatedMeta.id, etag);
+        await _patchDeltaMetadata(syncService, updatedMeta.id,
+            (m) => m.copyWith(tags: cleanTags, modifiedAt: updatedMeta.modifiedAt));
       }
     } catch (e) {
       debugPrint('[Library] Tags uploaded locally, remote sync deferred: $e');
@@ -1103,6 +1126,9 @@ class NotebookListNotifier
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
         await fileService.markNotebookSynced(updatedMeta.id, etag);
+        await _patchDeltaMetadata(syncService, updatedMeta.id,
+            (m) => m.copyWith(
+              coverColor: newCoverColor, modifiedAt: updatedMeta.modifiedAt));
       }
     } catch (e) {
       debugPrint('[Library] Cover change saved locally, remote sync deferred: $e');
@@ -1179,6 +1205,8 @@ class NotebookListNotifier
           symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
         );
         await fileService.markNotebookSynced(updatedMeta.id, etag);
+        await _patchDeltaMetadata(syncService, updatedMeta.id,
+            (m) => m.copyWith(title: newTitle, modifiedAt: updatedMeta.modifiedAt));
       }
     } catch (e) {
       debugPrint('[Library] Rename uploaded locally, remote sync deferred: $e');
