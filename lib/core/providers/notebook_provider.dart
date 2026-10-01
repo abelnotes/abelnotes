@@ -819,6 +819,7 @@ class NotebookListNotifier
       // `modified` until the upload lands, which is what the pending-upload
       // badge is for, and a failure is just the next sync's job.
       await PendingRootUploads.add(notebookId);
+      _rootUploadsInFlight.add(notebookId);
       unawaited(() async {
         try {
           await syncService.uploadNotebook(
@@ -848,6 +849,8 @@ class NotebookListNotifier
         } catch (e) {
           debugPrint('[Library] Created notebook locally, sync deferred: $e');
           unawaited(CrashLogger.append('[Root] create upload $notebookId failed: $e'));
+        } finally {
+          _rootUploadsInFlight.remove(notebookId);
         }
       }());
     }
@@ -1202,33 +1205,57 @@ class NotebookListNotifier
       unawaited(CrashLogger.append('[Root] pending: ${pending.join(', ')}'));
     }
     for (final id in pending) {
-      try {
-        final row = await fileService.getNotebookMeta(id);
-        final remotePath = row?['remote_path'] as String? ?? '';
-        final localOnly = (row?['local_only'] as int? ?? 0) == 1;
-        final bytes = row == null || localOnly || remotePath.isEmpty
-            ? null
-            : await fileService.readNotebookFile(id);
-        if (bytes == null) {
-          // Deleted, taken off the cloud, or nothing to send: not pending.
-          unawaited(CrashLogger.append('[Root] $id dropped: '
-              'row=${row != null} localOnly=$localOnly path=$remotePath'));
-          await PendingRootUploads.remove(id);
-          continue;
-        }
-        if (!await syncService.remoteFileExists(remotePath)) {
-          SyncService.validateNcnoteArchive(bytes,
-              context: 'root retry $id');
-          await syncService.uploadNcnoteZip(remotePath, bytes);
-          debugPrint('[Library] Uploaded missing root .ncnote for $id');
-          unawaited(CrashLogger.append(
-              '[Root] $id uploaded (${bytes.length} bytes) to $remotePath'));
-        }
+      await _uploadPendingRoot(syncService, fileService, id);
+    }
+  }
+
+  /// Root uploads running now, keyed by notebook id. Two writers on one root
+  /// race the create-time size check, which deletes a file it sees mismatch.
+  final Set<String> _rootUploadsInFlight = {};
+
+  /// Called after a successful canvas delta sync: the network demonstrably
+  /// works, while the library-driven retry only runs with the library on
+  /// screen.
+  Future<void> uploadPendingRootFor(String id) async {
+    final syncService = _ref.read(syncServiceProvider);
+    if (syncService == null || syncService.isOffline) return;
+    if (!(await PendingRootUploads.load()).contains(id)) return;
+    await _uploadPendingRoot(syncService, _ref.read(fileServiceProvider), id);
+  }
+
+  Future<void> _uploadPendingRoot(
+    SyncService syncService,
+    FileService fileService,
+    String id,
+  ) async {
+    if (!_rootUploadsInFlight.add(id)) return;
+    try {
+      final row = await fileService.getNotebookMeta(id);
+      final remotePath = row?['remote_path'] as String? ?? '';
+      final localOnly = (row?['local_only'] as int? ?? 0) == 1;
+      final bytes = row == null || localOnly || remotePath.isEmpty
+          ? null
+          : await fileService.readNotebookFile(id);
+      if (bytes == null) {
+        // Deleted, taken off the cloud, or nothing to send: not pending.
+        unawaited(CrashLogger.append('[Root] $id dropped: '
+            'row=${row != null} localOnly=$localOnly path=$remotePath'));
         await PendingRootUploads.remove(id);
-      } catch (e) {
-        debugPrint('[Library] Root upload for $id failed: $e (will retry)');
-        unawaited(CrashLogger.append('[Root] $id retry failed: $e'));
+        return;
       }
+      if (!await syncService.remoteFileExists(remotePath)) {
+        SyncService.validateNcnoteArchive(bytes, context: 'root retry $id');
+        await syncService.uploadNcnoteZip(remotePath, bytes);
+        debugPrint('[Library] Uploaded missing root .ncnote for $id');
+        unawaited(CrashLogger.append(
+            '[Root] $id uploaded (${bytes.length} bytes) to $remotePath'));
+      }
+      await PendingRootUploads.remove(id);
+    } catch (e) {
+      debugPrint('[Library] Root upload for $id failed: $e (will retry)');
+      unawaited(CrashLogger.append('[Root] $id retry failed: $e'));
+    } finally {
+      _rootUploadsInFlight.remove(id);
     }
   }
 

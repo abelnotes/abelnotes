@@ -8873,6 +8873,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       }
     }
     await fileService.markNotebookSynced(updatedMeta.id, result.metaEtag);
+    unawaited(_ref
+        .read(notebookListProvider.notifier)
+        .uploadPendingRootFor(updatedMeta.id));
     // ETag persistence is INTENTIONALLY deferred: the caller chains it
     // to the local-ZIP write completion in the _pendingRemoteSave block.
     // Persisting here would race the local write — a process kill in

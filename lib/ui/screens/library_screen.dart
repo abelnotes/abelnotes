@@ -314,7 +314,13 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2> {
     try {
       await openNotebookAndNavigate(context, ref, entry);
       if (!mounted) return;
-      ref.read(notebookListProvider.notifier).refresh();
+      // The 5-minute tick skips while a notebook is open, so a session spent
+      // in the editor would otherwise never retry pending uploads.
+      final notifier = ref.read(notebookListProvider.notifier);
+      unawaited(notifier
+          .refresh()
+          .then((_) => notifier.retryPendingUploads())
+          .catchError((Object _) {}));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
