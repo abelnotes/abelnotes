@@ -381,16 +381,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// are reordered, deleted, or merged from multiple sessions — which is
   /// exactly when the simple `length + 1` scheme re-uses an already-taken
   /// number and causes the "chapter mixing / duplicate page" bug.
+  /// `page_NNN.json`, or `page_NNN_xxxx.json` for pages created here: two
+  /// devices adding a page before syncing used to mint the same name, and
+  /// the merge then fused the two different pages into one.
+  static final _pageFileRe = RegExp(r'page_(\d+)(?:_[a-z0-9]+)?\.json');
+  static final _rand = Random.secure();
+  static String _mintPageFileName(int number) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final tag =
+        List.generate(4, (_) => chars[_rand.nextInt(chars.length)]).join();
+    return 'page_${number.toString().padLeft(3, '0')}_$tag.json';
+  }
+
   String _nextPageFileName(CanvasState s) {
     int maxNum = s.document.pages.length; // safe lower bound
     for (final p in s.document.pages) {
-      final m = RegExp(r'page_(\d+)\.json').firstMatch(p.fileName);
+      final m = _pageFileRe.firstMatch(p.fileName);
       if (m != null) {
         final n = int.tryParse(m.group(1)!) ?? 0;
         if (n > maxNum) maxNum = n;
       }
     }
-    return 'page_${(maxNum + 1).toString().padLeft(3, '0')}.json';
+    return _mintPageFileName(maxNum + 1);
   }
 
   /// Scans [doc].pages for duplicate fileNames and renames every second-or-
@@ -406,7 +418,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Compute the current max numeric suffix so we can mint fresh names.
     int maxNum = 0;
     for (final p in doc.pages) {
-      final m = RegExp(r'page_(\d+)\.json').firstMatch(p.fileName);
+      final m = _pageFileRe.firstMatch(p.fileName);
       if (m != null) {
         final n = int.tryParse(m.group(1)!) ?? 0;
         if (n > maxNum) maxNum = n;
@@ -422,8 +434,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       if (seen.contains(entry.fileName)) {
         // Duplicate: assign a new non-colliding fileName.
         maxNum++;
-        final newFileName =
-            'page_${maxNum.toString().padLeft(3, '0')}.json';
+        final newFileName = _mintPageFileName(maxNum);
         // Copy the PageData under the new key so the content is not lost.
         final originalData = repairedPages[entry.fileName];
         if (originalData != null) {
@@ -633,8 +644,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Per-page chapterId 3-way.
     String? mergeChapterId(String fn) {
       final b = baseByFn[fn]?.chapterId;
-      final l = localByFn[fn]?.chapterId;
-      final r = remoteByFn[fn]?.chapterId;
+      // A side that no longer lists the page didn't move it to "no
+      // chapter": read its absence as unchanged, or a page resurrected
+      // from one side lost its chapter.
+      final l = localByFn.containsKey(fn) ? localByFn[fn]!.chapterId : b;
+      final r = remoteByFn.containsKey(fn) ? remoteByFn[fn]!.chapterId : b;
       if (baseDoc == null) return r ?? l;
       final lChanged = l != b;
       final rChanged = r != b;
@@ -1066,6 +1080,35 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     return remembered;
   }
 
+  static String _unpushedBaseDocKey(String id) => 'unpushed_base_doc_$id';
+  static String _unpushedBaseMetaKey(String id) => 'unpushed_base_meta_$id';
+
+  /// Keeps the last server-confirmed page list and metadata across closing
+  /// the notebook. Written once: later failures share the same baseline.
+  Future<void> _persistUnpushedBase(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final doc = _lastSyncedDocument;
+      final meta = _lastSyncedMetadata;
+      if (doc != null && !prefs.containsKey(_unpushedBaseDocKey(id))) {
+        await prefs.setString(
+            _unpushedBaseDocKey(id), jsonEncode(doc.toJson()));
+      }
+      if (meta != null && !prefs.containsKey(_unpushedBaseMetaKey(id))) {
+        await prefs.setString(
+            _unpushedBaseMetaKey(id), jsonEncode(meta.toJson()));
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _clearUnpushedBase(String id) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_unpushedBaseDocKey(id));
+      await prefs.remove(_unpushedBaseMetaKey(id));
+    } catch (_) {}
+  }
+
   /// Pages and assets a previous session failed to upload: dropped from the
   /// baseline so the next save pushes them, and a save is scheduled.
   Future<void> _restoreUnpushed(
@@ -1077,6 +1120,22 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       return;
     }
     if (keys.isEmpty) return;
+    // The page list's 3-way merge needs the server's baseline, not the local
+    // copy just loaded: with that as base, a move made offline read as "no
+    // change" and the remote order won.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final doc = prefs.getString(_unpushedBaseDocKey(notebookId));
+      final meta = prefs.getString(_unpushedBaseMetaKey(notebookId));
+      if (doc != null) {
+        _lastSyncedDocument = DocumentStructure.fromJson(
+            jsonDecode(doc) as Map<String, dynamic>);
+      }
+      if (meta != null) {
+        _lastSyncedMetadata = NotebookMetadata.fromJson(
+            jsonDecode(meta) as Map<String, dynamic>);
+      }
+    } catch (_) {}
     final pageKeys = keys.where((k) => !k.startsWith('asset:')).toSet();
     // Baseline for those pages: the page emptied. The server's real
     // baseline is unknown, and an empty one makes a page that another
@@ -1855,7 +1914,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// `pageNumber` field stored inside each PageData JSON, which past bugs
   /// have been observed to leave duplicated or out-of-range.
   static int _filenameNum(String fn) {
-    final m = RegExp(r'page_(\d+)\.json').firstMatch(fn);
+    final m = _pageFileRe.firstMatch(fn);
     return m != null ? (int.tryParse(m.group(1)!) ?? 99999) : 99999;
   }
 
@@ -8619,7 +8678,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     //    compute(_buildPackageInIsolate) call is what makes small-stroke
     //    edits actually reach the server in ~seconds on Tailscale instead
     //    of waiting for the ZIP build to finish first.
-    final remoteSyncFuture = _remoteSync(
+    // A pending conflict is the user's to decide: uploading now would push
+    // their local side of it (and the document listing it) before they do.
+    // Saved locally only; resolving the conflict triggers the upload.
+    final conflictHold = s.pendingConflicts.isNotEmpty;
+    final remoteSyncFuture = conflictHold
+        ? Future<void>.value()
+        : _remoteSync(
       syncService: syncService,
       fileService: fileService,
       updatedMeta: updatedMeta,
@@ -8755,10 +8820,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Without this, the user can exit mid-upload and the sync ends up
     // half-committed on the server (pages uploaded, metadata.json never
     // rewritten), which the next pull then has to reconcile as a conflict.
-    remoteSaveInFlight.value = true;
+    remoteSaveInFlight.value = !conflictHold;
     _pendingRemoteSave = () async {
       try {
         await remoteSyncFuture;
+        if (conflictHold) return; // nothing went up: baselines stay put
         // Remote commit succeeded — clear the failure streak so the
         // pill flips back from offline to pending/ok.
         _reportStorageFull(false);
@@ -8858,10 +8924,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           // In-memory state dies with the editor: persist what failed so
           // reopening pushes it instead of treating it as synced.
           if (!syncService.isOffline) {
+            // 'doc': every save carries the page list and metadata, so a
+            // failed one leaves those (deletions, moves, renames) unpushed
+            // even when no page content changed.
             await fileService.addDirtyPages(updatedMeta.id, [
               ...changedPages.keys,
               for (final k in snapshotDirtyAssetKeys) 'asset:$k',
+              'doc',
             ]);
+            await _persistUnpushedBase(updatedMeta.id);
           }
         } catch (_) {}
       } finally {
@@ -9019,6 +9090,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Everything outstanding went up with this delta: failed pages stay
     // dirty against _lastSyncedPages, and reopening restores them.
     await fileService.clearDirtyPages(updatedMeta.id);
+    await _clearUnpushedBase(updatedMeta.id);
     await fileService.markNotebookSynced(updatedMeta.id, result.metaEtag);
     unawaited(_ref
         .read(notebookListProvider.notifier)
@@ -9859,6 +9931,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
               document: finalDoc,
               isDirty: needsPush || live.isDirty,
             );
+            // Adopting the remote order/chapters/title only changed memory:
+            // with the meta ETag now marked seen, a reopen loaded the old
+            // page list from disk and never pulled it again.
+            if (!needsPush) {
+              _pendingPulledLocalSave = _savePulledChangesLocally(
+                  finalMeta, finalDoc, live.pages, live.assetBytes);
+            }
             print('[Canvas] Pull noop: merged metadata/structure '
                 '(needsPush=$needsPush) — chapters/title/paper/order');
             unawaited(CrashLogger.append(
@@ -10610,9 +10689,20 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final orphanSynthEntries = <PageEntry>[];
       int orphanChRecovered = 0;
       int orphanChUnmapped = 0;
+      final localEntryByFile = {
+        for (final e in s.document.pages) e.fileName: e,
+      };
       for (final entry in updatedPages.entries) {
         if (allLocalFileNames.contains(entry.key)) continue;
         final pid = entry.value.pageId;
+        // A page this device still lists (kept against a remote delete)
+        // keeps its own entry, chapter included.
+        final own = localEntryByFile[entry.key];
+        if (own != null) {
+          orphanSynthEntries.add(own);
+          orphanChRecovered++;
+          continue;
+        }
         final ch = orphanPageIdToChapter[pid];
         if (ch != null) {
           orphanChRecovered++;
@@ -10648,11 +10738,19 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // recovers something.
       orphanSynthEntries.sort((a, b) =>
           _filenameNum(a.fileName).compareTo(_filenameNum(b.fileName)));
-      final combinedEntries = [
-        ...remoteMeta.document.pages,
-        ...localOnlyEntries,
-        ...orphanSynthEntries,
-      ];
+      // Pages only this device lists go back where they were locally,
+      // after their local predecessor; appending them moved a page added
+      // or kept offline to the end of the notebook.
+      final combinedEntries = CanvasNotifier.placeByLocalOrder(
+        [...remoteMeta.document.pages],
+        [
+          ...localOnlyEntries,
+          ...orphanSynthEntries
+              .where((e) => localEntryByFile.containsKey(e.fileName)),
+        ],
+        s.document.pages,
+      )..addAll(orphanSynthEntries
+          .where((e) => !localEntryByFile.containsKey(e.fileName)));
       // Renumber to guarantee sequential, unique pageNumbers after the heal.
       for (var i = 0; i < combinedEntries.length; i++) {
         combinedEntries[i] = combinedEntries[i].copyWith(pageNumber: i + 1);
@@ -10862,6 +10960,19 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final wasPreviouslySynced = _lastSyncedPages.containsKey(entry.key);
       if (wasPreviouslySynced) continue; // remote-deleted → drop
       mergedPages[entry.key] = entry.value; // truly local-only → keep
+    }
+    // A page deleted here, offline, that another device has since edited
+    // came back with this pull: the newer edit wins. Draining the queued
+    // DELETE afterwards removed the file under a page list still naming it,
+    // losing that edit on the server.
+    final revived = _pendingPageDeletes
+        .where((fn) => repaired.pages.containsKey(fn))
+        .toList();
+    if (revived.isNotEmpty) {
+      _pendingPageDeletes.removeAll(revived);
+      unawaited(_persistPendingDeletes(s.metadata.id));
+      print('[Canvas] Dropped queued delete for remotely edited page(s): '
+          '${revived.join(", ")}');
     }
 
     // ── 3-way merge of STRUCTURE (page order + per-page chapter) and
@@ -11109,6 +11220,37 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
   }
 
+  /// Inserts [extras] into [base] after the nearest page that precedes them
+  /// in [localOrder] and is already in the result (at the start if none).
+  @visibleForTesting
+  static List<PageEntry> placeByLocalOrder(List<PageEntry> base,
+      List<PageEntry> extras, List<PageEntry> localOrder) {
+    final out = [...base];
+    final localIndex = {
+      for (var i = 0; i < localOrder.length; i++) localOrder[i].fileName: i,
+    };
+    final sorted = [...extras]..sort((a, b) =>
+        (localIndex[a.fileName] ?? 1 << 30)
+            .compareTo(localIndex[b.fileName] ?? 1 << 30));
+    for (final e in sorted) {
+      final li = localIndex[e.fileName];
+      var at = out.length;
+      if (li != null) {
+        at = 0;
+        for (var j = li - 1; j >= 0; j--) {
+          final k =
+              out.indexWhere((p) => p.fileName == localOrder[j].fileName);
+          if (k >= 0) {
+            at = k + 1;
+            break;
+          }
+        }
+      }
+      out.insert(at, e);
+    }
+    return out;
+  }
+
   /// User dismissed the incoming remote changes — keep local state.
   /// The changes are discarded; they won't re-appear until the remote
   /// side is modified again (ETags already updated).
@@ -11229,6 +11371,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (anyRemoteAccepted || anyLocalKept) {
       _triggerSaveAfterConflictResolution();
     }
+    // The rest of that pull (pages that didn't conflict, the repaired page
+    // list) would have been applied silently without the conflict; leaving
+    // it pending re-prompted "changes from another device" right after.
+    if (state?.pendingRemoteChanges != null) acceptRemoteChanges();
   }
 
   /// Keep all local versions, discard conflicts.

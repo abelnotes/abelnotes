@@ -1411,6 +1411,11 @@ class NotebookListNotifier
         if (k.startsWith('asset:') && local.assets.containsKey(k.substring(6)))
           k.substring(6): local.assets[k.substring(6)]!,
     };
+    // Deletions the editor queued but couldn't send (same keys it reads).
+    final pageDeletes =
+        prefs.getStringList('pending_page_deletes_$id') ?? const <String>[];
+    final assetDeletes =
+        prefs.getStringList('pending_asset_deletes_$id') ?? const <String>[];
     final res = await syncService.syncDelta(
       notebookId: id,
       metadata: m,
@@ -1419,7 +1424,16 @@ class NotebookListNotifier
       dirtyAssets: assets.isEmpty ? null : assets,
       symbolLibraries:
           local.symbolLibraries.isNotEmpty ? local.symbolLibraries : null,
+      deletedPageFileNames: pageDeletes.isEmpty ? null : pageDeletes,
+      deletedAssetFileNames: assetDeletes.isEmpty ? null : assetDeletes,
     );
+    // Deletes that failed come back; the rest are done.
+    await prefs.setStringList(
+        'pending_page_deletes_$id', res.failedPageDeletes);
+    await prefs.setStringList(
+        'pending_asset_deletes_$id', res.failedAssetDeletes);
+    await prefs.remove('unpushed_base_doc_$id');
+    await prefs.remove('unpushed_base_meta_$id');
     // Same key the editor reads, so its first pull knows this is ours.
     final etag = res.metaEtag;
     if (etag != null && etag.isNotEmpty) {
