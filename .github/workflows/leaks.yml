@@ -1,0 +1,76 @@
+name: Leak check
+
+# Catches what local hooks cannot see: edits made on github.com, pushes from
+# other machines, pull requests. Secrets via gitleaks; personal identifiers via
+# the LEAK_PATTERNS secret (a regex). This log is public, so a personal hit
+# names only the commit or file, never the text that matched.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  leaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Commits to check
+        id: range
+        env:
+          FROM: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TO: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # New branch or force push: no usable base, check the whole history.
+          if [ -n "$FROM" ] && git cat-file -e "$FROM^{commit}" 2>/dev/null; then
+            range="$FROM..$TO"
+          else
+            range="$TO"
+          fi
+          echo "range=$range" >> "$GITHUB_OUTPUT"
+          echo "count=$(git rev-list --count "$range")" >> "$GITHUB_OUTPUT"
+          echo "checking $range"
+      - name: Secrets (gitleaks)
+        if: steps.range.outputs.count != '0'
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          # Same uid as the checkout, or git inside the container refuses the
+          # repository and gitleaks reports "0 commits scanned" with exit 0.
+          rc=0
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/repo" -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --no-banner --no-color --redact -v -l info --log-opts="$RANGE" /repo > gitleaks.log 2>&1 || rc=$?
+          cat gitleaks.log
+          if grep -qE ' (ERR|FTL) ' gitleaks.log; then echo "::error::gitleaks failed"; exit 1; fi
+          grep -qE ' INF [1-9][0-9]* commits scanned' gitleaks.log || { echo "::error::gitleaks scanned no commits"; exit 1; }
+          exit $rc
+      - name: Personal identifiers
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+          LEAK_PATTERNS: ${{ secrets.LEAK_PATTERNS }}
+        run: |
+          if [ -z "$LEAK_PATTERNS" ]; then
+            echo "::notice::LEAK_PATTERNS is not available to pull requests from forks; secrets were still checked"
+            exit 0
+          fi
+          hits=0
+          # Commit metadata, messages and added lines of every new commit.
+          for c in $(git rev-list "$RANGE"); do
+            n=$({ git cat-file commit "$c"; git show --format= --no-color -U0 "$c"; } | grep -cP -- "$LEAK_PATTERNS" || true)
+            if [ "$n" != 0 ]; then echo "::error::personal identifier in commit $c"; hits=1; fi
+          done
+          # Every tracked file as it stands, binaries included.
+          while IFS= read -r -d '' f; do
+            n=$(strings -a "$f" | grep -cP -- "$LEAK_PATTERNS" || true)
+            if [ "$n" != 0 ]; then echo "::error::personal identifier in a tracked file: $f"; hits=1; fi
+          done < <(git ls-files -z)
+          exit $hits
