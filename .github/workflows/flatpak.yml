@@ -11,24 +11,32 @@ on:
     paths: ['flatpak/**', '.github/workflows/flatpak.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A newer push to the same pull request makes the older run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   flatpak:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08@sha256:c91a88269eee8fcdd73ecf43064232fbebe27411f926f63f38bdf70c51f2ceae
       options: --privileged
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       # The manifest reads build-defines.json; CI builds without the Drive client.
       - shell: bash
         run: |
           echo "{\"GIT_COMMIT\": \"${GITHUB_SHA::7}\"}" > flatpak/flathub-submission/build-defines.json
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
         with:
           bundle: app.abelnotes.notes.flatpak
           manifest-path: flatpak/flathub-submission/app.abelnotes.notes.yml
           cache-key: flatpak-${{ github.sha }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: app.abelnotes.notes.flatpak
           path: app.abelnotes.notes.flatpak

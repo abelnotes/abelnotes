@@ -9,6 +9,14 @@ on:
     paths: ['tool/build_deb.sh', 'tool/strip_build_rpath.py', 'linux/**', 'pubspec.*', '.github/workflows/deb.yml']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# A newer push to the same pull request makes the older run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Keep in sync with build.yml.
   FLUTTER_VERSION: '3.44.0'
@@ -17,12 +25,12 @@ jobs:
   deb:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: >-
           sudo apt-get update && sudo apt-get install -y
           clang cmake ninja-build pkg-config fakeroot
           libgtk-3-dev libsecret-1-dev libsqlite3-dev
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -44,7 +52,7 @@ jobs:
           for lib in libpdfium.so libsuper_native_extensions.so libonenote_bridge.so; do
             dpkg-deb -c "$deb" | grep -q "/$lib" || { echo "missing $lib"; exit 1; }
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abelnotes-deb
           path: build/deb/*.deb

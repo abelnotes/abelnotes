@@ -1,10 +1,22 @@
 name: Build
 
+# Packaging and docs have their own checks (deb.yml, flatpak.yml); changing
+# only those does not need the app rebuilt on four platforms.
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'flatpak/**', 'packaging/**', '.github/workflows/deb.yml', '.github/workflows/flatpak.yml', '.github/workflows/leaks.yml']
   pull_request:
+    paths-ignore: ['**.md', 'flatpak/**', 'packaging/**', '.github/workflows/deb.yml', '.github/workflows/flatpak.yml', '.github/workflows/leaks.yml']
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same pull request makes the older run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Keep in sync with the local dev machine (flutter --version). A drifting
@@ -17,8 +29,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -34,8 +46,8 @@ jobs:
     needs: check
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -74,13 +86,13 @@ jobs:
       - name: Package build
         shell: pwsh
         run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath abelnotes-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abelnotes-windows
           path: abelnotes-windows.zip
       # Unsigned Store package from the bundle above; Partner Center signs it.
       - run: dart run msix:create --store --build-windows false
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abelnotes-msix
           path: build/windows/x64/runner/Release/*.msix
@@ -90,8 +102,8 @@ jobs:
     needs: check
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -106,7 +118,7 @@ jobs:
         run: |
           cd build/macos/Build/Products/Release
           zip -r -y "$GITHUB_WORKSPACE/abelnotes-macos.zip" *.app
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abelnotes-macos
           path: abelnotes-macos.zip
@@ -115,8 +127,8 @@ jobs:
     needs: check
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -132,7 +144,7 @@ jobs:
           mkdir -p Payload
           cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r -y abelnotes-ios-unsigned.ipa Payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: abelnotes-ios-unsigned
           path: abelnotes-ios-unsigned.ipa
