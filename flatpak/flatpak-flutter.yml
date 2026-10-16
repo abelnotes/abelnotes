@@ -88,18 +88,24 @@ modules:
         CXXFLAGS: -Wno-error=deprecated-literal-operator -Wno-deprecated-literal-operator
     build-commands:
       - flutter config --enable-native-assets
-      - flutter build linux --release --no-pub
+      # build-defines.json (GIT_COMMIT, Drive desktop client) is written next to
+      # the manifest at build time and never committed; see README.md.
+      - flutter build linux --release --no-pub --dart-define-from-file=build-defines.json
       - mkdir -p /app/abelnotes
       - cp -r $BUNDLE_PATH/. /app/abelnotes/
       - mkdir -p /app/bin
       - ln -s /app/abelnotes/abelnotes /app/bin/abelnotes
       - install -Dm644 flatpak/app.abelnotes.notes.desktop /app/share/applications/app.abelnotes.notes.desktop
-      - install -Dm644 flatpak/app.abelnotes.notes.metainfo.xml /app/share/metainfo/app.abelnotes.notes.metainfo.xml
+      - install -Dm644 app.abelnotes.notes.metainfo.xml /app/share/metainfo/app.abelnotes.notes.metainfo.xml
       - install -Dm644 web/icons/Icon-512.png /app/share/icons/hicolor/512x512/apps/app.abelnotes.notes.png
     sources:
       - type: git
         url: https://github.com/abelnotes/abelnotes.git
         tag: v0.37.7
+      - type: file
+        path: build-defines.json
+      - type: file
+        path: app.abelnotes.notes.metainfo.xml
       - type: git
         url: https://github.com/flutter/flutter.git
         tag: '3.44.0'

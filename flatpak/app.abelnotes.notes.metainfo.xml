@@ -21,7 +21,7 @@
       <li>Natural pen input with pressure and tilt; palm rejection for stylus users.</li>
       <li>Import and annotate PDFs, with text selection and search.</li>
       <li>LaTeX math elements (paste $$…$$ or \[…\]) and geometric shape recognition.</li>
-      <li>Sync notebooks to your own Nextcloud or any generic WebDAV server — no cloud lock-in.</li>
+      <li>Sync notebooks to your own Nextcloud, any WebDAV server or Google Drive — no lock-in.</li>
       <li>Import from OneNote, Obsidian and Notion exports.</li>
     </ul>
     <p>
@@ -75,6 +75,16 @@
 
   <!-- Update on every release. `date` is the release date (YYYY-MM-DD). -->
   <releases>
+    <release version="0.37.7" date="2026-10-15">
+      <description>
+        <p>A fresh look: new colors and font, a floating tool dock, and notebooks
+           that open out of their cover. Covers can have a pattern too.</p>
+        <p>Shape recognition is much more accurate, with a setting to fill shapes or
+           leave them empty. Undo works per page.</p>
+        <p>Sync is sturdier: deletes made offline are retried and changes reach other
+           devices faster. PDF export keeps page size and searchable text.</p>
+      </description>
+    </release>
     <release version="0.37.4" date="2026-08-10">
       <description>
         <p>Disconnecting an account no longer deletes local notebooks: connecting a
