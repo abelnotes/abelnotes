@@ -1246,6 +1246,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Gleicht kurze Aussetzer des Sensors aus (z. B. beim i-Punkt)';
 
   @override
+  String get setPencilDoubleTap => 'Pencil-Doppeltippen';
+
+  @override
+  String get setPencilDoubleTapSub =>
+      'Zweimal auf den Apple Pencil tippen wechselt zwischen Stift und Radierer';
+
+  @override
   String get setFillShapes => 'Formen füllen';
 
   @override

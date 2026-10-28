@@ -326,6 +326,8 @@
   "setSpeedThicknessSub": "Writing faster makes the stroke thinner",
   "setStrokeContinuation": "Stroke continuation",
   "setStrokeContinuationSub": "Compensates for brief sensor interruptions (e.g. the dot of an i)",
+  "setPencilDoubleTap": "Pencil double-tap",
+  "setPencilDoubleTapSub": "Double-tap the Apple Pencil to switch between pen and eraser",
   "setFillShapes": "Fill shapes",
   "setFillShapesSub": "Recognized circles, rectangles and triangles get a light tint of the ink color",
   "setSyncConnectedDesc": "Connected to a WebDAV server. Notebooks sync across all your devices.",

@@ -326,6 +326,8 @@
   "setSpeedThicknessSub": "Écrire plus vite affine le trait",
   "setStrokeContinuation": "Continuité du trait",
   "setStrokeContinuationSub": "Compense de brèves interruptions du capteur (par ex. le point du i)",
+  "setPencilDoubleTap": "Double-touche Pencil",
+  "setPencilDoubleTapSub": "Touchez deux fois l'Apple Pencil pour passer du stylo à la gomme",
   "setFillShapes": "Remplir les formes",
   "setFillShapesSub": "Les cercles, rectangles et triangles reconnus prennent une teinte légère de la couleur de l'encre",
   "setSyncConnectedDesc": "Connecté à un serveur WebDAV. Les carnets se synchronisent sur tous vos appareils.",

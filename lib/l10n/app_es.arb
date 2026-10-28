@@ -326,6 +326,8 @@
   "setSpeedThicknessSub": "Escribir más rápido hace el trazo más fino",
   "setStrokeContinuation": "Continuación del trazo",
   "setStrokeContinuationSub": "Compensa breves interrupciones del sensor (p. ej., el punto de la i)",
+  "setPencilDoubleTap": "Doble toque del Pencil",
+  "setPencilDoubleTapSub": "Toca dos veces el Apple Pencil para cambiar entre pluma y borrador",
   "setFillShapes": "Rellenar formas",
   "setFillShapesSub": "Los círculos, rectángulos y triángulos reconocidos reciben un tono suave del color de la tinta",
   "setSyncConnectedDesc": "Conectado a un servidor WebDAV. Los cuadernos se sincronizan en todos tus dispositivos.",

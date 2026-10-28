@@ -2064,6 +2064,18 @@ abstract class AppLocalizations {
   /// **'Compensa brevi interruzioni del sensore (es. punto della i)'**
   String get setStrokeContinuationSub;
 
+  /// No description provided for @setPencilDoubleTap.
+  ///
+  /// In it, this message translates to:
+  /// **'Doppio tocco Pencil'**
+  String get setPencilDoubleTap;
+
+  /// No description provided for @setPencilDoubleTapSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca due volte l'Apple Pencil per passare tra penna e gomma'**
+  String get setPencilDoubleTapSub;
+
   /// No description provided for @setFillShapes.
   ///
   /// In it, this message translates to:

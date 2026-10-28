@@ -1215,6 +1215,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setStrokeContinuationSub => '弥补传感器的短暂中断（例如写 i 上面那一点）';
 
   @override
+  String get setPencilDoubleTap => 'Pencil 轻点两下';
+
+  @override
+  String get setPencilDoubleTapSub =>
+      '轻点两下 Apple Pencil 在笔和橡皮擦之间切换';
+
+  @override
   String get setFillShapes => '填充形状';
 
   @override

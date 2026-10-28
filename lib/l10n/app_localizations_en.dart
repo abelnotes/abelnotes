@@ -1241,6 +1241,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Compensates for brief sensor interruptions (e.g. the dot of an i)';
 
   @override
+  String get setPencilDoubleTap => 'Pencil double-tap';
+
+  @override
+  String get setPencilDoubleTapSub =>
+      'Double-tap the Apple Pencil to switch between pen and eraser';
+
+  @override
   String get setFillShapes => 'Fill shapes';
 
   @override
