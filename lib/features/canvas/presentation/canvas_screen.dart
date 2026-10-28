@@ -459,6 +459,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// not just whichever last happened to click.
   bool? _lastPointerWasMouse;
 
+  /// The iPad app gets every hover as a mouse, the Apple Pencil hovering
+  /// above the glass (M2 iPads and later) included, so there a hover says
+  /// nothing about the device in the hand and only a click does. Trusting
+  /// it flipped the dock to Lasso (the mouse's selection mode) while the
+  /// Pencil kept drawing with the pen.
+  static final bool _hoverKindUnreliable =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
   /// Ink tools for which the MOUSE acts as a selection device instead
   /// (text / element / marquee). Pan, lasso, the erasers, and the explicit
   /// shape/laser tools are excluded — they keep their own mouse behaviour, so
@@ -5329,7 +5337,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     _onPointerMove(e, live, canvasSize);
                   },
                   onPointerHover: (e) {
-                    _lastPointerWasMouse = e.kind == PointerDeviceKind.mouse;
+                    if (!_hoverKindUnreliable) {
+                      _lastPointerWasMouse = e.kind == PointerDeviceKind.mouse;
+                    }
                     // Pen/stylus (or no state) → tool default cursor (crosshair).
                     final live = ref.read(canvasProvider);
                     if (e.kind != PointerDeviceKind.mouse || live == null) {
