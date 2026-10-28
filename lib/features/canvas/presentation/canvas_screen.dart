@@ -1029,8 +1029,15 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   double _penPressure(PointerEvent event) {
     final p = _rawPenPressure(event);
     // Pressure switched off: a fixed value, the one strokes without
-    // pressure start from, so every pen stroke gets the same width.
-    if (p > 0 && !ref.read(appSettingsProvider).pressureWidth) return 0.6;
+    // pressure start from, so every pen stroke gets the same width. A pen's
+    // zero samples get it too: the Apple Pencil can report 0 as it leaves
+    // the glass at the end of a fast stroke, and passing those through
+    // still tapered the stroke's end. A mouse or a finger keeps its 0 (no
+    // pressure at all), which the live stroke turns into speed-based width.
+    if (!ref.read(appSettingsProvider).pressureWidth &&
+        (p > 0 || _isPen(event))) {
+      return 0.6;
+    }
     return p;
   }
 
