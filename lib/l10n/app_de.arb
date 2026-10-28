@@ -324,6 +324,8 @@
   "setPressureThicknessSub": "Strichstärke abhängig vom Stiftdruck",
   "setStrokeContinuation": "Strichfortsetzung",
   "setStrokeContinuationSub": "Gleicht kurze Aussetzer des Sensors aus (z. B. beim i-Punkt)",
+  "setPencilDoubleTap": "Pencil-Doppeltippen",
+  "setPencilDoubleTapSub": "Zweimal auf den Apple Pencil tippen wechselt zwischen Stift und Radierer",
   "setFillShapes": "Formen füllen",
   "setFillShapesSub": "Erkannte Kreise, Rechtecke und Dreiecke erhalten einen leichten Farbton der Tinte",
   "setSyncConnectedDesc": "Mit einem WebDAV-Server verbunden. Notizbücher werden auf allen deinen Geräten synchronisiert.",
