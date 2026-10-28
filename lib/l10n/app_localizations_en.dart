@@ -1248,6 +1248,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Recognized circles, rectangles and triangles get a light tint of the ink color';
 
   @override
+  String get setTapUndo => 'Finger tap to undo';
+
+  @override
+  String get setTapUndoSub => 'Tap with two fingers to undo, three to redo';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connected to a WebDAV server. Notebooks sync across all your devices.';
 

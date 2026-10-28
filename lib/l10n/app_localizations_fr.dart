@@ -1253,6 +1253,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les cercles, rectangles et triangles reconnus prennent une teinte légère de la couleur de l\'encre';
 
   @override
+  String get setTapUndo => 'Toucher pour annuler';
+
+  @override
+  String get setTapUndoSub =>
+      'Touchez avec deux doigts pour annuler, trois pour rétablir';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connecté à un serveur WebDAV. Les carnets se synchronisent sur tous vos appareils.';
 

@@ -1253,6 +1253,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Erkannte Kreise, Rechtecke und Dreiecke erhalten einen leichten Farbton der Tinte';
 
   @override
+  String get setTapUndo => 'Tippen zum Rückgängigmachen';
+
+  @override
+  String get setTapUndoSub =>
+      'Mit zwei Fingern tippen macht rückgängig, mit drei wiederholt';
+
+  @override
   String get setSyncConnectedDesc =>
       'Mit einem WebDAV-Server verbunden. Notizbücher werden auf allen deinen Geräten synchronisiert.';
 

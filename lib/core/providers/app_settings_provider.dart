@@ -161,6 +161,9 @@ class AppSettings {
   /// Recognized closed shapes get a light tint of the ink colour.
   final bool fillRecognizedShapes;
 
+  /// Tapping the canvas with two fingers undoes, with three redoes.
+  final bool tapUndo;
+
   /// Which remote the notebooks sync to: 'webdav' for the user's own
   /// server, 'drive' for their Google Drive, null for local-only. One
   /// backend at a time — a notebook living in two places at once would give
@@ -205,6 +208,7 @@ class AppSettings {
     this.speedWidth = true,
     this.strokeContinuation = true,
     this.fillRecognizedShapes = true,
+    this.tapUndo = true,
     this.lastTool,
     this.syncBackend,
     this.showPageStrip = true,
@@ -237,6 +241,7 @@ class AppSettings {
     bool? speedWidth,
     bool? strokeContinuation,
     bool? fillRecognizedShapes,
+    bool? tapUndo,
     String? lastTool,
     String? syncBackend,
     /// copyWith can't tell "leave it" from "set it to null", and going back
@@ -266,6 +271,7 @@ class AppSettings {
         speedWidth: speedWidth ?? this.speedWidth,
         strokeContinuation: strokeContinuation ?? this.strokeContinuation,
         fillRecognizedShapes: fillRecognizedShapes ?? this.fillRecognizedShapes,
+        tapUndo: tapUndo ?? this.tapUndo,
         lastTool: lastTool ?? this.lastTool,
         syncBackend:
             clearSyncBackend ? null : (syncBackend ?? this.syncBackend),
@@ -367,6 +373,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         speedWidth: map['speed_width'] as bool? ?? true,
         strokeContinuation: map['stroke_continuation'] as bool? ?? true,
         fillRecognizedShapes: map['fill_shapes'] as bool? ?? true,
+        tapUndo: map['tap_undo'] as bool? ?? true,
         lastTool: map['last_tool'] as String?,
         syncBackend: map['sync_backend'] as String?,
         showPageStrip: map['show_page_strip'] as bool? ?? true,
@@ -404,6 +411,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         'speed_width': state.speedWidth,
         'stroke_continuation': state.strokeContinuation,
         'fill_shapes': state.fillRecognizedShapes,
+        'tap_undo': state.tapUndo,
         if (state.lastTool != null) 'last_tool': state.lastTool,
         if (state.syncBackend != null) 'sync_backend': state.syncBackend,
         'show_page_strip': state.showPageStrip,
@@ -501,6 +509,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setFillRecognizedShapes(bool v) {
     state = state.copyWith(fillRecognizedShapes: v);
+    _persist();
+  }
+
+  void setTapUndo(bool v) {
+    state = state.copyWith(tapUndo: v);
     _persist();
   }
 

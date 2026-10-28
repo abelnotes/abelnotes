@@ -328,6 +328,8 @@
   "setStrokeContinuationSub": "弥补传感器的短暂中断（例如写 i 上面那一点）",
   "setFillShapes": "填充形状",
   "setFillShapesSub": "识别出的圆形、矩形和三角形会以墨水颜色的浅色填充",
+  "setTapUndo": "轻点撤销",
+  "setTapUndoSub": "双指轻点撤销，三指轻点重做",
   "setSyncConnectedDesc": "已连接到 WebDAV 服务器。笔记本会在你的所有设备之间同步。",
   "setSyncLocalOnlyDesc": "仅本地模式：笔记本只保存在这台设备上。连接 WebDAV 服务器即可在多台设备上使用。",
   "setSyncWebdav": "WebDAV",

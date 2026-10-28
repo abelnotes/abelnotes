@@ -56,6 +56,7 @@ import 'package:abelnotes/core/services/pen_monitor_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_painter_notifiers.dart';
+import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -1254,6 +1255,23 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   static bool _isPen(PointerEvent e) =>
       e.kind == PointerDeviceKind.stylus ||
       e.kind == PointerDeviceKind.invertedStylus;
+
+  /// Two fingers tapping undo, three redo (Settings → Finger tap to undo).
+  late final MultiFingerTapDetector _fingerTaps =
+      MultiFingerTapDetector(onTap: _onFingerTap);
+
+  void _onFingerTap(int fingers) {
+    if (!mounted || !ref.read(appSettingsProvider).tapUndo) return;
+    final notif = ref.read(canvasProvider.notifier);
+    if (fingers == 2) {
+      if (!notif.canUndo) return;
+      notif.undo();
+    } else {
+      if (!notif.canRedo) return;
+      notif.redo();
+    }
+    HapticFeedback.selectionClick();
+  }
 
   /// Web palm handling at pointer-down. Returns true when [event] is a palm
   /// and must be dropped.
@@ -5550,9 +5568,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       noteWebTouchInput();
                     }
                     _mouseDoubleClickZoom(e, live);
+                    // Fingers landing while the pen writes (or just wrote,
+                    // on the web) are a palm, not a tap.
+                    _fingerTaps.down(e);
+                    if (_stylusDown || _webPenRecentlyActive) {
+                      _fingerTaps.spoil();
+                    }
                     _onPointerDown(e, live, canvasSize);
                   },
                   onPointerMove: (e) {
+                    _fingerTaps.move(e);
                     final live = ref.read(canvasProvider) ?? canvasState;
                     _updatePenHover(e, live);
                     _onPointerMove(e, live, canvasSize);
@@ -5588,8 +5613,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     }
                     if (_mouseHoverCursor.value != c) _mouseHoverCursor.value = c;
                   },
-                  onPointerUp: _onPointerUp,
-                  onPointerCancel: _onPointerCancel,
+                  onPointerUp: (e) {
+                    _onPointerUp(e);
+                    // After the canvas: an undo lands once the second
+                    // finger's lift has finished its own bookkeeping.
+                    _fingerTaps.up(e);
+                  },
+                  onPointerCancel: (e) {
+                    _fingerTaps.cancel(e);
+                    _onPointerCancel(e);
+                  },
                   onPointerSignal: (event) {
                     // Read live state — `canvasState` from the build
                     // closure is intentionally STALE on pan/zoom/cursor

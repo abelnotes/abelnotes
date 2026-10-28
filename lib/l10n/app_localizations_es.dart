@@ -1252,6 +1252,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Los círculos, rectángulos y triángulos reconocidos reciben un tono suave del color de la tinta';
 
   @override
+  String get setTapUndo => 'Tocar para deshacer';
+
+  @override
+  String get setTapUndoSub =>
+      'Toca con dos dedos para deshacer, con tres para rehacer';
+
+  @override
   String get setSyncConnectedDesc =>
       'Conectado a un servidor WebDAV. Los cuadernos se sincronizan en todos tus dispositivos.';
 

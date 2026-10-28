@@ -328,6 +328,8 @@
   "setStrokeContinuationSub": "Gleicht kurze Aussetzer des Sensors aus (z. B. beim i-Punkt)",
   "setFillShapes": "Formen füllen",
   "setFillShapesSub": "Erkannte Kreise, Rechtecke und Dreiecke erhalten einen leichten Farbton der Tinte",
+  "setTapUndo": "Tippen zum Rückgängigmachen",
+  "setTapUndoSub": "Mit zwei Fingern tippen macht rückgängig, mit drei wiederholt",
   "setSyncConnectedDesc": "Mit einem WebDAV-Server verbunden. Notizbücher werden auf allen deinen Geräten synchronisiert.",
   "setSyncLocalOnlyDesc": "Nur-lokal-Modus: Notizbücher bleiben auf diesem Gerät. Verbinde einen WebDAV-Server, um von mehreren Geräten darauf zuzugreifen.",
   "setSyncWebdav": "WebDAV",

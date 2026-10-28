@@ -605,6 +605,8 @@ class _InputSection extends ConsumerWidget {
         ref.watch(appSettingsProvider.select((s) => s.strokeContinuation));
     final fillShapes =
         ref.watch(appSettingsProvider.select((s) => s.fillRecognizedShapes));
+    final tapUndo =
+        ref.watch(appSettingsProvider.select((s) => s.tapUndo));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -649,6 +651,14 @@ class _InputSection extends ConsumerWidget {
                 onChanged: (v) => ref
                     .read(appSettingsProvider.notifier)
                     .setFillRecognizedShapes(v))),
+        _Row(
+            title: l10n.setTapUndo,
+            sub: l10n.setTapUndoSub,
+            control: HwSwitch(
+                value: tapUndo,
+                onChanged: (v) => ref
+                    .read(appSettingsProvider.notifier)
+                    .setTapUndo(v))),
       ],
     );
   }

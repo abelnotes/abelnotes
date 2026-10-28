@@ -2076,6 +2076,18 @@ abstract class AppLocalizations {
   /// **'Cerchi, rettangoli e triangoli riconosciuti prendono una tinta leggera del colore dell\'inchiostro'**
   String get setFillShapesSub;
 
+  /// No description provided for @setTapUndo.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocco per annullare'**
+  String get setTapUndo;
+
+  /// No description provided for @setTapUndoSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca con due dita per annullare, con tre per ripristinare'**
+  String get setTapUndoSub;
+
   /// No description provided for @setSyncConnectedDesc.
   ///
   /// In it, this message translates to:

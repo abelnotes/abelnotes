@@ -1252,6 +1252,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'Cerchi, rettangoli e triangoli riconosciuti prendono una tinta leggera del colore dell\'inchiostro';
 
   @override
+  String get setTapUndo => 'Tocco per annullare';
+
+  @override
+  String get setTapUndoSub =>
+      'Tocca con due dita per annullare, con tre per ripristinare';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connesso a un server WebDAV. I taccuini si sincronizzano su tutti i tuoi dispositivi.';
 

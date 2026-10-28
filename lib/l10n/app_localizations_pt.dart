@@ -1249,6 +1249,13 @@ class AppLocalizationsPt extends AppLocalizations {
       'Círculos, retângulos e triângulos reconhecidos recebem um tom suave da cor da tinta';
 
   @override
+  String get setTapUndo => 'Tocar para desfazer';
+
+  @override
+  String get setTapUndoSub =>
+      'Toque com dois dedos para desfazer, com três para refazer';
+
+  @override
   String get setSyncConnectedDesc =>
       'Conectado a um servidor WebDAV. Os cadernos sincronizam em todos os seus dispositivos.';
 
