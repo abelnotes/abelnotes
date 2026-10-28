@@ -162,6 +162,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // ── New chrome state (warm-paper redesign) ─────────────────────
   bool _popupOpen = false;
 
+  /// Where the tool panel opens instead of beside the dock: next to the
+  /// Pencil's tip after a squeeze, in canvas-stack coordinates. The dock
+  /// clears it when it opens the panel itself.
+  Offset? _popupAt;
+
   // On-device handwriting recognition. Resolves to a no-op impl off
   // iOS/macOS, so `_ocr.isSupported` gates the UI entry point.
   final OcrService _ocr = createOcrService();
@@ -1006,6 +1011,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// bottom edge, below for the top, and to the inner side for left/right.
   /// For the vertical edges we position by an estimated height so the
   /// ~300px panel can never be clipped against the top/bottom of the band.
+  /// The tool panel beside the dock, or next to the Pencil's tip when a
+  /// squeeze opened it there ([_popupAt]).
+  Widget _placePopup(DockPosition pos, double align, Size area, Widget child) {
+    final at = _popupAt;
+    if (at == null) return _popupPositioned(pos, align, area, child);
+    return Positioned.fill(
+      child: CustomSingleChildLayout(
+          delegate: _NearPointLayout(at), child: child),
+    );
+  }
+
   Widget _popupPositioned(
       DockPosition pos, double align, Size area, Widget child) {
     final axis = _alignToAxis(align);
@@ -1069,9 +1085,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       onInverted: (down) => _onNativeBarrelChange(_NativeBarrel.upper, down),
       onBarrelPen: _onBarrelPen,
     );
-    // iPad app only: the Apple Pencil's double-tap.
+    // iPad app only: the Apple Pencil's double-tap and squeeze.
     _watchToolChanges();
-    ApplePencilChannel.register(_onPencilDoubleTap);
+    ApplePencilChannel.register(
+      onDoubleTap: _onPencilDoubleTap,
+      onSqueeze: _runPencilAction,
+    );
     // Linux-only: receive stylus pressure the GTK embedder drops. No-op
     // elsewhere. See LinuxPenPressure / _penPressure.
     LinuxPenPressure.register(onProximityOut: _clearPenHover);
@@ -1381,10 +1400,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
-  /// Apple Pencil double-tap, doing what the user chose for it in the
-  /// system's Apple Pencil settings (see [ApplePencilChannel]).
-  void _onPencilDoubleTap(String action) {
-    if (!mounted || !ref.read(appSettingsProvider).pencilDoubleTap) return;
+  /// Apple Pencil double-tap; Settings → Pencil double-tap can turn it off.
+  void _onPencilDoubleTap(String action, Offset? at) {
+    if (!ref.read(appSettingsProvider).pencilDoubleTap) return;
+    _runPencilAction(action, at);
+  }
+
+  /// An Apple Pencil double-tap or squeeze, doing what the user chose for it
+  /// in the system's Apple Pencil settings (see [ApplePencilChannel]). [at]
+  /// is where the Pencil hovers, in global coordinates, when known.
+  void _runPencilAction(String action, Offset? at) {
+    if (!mounted) return;
     final state = ref.read(canvasProvider);
     if (state == null) return;
     final notif = ref.read(canvasProvider.notifier);
@@ -1400,10 +1426,33 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         if (prev == null) return;
         notif.setTool(prev);
         break;
+      // iPadOS has three palettes; the app has one, the tool panel.
+      case 'showColorPalette':
+      case 'showInkAttributes':
+      case 'showContextualPalette':
+        if (_presentationMode) return;
+        _toggleToolPanelAt(at);
+        break;
       default:
         return;
     }
     HapticFeedback.selectionClick();
+  }
+
+  /// Opens the tool panel next to [global] (the Pencil's tip), or beside
+  /// the dock as usual when that is unknown; closes it when it is open.
+  void _toggleToolPanelAt(Offset? global) {
+    final box =
+        _canvasStackKey.currentContext?.findRenderObject() as RenderBox?;
+    setState(() {
+      if (_popupOpen) {
+        _popupOpen = false;
+        return;
+      }
+      _popupAt =
+          global != null && box != null ? box.globalToLocal(global) : null;
+      _popupOpen = true;
+    });
   }
 
   /// True after the barrel was released mid-gesture; _onPointerUp resolves the
@@ -5175,7 +5224,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   ref.read(appSettingsProvider.notifier).setMouseDraws(true);
                   return;
                 }
-                setState(() => _popupOpen = !_popupOpen);
+                setState(() {
+                  _popupOpen = !_popupOpen;
+                  _popupAt = null;
+                });
               },
               position: dockPosition,
               dragging: _dockDragOffset != null,
@@ -5324,7 +5376,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               // is parked (above for bottom, below for top, beside for
               // left/right).
               if (!_presentationMode)
-                _popupPositioned(
+                _placePopup(
                   dockPosition,
                   toolDock.align,
                   _dockArea,
@@ -9683,4 +9735,37 @@ class _PdfSelectionPainter extends CustomPainter {
   @override
   bool shouldRepaint(_PdfSelectionPainter old) =>
       old.rects != rects || old.color != color;
+}
+
+/// Puts the tool panel just below [point], or above it when there is no
+/// room, kept inside the canvas.
+class _NearPointLayout extends SingleChildLayoutDelegate {
+  const _NearPointLayout(this.point);
+
+  final Offset point;
+
+  /// Clear of the Pencil's tip, so the panel doesn't sit under the hand.
+  static const double _gap = 24;
+  static const double _margin = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen().deflate(const EdgeInsets.all(_margin));
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final below = point.dy + _gap;
+    final y = below + childSize.height <= size.height - _margin
+        ? below
+        : point.dy - _gap - childSize.height;
+    final x = point.dx - childSize.width / 2;
+    return Offset(
+      x.clamp(_margin, max(_margin, size.width - childSize.width - _margin)),
+      y.clamp(_margin, max(_margin, size.height - childSize.height - _margin)),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_NearPointLayout oldDelegate) =>
+      oldDelegate.point != point;
 }
