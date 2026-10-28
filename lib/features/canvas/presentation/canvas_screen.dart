@@ -4695,6 +4695,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         ref.watch(appSettingsProvider.select((s) => s.mouseDraws));
     final showPageStrip =
         ref.watch(appSettingsProvider.select((s) => s.showPageStrip));
+    // Watched so a toggle in Settings rebuilds the painters, which then
+    // repaint the page with the new width rule.
+    CanvasRenderEngine.speedWidth =
+        ref.watch(appSettingsProvider.select((s) => s.speedWidth));
 
     // Auto-open conflict resolution when conflicts detected
     ref.listen<int>(

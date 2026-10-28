@@ -322,6 +322,8 @@
   "setStylusOnlySub": "Ignore le toucher du doigt pendant l'écriture. Le zoom et le déplacement à deux doigts continuent de fonctionner.",
   "setPressureThickness": "Pression → épaisseur",
   "setPressureThicknessSub": "Modulation du trait selon la pression du stylet",
+  "setSpeedThickness": "Vitesse → épaisseur",
+  "setSpeedThicknessSub": "Écrire plus vite affine le trait",
   "setStrokeContinuation": "Continuité du trait",
   "setStrokeContinuationSub": "Compense de brèves interruptions du capteur (par ex. le point du i)",
   "setFillShapes": "Remplir les formes",

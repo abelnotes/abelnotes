@@ -322,6 +322,8 @@
   "setStylusOnlySub": "书写时忽略手指触摸。双指捏合和平移仍然可用。",
   "setPressureThickness": "压感 → 粗细",
   "setPressureThicknessSub": "根据触控笔压力调节笔画粗细",
+  "setSpeedThickness": "速度 → 粗细",
+  "setSpeedThicknessSub": "书写越快，笔画越细",
   "setStrokeContinuation": "笔画续接",
   "setStrokeContinuationSub": "弥补传感器的短暂中断（例如写 i 上面那一点）",
   "setFillShapes": "填充形状",

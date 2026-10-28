@@ -1398,7 +1398,8 @@ class CanvasRenderEngine extends CustomPainter {
       // stylus — the wrist naturally lightens at speed — so velocity
       // here is just a subtle assist, not the primary signal.
       final excessV = (velocities[i] - 800.0).clamp(0.0, 4000.0);
-      final velocityFactor = 1.0 - (excessV / 4000.0) * 0.15;
+      final velocityFactor =
+          _speedWidth ? 1.0 - (excessV / 4000.0) * 0.15 : 1.0;
       // Pressure→width. `pressure` is already normalized to 0..1 against the
       // device's real full-scale, but raw tablet pressure is perceptually
       // weak (normal writing sits low on the scale), so a gamma (sqrt) lifts
@@ -2312,6 +2313,24 @@ class CanvasRenderEngine extends CustomPainter {
 
   // Cached sort to avoid O(n log n) per paint frame
   static List<ContentElement>? _cachedSortedContent;
+
+  /// Writing speed thins the pen stroke (Settings → Speed → thickness).
+  /// Read at paint time, so flipping it re-renders strokes already on the
+  /// page: the per-stroke and page caches are dropped and [_widthStyle]
+  /// moves on, which makes every painter built after the change repaint.
+  static bool _speedWidth = true;
+  static int _widthStyleCounter = 0;
+
+  static set speedWidth(bool v) {
+    if (v == _speedWidth) return;
+    _speedWidth = v;
+    _widthStyleCounter++;
+    _strokePathCache = Expando();
+    _staticPictureCache.clearAll();
+  }
+
+  /// [_widthStyleCounter] when this painter was built.
+  final int _widthStyle = _widthStyleCounter;
   static List<ContentElement>? _cachedSourceContent;
 
   /// Drop every cached picture and the static sort cache. Call this
@@ -2373,6 +2392,7 @@ class CanvasRenderEngine extends CustomPainter {
         zoom != oldDelegate.zoom ||
         panOffset != oldDelegate.panOffset ||
         infiniteCanvas != oldDelegate.infiniteCanvas ||
+        _widthStyle != oldDelegate._widthStyle ||
         !identical(corruptAssetIds, oldDelegate.corruptAssetIds) ||
         !_imageCacheEqual(imageCache, oldDelegate.imageCache);
   }
@@ -2398,7 +2418,7 @@ class CanvasRenderEngine extends CustomPainter {
   /// points + zoom-bucket, neither of which change as the user erases
   /// other strokes on the same page. Entries are GC'd along with their
   /// owning StrokeData (Expando = weak-keyed map).
-  static final Expando<_StrokeCacheEntry> _strokePathCache = Expando();
+  static Expando<_StrokeCacheEntry> _strokePathCache = Expando();
 
   /// Brush has 3 overlapping layers per stroke, each with its own
   /// width multiplier and alpha — needs a separate cache shape.

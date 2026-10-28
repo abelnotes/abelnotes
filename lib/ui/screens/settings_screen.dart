@@ -593,6 +593,8 @@ class _InputSection extends ConsumerWidget {
     final stylusOnly = override ?? false;
     final pressure =
         ref.watch(appSettingsProvider.select((s) => s.pressureWidth));
+    final speed =
+        ref.watch(appSettingsProvider.select((s) => s.speedWidth));
     final continuation =
         ref.watch(appSettingsProvider.select((s) => s.strokeContinuation));
     final fillShapes =
@@ -617,6 +619,14 @@ class _InputSection extends ConsumerWidget {
                 onChanged: (v) => ref
                     .read(appSettingsProvider.notifier)
                     .setPressureWidth(v))),
+        _Row(
+            title: l10n.setSpeedThickness,
+            sub: l10n.setSpeedThicknessSub,
+            control: HwSwitch(
+                value: speed,
+                onChanged: (v) => ref
+                    .read(appSettingsProvider.notifier)
+                    .setSpeedWidth(v))),
         _Row(
             title: l10n.setStrokeContinuation,
             sub: l10n.setStrokeContinuationSub,

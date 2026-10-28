@@ -322,6 +322,8 @@
   "setStylusOnlySub": "Ignora el toque del dedo mientras escribes. Pellizcar y desplazar siguen funcionando con dos dedos.",
   "setPressureThickness": "Presión → grosor",
   "setPressureThicknessSub": "Modulación del trazo según la presión del stylus",
+  "setSpeedThickness": "Velocidad → grosor",
+  "setSpeedThicknessSub": "Escribir más rápido hace el trazo más fino",
   "setStrokeContinuation": "Continuación del trazo",
   "setStrokeContinuationSub": "Compensa breves interrupciones del sensor (p. ej., el punto de la i)",
   "setFillShapes": "Rellenar formas",

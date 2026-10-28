@@ -151,6 +151,9 @@ class AppSettings {
   /// width a pressure-less device gets.
   final bool pressureWidth;
 
+  /// Writing speed thins the pen stroke. Off, width follows pressure only.
+  final bool speedWidth;
+
   /// Stylus lifts shorter than a few ms continue the same stroke instead of
   /// starting a new one (sensor dropouts on iPad).
   final bool strokeContinuation;
@@ -199,6 +202,7 @@ class AppSettings {
     this.mouseDraws = false,
     this.stylusOnlyDrawing,
     this.pressureWidth = true,
+    this.speedWidth = true,
     this.strokeContinuation = true,
     this.fillRecognizedShapes = true,
     this.lastTool,
@@ -230,6 +234,7 @@ class AppSettings {
     bool? mouseDraws,
     bool? stylusOnlyDrawing,
     bool? pressureWidth,
+    bool? speedWidth,
     bool? strokeContinuation,
     bool? fillRecognizedShapes,
     String? lastTool,
@@ -258,6 +263,7 @@ class AppSettings {
         mouseDraws: mouseDraws ?? this.mouseDraws,
         stylusOnlyDrawing: stylusOnlyDrawing ?? this.stylusOnlyDrawing,
         pressureWidth: pressureWidth ?? this.pressureWidth,
+        speedWidth: speedWidth ?? this.speedWidth,
         strokeContinuation: strokeContinuation ?? this.strokeContinuation,
         fillRecognizedShapes: fillRecognizedShapes ?? this.fillRecognizedShapes,
         lastTool: lastTool ?? this.lastTool,
@@ -358,6 +364,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         mouseDraws: map['mouse_draws'] as bool? ?? false,
         stylusOnlyDrawing: map['stylus_only_drawing'] as bool?,
         pressureWidth: map['pressure_width'] as bool? ?? true,
+        speedWidth: map['speed_width'] as bool? ?? true,
         strokeContinuation: map['stroke_continuation'] as bool? ?? true,
         fillRecognizedShapes: map['fill_shapes'] as bool? ?? true,
         lastTool: map['last_tool'] as String?,
@@ -394,6 +401,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         if (state.stylusOnlyDrawing != null)
           'stylus_only_drawing': state.stylusOnlyDrawing,
         'pressure_width': state.pressureWidth,
+        'speed_width': state.speedWidth,
         'stroke_continuation': state.strokeContinuation,
         'fill_shapes': state.fillRecognizedShapes,
         if (state.lastTool != null) 'last_tool': state.lastTool,
@@ -478,6 +486,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setPressureWidth(bool v) {
     state = state.copyWith(pressureWidth: v);
+    _persist();
+  }
+
+  void setSpeedWidth(bool v) {
+    state = state.copyWith(speedWidth: v);
     _persist();
   }
 

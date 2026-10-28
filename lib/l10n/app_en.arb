@@ -322,6 +322,8 @@
   "setStylusOnlySub": "Ignores finger touch while writing. Pinch and pan still work with two fingers.",
   "setPressureThickness": "Pressure → thickness",
   "setPressureThicknessSub": "Stroke modulation based on stylus pressure",
+  "setSpeedThickness": "Speed → thickness",
+  "setSpeedThicknessSub": "Writing faster makes the stroke thinner",
   "setStrokeContinuation": "Stroke continuation",
   "setStrokeContinuationSub": "Compensates for brief sensor interruptions (e.g. the dot of an i)",
   "setFillShapes": "Fill shapes",

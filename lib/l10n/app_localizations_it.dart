@@ -1231,6 +1231,13 @@ class AppLocalizationsIt extends AppLocalizations {
       'Modulazione di tratto in base alla pressione dello stylus';
 
   @override
+  String get setSpeedThickness => 'Velocità → spessore';
+
+  @override
+  String get setSpeedThicknessSub =>
+      'Scrivere più veloce assottiglia il tratto';
+
+  @override
   String get setStrokeContinuation => 'Continuazione tratto';
 
   @override

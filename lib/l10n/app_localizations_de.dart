@@ -1232,6 +1232,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setPressureThicknessSub => 'Strichstärke abhängig vom Stiftdruck';
 
   @override
+  String get setSpeedThickness => 'Tempo → Stärke';
+
+  @override
+  String get setSpeedThicknessSub =>
+      'Schnelles Schreiben macht den Strich dünner';
+
+  @override
   String get setStrokeContinuation => 'Strichfortsetzung';
 
   @override

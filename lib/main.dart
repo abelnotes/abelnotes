@@ -19,6 +19,7 @@ import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/thumbnail_service.dart';
+import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/features/onboarding/onboarding_screen.dart';
 import 'package:abelnotes/features/pages_tray/presentation/pages_tray_overlay.dart';
 import 'package:abelnotes/features/sync/sync_notices.dart';
@@ -106,6 +107,10 @@ class AbelNotesApp extends ConsumerWidget {
     final themeMode = ref.watch(appSettingsProvider).themeMode;
     final localeOverride =
         ref.watch(appSettingsProvider.select((s) => s.localeOverride));
+    // Before any page paints, thumbnails included (see the canvas screen
+    // for the repaint of an open notebook).
+    CanvasRenderEngine.speedWidth =
+        ref.watch(appSettingsProvider.select((s) => s.speedWidth));
     final variant = _variantFor(themeMode, MediaQuery.platformBrightnessOf(context));
     final palette = switch (variant) {
       HwThemeVariant.paper => HwPalette.paper,

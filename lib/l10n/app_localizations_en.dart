@@ -1228,6 +1228,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Stroke modulation based on stylus pressure';
 
   @override
+  String get setSpeedThickness => 'Speed → thickness';
+
+  @override
+  String get setSpeedThicknessSub => 'Writing faster makes the stroke thinner';
+
+  @override
   String get setStrokeContinuation => 'Stroke continuation';
 
   @override

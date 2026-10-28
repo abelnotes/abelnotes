@@ -1229,6 +1229,12 @@ class AppLocalizationsPt extends AppLocalizations {
       'Modulação do traço conforme a pressão da caneta';
 
   @override
+  String get setSpeedThickness => 'Velocidade → espessura';
+
+  @override
+  String get setSpeedThicknessSub => 'Escrever mais rápido afina o traço';
+
+  @override
   String get setStrokeContinuation => 'Continuação do traço';
 
   @override

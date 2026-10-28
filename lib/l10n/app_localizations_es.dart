@@ -1231,6 +1231,13 @@ class AppLocalizationsEs extends AppLocalizations {
       'Modulación del trazo según la presión del stylus';
 
   @override
+  String get setSpeedThickness => 'Velocidad → grosor';
+
+  @override
+  String get setSpeedThicknessSub =>
+      'Escribir más rápido hace el trazo más fino';
+
+  @override
   String get setStrokeContinuation => 'Continuación del trazo';
 
   @override

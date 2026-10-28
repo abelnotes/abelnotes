@@ -322,6 +322,8 @@
   "setStylusOnlySub": "Ignora o toque do dedo durante a escrita. Pinçar e arrastar continuam funcionando com dois dedos.",
   "setPressureThickness": "Pressão → espessura",
   "setPressureThicknessSub": "Modulação do traço conforme a pressão da caneta",
+  "setSpeedThickness": "Velocidade → espessura",
+  "setSpeedThicknessSub": "Escrever mais rápido afina o traço",
   "setStrokeContinuation": "Continuação do traço",
   "setStrokeContinuationSub": "Compensa interrupções breves do sensor (ex.: o ponto do i)",
   "setFillShapes": "Preencher formas",

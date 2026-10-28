@@ -322,6 +322,8 @@
   "setStylusOnlySub": "Ignoriert Fingerberührungen beim Schreiben. Zoomen und Verschieben mit zwei Fingern funktionieren weiterhin.",
   "setPressureThickness": "Druck → Stärke",
   "setPressureThicknessSub": "Strichstärke abhängig vom Stiftdruck",
+  "setSpeedThickness": "Tempo → Stärke",
+  "setSpeedThicknessSub": "Schnelles Schreiben macht den Strich dünner",
   "setStrokeContinuation": "Strichfortsetzung",
   "setStrokeContinuationSub": "Gleicht kurze Aussetzer des Sensors aus (z. B. beim i-Punkt)",
   "setFillShapes": "Formen füllen",

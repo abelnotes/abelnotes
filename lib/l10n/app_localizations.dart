@@ -2040,6 +2040,18 @@ abstract class AppLocalizations {
   /// **'Modulazione di tratto in base alla pressione dello stylus'**
   String get setPressureThicknessSub;
 
+  /// No description provided for @setSpeedThickness.
+  ///
+  /// In it, this message translates to:
+  /// **'Velocità → spessore'**
+  String get setSpeedThickness;
+
+  /// No description provided for @setSpeedThicknessSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivere più veloce assottiglia il tratto'**
+  String get setSpeedThicknessSub;
+
   /// No description provided for @setStrokeContinuation.
   ///
   /// In it, this message translates to:

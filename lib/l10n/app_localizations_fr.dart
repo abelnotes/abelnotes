@@ -1233,6 +1233,12 @@ class AppLocalizationsFr extends AppLocalizations {
       'Modulation du trait selon la pression du stylet';
 
   @override
+  String get setSpeedThickness => 'Vitesse → épaisseur';
+
+  @override
+  String get setSpeedThicknessSub => 'Écrire plus vite affine le trait';
+
+  @override
   String get setStrokeContinuation => 'Continuité du trait';
 
   @override

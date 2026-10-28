@@ -1203,6 +1203,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setPressureThicknessSub => '根据触控笔压力调节笔画粗细';
 
   @override
+  String get setSpeedThickness => '速度 → 粗细';
+
+  @override
+  String get setSpeedThicknessSub => '书写越快，笔画越细';
+
+  @override
   String get setStrokeContinuation => '笔画续接';
 
   @override
