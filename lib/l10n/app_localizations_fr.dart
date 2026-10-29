@@ -1187,6 +1187,26 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pageSizeLandscape => 'Paysage';
 
   @override
+  String get pageSizeCustom => 'Personnalisé';
+
+  @override
+  String get pageSizeWidthMm => 'Largeur (mm)';
+
+  @override
+  String get pageSizeHeightMm => 'Hauteur (mm)';
+
+  @override
+  String get pageSizeRange => 'De 50 à 600 mm';
+
+  @override
+  String get pageSizeApply => 'Appliquer';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
+
+  @override
   String get libCreate => 'Créer';
 
   @override

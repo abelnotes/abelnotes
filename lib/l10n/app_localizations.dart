@@ -1950,6 +1950,42 @@ abstract class AppLocalizations {
   /// **'Orizzontale'**
   String get pageSizeLandscape;
 
+  /// No description provided for @pageSizeCustom.
+  ///
+  /// In it, this message translates to:
+  /// **'Personalizzato'**
+  String get pageSizeCustom;
+
+  /// No description provided for @pageSizeWidthMm.
+  ///
+  /// In it, this message translates to:
+  /// **'Larghezza (mm)'**
+  String get pageSizeWidthMm;
+
+  /// No description provided for @pageSizeHeightMm.
+  ///
+  /// In it, this message translates to:
+  /// **'Altezza (mm)'**
+  String get pageSizeHeightMm;
+
+  /// No description provided for @pageSizeRange.
+  ///
+  /// In it, this message translates to:
+  /// **'Da 50 a 600 mm'**
+  String get pageSizeRange;
+
+  /// No description provided for @pageSizeApply.
+  ///
+  /// In it, this message translates to:
+  /// **'Applica'**
+  String get pageSizeApply;
+
+  /// No description provided for @pageSizeCustomMm.
+  ///
+  /// In it, this message translates to:
+  /// **'{width} × {height} mm'**
+  String pageSizeCustomMm(String width, String height);
+
   /// No description provided for @libCreate.
   ///
   /// In it, this message translates to:

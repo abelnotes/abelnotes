@@ -1185,6 +1185,26 @@ class AppLocalizationsIt extends AppLocalizations {
   String get pageSizeLandscape => 'Orizzontale';
 
   @override
+  String get pageSizeCustom => 'Personalizzato';
+
+  @override
+  String get pageSizeWidthMm => 'Larghezza (mm)';
+
+  @override
+  String get pageSizeHeightMm => 'Altezza (mm)';
+
+  @override
+  String get pageSizeRange => 'Da 50 a 600 mm';
+
+  @override
+  String get pageSizeApply => 'Applica';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
+
+  @override
   String get libCreate => 'Crea';
 
   @override

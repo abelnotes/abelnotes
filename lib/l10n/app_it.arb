@@ -1017,6 +1017,27 @@
   "@pageSizePortrait": {},
   "pageSizeLandscape": "Orizzontale",
   "@pageSizeLandscape": {},
+  "pageSizeCustom": "Personalizzato",
+  "@pageSizeCustom": {},
+  "pageSizeWidthMm": "Larghezza (mm)",
+  "@pageSizeWidthMm": {},
+  "pageSizeHeightMm": "Altezza (mm)",
+  "@pageSizeHeightMm": {},
+  "pageSizeRange": "Da 50 a 600 mm",
+  "@pageSizeRange": {},
+  "pageSizeApply": "Applica",
+  "@pageSizeApply": {},
+  "pageSizeCustomMm": "{width} × {height} mm",
+  "@pageSizeCustomMm": {
+    "placeholders": {
+      "width": {
+        "type": "String"
+      },
+      "height": {
+        "type": "String"
+      }
+    }
+  },
   "libCreate": "Crea",
   "@libCreate": {},
   "setSectionGeneral": "Generale",

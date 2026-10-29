@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:abelnotes/core/providers/canvas_state.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 
-/// Paper size chips plus a portrait/landscape pair, shared by the
-/// new-notebook dialog and the editor's paper sheet. [preset] is null when
-/// the page has a size no preset matches; then no size chip is selected.
+/// Paper size chips, a "Custom" chip that asks for width and height in
+/// millimetres, and a portrait/landscape pair. Shared by the new-notebook
+/// dialog and the editor's paper sheet. [size] is in points.
 class PageSizePicker extends StatelessWidget {
-  final PageSizePreset? preset;
-  final bool landscape;
-  final void Function(PageSizePreset preset, bool landscape) onChanged;
+  final Size size;
+  final ValueChanged<Size> onChanged;
 
   const PageSizePicker({
     super.key,
-    required this.preset,
-    required this.landscape,
+    required this.size,
     required this.onChanged,
   });
 
@@ -29,10 +28,24 @@ class PageSizePicker extends StatelessWidget {
     }
   }
 
+  static String _mm(double pt) {
+    final mm = pt / ptPerMm;
+    return mm.toStringAsFixed(mm == mm.roundToDouble() ? 0 : 1);
+  }
+
+  Future<void> _askCustom(BuildContext context) async {
+    final picked = await showDialog<Size>(
+      context: context,
+      builder: (_) => _CustomSizeDialog(initial: size),
+    );
+    if (picked != null) onChanged(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final current = preset;
+    final preset = pageSizePresetOf(size.width, size.height);
+    final landscape = size.width > size.height;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -42,20 +55,31 @@ class PageSizePicker extends StatelessWidget {
           runSpacing: 6,
           children: [
             for (final p in PageSizePreset.values)
-              _chip(context, presetLabel(l10n, p), p == current,
-                  () => onChanged(p, landscape)),
+              _chip(context, presetLabel(l10n, p), p == preset,
+                  () => onChanged(pageSizeFor(p, landscape: landscape))),
+            _chip(
+              context,
+              preset == null
+                  ? '${l10n.pageSizeCustom} · '
+                      '${l10n.pageSizeCustomMm(_mm(size.width), _mm(size.height))}'
+                  : l10n.pageSizeCustom,
+              preset == null,
+              () => _askCustom(context),
+            ),
           ],
         ),
         // A square page reads the same either way round.
-        if (current != null && current != PageSizePreset.square) ...[
+        if (size.width != size.height) ...[
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             children: [
-              _chip(context, l10n.pageSizePortrait, !landscape,
-                  () => onChanged(current, false)),
-              _chip(context, l10n.pageSizeLandscape, landscape,
-                  () => onChanged(current, true)),
+              _chip(context, l10n.pageSizePortrait, !landscape, () {
+                if (landscape) onChanged(size.flipped);
+              }),
+              _chip(context, l10n.pageSizeLandscape, landscape, () {
+                if (!landscape) onChanged(size.flipped);
+              }),
             ],
           ),
         ],
@@ -82,6 +106,95 @@ class PageSizePicker extends StatelessWidget {
                   color: selected ? p.paper0 : p.ink0, fontSize: 13)),
         ),
       ),
+    );
+  }
+}
+
+/// Width and height in millimetres; pops the size in points.
+class _CustomSizeDialog extends StatefulWidget {
+  final Size initial;
+  const _CustomSizeDialog({required this.initial});
+
+  @override
+  State<_CustomSizeDialog> createState() => _CustomSizeDialogState();
+}
+
+class _CustomSizeDialogState extends State<_CustomSizeDialog> {
+  late final _width =
+      TextEditingController(text: PageSizePicker._mm(widget.initial.width));
+  late final _height =
+      TextEditingController(text: PageSizePicker._mm(widget.initial.height));
+  bool _showError = false;
+
+  @override
+  void dispose() {
+    _width.dispose();
+    _height.dispose();
+    super.dispose();
+  }
+
+  double? _read(TextEditingController c) {
+    final v = double.tryParse(c.text.trim().replaceAll(',', '.'));
+    if (v == null || v < minPageSizeMm || v > maxPageSizeMm) return null;
+    return v;
+  }
+
+  void _submit() {
+    final w = _read(_width);
+    final h = _read(_height);
+    if (w == null || h == null) {
+      setState(() => _showError = true);
+      return;
+    }
+    Navigator.of(context).pop(Size(w * ptPerMm, h * ptPerMm));
+  }
+
+  Widget _field(TextEditingController c, String label, {bool last = false}) {
+    final l10n = AppLocalizations.of(context);
+    return TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      textInputAction: last ? TextInputAction.done : TextInputAction.next,
+      onChanged: (_) {
+        if (_showError) setState(() => _showError = false);
+      },
+      onSubmitted: last ? (_) => _submit() : null,
+      decoration: InputDecoration(
+        labelText: label,
+        errorText: _showError && _read(c) == null ? l10n.pageSizeRange : null,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return AlertDialog(
+      backgroundColor: HwThemeScope.of(context).paper0,
+      title: Text(l10n.pageSizeCustom),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _field(_width, l10n.pageSizeWidthMm),
+            const SizedBox(height: 12),
+            _field(_height, l10n.pageSizeHeightMm, last: true),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.libCancel),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(l10n.pageSizeApply),
+        ),
+      ],
     );
   }
 }
