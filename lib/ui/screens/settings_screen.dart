@@ -595,6 +595,8 @@ class _InputSection extends ConsumerWidget {
         ref.watch(appSettingsProvider.select((s) => s.pressureWidth));
     final continuation =
         ref.watch(appSettingsProvider.select((s) => s.strokeContinuation));
+    final pencilDoubleTap =
+        ref.watch(appSettingsProvider.select((s) => s.pencilDoubleTap));
     final fillShapes =
         ref.watch(appSettingsProvider.select((s) => s.fillRecognizedShapes));
     return Column(
@@ -625,6 +627,17 @@ class _InputSection extends ConsumerWidget {
                 onChanged: (v) => ref
                     .read(appSettingsProvider.notifier)
                     .setStrokeContinuation(v))),
+        // Only the iOS app can hear the Pencil's double-tap; Safari never
+        // passes it to a web page.
+        if (!kIsWeb && Platform.isIOS)
+          _Row(
+              title: l10n.setPencilDoubleTap,
+              sub: l10n.setPencilDoubleTapSub,
+              control: HwSwitch(
+                  value: pencilDoubleTap,
+                  onChanged: (v) => ref
+                      .read(appSettingsProvider.notifier)
+                      .setPencilDoubleTap(v))),
         _Row(
             title: l10n.setFillShapes,
             sub: l10n.setFillShapesSub,

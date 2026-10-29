@@ -155,6 +155,10 @@ class AppSettings {
   /// starting a new one (sensor dropouts on iPad).
   final bool strokeContinuation;
 
+  /// Apple Pencil double-tap switches between the pen and the eraser (or
+  /// the previous tool, per the system Pencil setting). iPad app only.
+  final bool pencilDoubleTap;
+
   /// Recognized closed shapes get a light tint of the ink colour.
   final bool fillRecognizedShapes;
 
@@ -200,6 +204,7 @@ class AppSettings {
     this.stylusOnlyDrawing,
     this.pressureWidth = true,
     this.strokeContinuation = true,
+    this.pencilDoubleTap = true,
     this.fillRecognizedShapes = true,
     this.lastTool,
     this.syncBackend,
@@ -231,6 +236,7 @@ class AppSettings {
     bool? stylusOnlyDrawing,
     bool? pressureWidth,
     bool? strokeContinuation,
+    bool? pencilDoubleTap,
     bool? fillRecognizedShapes,
     String? lastTool,
     String? syncBackend,
@@ -259,6 +265,7 @@ class AppSettings {
         stylusOnlyDrawing: stylusOnlyDrawing ?? this.stylusOnlyDrawing,
         pressureWidth: pressureWidth ?? this.pressureWidth,
         strokeContinuation: strokeContinuation ?? this.strokeContinuation,
+        pencilDoubleTap: pencilDoubleTap ?? this.pencilDoubleTap,
         fillRecognizedShapes: fillRecognizedShapes ?? this.fillRecognizedShapes,
         lastTool: lastTool ?? this.lastTool,
         syncBackend:
@@ -359,6 +366,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         stylusOnlyDrawing: map['stylus_only_drawing'] as bool?,
         pressureWidth: map['pressure_width'] as bool? ?? true,
         strokeContinuation: map['stroke_continuation'] as bool? ?? true,
+        pencilDoubleTap: map['pencil_double_tap'] as bool? ?? true,
         fillRecognizedShapes: map['fill_shapes'] as bool? ?? true,
         lastTool: map['last_tool'] as String?,
         syncBackend: map['sync_backend'] as String?,
@@ -395,6 +403,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
           'stylus_only_drawing': state.stylusOnlyDrawing,
         'pressure_width': state.pressureWidth,
         'stroke_continuation': state.strokeContinuation,
+        'pencil_double_tap': state.pencilDoubleTap,
         'fill_shapes': state.fillRecognizedShapes,
         if (state.lastTool != null) 'last_tool': state.lastTool,
         if (state.syncBackend != null) 'sync_backend': state.syncBackend,
@@ -483,6 +492,11 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setStrokeContinuation(bool v) {
     state = state.copyWith(strokeContinuation: v);
+    _persist();
+  }
+
+  void setPencilDoubleTap(bool v) {
+    state = state.copyWith(pencilDoubleTap: v);
     _persist();
   }
 
