@@ -1977,6 +1977,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chromeShapeGuessOff => 'Auto-shape · off';
 
   @override
+  String get chromeHoldForOptions => 'Hold or right-click for options';
+
+  @override
   String get chromeLabelPen => 'Pen';
 
   @override

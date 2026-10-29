@@ -1,0 +1,33 @@
+pkgname=abelnotes-bin
+pkgver=0.37.9
+_build="63%2B20261027T070218Z.gdc81664"
+pkgrel=1
+pkgdesc="Handwritten notes for STEM with LaTeX and sync (prebuilt binary)"
+arch=('x86_64')
+url="https://github.com/abelnotes/abelnotes"
+license=('AGPL-3.0-or-later')
+depends=(
+    'gtk3'
+    'libsecret'
+    'sqlite'
+    'xdg-user-dirs'
+)
+optdepends=(
+    'zenity: file dialogs for import and export'
+    'kdialog: file dialogs on KDE'
+)
+provides=('abelnotes')
+conflicts=('abelnotes')
+# Flutter AOT snapshot (libapp.so) can be corrupted by stripping
+options=('!strip' '!debug')
+source=("${pkgname}-${pkgver}.deb::${url}/releases/download/v${pkgver}/abelnotes_${pkgver}-${_build}_amd64.deb"
+        "LICENSE-${pkgver}::${url}/raw/v${pkgver}/LICENSE")
+sha256sums=('e7efdffa90c29fb39e8d2fc7f956f5ee54862a0362245d22e919dec0e51c0456'
+            '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0')
+
+package() {
+    bsdtar -xf "${srcdir}/data.tar.zst" -C "${pkgdir}/"
+    # the .deb ships directories as 775; normalise to avoid pacman warnings
+    find "${pkgdir}" -type d -exec chmod 755 {} +
+    install -Dm644 "${srcdir}/LICENSE-${pkgver}" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

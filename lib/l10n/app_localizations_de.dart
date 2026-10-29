@@ -1992,6 +1992,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chromeShapeGuessOff => 'Auto-Form · aus';
 
   @override
+  String get chromeHoldForOptions =>
+      'Gedrückt halten oder Rechtsklick für Optionen';
+
+  @override
   String get chromeLabelPen => 'Stift';
 
   @override

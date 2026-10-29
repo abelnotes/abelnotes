@@ -4551,7 +4551,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           ),
         ),
         image: (e) => e, // images don't have a stroke color
-        shape: (e) => e.copyWith(data: e.data.copyWith(strokeColor: newColor)),
+        // A filled shape keeps its fill, re-tinted to the new ink.
+        shape: (e) => e.copyWith(
+          data: e.data.copyWith(
+            strokeColor: newColor,
+            fillColor:
+                e.data.fillColor == null ? null : shapeFillTint(newColor),
+          ),
+        ),
         math: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),
       );
     }).toList();
@@ -7800,7 +7807,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     Paint? fillPaint;
     if (shape.fillColor != null) {
-      fillPaint = Paint()..color = Color(shape.fillColor!)..style = PaintingStyle.fill;
+      fillPaint = Paint()
+        ..color = Color(shape.fillColor!)
+        ..style = PaintingStyle.fill
+        ..blendMode = BlendMode.multiply; // as render_engine's _paintShape
     }
 
     canvas.save();

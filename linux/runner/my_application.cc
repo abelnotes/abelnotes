@@ -111,6 +111,18 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// Wayland reports a pen leaving range only as GDK_PROXIMITY_OUT, which FlView
+// ignores (no pointer-removed): tell Dart so the eraser hover preview hides.
+static gboolean on_pen_proximity_out(GtkWidget* widget, GdkEvent* event,
+                                     gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->pen_channel != nullptr) {
+    fl_method_channel_invoke_method(self->pen_channel, "penProximityOut",
+                                    nullptr, nullptr, nullptr, nullptr);
+  }
+  return FALSE;
+}
+
 // Handles calls on the "handwriter/window" channel. Only setFullScreen —
 // plain gtk_window_fullscreen/unfullscreen on the active window, nothing
 // attached to the window's lifecycle (see window_channel comment above).
@@ -244,6 +256,10 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect(pen_drag, "drag-begin", G_CALLBACK(on_pen_drag), self);
   g_signal_connect(pen_drag, "drag-update", G_CALLBACK(on_pen_drag), self);
   g_signal_connect(pen_drag, "drag-end", G_CALLBACK(on_pen_drag_end), self);
+  // On the toplevel: Wayland delivers proximity to the surface, not FlView.
+  gtk_widget_add_events(GTK_WIDGET(window), GDK_PROXIMITY_OUT_MASK);
+  g_signal_connect(window, "proximity-out-event",
+                   G_CALLBACK(on_pen_proximity_out), self);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

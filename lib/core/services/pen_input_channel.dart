@@ -3,7 +3,7 @@ import 'package:abelnotes/core/platform/io.dart' show File, Platform, RandomAcce
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show VoidCallback, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 
@@ -171,9 +171,18 @@ class LinuxPenPressure {
   static double _evdevPmax = 2047;
   static List<int> _evdevLeftover = const [];
 
-  static void register() {
+  static VoidCallback? _onProximityOut;
+
+  /// [onProximityOut] fires when the pen leaves the tablet's range (Wayland
+  /// only): Flutter gets no pointer-removed for it.
+  static void register({VoidCallback? onProximityOut}) {
     if (kIsWeb || !Platform.isLinux || _registered) return;
+    _onProximityOut = onProximityOut;
     _channel.setMethodCallHandler((call) async {
+      if (call.method == 'penProximityOut') {
+        _onProximityOut?.call();
+        return;
+      }
       if (call.method != 'penSample') return;
       final a = (call.arguments as Map?)?.cast<Object?, Object?>();
       if (a == null) return;
@@ -367,6 +376,7 @@ class LinuxPenPressure {
   static void unregister() {
     if (!_registered) return;
     _channel.setMethodCallHandler(null);
+    _onProximityOut = null;
     _evdevRunning = false;
     _evdevRaf?.close();
     _evdevRaf = null;

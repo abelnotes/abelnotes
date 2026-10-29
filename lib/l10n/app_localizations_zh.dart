@@ -1914,6 +1914,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeShapeGuessOff => '自动识别形状 · 关';
 
   @override
+  String get chromeHoldForOptions => '长按或右键单击查看选项';
+
+  @override
   String get chromeLabelPen => '钢笔';
 
   @override

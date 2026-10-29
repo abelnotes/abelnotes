@@ -1983,6 +1983,10 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromeShapeGuessOff => 'Auto-forma · spento';
 
   @override
+  String get chromeHoldForOptions =>
+      'Tieni premuto o clic destro per le opzioni';
+
+  @override
   String get chromeLabelPen => 'Penna';
 
   @override

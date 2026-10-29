@@ -1990,6 +1990,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromeShapeGuessOff => 'Forme auto · désactivée';
 
   @override
+  String get chromeHoldForOptions =>
+      'Appui long ou clic droit pour les options';
+
+  @override
   String get chromeLabelPen => 'Stylo';
 
   @override
