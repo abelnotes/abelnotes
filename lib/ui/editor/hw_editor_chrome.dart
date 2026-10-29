@@ -878,7 +878,8 @@ class HwToolPopup extends StatelessWidget {
               children: [
                 Flexible(child: _section(l10n.chromeThicknessSection, p)),
                 const SizedBox(width: 8),
-                Text(l10n.chromeThicknessPx(thickness.toStringAsFixed(1)),
+                Text(l10n.chromeThicknessPx(
+                    thickness.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '')),
                     style: TextStyle(
                       fontSize: 12,
                       color: p.ink1,
@@ -899,7 +900,8 @@ class HwToolPopup extends StatelessWidget {
               child: Slider(
                 min: 0.5,
                 max: 20.0,
-                divisions: 39,
+                // Quarter-pixel steps, so fine pens like 0.75 can be picked.
+                divisions: 78,
                 value: thickness.clamp(0.5, 20.0),
                 onChanged: onThicknessChanged,
               ),

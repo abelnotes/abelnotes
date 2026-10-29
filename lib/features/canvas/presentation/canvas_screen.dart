@@ -6924,7 +6924,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w600)),
                     const Spacer(),
-                    Text(AppLocalizations.of(ctx).csWidthPx(width.toStringAsFixed(1)),
+                    Text(AppLocalizations.of(ctx).csWidthPx(
+                        width.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '')),
                         style: TextStyle(fontSize: 12, color: p.ink1)),
                   ],
                 ),
@@ -6941,7 +6942,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   child: Slider(
                     min: 0.5,
                     max: 20.0,
-                    divisions: 39,
+                    divisions: 78,
                     value: width.clamp(0.5, 20.0),
                     onChanged: (v) {
                       setSheetState(() => width = v);
