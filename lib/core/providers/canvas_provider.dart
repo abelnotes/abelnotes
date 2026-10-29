@@ -7610,7 +7610,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final rawWidths = List<double>.filled(n, stroke.baseWidth);
     for (int i = 0; i < n; i++) {
       final excessV = (velocities[i] - 800.0).clamp(0.0, 4000.0);
-      final velocityFactor = 1.0 - (excessV / 4000.0) * 0.15;
+      final velocityFactor = CanvasRenderEngine.speedWidth
+          ? 1.0 - (excessV / 4000.0) * 0.15
+          : 1.0;
       final pc = sqrt(stroke.points[i].pressure.clamp(0.0, 1.0));
       final pressureFactor = 0.35 + pc * 1.15;
       rawWidths[i] = stroke.baseWidth * pressureFactor * velocityFactor;

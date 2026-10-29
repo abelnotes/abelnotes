@@ -2322,6 +2322,8 @@ class CanvasRenderEngine extends CustomPainter {
   static bool _speedWidth = true;
   static int _widthStyleCounter = 0;
 
+  static bool get speedWidth => _speedWidth;
+
   static set speedWidth(bool v) {
     if (v == _speedWidth) return;
     _speedWidth = v;
