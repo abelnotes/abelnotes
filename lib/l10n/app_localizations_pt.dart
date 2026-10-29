@@ -740,6 +740,14 @@ class AppLocalizationsPt extends AppLocalizations {
   String get csPaperMusic => 'Pauta musical';
 
   @override
+  String get csLineSpacing => 'Espaçamento';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => 'Associar a caneta a um monitor';
 
   @override
@@ -1155,6 +1163,24 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get libPaperDotted => 'Pontilhado';
+
+  @override
+  String get pageSizeLabel => 'Tamanho da página';
+
+  @override
+  String get pageSizeLetter => 'Carta';
+
+  @override
+  String get pageSizeLegal => 'Ofício';
+
+  @override
+  String get pageSizeSquare => 'Quadrado';
+
+  @override
+  String get pageSizePortrait => 'Retrato';
+
+  @override
+  String get pageSizeLandscape => 'Paisagem';
 
   @override
   String get libCreate => 'Criar';

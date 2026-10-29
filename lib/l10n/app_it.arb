@@ -633,6 +633,16 @@
   "@csPaperIsometric": {},
   "csPaperMusic": "Pentagramma",
   "@csPaperMusic": {},
+  "csLineSpacing": "Spaziatura",
+  "@csLineSpacing": {},
+  "csLineSpacingMm": "{value} mm",
+  "@csLineSpacingMm": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "csMapPenToMonitor": "Mappa penna su monitor",
   "@csMapPenToMonitor": {},
   "csPenMappedTo": "Penna mappata su {monitor}",
@@ -995,6 +1005,18 @@
   "@libPaperGrid": {},
   "libPaperDotted": "Puntinato",
   "@libPaperDotted": {},
+  "pageSizeLabel": "Formato pagina",
+  "@pageSizeLabel": {},
+  "pageSizeLetter": "Lettera",
+  "@pageSizeLetter": {},
+  "pageSizeLegal": "Legale",
+  "@pageSizeLegal": {},
+  "pageSizeSquare": "Quadrato",
+  "@pageSizeSquare": {},
+  "pageSizePortrait": "Verticale",
+  "@pageSizePortrait": {},
+  "pageSizeLandscape": "Orizzontale",
+  "@pageSizeLandscape": {},
   "libCreate": "Crea",
   "@libCreate": {},
   "setSectionGeneral": "Generale",
