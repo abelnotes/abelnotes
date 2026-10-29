@@ -986,11 +986,22 @@ class CanvasRenderEngine extends CustomPainter {
     }
   }
 
+  /// Positions of a pattern's rows or columns across [extent], centred so
+  /// the gaps at both edges match, each between half and one [spacing].
+  /// Starting one spacing in and stopping wherever the page ran out left a
+  /// full gap on one side and a sliver on the other.
+  static List<double> _centredMarks(double extent, double spacing) {
+    final count = (extent / spacing).ceil() - 1;
+    if (count < 1) return const [];
+    final start = (extent - (count - 1) * spacing) / 2;
+    return [for (int i = 0; i < count; i++) start + i * spacing];
+  }
+
   void _paintGridBackground(Canvas canvas, double spacing, Paint paint) {
-    for (double y = spacing; y < pageData.height; y += spacing) {
+    for (final y in _centredMarks(pageData.height, spacing)) {
       canvas.drawLine(Offset(0, y), Offset(pageData.width, y), paint);
     }
-    for (double x = spacing; x < pageData.width; x += spacing) {
+    for (final x in _centredMarks(pageData.width, spacing)) {
       canvas.drawLine(Offset(x, 0), Offset(x, pageData.height), paint);
     }
   }
@@ -1006,12 +1017,11 @@ class CanvasRenderEngine extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 3.0; // matches previous radius 1.5
-    final offsets = <Offset>[];
-    for (double y = spacing; y < pageData.height; y += spacing) {
-      for (double x = spacing; x < pageData.width; x += spacing) {
-        offsets.add(Offset(x, y));
-      }
-    }
+    final xs = _centredMarks(pageData.width, spacing);
+    final offsets = <Offset>[
+      for (final y in _centredMarks(pageData.height, spacing))
+        for (final x in xs) Offset(x, y),
+    ];
     if (offsets.isNotEmpty) {
       canvas.drawPoints(ui.PointMode.points, offsets, dotPaint);
     }
