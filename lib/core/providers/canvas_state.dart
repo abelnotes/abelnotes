@@ -99,6 +99,10 @@ const double ptPerMm = 72 / 25.4;
 const double minLineSpacingMm = 2.0;
 const double maxLineSpacingMm = 15.0;
 
+/// Range a custom page size may take, per side, in millimetres.
+const double minPageSizeMm = 50.0;
+const double maxPageSizeMm = 600.0;
+
 /// Paper sizes offered for new notebooks and for resizing a page.
 enum PageSizePreset { a4, a5, b5, letter, legal, square }
 

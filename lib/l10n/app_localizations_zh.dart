@@ -1160,6 +1160,26 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pageSizeLandscape => '横向';
 
   @override
+  String get pageSizeCustom => '自定义';
+
+  @override
+  String get pageSizeWidthMm => '宽度（毫米）';
+
+  @override
+  String get pageSizeHeightMm => '高度（毫米）';
+
+  @override
+  String get pageSizeRange => '50 到 600 毫米';
+
+  @override
+  String get pageSizeApply => '应用';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
+
+  @override
   String get libCreate => '创建';
 
   @override

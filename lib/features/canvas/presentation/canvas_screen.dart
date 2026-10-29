@@ -8952,13 +8952,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                                 fontSize: 14, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 8),
                         PageSizePicker(
-                          preset: pageSizePresetOf(page.width, page.height),
-                          landscape: page.width > page.height,
-                          onChanged: (preset, landscape) {
-                            final size =
-                                pageSizeFor(preset, landscape: landscape);
-                            notifier.setPageSize(size.width, size.height);
-                          },
+                          size: Size(page.width, page.height),
+                          onChanged: (size) =>
+                              notifier.setPageSize(size.width, size.height),
                         ),
                       ],
                     ),

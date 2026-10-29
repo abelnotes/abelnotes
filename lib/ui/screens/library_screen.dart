@@ -3874,8 +3874,7 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
   Color _color = HwTheme.cover1;
   CoverStyle _style = CoverStyle.auto;
   String _paper = 'lined';
-  PageSizePreset _pageSize = PageSizePreset.a4;
-  bool _landscape = false;
+  Size _pageSize = pageSizePresetSize(PageSizePreset.a4);
   bool _showError = false;
 
   @override
@@ -3891,8 +3890,7 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
       return;
     }
     Navigator.of(context)
-        .pop(_NewNotebookResult(t, _color, _style, _paper,
-            pageSizeFor(_pageSize, landscape: _landscape)));
+        .pop(_NewNotebookResult(t, _color, _style, _paper, _pageSize));
   }
 
   @override
@@ -4008,12 +4006,8 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
                       fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
               PageSizePicker(
-                preset: _pageSize,
-                landscape: _landscape,
-                onChanged: (preset, landscape) => setState(() {
-                  _pageSize = preset;
-                  _landscape = landscape;
-                }),
+                size: _pageSize,
+                onChanged: (size) => setState(() => _pageSize = size),
               ),
             ],
           ),
