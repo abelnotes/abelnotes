@@ -741,6 +741,14 @@ class AppLocalizationsIt extends AppLocalizations {
   String get csPaperMusic => 'Pentagramma';
 
   @override
+  String get csLineSpacing => 'Spaziatura';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => 'Mappa penna su monitor';
 
   @override
@@ -1157,6 +1165,24 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get libPaperDotted => 'Puntinato';
+
+  @override
+  String get pageSizeLabel => 'Formato pagina';
+
+  @override
+  String get pageSizeLetter => 'Lettera';
+
+  @override
+  String get pageSizeLegal => 'Legale';
+
+  @override
+  String get pageSizeSquare => 'Quadrato';
+
+  @override
+  String get pageSizePortrait => 'Verticale';
+
+  @override
+  String get pageSizeLandscape => 'Orizzontale';
 
   @override
   String get libCreate => 'Crea';

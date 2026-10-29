@@ -58,6 +58,7 @@ import 'package:abelnotes/ui/editor/hw_editor_chrome.dart';
 import 'package:abelnotes/ui/primitives/hw_motion_widgets.dart';
 import 'package:abelnotes/ui/theme/hw_motion.dart';
 import 'package:abelnotes/ui/primitives/sync_badge.dart';
+import 'package:abelnotes/ui/primitives/page_size_picker.dart';
 import 'package:abelnotes/ui/screens/library_screen.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
@@ -8860,6 +8861,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   void _showPaperTypePicker(CanvasState state) {
     final l10n = AppLocalizations.of(context);
+    // Spacing while the slider is being dragged; the page only takes it
+    // when the drag ends, so a drag is one undo step.
+    double? dragSpacingMm;
     showModalBottomSheet(
       context: context,
       backgroundColor: HwThemeScope.of(context).paper0,
@@ -8867,30 +8871,101 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Text(l10n.csPaperType,
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            for (final t in PaperType.values)
-              ListTile(
-                leading: Icon(
-                  state.currentPaperType == t
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: state.currentPaperType == t
-                      ? Theme.of(ctx).colorScheme.primary
-                      : null,
-                ),
-                title: Text(_paperTypeLabel(l10n, t)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  ref.read(canvasProvider.notifier).setPaperType(t);
-                },
-              ),
-          ],
+        child: StatefulBuilder(builder: (ctx, setSheetState) => Consumer(
+          builder: (ctx, ref, _) {
+            final live = ref.watch(canvasProvider) ?? state;
+            final page = live.currentPage;
+            final bg = page?.layers.background;
+            final isPdf = bg?.pdfAsset != null;
+            final paper = live.currentPaperType;
+            final notifier = ref.read(canvasProvider.notifier);
+            final spacingPt = bg != null && bg.lineSpacing > 0
+                ? bg.lineSpacing
+                : paperTypeLineSpacing(paper);
+            final spacingMm = (dragSpacingMm ?? spacingPt / ptPerMm)
+                .clamp(minLineSpacingMm, maxLineSpacingMm);
+            final p = HwThemeScope.of(ctx);
+            return SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Text(l10n.csPaperType,
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                for (final t in PaperType.values)
+                  ListTile(
+                    leading: Icon(
+                      paper == t
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: paper == t
+                          ? Theme.of(ctx).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(_paperTypeLabel(l10n, t)),
+                    onTap: () => notifier.setPaperType(t),
+                  ),
+                if (paper != PaperType.blank && !isPdf)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(l10n.csLineSpacing,
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600)),
+                            const Spacer(),
+                            Text(
+                                l10n.csLineSpacingMm(
+                                    spacingMm.toStringAsFixed(1)),
+                                style: TextStyle(fontSize: 12, color: p.ink1)),
+                          ],
+                        ),
+                        Slider(
+                          min: minLineSpacingMm,
+                          max: maxLineSpacingMm,
+                          divisions:
+                              ((maxLineSpacingMm - minLineSpacingMm) * 2)
+                                  .round(),
+                          value: spacingMm,
+                          onChanged: (v) =>
+                              setSheetState(() => dragSpacingMm = v),
+                          onChangeEnd: (v) {
+                            notifier.setLineSpacing(v * ptPerMm);
+                            setSheetState(() => dragSpacingMm = null);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                if (page != null && !live.isScratch && !isPdf)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l10n.pageSizeLabel,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        PageSizePicker(
+                          preset: pageSizePresetOf(page.width, page.height),
+                          landscape: page.width > page.height,
+                          onChanged: (preset, landscape) {
+                            final size =
+                                pageSizeFor(preset, landscape: landscape);
+                            notifier.setPageSize(size.width, size.height);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ));
+          },
         )),
       ),
     );

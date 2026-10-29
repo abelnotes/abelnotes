@@ -1242,6 +1242,18 @@ abstract class AppLocalizations {
   /// **'Pentagramma'**
   String get csPaperMusic;
 
+  /// No description provided for @csLineSpacing.
+  ///
+  /// In it, this message translates to:
+  /// **'Spaziatura'**
+  String get csLineSpacing;
+
+  /// No description provided for @csLineSpacingMm.
+  ///
+  /// In it, this message translates to:
+  /// **'{value} mm'**
+  String csLineSpacingMm(String value);
+
   /// No description provided for @csMapPenToMonitor.
   ///
   /// In it, this message translates to:
@@ -1901,6 +1913,42 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Puntinato'**
   String get libPaperDotted;
+
+  /// No description provided for @pageSizeLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'Formato pagina'**
+  String get pageSizeLabel;
+
+  /// No description provided for @pageSizeLetter.
+  ///
+  /// In it, this message translates to:
+  /// **'Lettera'**
+  String get pageSizeLetter;
+
+  /// No description provided for @pageSizeLegal.
+  ///
+  /// In it, this message translates to:
+  /// **'Legale'**
+  String get pageSizeLegal;
+
+  /// No description provided for @pageSizeSquare.
+  ///
+  /// In it, this message translates to:
+  /// **'Quadrato'**
+  String get pageSizeSquare;
+
+  /// No description provided for @pageSizePortrait.
+  ///
+  /// In it, this message translates to:
+  /// **'Verticale'**
+  String get pageSizePortrait;
+
+  /// No description provided for @pageSizeLandscape.
+  ///
+  /// In it, this message translates to:
+  /// **'Orizzontale'**
+  String get pageSizeLandscape;
 
   /// No description provided for @libCreate.
   ///

@@ -739,6 +739,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csPaperMusic => 'Music staff';
 
   @override
+  String get csLineSpacing => 'Spacing';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => 'Map pen to a monitor';
 
   @override
@@ -1154,6 +1162,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libPaperDotted => 'Dotted';
+
+  @override
+  String get pageSizeLabel => 'Page size';
+
+  @override
+  String get pageSizeLetter => 'Letter';
+
+  @override
+  String get pageSizeLegal => 'Legal';
+
+  @override
+  String get pageSizeSquare => 'Square';
+
+  @override
+  String get pageSizePortrait => 'Portrait';
+
+  @override
+  String get pageSizeLandscape => 'Landscape';
 
   @override
   String get libCreate => 'Create';

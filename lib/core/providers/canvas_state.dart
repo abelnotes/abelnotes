@@ -91,6 +91,48 @@ double paperTypeLineSpacing(PaperType type) {
   }
 }
 
+/// Page spacing is stored in points (1/72 inch); the spacing slider shows
+/// millimetres.
+const double ptPerMm = 72 / 25.4;
+
+/// Spacing slider range in millimetres.
+const double minLineSpacingMm = 2.0;
+const double maxLineSpacingMm = 15.0;
+
+/// Paper sizes offered for new notebooks and for resizing a page.
+enum PageSizePreset { a4, a5, b5, letter, legal, square }
+
+/// Portrait size of [preset] in points.
+Size pageSizePresetSize(PageSizePreset preset) {
+  switch (preset) {
+    case PageSizePreset.a4: return const Size(595, 842);
+    case PageSizePreset.a5: return const Size(420, 595);
+    case PageSizePreset.b5: return const Size(499, 709);
+    case PageSizePreset.letter: return const Size(612, 792);
+    case PageSizePreset.legal: return const Size(612, 1008);
+    case PageSizePreset.square: return const Size(595, 595);
+  }
+}
+
+/// The preset a [width]x[height] page matches in either orientation, or
+/// null for any other size (imported PDF pages, scratch sheets).
+PageSizePreset? pageSizePresetOf(double width, double height) {
+  for (final preset in PageSizePreset.values) {
+    final s = pageSizePresetSize(preset);
+    if (((s.width - width).abs() < 1 && (s.height - height).abs() < 1) ||
+        ((s.width - height).abs() < 1 && (s.height - width).abs() < 1)) {
+      return preset;
+    }
+  }
+  return null;
+}
+
+/// [preset] turned to [landscape] or portrait.
+Size pageSizeFor(PageSizePreset preset, {required bool landscape}) {
+  final s = pageSizePresetSize(preset);
+  return landscape ? Size(s.height, s.width) : s;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  TOOL SETTINGS
 // ═══════════════════════════════════════════════════════════════

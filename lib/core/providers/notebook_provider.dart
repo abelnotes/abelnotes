@@ -994,6 +994,9 @@ class NotebookListNotifier
     bool infinite = false,
     String backgroundType = 'dotted',
     String chapterTitle = 'Chapter 1',
+    // Page size in points for paged notebooks; A4 when not given.
+    double pageWidth = AppConfig.defaultPageWidth,
+    double pageHeight = AppConfig.defaultPageHeight,
   }) async {
     final syncService = _ref.read(syncServiceProvider);
     final fileService = _ref.read(fileServiceProvider);
@@ -1008,8 +1011,8 @@ class NotebookListNotifier
     // single page is a big square, and its visible texture is `backgroundType`.
     final effectivePaperType =
         infinite ? AppConfig.infinitePaperType : paperType;
-    final pageW = infinite ? AppConfig.scratchPageSize : AppConfig.defaultPageWidth;
-    final pageH = infinite ? AppConfig.scratchPageSize : AppConfig.defaultPageHeight;
+    final pageW = infinite ? AppConfig.scratchPageSize : pageWidth;
+    final pageH = infinite ? AppConfig.scratchPageSize : pageHeight;
     final bgType = infinite ? backgroundType : paperType;
 
     final metadata = NotebookMetadata(
