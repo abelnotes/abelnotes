@@ -574,6 +574,7 @@
   "chromeDragToMoveBar": "Arrastra para mover la barra",
   "chromeShapeGuessOn": "Autoforma · activado",
   "chromeShapeGuessOff": "Autoforma · desactivado",
+  "chromeHoldForOptions": "Mantén pulsado o haz clic derecho para ver las opciones",
   "chromeLabelPen": "Pluma",
   "chromeLabelBallpoint": "Bolígrafo",
   "chromeLabelBrush": "Pincel",

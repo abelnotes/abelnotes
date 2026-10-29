@@ -330,6 +330,8 @@ class HwFloatingDock extends StatelessWidget {
   final DockPosition position;
   final bool shapeGuess;
   final ValueChanged<bool> onShapeGuessChanged;
+  /// Long press or right click on the auto-shape button: its options menu.
+  final void Function(Offset globalPosition)? onShapeGuessSecondary;
   /// Last eraser sub-mode the user picked (per-stroke vs per-area). The
   /// dock's eraser button activates THIS instead of always defaulting
   /// to `eraserStroke`, so going pen → eraser → pen → eraser keeps the
@@ -356,6 +358,7 @@ class HwFloatingDock extends StatelessWidget {
     required this.activeInkColor,
     required this.shapeGuess,
     required this.onShapeGuessChanged,
+    this.onShapeGuessSecondary,
     this.lastEraserMode = CanvasTool.eraserStroke,
     this.position = DockPosition.floating,
     this.onDragStart,
@@ -633,13 +636,25 @@ class HwFloatingDock extends StatelessWidget {
       button: true,
       label: label,
       child: Tooltip(
-        message: label,
+        message: onShapeGuessSecondary == null
+            ? label
+            : '$label\n${l10n.chromeHoldForOptions}',
         waitDuration: const Duration(milliseconds: 400),
+        // A long press opens the options, so touch never shows the tooltip.
+        triggerMode: onShapeGuessSecondary == null
+            ? null
+            : TooltipTriggerMode.manual,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => onShapeGuessChanged(!shapeGuess),
+            onSecondaryTapDown: onShapeGuessSecondary == null
+                ? null
+                : (d) => onShapeGuessSecondary!(d.globalPosition),
+            onLongPressStart: onShapeGuessSecondary == null
+                ? null
+                : (d) => onShapeGuessSecondary!(d.globalPosition),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
               width: m.btn,

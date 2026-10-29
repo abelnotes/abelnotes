@@ -1585,6 +1585,8 @@
   "@chromeShapeGuessOn": {},
   "chromeShapeGuessOff": "Auto-forma · spento",
   "@chromeShapeGuessOff": {},
+  "chromeHoldForOptions": "Tieni premuto o clic destro per le opzioni",
+  "@chromeHoldForOptions": {},
   "chromeLabelPen": "Penna",
   "@chromeLabelPen": {},
   "chromeLabelBallpoint": "Penna a sfera",

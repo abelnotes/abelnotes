@@ -1741,10 +1741,11 @@ class CanvasRenderEngine extends CustomPainter {
 
     Paint? fillPaint;
     if (shape.fillColor != null) {
+      // Multiply: the tint shows on the paper but never veils the ink it frames.
       fillPaint = Paint()
         ..color = Color(shape.fillColor!)
         ..style = PaintingStyle.fill
-        ..blendMode = shape.isHighlighter ? BlendMode.multiply : BlendMode.srcOver;
+        ..blendMode = BlendMode.multiply;
     }
 
     // For triangles with a CARDINAL rotation (multiples of π/2) we

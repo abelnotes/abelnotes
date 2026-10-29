@@ -574,6 +574,7 @@
   "chromeDragToMoveBar": "Drag to move the toolbar",
   "chromeShapeGuessOn": "Auto-shape · on",
   "chromeShapeGuessOff": "Auto-shape · off",
+  "chromeHoldForOptions": "Hold or right-click for options",
   "chromeLabelPen": "Pen",
   "chromeLabelBallpoint": "Ballpoint",
   "chromeLabelBrush": "Brush",

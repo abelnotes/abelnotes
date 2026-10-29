@@ -25,6 +25,9 @@ bool _roundish(_PolyFit f) => f.area > 0.9 && f.area < 1.1;
 /// Axis ratio (minor/major) from which an oval is snapped to a true circle.
 const _circleRatio = 0.85;
 
+/// Fill of a closed shape: a ~19% tint of its ink. Recolouring reuses it.
+int shapeFillTint(int ink) => (ink & 0x00FFFFFF) | (0x30 << 24);
+
 ShapeData? recognizeShape(
   List<StrokePoint> points, {
   required int color,
@@ -60,10 +63,7 @@ ShapeData? recognizeShape(
         strokeColor: color,
         strokeWidth: strokeWidth,
         isHighlighter: isHighlighter,
-        // Closed shapes get a ~19% tint of the ink when [fill] is on.
-        fillColor: fill && type != 'line'
-            ? (color & 0x00FFFFFF) | (0x30 << 24)
-            : null,
+        fillColor: fill && type != 'line' ? shapeFillTint(color) : null,
       );
 
   final len = _pathLen(pts);

@@ -21,7 +21,7 @@ class WindowsPenSubpixel {
 }
 
 class LinuxPenPressure {
-  static void register() {}
+  static void register({VoidCallback? onProximityOut}) {}
   static double latest({int maxAgeMs = 120}) => -1;
   static double get tiltX => 0;
   static double get tiltY => 0;

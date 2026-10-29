@@ -1975,6 +1975,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chromeShapeGuessOff => 'Autoforma · desactivado';
 
   @override
+  String get chromeHoldForOptions =>
+      'Mantén pulsado o haz clic derecho para ver las opciones';
+
+  @override
   String get chromeLabelPen => 'Pluma';
 
   @override

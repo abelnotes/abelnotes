@@ -1,0 +1,23 @@
+pkgbase = abelnotes-bin
+	pkgdesc = Handwritten notes for STEM with LaTeX and sync (prebuilt binary)
+	pkgver = 0.37.9
+	pkgrel = 1
+	url = https://github.com/abelnotes/abelnotes
+	arch = x86_64
+	license = AGPL-3.0-or-later
+	depends = gtk3
+	depends = libsecret
+	depends = sqlite
+	depends = xdg-user-dirs
+	optdepends = zenity: file dialogs for import and export
+	optdepends = kdialog: file dialogs on KDE
+	provides = abelnotes
+	conflicts = abelnotes
+	options = !strip
+	options = !debug
+	source = abelnotes-bin-0.37.9.deb::https://github.com/abelnotes/abelnotes/releases/download/v0.37.9/abelnotes_0.37.9-63%2B20261027T070218Z.gdc81664_amd64.deb
+	source = LICENSE-0.37.9::https://github.com/abelnotes/abelnotes/raw/v0.37.9/LICENSE
+	sha256sums = e7efdffa90c29fb39e8d2fc7f956f5ee54862a0362245d22e919dec0e51c0456
+	sha256sums = 0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0
+
+pkgname = abelnotes-bin

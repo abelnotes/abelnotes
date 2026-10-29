@@ -555,6 +555,7 @@
   "chromeDragToMoveBar": "拖动可移动工具栏",
   "chromeShapeGuessOn": "自动识别形状 · 开",
   "chromeShapeGuessOff": "自动识别形状 · 关",
+  "chromeHoldForOptions": "长按或右键单击查看选项",
   "chromeLabelPen": "钢笔",
   "chromeLabelBallpoint": "圆珠笔",
   "chromeLabelBrush": "画笔",

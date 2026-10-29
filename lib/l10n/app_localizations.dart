@@ -3258,6 +3258,12 @@ abstract class AppLocalizations {
   /// **'Auto-forma · spento'**
   String get chromeShapeGuessOff;
 
+  /// No description provided for @chromeHoldForOptions.
+  ///
+  /// In it, this message translates to:
+  /// **'Tieni premuto o clic destro per le opzioni'**
+  String get chromeHoldForOptions;
+
   /// No description provided for @chromeLabelPen.
   ///
   /// In it, this message translates to:
