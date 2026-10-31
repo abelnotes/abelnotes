@@ -3047,6 +3047,64 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
+  /// Sets the gap between the current page's lines, grid squares or dots,
+  /// in points. New pages copy it from the page they're added after.
+  void setLineSpacing(double spacing) {
+    if (state == null) return;
+    final s = state!;
+    final page = s.currentPage;
+    if (page == null) return;
+    final bg = page.layers.background;
+    if (bg.lineSpacing == spacing) return;
+
+    final fileName = s.currentPageFileName;
+    final undoStack = _pushUndo(s, fileName, page);
+    final updatedPage = page.copyWith(
+      layers: page.layers.copyWith(
+        background: bg.copyWith(lineSpacing: spacing),
+      ),
+      modifiedAt: DateTime.now(),
+    );
+
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = updatedPage;
+    state = s.copyWith(
+      pages: updatedPages,
+      undoStack: undoStack,
+      redoStack: [],
+      isDirty: true,
+    );
+  }
+
+  /// Resizes the current page. What's drawn keeps its place from the top
+  /// left corner, so anything past a new edge is cut off, not moved. Not
+  /// undoable: undo restores a page's content, while the size also lives
+  /// in the document's page list.
+  void setPageSize(double width, double height) {
+    if (state == null) return;
+    final s = state!;
+    final page = s.currentPage;
+    if (page == null) return;
+    if (page.width == width && page.height == height) return;
+
+    final fileName = s.currentPageFileName;
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = page.copyWith(
+      width: width,
+      height: height,
+      modifiedAt: DateTime.now(),
+    );
+    final document = s.document.copyWith(pages: [
+      for (final e in s.document.pages)
+        e.fileName == fileName ? e.copyWith(width: width, height: height) : e,
+    ]);
+    state = s.copyWith(
+      pages: updatedPages,
+      document: document,
+      isDirty: true,
+    );
+  }
+
   // ── Drawing ──
 
   void startStroke(Offset position, double pressure) {
@@ -5042,10 +5100,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final currentBg = s.currentPage?.layers.background;
     final bgType = currentBg?.type ?? 'blank';
     final lineSpacing = currentBg?.lineSpacing ?? 30.0;
+    // Inherit the current page's size, like addPage.
+    final pageW = s.currentPage?.width ?? AppConfig.defaultPageWidth;
+    final pageH = s.currentPage?.height ?? AppConfig.defaultPageHeight;
 
     final newPage = PageData(
       pageId: pageId, pageNumber: pageNum,
-      width: AppConfig.defaultPageWidth, height: AppConfig.defaultPageHeight,
+      width: pageW, height: pageH,
       layers: RenderingLayers(
         background: BackgroundLayer(type: bgType, lineSpacing: lineSpacing),
         content: const [],
@@ -5065,6 +5126,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final newEntry = PageEntry(
       pageId: pageId, pageNumber: pageNum, fileName: fileName,
+      width: pageW, height: pageH,
       lastModified: now, chapterId: chapterId,
     );
 

@@ -721,6 +721,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPaperMusic => '五线谱';
 
   @override
+  String get csLineSpacing => '间距';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => '把笔映射到某个显示器';
 
   @override
@@ -1132,6 +1140,44 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get libPaperDotted => '点阵';
+
+  @override
+  String get pageSizeLabel => '页面尺寸';
+
+  @override
+  String get pageSizeLetter => 'Letter';
+
+  @override
+  String get pageSizeLegal => 'Legal';
+
+  @override
+  String get pageSizeSquare => '正方形';
+
+  @override
+  String get pageSizePortrait => '纵向';
+
+  @override
+  String get pageSizeLandscape => '横向';
+
+  @override
+  String get pageSizeCustom => '自定义';
+
+  @override
+  String get pageSizeWidthMm => '宽度（毫米）';
+
+  @override
+  String get pageSizeHeightMm => '高度（毫米）';
+
+  @override
+  String get pageSizeRange => '50 到 600 毫米';
+
+  @override
+  String get pageSizeApply => '应用';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
 
   @override
   String get libCreate => '创建';

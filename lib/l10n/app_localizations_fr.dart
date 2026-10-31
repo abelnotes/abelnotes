@@ -742,6 +742,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get csPaperMusic => 'Portée musicale';
 
   @override
+  String get csLineSpacing => 'Espacement';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => 'Associer le stylet à un écran';
 
   @override
@@ -1159,6 +1167,44 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libPaperDotted => 'Pointillé';
+
+  @override
+  String get pageSizeLabel => 'Format de page';
+
+  @override
+  String get pageSizeLetter => 'Lettre US';
+
+  @override
+  String get pageSizeLegal => 'Légal US';
+
+  @override
+  String get pageSizeSquare => 'Carré';
+
+  @override
+  String get pageSizePortrait => 'Portrait';
+
+  @override
+  String get pageSizeLandscape => 'Paysage';
+
+  @override
+  String get pageSizeCustom => 'Personnalisé';
+
+  @override
+  String get pageSizeWidthMm => 'Largeur (mm)';
+
+  @override
+  String get pageSizeHeightMm => 'Hauteur (mm)';
+
+  @override
+  String get pageSizeRange => 'De 50 à 600 mm';
+
+  @override
+  String get pageSizeApply => 'Appliquer';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
 
   @override
   String get libCreate => 'Créer';
