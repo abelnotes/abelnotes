@@ -28,6 +28,7 @@ import 'package:abelnotes/ui/primitives/scrollable_sheet.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Redesigned settings screen — left rail of sections + content panel.
@@ -1203,7 +1204,10 @@ class _StorageSection extends ConsumerWidget {
       final fileName =
           'abelnotes_library_${DateTime.now().toIso8601String().split('T').first}.zip';
       if (kIsWeb) {
-        await FilePicker.platform.saveFile(fileName: fileName, bytes: Uint8List.fromList(zipBytes));
+        await saveOrShareFile(context,
+            fileName: fileName,
+            data: Uint8List.fromList(zipBytes),
+            mimeType: 'application/zip');
       } else if (Platform.isIOS || Platform.isMacOS) {
         final dir = await getTemporaryDirectory();
         final tmp = File(p.join(dir.path, fileName));

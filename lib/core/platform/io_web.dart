@@ -289,7 +289,10 @@ class File extends FileSystemEntity {
   }
 
   Future<Uint8List> readAsBytes() async => readAsBytesSync();
-  Uint8List readAsBytesSync() => _need().bytes;
+  // Match dart:io's caller-owned read buffer. ZIP entries can be views into
+  // an archive; Flutter's Firefox image-decoder fallback consumes .buffer,
+  // so returning that view would decode the whole ZIP instead of the asset.
+  Uint8List readAsBytesSync() => Uint8List.fromList(_need().bytes);
 
   Future<String> readAsString({Encoding encoding = utf8}) async =>
       readAsStringSync(encoding: encoding);

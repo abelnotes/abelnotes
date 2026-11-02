@@ -41,6 +41,7 @@ jobs:
       # Warnings and errors stay fatal.
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
+      - run: flutter test --platform chrome test/browser_file_export_test.dart
 
   windows:
     needs: check
