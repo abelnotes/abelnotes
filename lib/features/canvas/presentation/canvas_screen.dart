@@ -7831,41 +7831,48 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.csExportingPages(pages.length))),
         );
-        final dir = await io.Directory.systemTemp.createTemp('handwriter_export');
-        final files = <XFile>[];
-        for (var i = 0; i < pages.length; i++) {
-          final pngBytes = await _renderPageToPng(pages[i], state.imageCache);
-          if (pngBytes == null) continue;
-          final f = io.File(
-              '${dir.path}/${_sanitiseForFilename(state.metadata.title)}_p${i + 1}.png');
-          await f.writeAsBytes(pngBytes, flush: true);
-          files.add(XFile(f.path, mimeType: 'image/png'));
-        }
-        if (files.isNotEmpty) {
-          if (kIsWeb) {
-            // Browser: one download per page.
-            for (final xf in files) {
-              final name = xf.path.split('/').last;
-              await FilePicker.platform
-                  .saveFile(fileName: name, bytes: await xf.readAsBytes());
-            }
-          } else if (io.Platform.isIOS || io.Platform.isMacOS) {
-            await SharePlus.instance.share(
-              ShareParams(
-                files: files,
-                subject: state.metadata.title,
-                sharePositionOrigin: _shareOriginRect(),
-              ),
-            );
-          } else {
-            // Desktop: let user pick folder, save all
-            final savePath = await FilePicker.platform.getDirectoryPath(
-              dialogTitle: l10n.csChooseFolderForImages(files.length),
-            );
-            if (savePath != null) {
-              for (final xf in files) {
-                final name = xf.path.split('/').last.split('\\').last;
-                await io.File('$savePath/$name').writeAsBytes(await xf.readAsBytes());
+        if (kIsWeb) {
+          // XFile on the web reads browser URLs, not our virtual file-system
+          // paths. Download the rendered bytes directly, one file per page.
+          for (var i = 0; i < pages.length; i++) {
+            final bytes = await _renderPageToPng(pages[i], state.imageCache);
+            if (bytes == null) continue;
+            if (!mounted) return;
+            await _saveOrShare(
+                '${_sanitiseForFilename(state.metadata.title)}_p${i + 1}.png',
+                bytes,
+                'image/png');
+          }
+        } else {
+          final dir = await io.Directory.systemTemp.createTemp('handwriter_export');
+          final files = <XFile>[];
+          for (var i = 0; i < pages.length; i++) {
+            final pngBytes = await _renderPageToPng(pages[i], state.imageCache);
+            if (pngBytes == null) continue;
+            final f = io.File(
+                '${dir.path}/${_sanitiseForFilename(state.metadata.title)}_p${i + 1}.png');
+            await f.writeAsBytes(pngBytes, flush: true);
+            files.add(XFile(f.path, mimeType: 'image/png'));
+          }
+          if (files.isNotEmpty) {
+            if (io.Platform.isIOS || io.Platform.isMacOS) {
+              await SharePlus.instance.share(
+                ShareParams(
+                  files: files,
+                  subject: state.metadata.title,
+                  sharePositionOrigin: _shareOriginRect(),
+                ),
+              );
+            } else {
+              // Desktop: let user pick folder, save all
+              final savePath = await FilePicker.platform.getDirectoryPath(
+                dialogTitle: l10n.csChooseFolderForImages(files.length),
+              );
+              if (savePath != null) {
+                for (final xf in files) {
+                  final name = xf.path.split('/').last.split('\\').last;
+                  await io.File('$savePath/$name').writeAsBytes(await xf.readAsBytes());
+                }
               }
             }
           }

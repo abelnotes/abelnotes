@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
+import 'browser_download_stub.dart'
+    if (dart.library.js_interop) 'browser_download_web.dart' as browser;
 
 /// Sanitise a string for use inside a filename on every platform we ship on
 /// (Windows is the strict one: no `\ / : * ? " < > |` and no trailing dots or
@@ -20,8 +22,9 @@ String sanitiseForFilename(String raw) {
 
 /// Write [data] wherever the user wants it. iOS/macOS go through the system
 /// share sheet (FilePicker.saveFile is broken there); everything else gets a
-/// native save dialog. On Android that dialog writes [data] itself (the
-/// returned path is not writable from Dart); desktop dialogs only pick a path.
+/// browser download or native save dialog. On Android that dialog writes [data]
+/// itself (the returned path is not writable from Dart); desktop dialogs only
+/// pick a path.
 Future<void> saveOrShareFile(
   BuildContext context, {
   required String fileName,
@@ -29,11 +32,9 @@ Future<void> saveOrShareFile(
   required String mimeType,
 }) async {
   if (kIsWeb) {
-    // Browser: the picker's saveFile hands the bytes to a download.
-    await FilePicker.platform.saveFile(
-      fileName: fileName,
-      bytes: data,
-    );
+    // file_picker 8.x has no web saveFile implementation. Do not pass a
+    // browser's bytes through a native path or its unimplemented save dialog.
+    browser.downloadFile(fileName, data, mimeType);
     return;
   }
   if (io.Platform.isIOS || io.Platform.isMacOS) {
