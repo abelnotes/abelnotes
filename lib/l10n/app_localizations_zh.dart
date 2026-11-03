@@ -1386,6 +1386,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String setExportLibraryProgress(int done, int total) {
+    return '正在导出 $done/$total…';
+  }
+
+  @override
+  String get setExportLibraryCancelled => '已取消导出。';
+
+  @override
   String setTrashPurgeTitle(String title) {
     return '要永久删除“$title”吗？';
   }

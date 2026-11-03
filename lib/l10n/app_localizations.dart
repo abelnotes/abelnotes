@@ -2376,6 +2376,18 @@ abstract class AppLocalizations {
   /// **'Esportazione fallita: {error}'**
   String setExportLibraryFailed(String error);
 
+  /// No description provided for @setExportLibraryProgress.
+  ///
+  /// In it, this message translates to:
+  /// **'Esportazione {done} di {total}…'**
+  String setExportLibraryProgress(int done, int total);
+
+  /// No description provided for @setExportLibraryCancelled.
+  ///
+  /// In it, this message translates to:
+  /// **'Esportazione annullata.'**
+  String get setExportLibraryCancelled;
+
   /// No description provided for @setTrashPurgeTitle.
   ///
   /// In it, this message translates to:

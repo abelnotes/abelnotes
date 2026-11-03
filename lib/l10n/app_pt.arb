@@ -378,6 +378,8 @@
   "setExportLibraryInProgress": "Exportando…",
   "setExportLibraryDone": "{count, plural, one{Exportado {count} caderno} other{Exportados {count} cadernos}}.",
   "setExportLibraryFailed": "Falha na exportação: {error}",
+  "setExportLibraryProgress": "Exportando {done} de {total}…",
+  "setExportLibraryCancelled": "Exportação cancelada.",
   "setTrashPurgeTitle": "Excluir \"{title}\" definitivamente?",
   "setTrashPurgeBody": "Não será possível recuperá-lo.",
   "setTrashPurge": "Excluir para sempre",

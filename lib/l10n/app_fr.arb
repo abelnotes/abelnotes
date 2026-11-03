@@ -378,6 +378,8 @@
   "setExportLibraryInProgress": "Export en cours…",
   "setExportLibraryDone": "{count, plural, one{{count} carnet exporté} other{{count} carnets exportés}}.",
   "setExportLibraryFailed": "Échec de l'export : {error}",
+  "setExportLibraryProgress": "Export {done} sur {total}…",
+  "setExportLibraryCancelled": "Export annulé.",
   "setTrashPurgeTitle": "Supprimer définitivement « {title} » ?",
   "setTrashPurgeBody": "Vous ne pourrez plus le récupérer.",
   "setTrashPurge": "Supprimer définitivement",

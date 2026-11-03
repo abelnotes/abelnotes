@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:abelnotes/core/platform/io.dart';
+import 'package:abelnotes/core/platform/zip_file_sink.dart';
+import 'package:abelnotes/ui/services/library_export.dart';
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
@@ -28,7 +32,8 @@ import 'package:abelnotes/ui/primitives/scrollable_sheet.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:abelnotes/ui/services/file_export.dart';
+import 'package:abelnotes/ui/services/browser_download_stub.dart'
+    if (dart.library.js_interop) 'package:abelnotes/ui/services/browser_download_web.dart' as browser;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Redesigned settings screen — left rail of sections + content panel.
@@ -1179,61 +1184,120 @@ class _StorageSection extends ConsumerWidget {
       messenger.showSnackBar(SnackBar(content: Text(l10n.setExportLibraryEmpty)));
       return;
     }
-    messenger.showSnackBar(SnackBar(
-        content: Text(l10n.setExportLibraryInProgress),
-        duration: const Duration(seconds: 30)));
+    final fileName =
+        'abelnotes_library_${DateTime.now().toIso8601String().split('T').first}.zip';
+    // Desktop and Apple stream the ZIP into a file; web and Android (whose
+    // save dialog wants the bytes) build it in memory.
+    String? filePath;
+    if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
+      filePath = await FilePicker.platform.saveFile(
+        dialogTitle: l10n.setExportLibrary,
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: const ['zip'],
+      );
+      if (filePath == null) return;
+    } else if (!kIsWeb && (Platform.isIOS || Platform.isMacOS)) {
+      filePath = p.join((await getTemporaryDirectory()).path, fileName);
+    }
+    if (!context.mounted) return;
+
+    final notebooks = [
+      for (final e in entries)
+        (
+          id: e.metadata.id,
+          name: '${_sanitiseForFilename(e.metadata.title)}'
+              '_${e.metadata.id}${AppConfig.fileExtension}',
+        ),
+    ];
+    final progress = ValueNotifier<int>(0);
+    var cancelled = false;
+    var dialogOpen = true;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dCtx) => AlertDialog(
+        title: Text(l10n.setExportLibrary),
+        content: ValueListenableBuilder<int>(
+          valueListenable: progress,
+          builder: (_, done, __) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.setExportLibraryProgress(done, notebooks.length)),
+              const SizedBox(height: 12),
+              LinearProgressIndicator(value: done / notebooks.length),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              cancelled = true;
+              Navigator.of(dCtx).pop();
+            },
+            child: Text(l10n.setCancel),
+          ),
+        ],
+      ),
+    ).whenComplete(() => dialogOpen = false));
+    void closeDialog() {
+      if (dialogOpen) navigator.pop();
+    }
+
+    final path = filePath;
+    OutputStreamBase? sink;
     try {
-      final fileService = ref.read(fileServiceProvider);
-      final archive = Archive();
-      for (final entry in entries) {
-        final bytes = await fileService.readNotebookFile(entry.metadata.id);
-        if (bytes == null) continue;
-        final name = '${_sanitiseForFilename(entry.metadata.title)}'
-            '_${entry.metadata.id}${AppConfig.fileExtension}';
-        archive.addFile(ArchiveFile(name, bytes.length, bytes));
-      }
-      final zipBytes = ZipEncoder().encode(archive);
-      messenger.hideCurrentSnackBar();
-      if (zipBytes == null) {
-        if (!context.mounted) return;
-        messenger.showSnackBar(
-            SnackBar(content: Text(l10n.setExportLibraryFailed('zip encode'))));
+      sink = path != null ? openZipFileSink(path) : OutputStream();
+      final written = await writeLibraryZip(
+        sink,
+        notebooks,
+        ref.read(fileServiceProvider).readNotebookFile,
+        onProgress: (done) => progress.value = done,
+        isCancelled: () => cancelled,
+      );
+      if (path != null) await closeZipFileSink(sink);
+      if (written == null) {
+        if (path != null) await _deleteQuietly(path);
+        messenger.showSnackBar(SnackBar(content: Text(l10n.setExportLibraryCancelled)));
         return;
       }
-      if (!context.mounted) return;
-      final fileName =
-          'abelnotes_library_${DateTime.now().toIso8601String().split('T').first}.zip';
+      closeDialog();
       if (kIsWeb) {
-        await saveOrShareFile(context,
-            fileName: fileName,
-            data: Uint8List.fromList(zipBytes),
-            mimeType: 'application/zip');
-      } else if (Platform.isIOS || Platform.isMacOS) {
-        final dir = await getTemporaryDirectory();
-        final tmp = File(p.join(dir.path, fileName));
-        await tmp.writeAsBytes(zipBytes);
-        await SharePlus.instance.share(ShareParams(files: [XFile(tmp.path)]));
-      } else {
-        final savePath = await FilePicker.platform.saveFile(
+        browser.downloadFile(
+            fileName, (sink as OutputStream).getBytes() as Uint8List, 'application/zip');
+      } else if (Platform.isAndroid) {
+        // Android's save dialog writes the bytes itself.
+        final saved = await FilePicker.platform.saveFile(
           dialogTitle: l10n.setExportLibrary,
           fileName: fileName,
           type: FileType.custom,
           allowedExtensions: const ['zip'],
-          bytes: Uint8List.fromList(zipBytes),
+          bytes: (sink as OutputStream).getBytes() as Uint8List,
         );
-        if (savePath == null) return;
-        // Android's save dialog has already written the bytes.
-        if (!Platform.isAndroid) await File(savePath).writeAsBytes(zipBytes);
+        if (saved == null) return;
+      } else if (Platform.isIOS || Platform.isMacOS) {
+        await SharePlus.instance.share(ShareParams(files: [XFile(path!)]));
       }
-      if (!context.mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text(l10n.setExportLibraryDone(entries.length))));
+      messenger.showSnackBar(SnackBar(content: Text(l10n.setExportLibraryDone(written))));
     } catch (e) {
-      messenger.hideCurrentSnackBar();
-      if (!context.mounted) return;
-      messenger.showSnackBar(
-          SnackBar(content: Text(l10n.setExportLibraryFailed(e.toString()))));
+      closeDialog();
+      if (path != null) {
+        try {
+          if (sink != null) await closeZipFileSink(sink);
+        } catch (_) {}
+        await _deleteQuietly(path);
+      }
+      messenger.showSnackBar(SnackBar(content: Text(l10n.setExportLibraryFailed(e.toString()))));
     }
+  }
+
+  Future<void> _deleteQuietly(String path) async {
+    try {
+      await File(path).delete();
+    } catch (_) {}
   }
 
   String _sanitiseForFilename(String title) =>

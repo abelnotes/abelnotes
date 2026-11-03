@@ -378,6 +378,8 @@
   "setExportLibraryInProgress": "Exporting…",
   "setExportLibraryDone": "{count, plural, one{Exported {count} notebook} other{Exported {count} notebooks}}.",
   "setExportLibraryFailed": "Export failed: {error}",
+  "setExportLibraryProgress": "Exporting {done} of {total}…",
+  "setExportLibraryCancelled": "Export cancelled.",
   "setTrashPurgeTitle": "Permanently delete \"{title}\"?",
   "setTrashPurgeBody": "You won't be able to recover it.",
   "setTrashPurge": "Delete forever",

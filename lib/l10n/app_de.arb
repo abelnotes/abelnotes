@@ -378,6 +378,8 @@
   "setExportLibraryInProgress": "Export läuft…",
   "setExportLibraryDone": "{count, plural, one{{count} Notizbuch exportiert} other{{count} Notizbücher exportiert}}.",
   "setExportLibraryFailed": "Export fehlgeschlagen: {error}",
+  "setExportLibraryProgress": "Export {done} von {total}…",
+  "setExportLibraryCancelled": "Export abgebrochen.",
   "setTrashPurgeTitle": "„{title}“ endgültig löschen?",
   "setTrashPurgeBody": "Eine Wiederherstellung ist danach nicht mehr möglich.",
   "setTrashPurge": "Endgültig löschen",

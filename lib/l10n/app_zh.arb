@@ -378,6 +378,8 @@
   "setExportLibraryInProgress": "正在导出…",
   "setExportLibraryDone": "{count, plural, one{已导出 {count} 个笔记本} other{已导出 {count} 个笔记本}}。",
   "setExportLibraryFailed": "导出失败：{error}",
+  "setExportLibraryProgress": "正在导出 {done}/{total}…",
+  "setExportLibraryCancelled": "已取消导出。",
   "setTrashPurgeTitle": "要永久删除“{title}”吗？",
   "setTrashPurgeBody": "删除后将无法恢复。",
   "setTrashPurge": "永久删除",

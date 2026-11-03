@@ -1424,6 +1424,14 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String setExportLibraryProgress(int done, int total) {
+    return 'Export $done von $total…';
+  }
+
+  @override
+  String get setExportLibraryCancelled => 'Export abgebrochen.';
+
+  @override
   String setTrashPurgeTitle(String title) {
     return '„$title“ endgültig löschen?';
   }

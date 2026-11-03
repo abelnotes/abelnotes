@@ -1183,6 +1183,19 @@
       }
     }
   },
+  "setExportLibraryProgress": "Esportazione {done} di {total}…",
+  "@setExportLibraryProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "setExportLibraryCancelled": "Esportazione annullata.",
+  "@setExportLibraryCancelled": {},
   "setTrashPurgeTitle": "Eliminare definitivamente \"{title}\"?",
   "@setTrashPurgeTitle": {
     "placeholders": {

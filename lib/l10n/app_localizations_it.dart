@@ -1423,6 +1423,14 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
+  String setExportLibraryProgress(int done, int total) {
+    return 'Esportazione $done di $total…';
+  }
+
+  @override
+  String get setExportLibraryCancelled => 'Esportazione annullata.';
+
+  @override
   String setTrashPurgeTitle(String title) {
     return 'Eliminare definitivamente \"$title\"?';
   }
