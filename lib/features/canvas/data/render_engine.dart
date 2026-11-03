@@ -444,6 +444,12 @@ class CanvasRenderEngine extends CustomPainter {
           snap.track(zoom, pageData);
       if (zoomingNow && _paintZoomSnapshot(canvas, snap, cached, lassoSel, imageSig, selectedIdsSet, selDragOffset, selRotation, selScale, selCenter, baseScale)) {
         // snapshot drawn
+      } else if (snap != null &&
+          !infiniteCanvas &&
+          allImagesReady &&
+          _paintLiveBitmap(canvas, size, snap, cached, lassoSel, imageSig, selectedIdsSet, baseScale, centerOffsetX,
+              centerOffsetY, (activeStrokeGetter?.call() ?? activeStroke)?.isNotEmpty == true)) {
+        // bitmap of the finished page instead of re-stroking every path
       } else if (cached != null) {
         canvas.drawPicture(cached);
       } else {
@@ -596,6 +602,163 @@ class CanvasRenderEngine extends CustomPainter {
   }
 
   static const double _kSnapshotMaxPx = 2048;
+
+  /// Web fast path: the finished page as a screen-resolution bitmap, so a
+  /// frame costs one blit instead of re-stroking every path in WASM. Built
+  /// at pen-down; strokes drawn since are painted over it and merged into
+  /// it later, so no stroke start pays for a rebuild. False = use vector.
+  bool _paintLiveBitmap(
+    Canvas canvas,
+    Size size,
+    ZoomSnapshot snap,
+    ui.Picture? cached,
+    LassoSelection? lassoSel,
+    int imageSig,
+    Set<String> Function() selectedIdsSet,
+    double baseScale,
+    double cx,
+    double cy,
+    bool penDown,
+  ) {
+    var img = snap.liveImage;
+    final heavy = _pageWeight(pageData) >= _kLiveMinWeight;
+    if (img == null && !heavy) return false;
+    final dpr = devicePixelRatio;
+    final w = (size.width * dpr).ceil(), h = (size.height * dpr).ceil();
+    if (w <= 0 || h <= 0 || w * h > 16 * 1024 * 1024) return false;
+    final key = (_StaticPictureCache._lassoKey(lassoSel), imageSig, zoom, panOffset, size, dpr, baseScale);
+    final tx = panOffset.dx + cx * zoom, ty = panOffset.dy + cy * zoom;
+    final s = zoom * baseScale;
+    List<StrokeElement>? overlay;
+    if (img != null && snap.liveKey == key) {
+      overlay = identical(snap.livePage, pageData)
+          ? const []
+          : _appendedStrokes(snap.livePage as PageData?, pageData);
+    }
+    if (overlay != null &&
+        overlay.isNotEmpty &&
+        (overlay.length > _kLiveOverlayMax || (!penDown && snap.bakeDue))) {
+      try {
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec)..drawImage(img!, Offset.zero, Paint());
+        c
+          ..scale(dpr)
+          ..translate(tx, ty)
+          ..scale(s);
+        for (final e in overlay) {
+          _paintStroke(c, e.data);
+        }
+        final pic = rec.endRecording();
+        final next = pic.toImageSync(w, h);
+        pic.dispose();
+        img.dispose();
+        snap.liveImage = img = next;
+        snap.livePage = pageData;
+        overlay = const [];
+      } catch (_) {
+        snap.markBroken();
+        snap.clearLive();
+        return false;
+      }
+    }
+    if (overlay == null) {
+      if (!heavy) return false;
+      if (!penDown) {
+        // A busy page also gets the bitmap once the view rests, so dock and
+        // popup animations over it stop replaying every stroke.
+        if (!snap.warmReady(key)) {
+          snap.warm(key);
+          return false;
+        }
+      }
+      try {
+        var pic = cached;
+        if (pic == null) {
+          final rec = ui.PictureRecorder();
+          _paintStaticLayers(Canvas(rec), selectedIdsSet(), Offset.zero, 0, 1, Offset.zero, false);
+          pic = rec.endRecording();
+          _staticPictureCache.store(
+              pageData: pageData, zoom: zoom, lassoSelection: lassoSel, imageSig: imageSig, picture: pic);
+        }
+        final rec = ui.PictureRecorder();
+        Canvas(rec)
+          ..scale(dpr)
+          ..translate(tx, ty)
+          ..scale(s)
+          ..drawPicture(pic);
+        final bmp = rec.endRecording();
+        final next = bmp.toImageSync(w, h);
+        bmp.dispose();
+        snap.clearLive();
+        snap.liveImage = img = next;
+        snap.livePage = pageData;
+        snap.liveKey = key;
+        overlay = const [];
+      } catch (_) {
+        snap.markBroken();
+        return false;
+      }
+    }
+    if (penDown) {
+      snap.cancelBake();
+    } else if (overlay.isNotEmpty) {
+      snap.scheduleBake();
+    } else {
+      snap.bakeDue = false;
+    }
+    canvas
+      ..save()
+      ..scale(1 / s)
+      ..translate(-tx, -ty)
+      ..scale(1 / dpr)
+      ..drawImage(img!, Offset.zero, Paint()..filterQuality = FilterQuality.none)
+      ..restore();
+    for (final e in overlay) {
+      _paintStroke(canvas, e.data);
+    }
+    return true;
+  }
+
+  static const int _kLiveOverlayMax = 8;
+  // Ink points on a page before replaying it costs more than building the bitmap.
+  static const int _kLiveMinWeight = 1500;
+
+  static final Expando<int> _weights = Expando();
+
+  static int _pageWeight(PageData page) {
+    final known = _weights[page];
+    if (known != null) return known;
+    var n = 0;
+    for (final e in page.layers.content) {
+      n += e is StrokeElement ? e.data.points.length : 60;
+    }
+    return _weights[page] = n;
+  }
+
+  /// Strokes [next] adds on top of [prev], or null if anything else changed.
+  List<StrokeElement>? _appendedStrokes(PageData? prev, PageData next) {
+    if (prev == null ||
+        prev.width != next.width ||
+        prev.height != next.height ||
+        prev.layers.background != next.layers.background) {
+      return null;
+    }
+    final a = prev.layers.content, b = next.layers.content;
+    if (b.length <= a.length) return null;
+    var top = -1 << 31;
+    for (var i = 0; i < a.length; i++) {
+      if (!identical(a[i], b[i])) return null;
+      final z = a[i].zIndex;
+      if (z > top) top = z;
+    }
+    final added = <StrokeElement>[];
+    for (var i = a.length; i < b.length; i++) {
+      final e = b[i];
+      if (e is! StrokeElement || e.zIndex < top) return null;
+      added.add(e);
+    }
+    return added;
+  }
 
   /// Layers 0-3 of [paint]: shadow, background, border, content. Recorded
   /// into a `ui.Picture` once per (pageData, zoom-bucket, lassoSelection)

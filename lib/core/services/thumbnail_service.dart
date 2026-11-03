@@ -29,6 +29,10 @@ class ThumbnailService {
   static const int thumbHeight = 504; // 5:7 aspect matches A4 portrait
 
   late String _thumbsDir;
+
+  /// Page (and decoded-image count) behind each notebook's current PNG, so an
+  /// unchanged cover is not rendered and encoded again after every save.
+  final Map<String, (PageData, int)> _rendered = {};
   bool _initialized = false;
 
   Future<void> init() async {
@@ -73,12 +77,17 @@ class ThumbnailService {
     Map<String, Uint8List> assetBytes = const {},
   }) async {
     if (!_initialized) await init();
+    final last = _rendered[notebookId];
+    if (last != null && identical(last.$1, page) && last.$2 == imageCache.length) {
+      return thumbnailPath(notebookId);
+    }
     final png = await renderPng(page,
         imageCache: imageCache, assetBytes: assetBytes);
     if (png == null) return null;
     try {
       final file = File(thumbnailPath(notebookId));
       await file.writeAsBytes(png, flush: true);
+      _rendered[notebookId] = (page, imageCache.length);
       return file.path;
     } catch (e) {
       debugPrint('[ThumbnailService] Write failed for $notebookId: $e');
@@ -226,6 +235,7 @@ class ThumbnailService {
 
   Future<void> deleteThumbnail(String notebookId) async {
     if (!_initialized) await init();
+    _rendered.remove(notebookId);
     final file = File(thumbnailPath(notebookId));
     if (await file.exists()) {
       try { await file.delete(); } catch (_) {}
@@ -234,6 +244,7 @@ class ThumbnailService {
 
   Future<void> clearAll() async {
     if (!_initialized) await init();
+    _rendered.clear();
     final dir = Directory(_thumbsDir);
     if (!await dir.exists()) return;
     await for (final entry in dir.list()) {

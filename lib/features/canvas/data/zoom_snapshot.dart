@@ -23,6 +23,51 @@ class ZoomSnapshot extends ChangeNotifier {
   Timer? _timer;
   bool _broken = false;
 
+  // Screen-space bitmap of the static layers, valid while pan/zoom are
+  // fixed (pen down); see CanvasRenderEngine._paintLiveBitmap.
+  ui.Image? liveImage;
+  Object? livePage;
+  Object? liveKey;
+
+  bool bakeDue = false;
+  Timer? _bakeTimer;
+
+  Object? _warmKey;
+
+  /// Same view for 350 ms: time to build the bitmap while nothing moves.
+  void warm(Object key) {
+    if (_warmKey != key) {
+      _warmKey = key;
+      _bakeTimer?.cancel();
+      bakeDue = false;
+    }
+    scheduleBake(350);
+  }
+
+  bool warmReady(Object key) => bakeDue && _warmKey == key;
+
+  /// Ask for a repaint once the pen has rested, to merge new strokes into the bitmap.
+  void scheduleBake([int ms = 900]) {
+    if (bakeDue || (_bakeTimer?.isActive ?? false)) return;
+    _bakeTimer = Timer(Duration(milliseconds: ms), () {
+      bakeDue = true;
+      notifyListeners();
+    });
+  }
+
+  void cancelBake() {
+    _bakeTimer?.cancel();
+    bakeDue = false;
+  }
+
+  void clearLive() {
+    cancelBake();
+    liveImage?.dispose();
+    liveImage = null;
+    livePage = null;
+    liveKey = null;
+  }
+
   /// Snapshot creation threw once (no toImageSync on this backend): stay on vector.
   void markBroken() {
     _broken = true;
@@ -73,6 +118,7 @@ class ZoomSnapshot extends ChangeNotifier {
   }
 
   void clear() {
+    clearLive();
     _image?.dispose();
     _image = null;
     _page = null;
@@ -81,6 +127,7 @@ class ZoomSnapshot extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _bakeTimer?.cancel();
     clear();
     super.dispose();
   }

@@ -2614,6 +2614,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// notebook syncs 31 pages on open but the library card stays at "1 pagina"
   /// after exit because the pulled-save hadn't reached SQLite yet).
   Future<void> flushPendingWork() async {
+    _runThumbnail();
     _pullTimer?.cancel();
     _pullTimer = null;
     _saveLastPosition();
@@ -2649,6 +2650,26 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       try { await pendingLocalSave; } catch (_) {}
     }
     _pendingLocalSave = null;
+  }
+
+  Timer? _thumbTimer;
+  Future<void> Function()? _thumbJob;
+
+  /// Cover thumbnail refresh. On web a PNG encode right after every save
+  /// is a visible hitch, so wait until saves stop; closing flushes it.
+  void _queueThumbnail(Future<void> Function() job) {
+    _thumbJob = job;
+    if (!kIsWeb) return _runThumbnail();
+    _thumbTimer?.cancel();
+    _thumbTimer = Timer(const Duration(milliseconds: 1500), _runThumbnail);
+  }
+
+  void _runThumbnail() {
+    _thumbTimer?.cancel();
+    _thumbTimer = null;
+    final job = _thumbJob;
+    _thumbJob = null;
+    if (job != null) unawaited(job());
   }
 
   Future<void> closeNotebook() async {
@@ -8861,7 +8882,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Fire-and-forget: refresh thumbnail for the library card. Uses the
     // first page of the document — failures are swallowed (cards fall
     // back to the gradient placeholder).
-    () async {
+    _queueThumbnail(() async {
       try {
         // Rendering the cover thumbnail records a full page paint on the
         // UI isolate — never do it while the pen is down.
@@ -8887,7 +8908,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       } catch (e) {
         debugPrint('[Canvas] Thumbnail cache failed: $e');
       }
-    }();
+    });
 
     // Hand the lock to a background task that waits for the remote sync
     // to finish (or fail), then releases the lock.
