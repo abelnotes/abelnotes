@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:abelnotes/core/platform/app_dirs.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:abelnotes/core/providers/canvas_provider.dart';

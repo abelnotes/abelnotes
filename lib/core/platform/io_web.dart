@@ -129,6 +129,10 @@ class WebFs {
       tx.onabort = failed.toJS;
       op(tx.objectStore(_store));
       return c.future;
+    }).catchError((Object e) {
+      // A throw here must not poison the chain: every later write would be skipped.
+      persistError.value = '$e';
+      print('[WebFs] IndexedDB write failed: $e');
     });
   }
 

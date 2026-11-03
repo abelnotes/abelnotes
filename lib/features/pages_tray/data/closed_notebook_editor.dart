@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:abelnotes/core/platform/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
