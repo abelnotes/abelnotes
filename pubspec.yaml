@@ -139,6 +139,8 @@ flutter:
     - assets/licenses/onenote_parser_LICENSE.txt
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
+    # Apache-2.0 text for the bundled Roboto, registered in LicenseRegistry.
+    - assets/fonts/Roboto-LICENSE.txt
 
   # UI face, same as abelnotes.app. SIL Open Font License 1.1.
   fonts:
@@ -153,6 +155,11 @@ flutter:
           weight: 600
         - asset: assets/fonts/InstrumentSans-Bold.ttf
           weight: 700
+    # The web engine's default fallback; bundled so it isn't fetched from
+    # fonts.gstatic.com on every launch.
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Regular.ttf
 
 # ── App icon generation ──────────────────────────────────────────────
 # Drop ONE square 1024x1024 PNG at assets/icon/app_icon.png, then run:

@@ -4,7 +4,7 @@ import 'package:abelnotes/core/platform/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show BrowserContextMenu, rootBundle;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
@@ -36,6 +36,8 @@ void main(List<String> args) async {
     // Before the crash log: on the web its file lives in the IndexedDB-backed
     // store, which has to be loaded first or the log is overwritten.
     if (kIsWeb) await initWebStorage();
+    // Right-click opens the app's own menus; the browser's would cover them.
+    if (kIsWeb) unawaited(BrowserContextMenu.disableContextMenu());
     await CrashLogger.init();
     if (kIsWeb) CrashLogger.append('[Web] ${webDeviceDiagnostics()}');
     if (webDiagnostics) {
@@ -68,6 +70,10 @@ void main(List<String> args) async {
       final text =
           await rootBundle.loadString('assets/fonts/InstrumentSans-OFL.txt');
       yield LicenseEntryWithLineBreaks(const ['Instrument Sans'], text);
+    });
+    LicenseRegistry.addLicense(() async* {
+      final text = await rootBundle.loadString('assets/fonts/Roboto-LICENSE.txt');
+      yield LicenseEntryWithLineBreaks(const ['Roboto'], text);
     });
 
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {

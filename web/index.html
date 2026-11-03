@@ -44,6 +44,27 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <!--
+    google_sign_in_web adds Google's sign-in script as soon as the app boots,
+    so every launch called accounts.google.com although the web build has no
+    Google sign-in. Hold it back; window.abelnotesLoadGis() lets it load.
+  -->
+  <script>
+    (function () {
+      var head = document.head, append = head.appendChild, held = [];
+      head.appendChild = function (n) {
+        if (n instanceof HTMLScriptElement &&
+            String(n.src).indexOf('https://accounts.google.com/gsi/') === 0) {
+          held.push(n);
+          return n;
+        }
+        return append.call(head, n);
+      };
+      window.abelnotesLoadGis = function () {
+        held.splice(0).forEach(function (n) { append.call(head, n); });
+      };
+    })();
+  </script>
+  <!--
     Offline support. Flutter's own loader only reuses a service worker that is
     already registered, so register ours (tool/build_web.sh drops it in under
     this file name) before the app boots.

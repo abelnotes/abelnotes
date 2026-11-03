@@ -99,9 +99,13 @@ class WebFs {
     }).toJS;
     await done.future;
 
-    // Ask the browser not to evict the store under storage pressure.
+    // Ask the browser not to evict the store under storage pressure. Not
+    // awaited: Firefox holds the answer until the user replies to its prompt.
     try {
-      await web.window.navigator.storage.persist().toDart;
+      unawaited(web.window.navigator.storage
+          .persist()
+          .toDart
+          .then((_) {}, onError: (Object _) {}));
     } catch (_) {}
   }
 

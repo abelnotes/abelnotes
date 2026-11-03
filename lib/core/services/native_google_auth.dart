@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:abelnotes/core/platform/gis_loader.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/google_drive_store.dart';
 import 'package:abelnotes/core/services/google_oauth.dart';
@@ -123,8 +124,11 @@ class WebGoogleSignInGateway implements GoogleSignInGateway {
   }
 
   @override
-  Future<void> initialize() =>
-      _init ??= GoogleSignIn.instance.initialize(clientId: clientId);
+  Future<void> initialize() => _init ??= () {
+        // index.html holds the GIS script back; initialize() waits for it.
+        releaseGoogleSignInScript();
+        return GoogleSignIn.instance.initialize(clientId: clientId);
+      }();
 
   @override
   Future<bool> restoreSession() async => false;

@@ -25,6 +25,11 @@ License (`assets/fonts/InstrumentSans-OFL.txt`, registered in
 `LicenseRegistry` in `main.dart`). Bundling it keeps the UI identical on
 every Linux distro instead of falling back to whatever the system has.
 
+Roboto Regular (Apache-2.0, `assets/fonts/Roboto-LICENSE.txt`) is bundled
+only because the web engine uses it as the global fallback and would
+otherwise download it from fonts.gstatic.com on every launch. Glyphs neither
+font has (CJK, emoji) still come from Google's Noto fallbacks, on demand.
+
 `HwType` holds the scale. Tracking is set per size: large text is tightened,
 small text gets a little air. Values are in logical pixels because Flutter's
 `letterSpacing` is not relative to the font size.
