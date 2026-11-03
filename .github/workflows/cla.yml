@@ -1,13 +1,20 @@
 name: CLA
 
 # Asks first-time contributors to sign CLA.md with a comment and keeps the
-# signatures in signatures/cla.json on the cla-signatures branch. It never
-# checks out or runs code from the pull request.
+# signatures in signatures/cla.json on the cla-signatures branch, plus a copy
+# of each signing comment under evidence/ once the signer's code is merged.
+# It never checks out or runs code from the pull request.
 on:
   issue_comment:
     types: [created, edited]
   pull_request_target:
     types: [opened, reopened, synchronize, closed]
+  # Keeps evidence for signatures whose pull requests were merged earlier.
+  workflow_dispatch:
+    inputs:
+      comment_ids:
+        description: 'IDs of signing comments listed in cla.json, space separated'
+        required: true
 
 permissions:
   actions: write
@@ -35,6 +42,7 @@ jobs:
           path-to-document: 'https://github.com/abelnotes/abelnotes/blob/main/CLA.md'
           path-to-signatures: 'signatures/cla.json'
           branch: 'cla-signatures'
+          # Keep in sync with ALLOWLIST in the evidence job.
           allowlist: 'en-j0y,dependabot[bot],github-actions[bot]'
 
   # A signature only rechecks the pull request it was written on. Rerun the
@@ -64,3 +72,126 @@ jobs:
               gh run rerun "$run" || echo "PR #$pr: rerun failed"
             fi
           done
+
+  # When a pull request is merged (only a maintainer can do that), copy the
+  # signing comment of everyone whose commits it brings in onto the
+  # cla-signatures branch, so the record survives the comment being edited or
+  # deleted. Commits by tool accounts are covered by the pull request author's
+  # signature. Files are only ever created, never replaced: the first copy stays.
+  evidence:
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'pull_request_target' &&
+       github.event.action == 'closed' && github.event.pull_request.merged) ||
+      github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          COMMENT_IDS: ${{ inputs.comment_ids }}
+          ALLOWLIST: 'en-j0y,dependabot[bot],github-actions[bot]'
+          PHRASE: 'I have read the CLA Document and I hereby sign the CLA'
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/signatures/cla.json?ref=cla-signatures" \
+            --jq .content | base64 -d > cla.json
+          failed=0
+          ids=()
+          if [ "$EVENT" = workflow_dispatch ]; then
+            for id in $COMMENT_IDS; do
+              [[ "$id" =~ ^[0-9]+$ ]] || { echo "::error::not a comment id: $id"; exit 1; }
+              ids+=("$id")
+            done
+          else
+            # Accounts behind the merged commits; a commit with no linked account
+            # shows up as an empty login.
+            gh api --paginate "repos/$GH_REPO/pulls/$PR/commits" \
+              --jq '.[] | (.author.id // "none"), (.author.login // "none"),
+                          (.committer.id // "none"), (.committer.login // "none")' |
+              paste - - | sort -u > users.txt
+            sig_of() {
+              jq -r --argjson uid "$1" \
+                '[.signedContributors[] | select(.id == $uid)] | last | .comment_id // empty' cla.json
+            }
+            tools=()
+            while read -r uid login; do
+              [ "$login" = web-flow ] && continue
+              if [ "$uid" = none ]; then
+                echo "::warning::a commit in #$PR has no linked GitHub account"; continue
+              fi
+              case ",$ALLOWLIST," in *",$login,"*) echo "$login: allowlisted"; continue ;; esac
+              id=$(sig_of "$uid")
+              if [ -n "$id" ]; then ids+=("$id"); continue; fi
+              # A tool (organization or bot account, e.g. an AI service) cannot
+              # sign; whoever opened the pull request answers for its commits.
+              type=$(gh api "users/$login" --jq .type)
+              if [ "$type" = Organization ] || [ "$type" = Bot ]; then
+                tools+=("$login"); continue
+              fi
+              echo "::error::$login ($uid) has commits in #$PR but no signature in cla.json"
+              failed=1
+            done < users.txt
+            if [ "${#tools[@]}" -gt 0 ]; then
+              tool_msg="commits in #$PR by tool accounts: ${tools[*]}"
+              case ",$ALLOWLIST," in
+                *",$PR_AUTHOR,"*) echo "::warning::$tool_msg; opened by allowlisted @$PR_AUTHOR" ;;
+                *)
+                  id=$(sig_of "$PR_AUTHOR_ID")
+                  if [ -n "$id" ]; then
+                    ids+=("$id"); echo "::warning::$tool_msg; covered by @$PR_AUTHOR's signature"
+                  else
+                    echo "::error::$tool_msg, and its author @$PR_AUTHOR has not signed"; failed=1
+                  fi ;;
+              esac
+            fi
+          fi
+          mapfile -t ids < <(printf '%s\n' "${ids[@]}" | grep . | sort -u)
+          for id in "${ids[@]}"; do
+            sig=$(jq -c --argjson id "$id" '[.signedContributors[] | select(.comment_id == $id)] | last // empty' cla.json)
+            [ -n "$sig" ] || { echo "::error::comment $id is not a signature in cla.json"; failed=1; continue; }
+            name=$(jq -r .name <<<"$sig"); uid=$(jq -r .id <<<"$sig")
+            path="evidence/$name/$id.json"
+            if gh api "repos/$GH_REPO/contents/$path?ref=cla-signatures" --silent 2>/dev/null; then
+              echo "$path: already kept"; continue
+            fi
+            if ! gh api "repos/$GH_REPO/issues/comments/$id" > comment.json; then
+              echo "::error::signing comment $id of $name is gone; cla.json still has the signature"
+              failed=1; continue
+            fi
+            if [ "$(jq -r .user.id comment.json)" != "$uid" ] || ! jq -e --arg p "$PHRASE" '.body | contains($p)' comment.json >/dev/null; then
+              echo "::error::comment $id no longer matches the signature of $name"; failed=1; continue
+            fi
+            created=$(jq -r .created_at comment.json)
+            cla=$(gh api "repos/$GH_REPO/commits?path=CLA.md&sha=main&until=$created&per_page=1" --jq '.[0].sha // empty')
+            jq --arg cla "$cla" --arg why "${PR:+merge of #$PR}" --arg now "$(date -u +%FT%TZ)" \
+              '{comment_id: .id, url: .html_url, body, login: .user.login, user_id: .user.id,
+                created_at, updated_at, author_association, cla_md_commit: $cla,
+                kept_at: $now, kept_on: (if $why == "" then "backfill" else $why end)}' \
+              comment.json > evidence.json
+            # No sha on purpose: the contents API then refuses to replace a file.
+            stored=0
+            for try in 1 2 3; do
+              if gh api -X PUT "repos/$GH_REPO/contents/$path" -f branch=cla-signatures \
+                  -f message="Evidence of @$name's CLA signature (comment $id)" \
+                  -f content="$(base64 -w0 evidence.json)" --silent; then
+                stored=1; break
+              fi
+              if gh api "repos/$GH_REPO/contents/$path?ref=cla-signatures" --silent 2>/dev/null; then
+                stored=2; break
+              fi
+              sleep $((try * 5))
+            done
+            case $stored in
+              1) echo "stored $path" ;;
+              2) echo "$path: kept by another run" ;;
+              *) echo "::error::could not store $path"; failed=1 ;;
+            esac
+          done
+          exit $failed
