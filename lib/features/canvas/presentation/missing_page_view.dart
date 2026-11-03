@@ -106,6 +106,8 @@ class _MissingPageViewState extends ConsumerState<MissingPageView> {
     )) {
       return;
     }
+    // The page may have arrived and replaced this view while the dialog was up.
+    if (!mounted) return;
     // Re-check right before writing: the page may have reappeared.
     final r = await ref.read(canvasProvider.notifier).checkMissingPages();
     if (!mounted) return;
@@ -136,8 +138,9 @@ class _MissingPageViewState extends ConsumerState<MissingPageView> {
     )) {
       return;
     }
+    if (!mounted) return;
     final s = ref.read(canvasProvider);
-    if (s == null || !mounted) return;
+    if (s == null) return;
     ref.read(canvasProvider.notifier).deletePage(s.currentPageIndex);
   }
 

@@ -7352,7 +7352,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         PopupMenuItem(value: 'export_pdf', child: _MenuRow(Icons.picture_as_pdf_rounded, l10n.csExportPdf, null)),
       ],
     ).then((value) {
-      if (value == null) return;
+      if (value == null || !mounted) return;
       final notifier = ref.read(canvasProvider.notifier);
       switch (value) {
         case 'copy': notifier.copySelection(); _toast(AppLocalizations.of(context).csSelectionCopied); break;

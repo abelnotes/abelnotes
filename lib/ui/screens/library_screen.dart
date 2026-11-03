@@ -399,7 +399,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         ],
       ),
     );
-    if (confirm == true) {
+    if (confirm == true && mounted) {
       if (_selectedFolderId == folder.id) {
         setState(() => _selectedFolderId = null);
       }
