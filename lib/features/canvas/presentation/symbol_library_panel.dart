@@ -43,20 +43,25 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
     super.dispose();
   }
 
-  void _ensurePreviewsFor(SymbolLibrary lib, Map<String, ui.Image> imageCache) {
+  void _ensurePreviewsFor(SymbolLibrary lib, Map<String, ui.Image> imageCache,
+      double pixelRatio) {
     for (final sym in lib.symbols) {
       if (!_previewCache.containsKey(sym.id)) {
-        _renderSymbolPreview(sym, imageCache);
+        _renderSymbolPreview(sym, imageCache, pixelRatio);
       }
     }
   }
 
-  Future<void> _renderSymbolPreview(ReusableSymbol symbol, Map<String, ui.Image> imageCache) async {
-    const previewSize = 64.0;
+  Future<void> _renderSymbolPreview(ReusableSymbol symbol,
+      Map<String, ui.Image> imageCache, double pixelRatio) async {
+    // Logical size of the tile's picture (tiles are at most 90 wide); the
+    // bitmap has one pixel per device pixel so it isn't stretched.
+    const previewSize = 90.0;
     if (symbol.bounds.width <= 0 || symbol.bounds.height <= 0) return;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
+    canvas.scale(pixelRatio);
 
     // Fill white background
     canvas.drawRect(
@@ -137,7 +142,8 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
     canvas.restore();
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(previewSize.toInt(), previewSize.toInt());
+    final px = (previewSize * pixelRatio).ceil();
+    final img = await picture.toImage(px, px);
     if (mounted) {
       setState(() => _previewCache[symbol.id] = img);
     }
@@ -208,7 +214,10 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
 
     final libs = state.symbolLibraries;
     final selLib = libs.where((l) => l.id == _selectedLibId).firstOrNull;
-    if (selLib != null) _ensurePreviewsFor(selLib, state.imageCache);
+    if (selLib != null) {
+      _ensurePreviewsFor(selLib, state.imageCache,
+          MediaQuery.devicePixelRatioOf(context).clamp(1.0, 3.0).toDouble());
+    }
 
     final p = HwThemeScope.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -501,7 +510,10 @@ class _SymbolTile extends StatelessWidget {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: preview != null
-                    ? RawImage(image: preview, fit: BoxFit.contain)
+                    ? RawImage(
+                        image: preview,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.medium)
                     : const Center(child: SizedBox(
                         width: 20, height: 20,
                         child: CircularProgressIndicator(strokeWidth: 1.5))),
