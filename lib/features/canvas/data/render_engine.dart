@@ -162,6 +162,15 @@ bool _pointInConvex(Offset p, List<Offset> poly) {
   return inside;
 }
 
+/// How wide a pen stroke is drawn at [pressure], as a multiple of its base
+/// width: 0.35x..1.5x. Shapes made from a stroke use it to match the ink.
+double penWidthFactor(double pressure) =>
+    0.35 + sqrt(pressure.clamp(0.0, 1.0)) * 1.15;
+
+/// The same for ballpoint, which is flatter: 0.6x..1x.
+double ballpointWidthFactor(double pressure) =>
+    0.6 + pressure.clamp(0.0, 1.0) * 0.4;
+
 /// High-performance canvas render engine.
 /// Handles all rendering including zoom/pan transform internally.
 class CanvasRenderEngine extends CustomPainter {
@@ -1389,7 +1398,7 @@ class CanvasRenderEngine extends CustomPainter {
       final runs = _bucketSegmentsToPaths(
           interpolated,
           (p0, p1) => stroke.baseWidth *
-              (0.6 + ((p0.pressure + p1.pressure) / 2) * 0.4));
+              ballpointWidthFactor((p0.pressure + p1.pressure) / 2));
       _strokePathCache[stroke] = _StrokeCacheEntry(zoomBucketKey, runs);
       for (final run in runs) {
         paint.strokeWidth = run.width;
@@ -1582,9 +1591,9 @@ class CanvasRenderEngine extends CustomPainter {
       // light/medium presses into a usable range, then a WIDE linear map makes
       // pressing clearly thicken the line. Tunable: the 0.35 floor (min width
       // factor) and 1.15 span give 0.35×..1.50× baseWidth.
-      final pc = sqrt(stroke.points[i].pressure.clamp(0.0, 1.0));
-      final pressureFactor = 0.35 + pc * 1.15;
-      rawWidths[i] = stroke.baseWidth * pressureFactor * velocityFactor;
+      rawWidths[i] = stroke.baseWidth *
+          penWidthFactor(stroke.points[i].pressure) *
+          velocityFactor;
     }
     // Two more smoothing passes on the final widths — pressure was
     // already EMA-smoothed in ActiveStrokeNotifier; combined with the

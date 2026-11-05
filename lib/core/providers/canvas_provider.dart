@@ -26,6 +26,8 @@ import 'package:abelnotes/core/services/webdav_service.dart' show WebDavExceptio
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
         CanvasRenderEngine,
+        ballpointWidthFactor,
+        penWidthFactor,
         circleDragBox,
         circleResizeBox,
         scaledShapeResizeBox,
@@ -3421,10 +3423,27 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
 
+  /// The width the ink of [points] is drawn at, on average, so a shape made
+  /// from them matches the pen: the slider's width times the stroke's own
+  /// width factor (a pen with pressure off is drawn ~1.24x the slider).
+  double _inkWidth(List<StrokePoint> points) {
+    final width = state!.toolSettings.strokeWidth;
+    if (points.isEmpty) return width;
+    final factor = switch (state!.currentTool) {
+      CanvasTool.pen => penWidthFactor,
+      CanvasTool.ballpoint => ballpointWidthFactor,
+      _ => null, // highlighter, brush, calligraphy: left at the slider's width
+    };
+    if (factor == null) return width;
+    final mean =
+        points.fold<double>(0, (t, p) => t + factor(p.pressure)) / points.length;
+    return width * mean;
+  }
+
   ShapeData? _recognizeShape(List<StrokePoint> points) => recognizeShape(
         points,
         color: state!.toolSettings.color,
-        strokeWidth: state!.toolSettings.strokeWidth,
+        strokeWidth: _inkWidth(points),
         isHighlighter: state!.currentTool == CanvasTool.highlighter,
         fill: _ref.read(appSettingsProvider).fillRecognizedShapes,
       );
