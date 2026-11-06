@@ -336,6 +336,42 @@ abstract class AppLocalizations {
   /// **'Le ultime modifiche non sono salvate su questo dispositivo. Se esci ora le perdi.'**
   String get csUnsavedLocalBody;
 
+  /// No description provided for @csPreviewBanner.
+  ///
+  /// In it, this message translates to:
+  /// **'Anteprima di «{name}»: non è nella tua libreria e niente viene salvato.'**
+  String csPreviewBanner(String name);
+
+  /// No description provided for @csPreviewBannerOwned.
+  ///
+  /// In it, this message translates to:
+  /// **'Anteprima di «{name}»: ne hai già una copia in libreria, qui non viene salvato niente.'**
+  String csPreviewBannerOwned(String name);
+
+  /// No description provided for @csPreviewAdd.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi alla libreria'**
+  String get csPreviewAdd;
+
+  /// No description provided for @csPreviewAddCopy.
+  ///
+  /// In it, this message translates to:
+  /// **'Aggiungi come copia'**
+  String get csPreviewAddCopy;
+
+  /// No description provided for @csPreviewOpenMine.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri la mia copia'**
+  String get csPreviewOpenMine;
+
+  /// No description provided for @libOpenAfterClose.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi il quaderno aperto per vedere «{name}».'**
+  String libOpenAfterClose(String name);
+
   /// No description provided for @csRetrySave.
   ///
   /// In it, this message translates to:

@@ -131,6 +131,30 @@ class AppLocalizationsIt extends AppLocalizations {
       'Le ultime modifiche non sono salvate su questo dispositivo. Se esci ora le perdi.';
 
   @override
+  String csPreviewBanner(String name) {
+    return 'Anteprima di «$name»: non è nella tua libreria e niente viene salvato.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Anteprima di «$name»: ne hai già una copia in libreria, qui non viene salvato niente.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Aggiungi alla libreria';
+
+  @override
+  String get csPreviewAddCopy => 'Aggiungi come copia';
+
+  @override
+  String get csPreviewOpenMine => 'Apri la mia copia';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Chiudi il quaderno aperto per vedere «$name».';
+  }
+
+  @override
   String get csRetrySave => 'Riprova';
 
   @override

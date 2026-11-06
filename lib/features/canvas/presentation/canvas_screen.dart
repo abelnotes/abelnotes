@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/platform/io.dart' as io;
+import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
 import 'package:abelnotes/core/platform/storage_health.dart'
     if (dart.library.js_interop) 'package:abelnotes/core/platform/storage_health_web.dart'
     show isOutOfSpace;
@@ -1881,6 +1882,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+    // A preview only reads: zoom and paging, no shortcut that edits.
+    if (ref.read(canvasProvider.notifier).isPreview &&
+        !_previewKeys.contains(event.logicalKey)) {
+      return KeyEventResult.ignored;
+    }
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
     if (ctrl) {
@@ -2182,6 +2188,76 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
+  static final Set<LogicalKeyboardKey> _previewKeys = {
+    LogicalKeyboardKey.digit0,
+    LogicalKeyboardKey.numpad0,
+    LogicalKeyboardKey.equal,
+    LogicalKeyboardKey.add,
+    LogicalKeyboardKey.numpadAdd,
+    LogicalKeyboardKey.minus,
+    LogicalKeyboardKey.numpadSubtract,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.pageUp,
+    LogicalKeyboardKey.pageDown,
+    LogicalKeyboardKey.home,
+    LogicalKeyboardKey.end,
+    LogicalKeyboardKey.escape,
+  };
+
+  /// Says the notebook is only being looked at, and offers to keep it.
+  Widget _previewBar() {
+    final preview = ref.watch(notebookPreviewProvider);
+    if (preview == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Icon(Icons.visibility_outlined,
+                size: 18, color: scheme.onSecondaryContainer),
+            Text(
+                preview.libraryCopyId != null
+                    ? l10n.csPreviewBannerOwned(preview.fileName)
+                    : l10n.csPreviewBanner(preview.fileName),
+                style: TextStyle(color: scheme.onSecondaryContainer)),
+            if (preview.libraryCopyId != null)
+              TextButton(
+                style: TextButton.styleFrom(
+                    foregroundColor: scheme.onSecondaryContainer),
+                onPressed: () => _leavePreview(PreviewChoice.openLibraryCopy),
+                child: Text(l10n.csPreviewOpenMine),
+              ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: scheme.onSecondaryContainer,
+                  foregroundColor: scheme.secondaryContainer),
+              onPressed: () => _leavePreview(PreviewChoice.addToLibrary),
+              child: Text(preview.libraryCopyId != null
+                  ? l10n.csPreviewAddCopy
+                  : l10n.csPreviewAdd),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _leavePreview(PreviewChoice choice) {
+    _closing = true;
+    final notifier = ref.read(canvasProvider.notifier);
+    Navigator.of(context).pop(choice);
+    unawaited(notifier.closeNotebook());
+  }
+
   Future<bool> _onWillPop() async {
     // Mark closing so didChangeAppLifecycleState doesn't fire a parallel
     // save if the OS backgrounds the app during the pop dialog.
@@ -2193,7 +2269,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final editor = ref.read(canvasProvider.notifier);
     // Checked even when nothing is dirty: a write that failed after the
     // upload went through leaves the notebook clean but the disk behind.
-    if (ref.read(canvasProvider) != null) {
+    // A preview writes nothing, so it has nothing to lose.
+    if (ref.read(canvasProvider) != null && !editor.isPreview) {
       // On disk already: the upload finishes in the background flush below,
       // so there is nothing to ask. Ask only when the disk refused it.
       var onDisk = await editor.persistLocalNow();
@@ -5238,7 +5315,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     coverColor: Color(canvasState.metadata.coverColor),
                     currentPage: canvasState.currentPageIndex + 1,
                     totalPages: canvasState.document.pages.length,
-                    dirty: canvasState.isDirty,
+                    dirty: canvasState.isDirty && !notifier.isPreview,
                     canUndo: notifier.canUndo,
                     canRedo: notifier.canRedo,
                     syncState: syncState,
@@ -5277,6 +5354,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       );
                     },
                   ),
+                  if (notifier.isPreview) _previewBar(),
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
@@ -5330,7 +5408,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               // While dragging it follows the finger at a free offset;
               // otherwise it sits docked against its persisted edge. Hidden
               // entirely in presentation mode (see [_enterPresentationMode]).
-              if (_presentationMode)
+              if (_presentationMode || notifier.isPreview)
                 const SizedBox.shrink()
               else if (_dockDragOffset != null)
                 Positioned(
@@ -5344,7 +5422,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               // Tool option popup — anchored next to the dock wherever it
               // is parked (above for bottom, below for top, beside for
               // left/right).
-              if (!_presentationMode)
+              if (!_presentationMode && !notifier.isPreview)
                 _popupPositioned(
                   dockPosition,
                   toolDock.align,

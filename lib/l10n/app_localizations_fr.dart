@@ -132,6 +132,30 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vos dernières modifications ne sont pas enregistrées sur cet appareil. En partant maintenant, vous les perdez.';
 
   @override
+  String csPreviewBanner(String name) {
+    return 'Aperçu de « $name » : absent de votre bibliothèque, rien n\'est enregistré.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Aperçu de « $name » : une copie est déjà dans votre bibliothèque, rien n\'est enregistré ici.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Ajouter à la bibliothèque';
+
+  @override
+  String get csPreviewAddCopy => 'Ajouter comme copie';
+
+  @override
+  String get csPreviewOpenMine => 'Ouvrir ma copie';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Fermez le carnet ouvert pour voir « $name ».';
+  }
+
+  @override
   String get csRetrySave => 'Réessayer';
 
   @override

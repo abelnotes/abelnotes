@@ -1393,7 +1393,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     required String remotePath,
     Map<String, Uint8List>? assets,
     List<SymbolLibrary>? symbolLibraries,
+    bool preview = false,
   }) async {
+    _preview = preview;
     // Refuse notebooks written by a NEWER format than this build supports.
     // Freezed fromJson silently defaults unknown fields, so opening (and
     // then saving) a newer-format notebook would strip data the newer app
@@ -1512,11 +1514,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // shared, and a symbol made on another device that arrived inside this
     // notebook. Awaited: the symbol panel must never open on a library that
     // is still loading.
-    final mergedSymbols = await _symbols.merge(
-      SymbolCollection(libraries: symbolLibraries ?? const []),
-    );
-    _deletedSymbolIds = {...mergedSymbols.deletedSymbolIds};
-    _deletedLibraryIds = {...mergedSymbols.deletedLibraryIds};
+    // A preview stays out of the device-wide library: it shows its own.
+    final mergedSymbols = _preview
+        ? null
+        : await _symbols.merge(
+            SymbolCollection(libraries: symbolLibraries ?? const []),
+          );
+    _deletedSymbolIds = {...?mergedSymbols?.deletedSymbolIds};
+    _deletedLibraryIds = {...?mergedSymbols?.deletedLibraryIds};
     await _toolPrefsLoaded;
 
     state = CanvasState(
@@ -1528,17 +1533,19 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       pages: Map.of(repaired.pages),
       remotePath: remotePath,
       assetBytes: assets != null ? Map.of(assets) : const {},
-      symbolLibraries: mergedSymbols.libraries,
+      symbolLibraries:
+          mergedSymbols?.libraries ?? symbolLibraries ?? const [],
       activeChapterId: restoredChapterId,
       currentPageIndex: startPageIndex,
       zoom: initialZoom,
       panOffset: initialPan,
+      currentTool: _preview ? CanvasTool.pan : CanvasTool.pen,
     );
 
     // Catch up with the other devices in the background. Deliberately not
     // awaited and deliberately NOT marking the notebook dirty: opening a
     // notebook must neither wait on the network nor schedule a save.
-    unawaited(_symbols.reconcile());
+    if (!_preview) unawaited(_symbols.reconcile());
 
     // Initialize delta sync tracking
     _disposed = false;
@@ -1546,7 +1553,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _pullUnreachable = false;
     hasSyncFailure.value = false;
     remoteSaveInFlight.value = false;
-    keptLocal.value = (_ref.read(syncServiceProvider)?.isOffline ?? true) ||
+    keptLocal.value = _preview ||
+        (_ref.read(syncServiceProvider)?.isOffline ?? true) ||
         await _isLocalOnly(metadata.id);
     // Hold the same ref — _lastSyncedPages is a dirty-detection sidetable
     // (we only ever read identity via `identical(s.pages[k], _lastSyncedPages[k])`),
@@ -1580,7 +1588,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _assetIndexBuilt = false;
     _pageJsonCache.clear();
     _dirtyAssetKeys.clear();
-    await _restoreUnpushed(metadata.id, repaired.pages);
+    if (!_preview) await _restoreUnpushed(metadata.id, repaired.pages);
     // If the cached ETags belong to a different notebook, flush them so
     // notebook-A's diff never bleeds into notebook-B's first pull.
     if (_etagNotebookId != metadata.id) {
@@ -1604,13 +1612,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     // Pre-populate page ETags so the first pull doesn't see every page as
     // "changed" (empty cache vs all remote ETags → false positives).
-    _initPageEtags(metadata.id);
-    _loadPendingDeletes(metadata.id);
-    _startPullTimer();
+    if (!_preview) {
+      _initPageEtags(metadata.id);
+      _loadPendingDeletes(metadata.id);
+      _startPullTimer();
+    }
 
     // If there's a cross-notebook clipboard pending, apply it to this canvas
     // so the user can paste immediately after switching notebooks.
-    final crossClip = _ref.read(crossNotebookClipboardProvider);
+    final crossClip =
+        _preview ? null : _ref.read(crossNotebookClipboardProvider);
     if (crossClip != null) {
       state = state?.copyWith(
         clipboard: crossClip,
@@ -2688,7 +2699,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final closingId = state?.metadata.id;
     await flushPendingWork();
     // A day of edits gets one restorable copy.
-    if (closingId != null && !_discardRequested) {
+    if (closingId != null && !_discardRequested && !_preview) {
       unawaited(_ref
           .read(fileServiceProvider)
           .snapshotIfDue(closingId, every: const Duration(hours: 24)));
@@ -2734,6 +2745,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _localFailures = 0;
     localSaveError.value = null;
     _discardRequested = false;
+    _preview = false;
     _lastSyncedDocument = null;
     _lastSyncedMetadata = null;
     _ghostEntryStrikes.clear();
@@ -2760,7 +2772,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   Future<void> _saveLastPosition() async {
-    if (state == null) return;
+    if (state == null || _preview) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final nbId = state!.metadata.id;
@@ -2779,6 +2791,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   void setTool(CanvasTool tool) {
     if (state == null) return;
+    // A preview is for reading: no tool that edits.
+    if (_preview && tool != CanvasTool.pan) return;
 
     // Bake any pending lasso transformations before switching tools
     if (tool != CanvasTool.lasso && state!.lassoSelection != null) {
@@ -8574,6 +8588,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   bool _discardRequested = false;
 
+  bool _preview = false;
+
+  /// A notebook file opened from outside, shown read-only: nothing of it is
+  /// written anywhere, synced, or merged into the library.
+  bool get isPreview => _preview;
+
   /// The user chose to leave without what could not be saved: closing must
   /// neither write nor upload it.
   void discardUnsavedEdits() {
@@ -8605,7 +8625,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// lock: an upload or a pull can hold that for minutes, and edits that
   /// sit only in memory meanwhile are lost to any crash.
   Future<bool> _persistLocal() {
-    if (_discardRequested) return Future<bool>.value(false);
+    if (_discardRequested || _preview) return Future<bool>.value(false);
     final f = _withLocalLock(_persistLocalLocked);
     _pendingLocalSave = f;
     unawaited(f.whenComplete(() {
@@ -8779,7 +8799,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   Future<void> save() async {
-    if (state == null) return;
+    if (state == null || _preview) return;
     // Run even when not dirty if a delete queue is pending: a delete-only
     // save that failed remotely leaves isDirty false, and without this the
     // queued DELETEs would wait for an unrelated edit to be retried.
@@ -9601,6 +9621,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// (e.g. previous `paused` lifecycle event). No-op if a timer is already
   /// running. Called from the canvas screen on `AppLifecycleState.resumed`.
   void restartPullTimerIfNeeded() {
+    if (_preview) return;
     if (_disposed) return;
     if (state == null) return;
     if (_pullTimer != null) return;
@@ -9804,6 +9825,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// and if local pages are dirty, creates per-page conflicts instead of
   /// silently overwriting.
   Future<void> _pullRemoteChanges() async {
+    if (_preview) return;
     if (_isPulling || state == null || _bulkOperationInProgress) return;
     // Don't pull while user is resolving conflicts or reviewing pending
     // remote changes — avoids overwriting with a fresh pull.

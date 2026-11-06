@@ -218,6 +218,38 @@ void main() {
     expect(onDisk(), isNot(contains('unwanted')));
   });
 
+  test('a preview writes nothing, even when closed after an edit', () async {
+    final c = ProviderContainer(overrides: [
+      fileServiceProvider.overrideWithValue(fs),
+      remoteStoreProvider.overrideWithValue(FakeRemoteStore()),
+    ]);
+    final n = c.read(canvasProvider.notifier);
+    final now = DateTime(2026);
+    await n.openNotebook(
+      metadata: NotebookMetadata(
+          id: _id, title: 't', createdAt: now, modifiedAt: now),
+      document: const DocumentStructure(notebookId: _id, pages: [
+        PageEntry(pageId: 'p1', pageNumber: 1, fileName: 'p1.json'),
+      ]),
+      pages: {'p1.json': _page([_line('a', 10)])},
+      remotePath: '',
+      preview: true,
+    );
+    expect(n.isPreview, isTrue);
+    expect(n.state!.currentTool, CanvasTool.pan);
+    n.setTool(CanvasTool.pen);
+    expect(n.state!.currentTool, CanvasTool.pan, reason: 'read-only');
+
+    draw(n, 'not-kept');
+    await n.save();
+    expect(await n.persistLocalNow(), isFalse);
+    await n.closeNotebook();
+
+    expect(Directory(fs.notebookStoreDir(_id)).existsSync(), isFalse);
+    expect(await fs.dirtyPagesOf(_id), isEmpty);
+    expect(n.isPreview, isFalse, reason: 'the next notebook is a normal one');
+  });
+
   test('closing writes the last edit even with no autosave run', () async {
     final c = ProviderContainer(overrides: [
       fileServiceProvider.overrideWithValue(fs),

@@ -131,6 +131,30 @@ class AppLocalizationsEs extends AppLocalizations {
       'Tus últimos cambios no están guardados en este dispositivo. Si sales ahora, los pierdes.';
 
   @override
+  String csPreviewBanner(String name) {
+    return 'Vista previa de «$name»: no está en tu biblioteca y no se guarda nada.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Vista previa de «$name»: ya tienes una copia en tu biblioteca; aquí no se guarda nada.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Añadir a la biblioteca';
+
+  @override
+  String get csPreviewAddCopy => 'Añadir como copia';
+
+  @override
+  String get csPreviewOpenMine => 'Abrir mi copia';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Cierra el cuaderno abierto para ver «$name».';
+  }
+
+  @override
   String get csRetrySave => 'Reintentar';
 
   @override

@@ -131,6 +131,30 @@ class AppLocalizationsDe extends AppLocalizations {
       'Deine letzten Änderungen sind auf diesem Gerät nicht gespeichert. Wenn du jetzt gehst, sind sie verloren.';
 
   @override
+  String csPreviewBanner(String name) {
+    return 'Vorschau von „$name“: nicht in deiner Bibliothek, es wird nichts gespeichert.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Vorschau von „$name“: Eine Kopie ist schon in deiner Bibliothek, hier wird nichts gespeichert.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Zur Bibliothek hinzufügen';
+
+  @override
+  String get csPreviewAddCopy => 'Als Kopie hinzufügen';
+
+  @override
+  String get csPreviewOpenMine => 'Meine Kopie öffnen';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Schließe das geöffnete Notizbuch, um „$name“ zu sehen.';
+  }
+
+  @override
   String get csRetrySave => 'Erneut versuchen';
 
   @override
