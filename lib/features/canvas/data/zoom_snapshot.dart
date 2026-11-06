@@ -23,9 +23,9 @@ class ZoomSnapshot extends ChangeNotifier {
   Timer? _timer;
   bool _broken = false;
 
-  // Screen-space bitmap of the static layers, valid while pan/zoom are
-  // fixed (pen down); see CanvasRenderEngine._paintLiveBitmap.
-  ui.Image? liveImage;
+  // Bitmap tiles of the static layers at one scale, anchored to the page so
+  // panning keeps them; see CanvasRenderEngine._paintLiveBitmap.
+  final Map<int, ui.Image> liveTiles = {};
   Object? livePage;
   Object? liveKey;
 
@@ -62,8 +62,10 @@ class ZoomSnapshot extends ChangeNotifier {
 
   void clearLive() {
     cancelBake();
-    liveImage?.dispose();
-    liveImage = null;
+    for (final t in liveTiles.values) {
+      t.dispose();
+    }
+    liveTiles.clear();
     livePage = null;
     liveKey = null;
   }

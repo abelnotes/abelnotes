@@ -154,6 +154,138 @@ void main() {
         isNull);
   });
 
+  group('loadLooseStoreFromDisk with many pages', () {
+    PageData page(int i) => PageData(
+          pageId: 'pg-$i',
+          pageNumber: i,
+          width: 595,
+          height: 842,
+          layers: RenderingLayers(content: [
+            ContentElement.stroke(
+              id: 's$i',
+              zIndex: 0,
+              data: StrokeData(points: [
+                StrokePoint(x: i.toDouble(), y: 2, pressure: 0.7),
+                const StrokePoint(x: 3, y: 4),
+              ]),
+            ),
+          ]),
+        );
+    String name(int i) => 'page_${i.toString().padLeft(3, '0')}.json';
+    Future<void> store(Map<String, Uint8List> pages) => fs.explodeZipToLooseStore(
+        'nb',
+        _buildZip(
+          metadata: NotebookMetadata(
+                  id: 'nb',
+                  title: 'T',
+                  createdAt: DateTime.utc(2020),
+                  modifiedAt: DateTime.utc(2020))
+              .toJson(),
+          document: DocumentStructure(notebookId: 'nb', pages: [
+            for (var i = 1; i <= 20; i++)
+              PageEntry(pageId: 'pg-$i', pageNumber: i, fileName: name(i)),
+          ]).toJson(),
+          pages: pages,
+        ));
+    final sync = SyncService(WebDavService(
+        serverUrl: 'https://example.invalid', username: 'u', password: 'p'));
+
+    test('every page comes back under its own file name', () async {
+      await store({
+        for (var i = 1; i <= 20; i++) name(i): _u(jsonEncode(page(i).toJson())),
+      });
+      final data = (await sync.loadLooseStoreFromDisk(fs.notebookStoreDir('nb')))!;
+      expect(data.pages.length, 20);
+      for (var i = 1; i <= 20; i++) {
+        expect(data.pages[name(i)], page(i));
+      }
+    });
+
+    test('one corrupt page among many still means no store', () async {
+      await store({
+        for (var i = 1; i <= 20; i++)
+          name(i): i == 13 ? _u('{"pageId": "pg-13", "lay') : _u(jsonEncode(page(i).toJson())),
+      });
+      expect(await sync.loadLooseStoreFromDisk(fs.notebookStoreDir('nb')), isNull);
+    });
+  });
+
+  group('loadLooseStoreStart', () {
+    PageData page(int i, {String? image}) => PageData(
+          pageId: 'pg-$i',
+          pageNumber: i,
+          width: 595,
+          height: 842,
+          layers: RenderingLayers(content: [
+            if (image != null)
+              ContentElement.image(
+                  id: 'img$i',
+                  zIndex: 0,
+                  data: ImageData(
+                      x: 0, y: 0, width: 10, height: 10, assetPath: image)),
+          ]),
+        );
+    final sync = SyncService(WebDavService(
+        serverUrl: 'https://example.invalid', username: 'u', password: 'p'));
+    Future<void> store() => fs.explodeZipToLooseStore(
+        'nb',
+        _buildZip(
+          metadata: NotebookMetadata(
+            id: 'nb',
+            title: 'T',
+            createdAt: DateTime.utc(2020),
+            modifiedAt: DateTime.utc(2020),
+            chapters: const [
+              Chapter(id: 'a', title: 'A'),
+              Chapter(id: 'b', title: 'B'),
+            ],
+          ).toJson(),
+          document: DocumentStructure(notebookId: 'nb', pages: [
+            for (var i = 1; i <= 4; i++)
+              PageEntry(
+                  pageId: 'pg-$i',
+                  pageNumber: i,
+                  fileName: 'page_00$i.json',
+                  chapterId: i <= 2 ? 'a' : 'b'),
+          ]).toJson(),
+          pages: {
+            for (var i = 1; i <= 4; i++)
+              'page_00$i.json': _u(jsonEncode(
+                  page(i, image: i == 3 ? 'img_3.png' : null).toJson())),
+          },
+          assets: {
+            'img_3.png': Uint8List.fromList([3]),
+            'img_9.png': Uint8List.fromList([9]),
+          },
+        ));
+
+    test('reads the saved page and only the assets it shows', () async {
+      await store();
+      final s = (await sync.loadLooseStoreStart(fs.notebookStoreDir('nb'), 'b', 2))!;
+      expect(s.chapterId, 'b');
+      expect(s.pageIndex, 2);
+      expect(s.pages.keys, ['page_003.json']);
+      expect(s.pages['page_003.json'], page(3, image: 'img_3.png'));
+      expect(s.assets.keys, ['img_3.png']);
+      expect(s.document.pages.length, 4);
+    });
+
+    test('a saved position that no longer fits opens the first chapter', () async {
+      await store();
+      final s = (await sync.loadLooseStoreStart(fs.notebookStoreDir('nb'), 'gone', 7))!;
+      expect(s.chapterId, 'a');
+      expect(s.pageIndex, 0);
+      expect(s.pages.keys, ['page_001.json']);
+    });
+
+    test('an unreadable opening page gives null, so the full load decides', () async {
+      await store();
+      await File(p.join(fs.notebookStoreDir('nb'), AppConfig.pagesDir, 'page_001.json'))
+          .writeAsString('{"pageId": ');
+      expect(await sync.loadLooseStoreStart(fs.notebookStoreDir('nb'), null, 0), isNull);
+    });
+  });
+
   test('explode → assemble round-trips every entry byte-for-byte', () async {
     final zip = _buildZip(
       pages: {'page_001.json': _u('{"a":1}'), 'page_002.json': _u('{"b":2}')},

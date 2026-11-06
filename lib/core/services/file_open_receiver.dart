@@ -38,10 +38,11 @@ class FileOpenReceiver extends StateNotifier<PendingFileOpen?> {
 
   final List<String> _initialArgs;
 
-  /// Only the Windows runner implements the warm-open channel. Cold-start
-  /// argv works on every desktop platform, since all three runners forward
-  /// the command line to the Dart entrypoint.
-  bool get _hasWarmChannel => !kIsWeb && Platform.isWindows;
+  /// The Windows and Linux runners hand over files from a later launch on
+  /// this channel. Cold-start argv works on every desktop platform, since all
+  /// three runners forward the command line to the Dart entrypoint.
+  bool get _hasWarmChannel =>
+      !kIsWeb && (Platform.isWindows || Platform.isLinux);
 
   void start() {
     final initial = notebookPathFrom(_initialArgs);

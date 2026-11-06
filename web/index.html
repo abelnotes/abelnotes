@@ -33,8 +33,40 @@
 
   <title>AbelNotes</title>
   <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#F5F2EC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#081820" media="(prefers-color-scheme: dark)">
+  <!-- Splash until Flutter's first frame, in the app's paper / dark colours. -->
+  <style>
+    html, body { background: #F5F2EC; }
+    #splash {
+      position: fixed; inset: 0; z-index: 2147483647;
+      display: flex; align-items: center; justify-content: center;
+      background: #F5F2EC; transition: opacity .2s ease-out;
+    }
+    #splash img {
+      width: 88px; height: 88px; border-radius: 20px;
+      animation: splash-pulse 1.4s ease-in-out infinite alternate;
+    }
+    #splash.gone { opacity: 0; pointer-events: none; }
+    @keyframes splash-pulse { from { opacity: .55; } to { opacity: 1; } }
+    @media (prefers-color-scheme: dark) {
+      html, body, #splash { background: #081820; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash img { animation: none; }
+    }
+  </style>
 </head>
 <body style="margin:0;overscroll-behavior:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none">
+  <div id="splash" aria-hidden="true"><img src="icons/Icon-192.png" alt=""></div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash');
+      if (!s) return;
+      s.classList.add('gone');
+      setTimeout(function () { s.remove(); }, 250);
+    }, { once: true });
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -65,18 +97,26 @@
     })();
   </script>
   <!--
-    Offline support. Flutter's own loader only reuses a service worker that is
-    already registered, so register ours (tool/build_web.sh drops it in under
-    this file name) before the app boots.
+    Offline worker (tool/web_sw.js), registered after the first frame so its
+    install never competes with the app's own start (WEB_PWA.md, Startup).
   -->
   <script>
-    if ('serviceWorker' in navigator) {
-      // Safari checks a registered worker for a new build only about once a
-      // day; ask on every launch so a deploy arrives on the next open.
-      navigator.serviceWorker.register('flutter_service_worker.js')
-          .then(function (r) { return r.update(); })
-          .catch(function () {});
-    }
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      var done = false;
+      function register() {
+        if (done) return;
+        done = true;
+        // Safari checks a registered worker for a new build only about once a
+        // day; ask on every launch so a deploy arrives on the next open.
+        navigator.serviceWorker.register('flutter_service_worker.js')
+            .then(function (r) { return r.update(); })
+            .catch(function () {});
+      }
+      window.addEventListener('flutter-first-frame', register, { once: true });
+      // A build that never paints must still be replaceable by the next one.
+      setTimeout(register, 10000);
+    })();
   </script>
   <!--
     Fast short Apple Pencil strokes look like taps to iPadOS Safari: the second
