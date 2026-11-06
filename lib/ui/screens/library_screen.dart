@@ -17,6 +17,10 @@ import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
+import 'package:abelnotes/shared/models/ncnote_format.dart'
+    show DocumentStructure, NotebookMetadata;
+import 'package:abelnotes/features/canvas/presentation/canvas_screen.dart';
+import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
 import 'package:abelnotes/core/services/sync_thrift.dart';
 import 'package:abelnotes/core/platform/io.dart';
 
@@ -162,8 +166,29 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     if (!mounted) return;
     final pending = ref.read(fileOpenReceiverProvider);
     if (pending == null) return;
+    // The editor owns the canvas while it is on top: opening the file now
+    // would replace the notebook being edited. Wait until it is closed.
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      if (!_fileOpenWaiting) {
+        _fileOpenWaiting = true;
+        _toast(AppLocalizations.of(context)
+            .libOpenAfterClose(pending.path.split(RegExp(r'[\\/]')).last));
+        _waitForLibraryThenOpen();
+      }
+      return;
+    }
     ref.read(fileOpenReceiverProvider.notifier).consume();
     _openNcnotePath(pending.path);
+  }
+
+  bool _fileOpenWaiting = false;
+
+  Future<void> _waitForLibraryThenOpen() async {
+    while (mounted && ModalRoute.of(context)?.isCurrent != true) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    _fileOpenWaiting = false;
+    _consumePendingFileOpen();
   }
 
   /// Opens the notebook a tray action asked for (the editor takes it up from
@@ -313,12 +338,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           final main = Column(children: [
             Expanded(
               child: Stack(children: [
+                // Boundaries keep a scroll frame from repainting the bar,
+                // the sidebar and everything else on the page.
                 Positioned.fill(
-                  child: RefreshIndicator(
-                    edgeOffset: _TopBar.height,
-                    onRefresh: () =>
-                        notebookNotifier.syncNow(showProgress: false),
-                    child: body,
+                  child: RepaintBoundary(
+                    child: RefreshIndicator(
+                      edgeOffset: _TopBar.height,
+                      onRefresh: () =>
+                          notebookNotifier.syncNow(showProgress: false),
+                      child: body,
+                    ),
                   ),
                 ),
                 // Floats over the list so content scrolls under its glass.
@@ -326,7 +355,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _TopBar(
+                  child: RepaintBoundary(child: _TopBar(
                     scroll: _scroll,
                     title: folderName,
                     wide: wide,
@@ -340,7 +369,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                     onSettingsTap: _openSettings,
                     onImportTap: _importFlow,
                     sortLabel: settings.sortMode.labelOf(l10n),
-                  ),
+                  )),
                 ),
               ]),
             ),
@@ -348,7 +377,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           ]);
           if (!wide) return main;
           return Row(children: [
-            _Sidebar(
+            RepaintBoundary(child: _Sidebar(
               folders: settings.folders,
               entries: entries,
               folderOf: settings.notebookFolderId,
@@ -360,7 +389,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               onTrash: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const TrashScreen())),
               onSettings: _openSettings,
-            ),
+            )),
             Expanded(child: main),
           ]);
         }),
@@ -713,35 +742,59 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   /// A notebook the user already has is OPENED, not imported: double-clicking
   /// your own file must not silently clone it. Importing stays the explicit
   /// in-app action, which always makes a copy.
+  /// Shows a notebook file from outside read-only. Nothing reaches the
+  /// library unless the user adds it: opening a file used to import it on
+  /// the spot, a new copy every time the same file was opened.
   Future<void> _openNcnotePath(String path) async {
-    Uint8List bytes;
+    final l10n = AppLocalizations.of(context);
+    final name = path.split(RegExp(r'[\\/]')).last;
+    final Uint8List bytes;
+    final ({NotebookMetadata metadata, DocumentStructure document}) parsed;
+    final NcnoteContents contents;
     try {
       bytes = await File(path).readAsBytes();
+      SyncService.validateNcnoteArchive(bytes, context: 'preview $name');
+      final syncService = ref.read(syncServiceProvider);
+      if (syncService == null) throw StateError('no sync service');
+      parsed = syncService.parseNcnoteMetadata(bytes);
+      contents = syncService.extractNotebookContents(bytes);
     } catch (e) {
-      if (mounted) {
-        _toast(AppLocalizations.of(context).libErrorImport(e.toString()));
-      }
+      if (mounted) _toast(l10n.libErrorImport(e.toString()));
+      return;
+    }
+    final mine = await _findNotebookById(parsed.metadata.id);
+    if (!mounted) return;
+
+    // Its own id, so nothing keyed by notebook id can touch a library copy.
+    final previewId = 'preview-${const Uuid().v4()}';
+    try {
+      await ref.read(canvasProvider.notifier).openNotebook(
+            metadata: parsed.metadata.copyWith(id: previewId),
+            document: parsed.document.copyWith(notebookId: previewId),
+            pages: contents.pages,
+            remotePath: '',
+            assets: contents.assets,
+            symbolLibraries: contents.symbolLibraries
+                .map((j) => SymbolLibrary.fromJson(j))
+                .toList(),
+            preview: true,
+          );
+    } catch (e) {
+      if (mounted) _toast(l10n.libErrorImport(e.toString()));
       return;
     }
     if (!mounted) return;
-
-    final syncService = ref.read(syncServiceProvider);
-    if (syncService != null) {
-      try {
-        final incoming = syncService.parseNcnoteMetadataOnly(bytes);
-        final existing = await _findNotebookById(incoming.id);
-        if (!mounted) return;
-        if (existing != null) {
-          _openNotebook(existing);
-          return;
-        }
-      } catch (_) {
-        // Unreadable archive: fall through so the import path reports it with
-        // the friendly message instead of duplicating the diagnosis here.
-      }
-    }
+    ref.read(notebookPreviewProvider.notifier).state =
+        NotebookPreview(fileName: name, libraryCopyId: mine?.metadata.id);
+    final choice = await Navigator.of(context).push<Object?>(
+        MaterialPageRoute(builder: (_) => const CanvasScreen()));
     if (!mounted) return;
-    await _importNcnoteBytes(bytes, path.split(RegExp(r'[\\/]')).last);
+    ref.read(notebookPreviewProvider.notifier).state = null;
+    if (choice == PreviewChoice.addToLibrary) {
+      await _importNcnoteBytes(bytes, name);
+    } else if (choice == PreviewChoice.openLibraryCopy && mine != null) {
+      await _openNotebook(mine);
+    }
   }
 
   /// The library loads asynchronously, so on a cold start the list can still
@@ -2372,6 +2425,14 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Grid width from the box, not a SliverLayoutBuilder: sliver constraints
+    // change on every scroll frame, which rebuilt every visible tile.
+    return LayoutBuilder(
+        builder: (context, box) =>
+            _scrollView(context, box.maxWidth - 2 * hPad));
+  }
+
+  Widget _scrollView(BuildContext context, double gridWidth) {
     final p = HwThemeScope.of(context);
     return CustomScrollView(
       controller: controller,
@@ -2380,12 +2441,14 @@ class _Body extends StatelessWidget {
         const SliverToBoxAdapter(child: SizedBox(height: _TopBar.height)),
         ...headerSlivers,
         SliverToBoxAdapter(
-          child: _SketchSection(
-            hPad: hPad,
-            sketches: sketches,
-            onCreateSketch: onCreateSketch,
-            onOpen: onOpen,
-            onLongPress: onLongPress,
+          child: RepaintBoundary(
+            child: _SketchSection(
+              hPad: hPad,
+              sketches: sketches,
+              onCreateSketch: onCreateSketch,
+              onOpen: onOpen,
+              onLongPress: onLongPress,
+            ),
           ),
         ),
         SliverToBoxAdapter(
@@ -2441,61 +2504,7 @@ class _Body extends StatelessWidget {
         if (gridView)
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: hPad),
-            sliver: SliverLayoutBuilder(
-              builder: (ctx, constraints) {
-                // Adapt cover-tile sizing to the available width so the
-                // grid doesn't stay locked to tablet proportions on phones
-                // or waste space on very wide desktops. mainExtent is
-                // derived from maxExtent via the cover's aspect ratio plus
-                // the text block below it, so the cover height always
-                // tracks its actual width instead of the two drifting
-                // apart on narrow screens (which read as the cover being
-                // stretched tall and clipping into the row below).
-                final width = constraints.crossAxisExtent;
-                final double maxExtent;
-                if (width < 480) {
-                  maxExtent = 160;
-                } else if (width > 1100) {
-                  maxExtent = 280;
-                } else {
-                  maxExtent = 232;
-                }
-                final mainExtent =
-                    _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
-                        _CoverTile.textBlockHeightFor(ctx);
-                return SliverGrid(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: maxExtent,
-                    mainAxisExtent: mainExtent,
-                    crossAxisSpacing: width < 480 ? 16 : 28,
-                    mainAxisSpacing: width < 480 ? 24 : 36,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (ctx, i) {
-                      if (i == 0) return _NewTile(onTap: onCreate);
-                      final e = entries[i - 1];
-                      final tile = _CoverTile(
-                        entry: e,
-                        favorite: favoriteIds.contains(e.metadata.id),
-                        onTap: (r) => onOpen(e, origin: r),
-                        onLongPress: () => onLongPress(e),
-                        onToggleFavorite: () => onToggleFavorite(e),
-                      );
-                      if (e.metadata.id != movingFromId) return tile;
-                      return Stack(clipBehavior: Clip.none, children: [
-                        tile,
-                        Positioned(
-                          left: -6,
-                          bottom: _CoverTile.textBlockHeightFor(ctx) + 56,
-                          child: _MovingBadge(count: movingCount),
-                        ),
-                      ]);
-                    },
-                    childCount: entries.length + 1,
-                  ),
-                );
-              },
-            ),
+            sliver: _grid(context, gridWidth),
           )
         else
           SliverPadding(
@@ -2512,6 +2521,59 @@ class _Body extends StatelessWidget {
           ),
         SliverToBoxAdapter(child: SizedBox(height: movingCount > 0 ? 190 : 80)),
       ],
+    );
+  }
+
+  Widget _grid(BuildContext context, double width) {
+    // Adapt cover-tile sizing to the available width so the
+    // grid doesn't stay locked to tablet proportions on phones
+    // or waste space on very wide desktops. mainExtent is
+    // derived from maxExtent via the cover's aspect ratio plus
+    // the text block below it, so the cover height always
+    // tracks its actual width instead of the two drifting
+    // apart on narrow screens (which read as the cover being
+    // stretched tall and clipping into the row below).
+    final double maxExtent;
+    if (width < 480) {
+      maxExtent = 160;
+    } else if (width > 1100) {
+      maxExtent = 280;
+    } else {
+      maxExtent = 232;
+    }
+    final mainExtent =
+        _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
+            _CoverTile.textBlockHeightFor(context);
+    return SliverGrid(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: maxExtent,
+        mainAxisExtent: mainExtent,
+        crossAxisSpacing: width < 480 ? 16 : 28,
+        mainAxisSpacing: width < 480 ? 24 : 36,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) {
+          if (i == 0) return _NewTile(onTap: onCreate);
+          final e = entries[i - 1];
+          final tile = _CoverTile(
+            entry: e,
+            favorite: favoriteIds.contains(e.metadata.id),
+            onTap: (r) => onOpen(e, origin: r),
+            onLongPress: () => onLongPress(e),
+            onToggleFavorite: () => onToggleFavorite(e),
+          );
+          if (e.metadata.id != movingFromId) return tile;
+          return Stack(clipBehavior: Clip.none, children: [
+            tile,
+            Positioned(
+              left: -6,
+              bottom: _CoverTile.textBlockHeightFor(ctx) + 56,
+              child: _MovingBadge(count: movingCount),
+            ),
+          ]);
+        },
+        childCount: entries.length + 1,
+      ),
     );
   }
 }
