@@ -120,6 +120,45 @@ class AppLocalizationsFr extends AppLocalizations {
       'Voulez-vous enregistrer avant de quitter ?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Impossible d\'enregistrer sur cet appareil. Nouvel essai automatique — ne fermez pas l\'app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'Plus d\'espace sur cet appareil : vos dernières modifications ne sont pas enregistrées. Libérez de l\'espace, l\'enregistrement réessaie tout seul.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Vos dernières modifications ne sont pas enregistrées sur cet appareil. En partant maintenant, vous les perdez.';
+
+  @override
+  String csPreviewBanner(String name) {
+    return 'Aperçu de « $name » : absent de votre bibliothèque, rien n\'est enregistré.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Aperçu de « $name » : une copie est déjà dans votre bibliothèque, rien n\'est enregistré ici.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Ajouter à la bibliothèque';
+
+  @override
+  String get csPreviewAddCopy => 'Ajouter comme copie';
+
+  @override
+  String get csPreviewOpenMine => 'Ouvrir ma copie';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Fermez le carnet ouvert pour voir « $name ».';
+  }
+
+  @override
+  String get csRetrySave => 'Réessayer';
+
+  @override
   String get csDiscard => 'Ne pas enregistrer';
 
   @override

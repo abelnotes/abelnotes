@@ -119,6 +119,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csUnsavedChangesBody => 'Do you want to save before leaving?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Can\'t save on this device. Retrying on its own — don\'t close the app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'This device is out of space: your latest changes aren\'t saved. Free some space; saving retries on its own.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Your latest changes aren\'t saved on this device. Leaving now loses them.';
+
+  @override
+  String csPreviewBanner(String name) {
+    return 'Preview of “$name”: it isn\'t in your library and nothing is saved.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Preview of “$name”: you already have a copy in your library; nothing here is saved.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Add to library';
+
+  @override
+  String get csPreviewAddCopy => 'Add as a copy';
+
+  @override
+  String get csPreviewOpenMine => 'Open my copy';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Close the open notebook to see “$name”.';
+  }
+
+  @override
+  String get csRetrySave => 'Retry';
+
+  @override
   String get csDiscard => 'Discard';
 
   @override

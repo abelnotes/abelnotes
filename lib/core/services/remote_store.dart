@@ -62,6 +62,10 @@ class RemoteStorageFullException extends RemoteStoreException {
   String toString() => 'RemoteStorageFullException: $message';
 }
 
+/// Suffix of the temporary file an atomic upload goes through. Not `.json`,
+/// so no page listing ever reads it as a page.
+const atomicUploadMarker = '.upload-';
+
 /// The remote side of sync, reduced to what [SyncService] actually calls.
 ///
 /// It exists so a second backend can be added without touching the sync
@@ -123,6 +127,18 @@ abstract class RemoteStore {
     Uint8List data, {
     String? ifMatchVersion,
     bool ifAbsent = false,
+    int? timeoutSeconds,
+  });
+
+  /// Writes [data] so [remotePath] holds either its previous content or all
+  /// of [data], never part of it: some servers replace a file with whatever
+  /// arrived when an upload is cut off midway. With [ifMatchVersion] it only
+  /// lands over that version, otherwise 412 and nothing changes.
+  Future<String?> uploadFileAtomic(
+    String remotePath,
+    Uint8List data, {
+    String? ifMatchVersion,
+    int? timeoutSeconds,
   });
 
   /// Idempotent: succeeds if the directory already exists.
