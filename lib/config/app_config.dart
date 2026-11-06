@@ -139,6 +139,11 @@ class AppConfig {
   static const String thumbnailsDir = 'thumbnails';
   static const int formatVersion = 1;
 
+  /// Write pages in the binary form (see encodePageBytes). Off until every
+  /// supported release reads it: an older app would take a binary page for
+  /// a corrupt one.
+  static const bool writeBinaryPages = false;
+
   // ── Cache ──
   static const int maxCachedPages = 10; // pagine in memoria
   static const Duration cacheExpiry = Duration(hours: 24);

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:abelnotes/core/platform/io.dart';
 import 'dart:ui' as ui;
 
@@ -6,12 +7,11 @@ import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
 
 import 'package:archive/archive.dart';
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show decodePageData;
+    show decodePageBytes;
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -105,9 +105,10 @@ class ThumbnailService {
     int height = thumbHeight,
   }) async {
     try {
+      final recorded = CanvasRenderEngine.recordedPage(page);
       // ── Collect asset paths referenced by the page's image elements ──
       final neededAssets = <String>{};
-      for (final el in page.layers.content) {
+      for (final el in recorded != null ? const <ContentElement>[] : page.layers.content) {
         el.map(unknown: (_) {},
           stroke: (_) {},
           text: (_) {},
@@ -146,10 +147,22 @@ class ThumbnailService {
         Paint()..color = const Color(0xFFFFFFFF),
       );
 
-      CanvasRenderEngine(
-        pageData: page,
-        imageCache: combinedCache,
-      ).paint(canvas, size);
+      if (recorded != null) {
+        // Same placement as the engine's fit-to-size paint at zoom 1.
+        final fit = math.min(width / page.width, height / page.height);
+        canvas
+          ..save()
+          ..translate((width - page.width * fit) / 2,
+              (height - page.height * fit) / 2)
+          ..scale(fit)
+          ..drawPicture(recorded)
+          ..restore();
+      } else {
+        CanvasRenderEngine(
+          pageData: page,
+          imageCache: combinedCache,
+        ).paint(canvas, size);
+      }
 
       final picture = recorder.endRecording();
       final img = await picture.toImage(width, height);
@@ -194,8 +207,7 @@ class ThumbnailService {
         }
       }
       if (firstPageFile == null) return null;
-      final json = jsonDecode(utf8.decode(firstPageFile.content as List<int>));
-      final page = decodePageData(json as Map<String, dynamic>);
+      final page = decodePageBytes(firstPageFile.content as List<int>);
 
       // Collect only the asset bytes referenced by this first page so the
       // thumbnail renders image elements instead of blank rectangles.

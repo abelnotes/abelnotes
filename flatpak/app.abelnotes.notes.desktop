@@ -7,4 +7,5 @@ Icon=app.abelnotes.notes
 Terminal=false
 Categories=Office;Graphics;
 Keywords=handwriting;notes;stylus;pen;PDF;annotation;LaTeX;Nextcloud;WebDAV;
+MimeType=application/x-abelnote;
 StartupWMClass=app.abelnotes.notes

@@ -96,6 +96,7 @@ modules:
       - mkdir -p /app/bin
       - ln -s /app/abelnotes/abelnotes /app/bin/abelnotes
       - install -Dm644 flatpak/app.abelnotes.notes.desktop /app/share/applications/app.abelnotes.notes.desktop
+      - install -Dm644 packaging/linux/app.abelnotes.notes.xml /app/share/mime/packages/app.abelnotes.notes.xml
       - install -Dm644 app.abelnotes.notes.metainfo.xml /app/share/metainfo/app.abelnotes.notes.metainfo.xml
       - install -Dm644 web/icons/Icon-512.png /app/share/icons/hicolor/512x512/apps/app.abelnotes.notes.png
     sources:

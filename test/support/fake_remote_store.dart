@@ -104,13 +104,30 @@ class FakeRemoteStore implements RemoteStore {
 
   @override
   Future<String?> uploadFileConditional(String remotePath, Uint8List data,
-      {String? ifMatchVersion, bool ifAbsent = false}) async {
+      {String? ifMatchVersion, bool ifAbsent = false, int? timeoutSeconds}) async {
     calls.add('upload-if $remotePath');
     beforeConditionalCheck?.call(remotePath);
     final exists = files.containsKey(remotePath);
+    // If-Match on a file that is gone fails too, as on a real server.
     if ((ifAbsent && exists) ||
-        (ifMatchVersion != null && _versions[remotePath] != ifMatchVersion)) {
+        (ifMatchVersion != null &&
+            (!exists || _versions[remotePath] != ifMatchVersion))) {
       throw RemoteStoreException('precondition failed: $remotePath', 412);
+    }
+    return uploadFile(remotePath, data);
+  }
+
+  @override
+  Future<String?> uploadFileAtomic(String remotePath, Uint8List data,
+      {String? ifMatchVersion, int? timeoutSeconds}) async {
+    calls.add('${ifMatchVersion == null ? 'upload-atomic' : 'upload-atomic-if'} '
+        '$remotePath');
+    if (ifMatchVersion != null) {
+      beforeConditionalCheck?.call(remotePath);
+      if (!files.containsKey(remotePath) ||
+          _versions[remotePath] != ifMatchVersion) {
+        throw RemoteStoreException('precondition failed: $remotePath', 412);
+      }
     }
     return uploadFile(remotePath, data);
   }
