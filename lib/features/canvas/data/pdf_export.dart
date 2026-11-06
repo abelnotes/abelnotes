@@ -72,6 +72,10 @@ ImageElement? _fullPageBackground(PageData page) {
   return null;
 }
 
+/// True for an imported document page (a locked picture filling the page):
+/// resizing it would crop that picture and break its PDF export.
+bool hasFullPageBackground(PageData page) => _fullPageBackground(page) != null;
+
 /// Finds a locked image covering the whole page (what PDF import creates).
 /// Returns null for ordinary pages, partial images (older imports that were
 /// letterboxed) and pages whose annotations include a multiply highlighter,

@@ -42,6 +42,7 @@ import 'package:abelnotes/shared/utils/relative_time.dart';
 import 'package:abelnotes/shared/utils/text_fold.dart';
 import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/ui/services/notebook_opener.dart';
+import 'package:abelnotes/ui/primitives/page_size_picker.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
 import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart';
@@ -984,6 +985,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                 coverColor: argb,
                 coverStyle: res.coverStyle.key,
                 chapterTitle: chapterTitle,
+                pageWidth: res.pageSize.width,
+                pageHeight: res.pageSize.height,
               );
       if (mounted) _openNotebook(entry);
     } catch (e) {
@@ -3917,8 +3920,9 @@ class _NewNotebookResult {
   final Color coverColor;
   final CoverStyle coverStyle;
   final String paperType;
-  _NewNotebookResult(
-      this.title, this.coverColor, this.coverStyle, this.paperType);
+  final Size pageSize;
+  _NewNotebookResult(this.title, this.coverColor, this.coverStyle,
+      this.paperType, this.pageSize);
 }
 
 class _NewNotebookDialog extends StatefulWidget {
@@ -3932,6 +3936,7 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
   Color _color = HwTheme.cover1;
   CoverStyle _style = CoverStyle.auto;
   String _paper = 'lined';
+  Size _pageSize = pageSizePresetSize(PageSizePreset.a4);
   bool _showError = false;
 
   @override
@@ -3947,7 +3952,7 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
       return;
     }
     Navigator.of(context)
-        .pop(_NewNotebookResult(t, _color, _style, _paper));
+        .pop(_NewNotebookResult(t, _color, _style, _paper, _pageSize));
   }
 
   @override
@@ -4053,6 +4058,17 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
                   _paperChip(l10n.libPaperGrid, 'grid'),
                   _paperChip(l10n.libPaperDotted, 'dotted'),
                 ],
+              ),
+              const SizedBox(height: 20),
+              PageSizePicker(
+                label: Text(l10n.pageSizeLabel,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: p.ink2,
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w600)),
+                size: _pageSize,
+                onChanged: (size) => setState(() => _pageSize = size),
               ),
             ],
           ),

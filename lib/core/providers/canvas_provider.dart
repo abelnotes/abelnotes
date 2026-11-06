@@ -964,10 +964,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       return null; // both changed background differently → conflict
     }
 
+    // Page size: the same rule, or a resize on one side is lost.
+    bool sameSize(PageData a, PageData b) =>
+        a.width == b.width && a.height == b.height;
+    final PageData sized;
+    if (sameSize(local, remote) || sameSize(local, base)) {
+      sized = remote;
+    } else if (sameSize(remote, base)) {
+      sized = local;
+    } else {
+      return null; // both resized differently → conflict
+    }
+
     merged.sort((a, b) => zOf(a).compareTo(zOf(b)));
     final lMod = local.modifiedAt;
     final rMod = remote.modifiedAt;
     return remote.copyWith(
+      width: sized.width,
+      height: sized.height,
       layers: RenderingLayers(background: bg, content: merged),
       modifiedAt: (rMod != null && lMod != null && rMod.isAfter(lMod))
           ? rMod
@@ -3120,7 +3134,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   // ── Paper type ──
 
   void setPaperType(PaperType type) {
-    if (state == null) return;
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
@@ -3168,6 +3182,80 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       redoStack: [],
       isDirty: true,
     );
+  }
+
+  /// Sets the gap between the current page's lines, grid squares or dots,
+  /// in points. New pages copy it from the page they're added after.
+  void setLineSpacing(double spacing) {
+    if (state == null || _preview || _loadingSnapshotId != null) return;
+    final s = state!;
+    final page = s.currentPage;
+    if (page == null) return;
+    final bg = page.layers.background;
+    if (bg.lineSpacing == spacing) return;
+
+    final fileName = s.currentPageFileName;
+    final undoStack = _pushUndo(s, fileName, page);
+    final updatedPage = page.copyWith(
+      layers: page.layers.copyWith(
+        background: bg.copyWith(lineSpacing: spacing),
+      ),
+      modifiedAt: DateTime.now(),
+    );
+
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = updatedPage;
+    state = s.copyWith(
+      pages: updatedPages,
+      undoStack: undoStack,
+      redoStack: [],
+      isDirty: true,
+    );
+  }
+
+  /// Resizes the current page. What's drawn keeps its place from the top
+  /// left corner; what falls past a new edge stays on the page, outside the
+  /// paper, and comes back if the page grows again. One undo step.
+  void setPageSize(double width, double height) {
+    if (state == null || _preview || _loadingSnapshotId != null) return;
+    final s = state!;
+    final page = s.currentPage;
+    if (page == null) return;
+    if (page.width == width && page.height == height) return;
+
+    final fileName = s.currentPageFileName;
+    final undoStack = _pushUndo(s, fileName, page);
+    final resized = page.copyWith(
+      width: width,
+      height: height,
+      modifiedAt: DateTime.now(),
+    );
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = resized;
+    state = s.copyWith(
+      pages: updatedPages,
+      document: _withEntrySize(s.document, fileName, resized),
+      undoStack: undoStack,
+      redoStack: [],
+      isDirty: true,
+    );
+  }
+
+  /// The document's page list also records each page's size: keep it in
+  /// step when a resize is made, undone or redone.
+  static DocumentStructure _withEntrySize(
+      DocumentStructure doc, String fileName, PageData page) {
+    if (!doc.pages.any((e) =>
+        e.fileName == fileName &&
+        (e.width != page.width || e.height != page.height))) {
+      return doc;
+    }
+    return doc.copyWith(pages: [
+      for (final e in doc.pages)
+        e.fileName == fileName
+            ? e.copyWith(width: page.width, height: page.height)
+            : e,
+    ]);
   }
 
   // ── Drawing ──
@@ -4912,6 +5000,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     updatedPages[fileName] = entry.pageData;
     state = s.copyWith(
         pages: updatedPages,
+        document: _withEntrySize(s.document, fileName, entry.pageData),
         undoStack: newUndo,
         redoStack: newRedo,
         isDirty: true);
@@ -4936,6 +5025,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     updatedPages[fileName] = entry.pageData;
     state = s.copyWith(
         pages: updatedPages,
+        document: _withEntrySize(s.document, fileName, entry.pageData),
         undoStack: newUndo,
         redoStack: newRedo,
         isDirty: true);
@@ -4958,6 +5048,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       List<ContentElement> added,
       Map<String, ContentElement> changed,
       BackgroundLayer? background,
+      Size? size,
     })>{};
     for (final fn in after.keys) {
       final b = before[fn];
@@ -4977,11 +5068,23 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final bg = b.layers.background != a.layers.background
           ? a.layers.background
           : null;
-      if (removed.isEmpty && added.isEmpty && changed.isEmpty && bg == null) {
+      final size = b.width != a.width || b.height != a.height
+          ? Size(a.width, a.height)
+          : null;
+      if (removed.isEmpty &&
+          added.isEmpty &&
+          changed.isEmpty &&
+          bg == null &&
+          size == null) {
         continue;
       }
-      deltas[fn] =
-          (removed: removed, added: added, changed: changed, background: bg);
+      deltas[fn] = (
+        removed: removed,
+        added: added,
+        changed: changed,
+        background: bg,
+        size: size,
+      );
     }
     if (deltas.isEmpty) return stack;
     return [
@@ -4997,6 +5100,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
                 if (!ids.contains(idOf(e))) e,
             ];
             return page.copyWith(
+                width: d.size?.width ?? page.width,
+                height: d.size?.height ?? page.height,
                 layers: RenderingLayers(
                     background: d.background ?? page.layers.background,
                     content: content));
@@ -5182,10 +5287,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final currentBg = s.currentPage?.layers.background;
     final bgType = currentBg?.type ?? 'blank';
     final lineSpacing = currentBg?.lineSpacing ?? 30.0;
+    // Inherit the current page's size, like addPage.
+    final pageW = s.currentPage?.width ?? AppConfig.defaultPageWidth;
+    final pageH = s.currentPage?.height ?? AppConfig.defaultPageHeight;
 
     final newPage = PageData(
       pageId: pageId, pageNumber: pageNum,
-      width: AppConfig.defaultPageWidth, height: AppConfig.defaultPageHeight,
+      width: pageW, height: pageH,
       layers: RenderingLayers(
         background: BackgroundLayer(type: bgType, lineSpacing: lineSpacing),
         content: const [],
@@ -5205,6 +5313,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final newEntry = PageEntry(
       pageId: pageId, pageNumber: pageNum, fileName: fileName,
+      width: pageW, height: pageH,
       lastModified: now, chapterId: chapterId,
     );
 

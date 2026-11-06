@@ -781,6 +781,14 @@ class AppLocalizationsDe extends AppLocalizations {
   String get csPaperMusic => 'Notenlinien';
 
   @override
+  String get csLineSpacing => 'Abstand';
+
+  @override
+  String csLineSpacingMm(String value) {
+    return '$value mm';
+  }
+
+  @override
   String get csMapPenToMonitor => 'Stift einem Monitor zuordnen';
 
   @override
@@ -1198,6 +1206,44 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get libPaperDotted => 'Punktraster';
+
+  @override
+  String get pageSizeLabel => 'Seitengröße';
+
+  @override
+  String get pageSizeLetter => 'Letter';
+
+  @override
+  String get pageSizeLegal => 'Legal';
+
+  @override
+  String get pageSizeSquare => 'Quadratisch';
+
+  @override
+  String get pageSizePortrait => 'Hochformat';
+
+  @override
+  String get pageSizeLandscape => 'Querformat';
+
+  @override
+  String get pageSizeCustom => 'Benutzerdefiniert';
+
+  @override
+  String get pageSizeWidthMm => 'Breite (mm)';
+
+  @override
+  String get pageSizeHeightMm => 'Höhe (mm)';
+
+  @override
+  String get pageSizeRange => 'Von 50 bis 600 mm';
+
+  @override
+  String get pageSizeApply => 'Übernehmen';
+
+  @override
+  String pageSizeCustomMm(String width, String height) {
+    return '$width × $height mm';
+  }
 
   @override
   String get libCreate => 'Erstellen';
