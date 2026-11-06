@@ -118,6 +118,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csUnsavedChangesBody => '离开前要保存吗？';
 
   @override
+  String get csLocalSaveFailed => '无法在此设备上保存。正在自动重试，请勿关闭应用。';
+
+  @override
+  String get csLocalSaveFailedNoSpace => '此设备存储空间已满：最近的更改尚未保存。请释放空间，保存会自动重试。';
+
+  @override
+  String get csUnsavedLocalBody => '最近的更改尚未保存在此设备上。现在离开将丢失这些更改。';
+
+  @override
+  String get csRetrySave => '重试';
+
+  @override
   String get csDiscard => '放弃';
 
   @override

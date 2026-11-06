@@ -119,6 +119,21 @@ class AppLocalizationsDe extends AppLocalizations {
   String get csUnsavedChangesBody => 'Vor dem Verlassen speichern?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Speichern auf diesem Gerät nicht möglich. Neuer Versuch läuft automatisch – App nicht schließen.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'Kein Speicherplatz mehr auf diesem Gerät: Die letzten Änderungen sind nicht gespeichert. Gib Speicher frei, das Speichern wird automatisch wiederholt.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Deine letzten Änderungen sind auf diesem Gerät nicht gespeichert. Wenn du jetzt gehst, sind sie verloren.';
+
+  @override
+  String get csRetrySave => 'Erneut versuchen';
+
+  @override
   String get csDiscard => 'Verwerfen';
 
   @override

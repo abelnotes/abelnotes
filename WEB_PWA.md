@@ -48,6 +48,12 @@ location /remote.php/dav/ {
 }
 ```
 
+If a reverse proxy sits in front of Nextcloud, leave request buffering on
+(nginx's default). With `proxy_request_buffering off` an upload cut off
+midway reaches Nextcloud as a short body, and Nextcloud may keep it in place
+of the file. Current app versions upload pages to a temporary file and rename
+it, so they are safe either way; older ones are not.
+
 ## Limits of the web build
 
 - Google Drive sign-in, OneNote import and Obsidian-vault import are desktop/mobile only.

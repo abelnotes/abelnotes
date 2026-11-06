@@ -467,6 +467,39 @@ class SyncService {
     return _remote.uploadFile(remotePath, package);
   }
 
+  /// False once the server answered 412 to the very version it holds: it
+  /// does not honour If-Match, so page uploads go back to plain PUTs.
+  bool _conditionalPagePuts = true;
+
+  /// PUT that only lands over [base], the server version this edit started
+  /// from. Throws [_PageMovedOnServer] when another device wrote since.
+  Future<String?> _putPageIfUnchanged(
+      String path, Uint8List bytes, String base, int timeoutSeconds) async {
+    try {
+      return await _remote.uploadFileAtomic(path, bytes,
+          ifMatchVersion: base, timeoutSeconds: timeoutSeconds);
+    } on RemoteStoreException catch (e) {
+      if (e.statusCode != 412) rethrow;
+      String? now;
+      try {
+        now = await _remote.getVersion(path);
+      } catch (_) {/* gone or unreachable: treat as moved */}
+      if (now != null && _sameVersion(now, base)) {
+        _conditionalPagePuts = false;
+        debugPrint('[Sync] Server ignores If-Match on $path; '
+            'page uploads fall back to plain PUT');
+        return _remote.uploadFileAtomic(path, bytes,
+            timeoutSeconds: timeoutSeconds);
+      }
+      throw const _PageMovedOnServer();
+    }
+  }
+
+  static bool _sameVersion(String a, String b) {
+    String norm(String v) => v.replaceFirst('W/', '').replaceAll('"', '');
+    return norm(a) == norm(b);
+  }
+
   /// Delta upload: sends only the changed pages + metadata + document.
   /// Returns metadata.json ETag + the per-page ETags we actually wrote.
   ///
@@ -487,6 +520,9 @@ class SyncService {
   /// replace it — replacing would swallow concurrent uploads from other
   /// devices (the next pull would treat those pages as unchanged and
   /// silently miss remote edits).
+  ///
+  /// [pageBaseVersions] holds, per page, the server version the edit started
+  /// from: that page only lands over it, else [RemotePagesChangedException].
   Future<({
     String? metaEtag,
     Map<String, String> pageEtags,
@@ -502,6 +538,7 @@ class SyncService {
     List<Map<String, dynamic>>? symbolLibraries,
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
+    Map<String, String>? pageBaseVersions,
   }) async {
     try {
       return await _syncDeltaInner(
@@ -514,6 +551,7 @@ class SyncService {
         symbolLibraries: symbolLibraries,
         deletedPageFileNames: deletedPageFileNames,
         deletedAssetFileNames: deletedAssetFileNames,
+        pageBaseVersions: pageBaseVersions,
       );
     } catch (e) {
       // A 409/404 mid-upload usually means the delta folder vanished under
@@ -545,6 +583,7 @@ class SyncService {
     List<Map<String, dynamic>>? symbolLibraries,
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
+    Map<String, String>? pageBaseVersions,
   }) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
@@ -596,6 +635,7 @@ class SyncService {
     const dt = AppConfig.webdavDeltaTimeoutSeconds;
     final pageUploads = <String, Future<String?>>{};
     final dataUploads = <Future<String?>>[];
+    final movedPages = <String>[];
 
     for (final e in dirtyPages.entries) {
       // compactPageJson() rounds doubles to 3 decimals — cuts the per-
@@ -607,8 +647,23 @@ class SyncService {
       // produced the exact same bytes for the local ZIP build.
       final bytes = preEncodedPages?[e.key] ??
           Uint8List.fromList(utf8.encode(compactPageJson(e.value)));
-      pageUploads[e.key] = _remote.uploadFile(
-          '${dir}pages/${e.key}', bytes, timeoutSeconds: dt);
+      final path = '${dir}pages/${e.key}';
+      final base =
+          _conditionalPagePuts ? (pageBaseVersions?[e.key]) : null;
+      if (base == null) {
+        // Atomic even without a precondition: the page overwritten here
+        // may be the only good copy anywhere.
+        pageUploads[e.key] =
+            _remote.uploadFileAtomic(path, bytes, timeoutSeconds: dt);
+      } else {
+        final fn = e.key;
+        pageUploads[fn] = _putPageIfUnchanged(path, bytes, base, dt)
+            .catchError((Object err, StackTrace st) {
+          if (err is! _PageMovedOnServer) Error.throwWithStackTrace(err, st);
+          movedPages.add(fn);
+          return null;
+        });
+      }
     }
 
     // Track expected sizes of asset uploads for the batched post-PUT
@@ -644,6 +699,22 @@ class SyncService {
       ...dataUploads,
       ...deleteFutures,
     ]);
+
+    // Another device rewrote some of these pages: nothing may be committed
+    // over them until they are merged.
+    if (movedPages.isNotEmpty) {
+      final uploaded = <String, String>{};
+      for (final entry in pageUploads.entries) {
+        final etag = await entry.value;
+        if (etag != null && etag.isNotEmpty) {
+          uploaded[entry.key] = etag.replaceAll('"', '');
+        }
+      }
+      throw RemotePagesChangedException(
+        fileNames: movedPages,
+        uploadedEtags: uploaded,
+      );
+    }
 
     // ── Phase 1.4: Batched asset-size verification ──
     //
@@ -832,6 +903,7 @@ class SyncService {
   Future<Map<String, String>> getRemotePageEtags(String notebookId) async {
     final dir = _deltaDir(notebookId);
     final items = await _remote.listDirectory('${dir}pages/');
+    _sweepAbandonedUploads('${dir}pages/', items);
     return {
       for (final item in items)
         if (!item.isDirectory &&
@@ -839,6 +911,22 @@ class SyncService {
             item.version != null)
           item.name: item.version!,
     };
+  }
+
+  /// Temporary files of atomic uploads whose client died before the rename.
+  /// An hour is far past any upload still in flight.
+  void _sweepAbandonedUploads(String folder, List<RemoteItem> items) {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 1));
+    for (final item in items) {
+      final lm = item.lastModified;
+      if (item.isDirectory ||
+          !item.name.contains(atomicUploadMarker) ||
+          lm == null ||
+          lm.isAfter(cutoff)) {
+        continue;
+      }
+      unawaited(_remote.delete('$folder${item.name}').catchError((Object _) {}));
+    }
   }
 
   /// Fetch metadata ETag + page ETags in one parallel call.
@@ -1427,6 +1515,27 @@ class MetadataCommitFailedException implements Exception {
   @override
   String toString() =>
       'MetadataCommitFailedException(nb=$notebookId, bytes=${metadataBytes.length}, cause=$cause)';
+}
+
+/// Thrown by [SyncService.syncDelta] when another device rewrote some of
+/// the pages since the version this upload started from. Those pages were
+/// left alone and document.json / metadata.json were not written: merge
+/// first, then push again. [uploadedEtags] are the pages that did go up.
+class RemotePagesChangedException implements Exception {
+  final List<String> fileNames;
+  final Map<String, String> uploadedEtags;
+
+  RemotePagesChangedException({
+    required this.fileNames,
+    required this.uploadedEtags,
+  });
+
+  @override
+  String toString() => 'RemotePagesChangedException($fileNames)';
+}
+
+class _PageMovedOnServer implements Exception {
+  const _PageMovedOnServer();
 }
 
 /// Pages + assets + symbol libraries decoded from a .ncnote archive in a

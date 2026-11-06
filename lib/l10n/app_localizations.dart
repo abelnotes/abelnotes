@@ -318,6 +318,30 @@ abstract class AppLocalizations {
   /// **'Vuoi salvare prima di uscire?'**
   String get csUnsavedChangesBody;
 
+  /// No description provided for @csLocalSaveFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Non riesco a salvare su questo dispositivo. Riprovo da solo: non chiudere l\'app.'**
+  String get csLocalSaveFailed;
+
+  /// No description provided for @csLocalSaveFailedNoSpace.
+  ///
+  /// In it, this message translates to:
+  /// **'Spazio esaurito su questo dispositivo: le ultime modifiche non sono salvate. Libera spazio, riprovo da solo.'**
+  String get csLocalSaveFailedNoSpace;
+
+  /// No description provided for @csUnsavedLocalBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Le ultime modifiche non sono salvate su questo dispositivo. Se esci ora le perdi.'**
+  String get csUnsavedLocalBody;
+
+  /// No description provided for @csRetrySave.
+  ///
+  /// In it, this message translates to:
+  /// **'Riprova'**
+  String get csRetrySave;
+
   /// No description provided for @csDiscard.
   ///
   /// In it, this message translates to:

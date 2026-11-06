@@ -119,6 +119,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csUnsavedChangesBody => 'Do you want to save before leaving?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Can\'t save on this device. Retrying on its own — don\'t close the app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'This device is out of space: your latest changes aren\'t saved. Free some space; saving retries on its own.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Your latest changes aren\'t saved on this device. Leaving now loses them.';
+
+  @override
+  String get csRetrySave => 'Retry';
+
+  @override
   String get csDiscard => 'Discard';
 
   @override

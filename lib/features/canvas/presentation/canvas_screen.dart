@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/platform/io.dart' as io;
+import 'package:abelnotes/core/platform/storage_health.dart'
+    if (dart.library.js_interop) 'package:abelnotes/core/platform/storage_health_web.dart'
+    show isOutOfSpace;
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/desktop_window.dart';
 import 'package:abelnotes/core/services/nextcloud_share_service.dart' show ShareLink;
@@ -514,6 +517,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   Timer? _autoSaveDebounce;
   Timer? _autoSaveMaxWait;
   bool _wasDirty = false;
+
+  /// Saves in a row that left the notebook dirty, for the retry backoff.
+  int _stuckSaves = 0;
+
+  /// The notice shown while local writes fail, closed once one succeeds.
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _localErrorBar;
+  ValueNotifier<Object?>? _localErrorSource;
   static const _autoSaveIdle = Duration(milliseconds: 1200);
   static const _autoSaveMaxDelay = Duration(seconds: 15);
 
@@ -1058,6 +1068,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     WidgetsBinding.instance.addObserver(this);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     _startAutoSave();
+    _localErrorSource = ref.read(canvasProvider.notifier).localSaveError
+      ..addListener(_onLocalSaveError);
     _watchForPendingImport();
     // Hook the Windows-side pen-button bridge. No-op on other
     // platforms. See PenInputChannel for why this exists.
@@ -1600,6 +1612,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _laserStrokeNotifier.dispose();
     _autoSaveDebounce?.cancel();
     _autoSaveMaxWait?.cancel();
+    _localErrorSource?.removeListener(_onLocalSaveError);
     _holdRecognizeTimer?.cancel();
     _longPressTimer?.cancel();
     // Close the manual provider subscriptions opened in initState.
@@ -1665,7 +1678,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   void _triggerAutoSave() {
     final state = ref.read(canvasProvider);
-    if (state == null || !state.isDirty || _isSaving) return;
+    if (state == null || !state.isDirty) return;
     // Defer the save while a stroke is mid-flight OR an eraser drag is
     // in progress. _saveInner does enough sync work (state.copyWith,
     // setState in the canvas chrome) plus a 50 MB ZIP rebuild via
@@ -1679,7 +1692,55 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _autoSaveDebounce = Timer(const Duration(milliseconds: 600), _triggerAutoSave);
       return;
     }
+    if (_isSaving) {
+      // The running save may wait minutes on the network: keep the disk
+      // current meanwhile and come back, instead of dropping this tick.
+      unawaited(ref.read(canvasProvider.notifier).persistLocalNow());
+      _autoSaveDebounce?.cancel();
+      _autoSaveDebounce =
+          Timer(const Duration(milliseconds: 1500), _triggerAutoSave);
+      return;
+    }
     _save(silent: true);
+  }
+
+  /// A save that leaves the notebook dirty (a guard held it back, the lock
+  /// timed out) produces no clean-to-dirty edge, so nothing would ever
+  /// autosave again: schedule the next attempt here.
+  void _rearmAutoSaveIfStillDirty() {
+    if (!mounted || _closing) return;
+    final dirty = ref.read(canvasProvider)?.isDirty ?? false;
+    if (!dirty) {
+      _stuckSaves = 0;
+      return;
+    }
+    _stuckSaves++;
+    final secs = (2 * (1 << (_stuckSaves - 1).clamp(0, 4))).clamp(2, 30);
+    _autoSaveDebounce?.cancel();
+    _autoSaveDebounce = Timer(Duration(seconds: secs), _triggerAutoSave);
+  }
+
+  void _onLocalSaveError() {
+    if (!mounted) return;
+    final err = _localErrorSource?.value;
+    if (err == null) {
+      _localErrorBar?.close();
+      _localErrorBar = null;
+      return;
+    }
+    if (_localErrorBar != null) return;
+    final l10n = AppLocalizations.of(context);
+    final bar = ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(isOutOfSpace(err)
+          ? l10n.csLocalSaveFailedNoSpace
+          : l10n.csLocalSaveFailed),
+      duration: const Duration(days: 1),
+      showCloseIcon: true,
+    ));
+    _localErrorBar = bar;
+    bar.closed.then((_) {
+      if (identical(_localErrorBar, bar)) _localErrorBar = null;
+    });
   }
 
   @override
@@ -1706,6 +1767,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       // lifting the pen.
       _flushDeferredCommit();
 
+      // Disk first and unconditionally: a save already running may be
+      // waiting on the network, and the OS can kill us any moment now.
+      unawaited(ref.read(canvasProvider.notifier).persistLocalNow());
       final canvas = ref.read(canvasProvider);
       if (canvas != null && canvas.isDirty && !_isSaving) {
         _save(silent: true);
@@ -1788,6 +1852,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _saveInFlight = null;
       completer.complete();
       if (!silent && mounted) setState(() {});
+      _rearmAutoSaveIfStillDirty();
     }
   }
 
@@ -2121,36 +2186,43 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // Mark closing so didChangeAppLifecycleState doesn't fire a parallel
     // save if the OS backgrounds the app during the pop dialog.
     _closing = true;
-    // If a save is in flight, wait for it to finish before deciding whether
-    // to prompt. Otherwise the user just pressed "Save" and sees a
-    // "save before leaving?" dialog for the same changes that are already
-    // being persisted.
-    if (_isSaving) {
-      final inFlight = _saveInFlight;
-      if (inFlight != null) await inFlight;
-    }
+    // A save in flight is not waited for: it may sit behind the network for
+    // minutes, and the disk write below answers the only question here.
     if (!mounted) return false;
-    final state = ref.read(canvasProvider);
-    if (state != null && state.isDirty) {
-      final result = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(AppLocalizations.of(ctx).csUnsavedChangesTitle),
-          content: Text(AppLocalizations.of(ctx).csUnsavedChangesBody),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(AppLocalizations.of(ctx).csDiscard)),
-            TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: Text(AppLocalizations.of(ctx).csCancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(AppLocalizations.of(ctx).csSave)),
-          ],
-        ),
-      );
-      // Tapping outside the dialog chose nothing: stay, like Cancel.
-      if (result == null || result == 'cancel') {
-        // User backed out — re-enable lifecycle autosave.
-        _closing = false;
-        return false;
+    _flushDeferredCommit();
+    final editor = ref.read(canvasProvider.notifier);
+    // Checked even when nothing is dirty: a write that failed after the
+    // upload went through leaves the notebook clean but the disk behind.
+    if (ref.read(canvasProvider) != null) {
+      // On disk already: the upload finishes in the background flush below,
+      // so there is nothing to ask. Ask only when the disk refused it.
+      var onDisk = await editor.persistLocalNow();
+      while (!onDisk) {
+        if (!mounted) return false;
+        final result = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(AppLocalizations.of(ctx).csUnsavedChangesTitle),
+            content: Text(AppLocalizations.of(ctx).csUnsavedLocalBody),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(AppLocalizations.of(ctx).csDiscard)),
+              TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: Text(AppLocalizations.of(ctx).csCancel)),
+              FilledButton(onPressed: () => Navigator.pop(ctx, 'retry'), child: Text(AppLocalizations.of(ctx).csRetrySave)),
+            ],
+          ),
+        );
+        // Tapping outside the dialog chose nothing: stay, like Cancel.
+        if (result == null || result == 'cancel') {
+          _closing = false;
+          return false;
+        }
+        if (result == 'discard') {
+          editor.discardUnsavedEdits();
+          break;
+        }
+        onDisk = await editor.persistLocalNow();
       }
-      if (result == 'save') await _save();
+      if (!mounted) return false;
     }
     // Fast-close flow:
     //

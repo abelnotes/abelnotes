@@ -120,6 +120,21 @@ class AppLocalizationsFr extends AppLocalizations {
       'Voulez-vous enregistrer avant de quitter ?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Impossible d\'enregistrer sur cet appareil. Nouvel essai automatique — ne fermez pas l\'app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'Plus d\'espace sur cet appareil : vos dernières modifications ne sont pas enregistrées. Libérez de l\'espace, l\'enregistrement réessaie tout seul.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Vos dernières modifications ne sont pas enregistrées sur cet appareil. En partant maintenant, vous les perdez.';
+
+  @override
+  String get csRetrySave => 'Réessayer';
+
+  @override
   String get csDiscard => 'Ne pas enregistrer';
 
   @override

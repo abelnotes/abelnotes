@@ -119,6 +119,21 @@ class AppLocalizationsPt extends AppLocalizations {
   String get csUnsavedChangesBody => 'Quer salvar antes de sair?';
 
   @override
+  String get csLocalSaveFailed =>
+      'Não foi possível salvar neste dispositivo. Tentando de novo automaticamente — não feche o app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'Este dispositivo está sem espaço: suas últimas alterações não foram salvas. Libere espaço; o salvamento tenta de novo sozinho.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Suas últimas alterações não foram salvas neste dispositivo. Se sair agora, você as perde.';
+
+  @override
+  String get csRetrySave => 'Tentar de novo';
+
+  @override
   String get csDiscard => 'Descartar';
 
   @override
