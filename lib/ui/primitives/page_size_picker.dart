@@ -190,7 +190,11 @@ class _CustomSizeDialogState extends State<_CustomSizeDialog> {
       setState(() => _showError = true);
       return;
     }
-    Navigator.of(context).pop(Size(w * ptPerMm, h * ptPerMm));
+    // A field left as shown keeps its exact size, not the 0.1 mm rounding.
+    double pt(TextEditingController c, double mm, double initial) =>
+        c.text == PageSizePicker._mm(initial) ? initial : mm * ptPerMm;
+    Navigator.of(context).pop(Size(pt(_width, w, widget.initial.width),
+        pt(_height, h, widget.initial.height)));
   }
 
   Widget _field(TextEditingController c, String label, {bool last = false}) {
