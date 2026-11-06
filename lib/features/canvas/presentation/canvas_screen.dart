@@ -9376,7 +9376,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             final live = ref.watch(canvasProvider) ?? state;
             final page = live.currentPage;
             final bg = page?.layers.background;
-            final isPdf = bg?.pdfAsset != null;
+            final isPdf = bg?.pdfAsset != null ||
+                (page != null && hasFullPageBackground(page));
             final paper = live.currentPaperType;
             final notifier = ref.read(canvasProvider.notifier);
             final spacingPt = bg != null && bg.lineSpacing > 0

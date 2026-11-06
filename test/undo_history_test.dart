@@ -146,4 +146,38 @@ void main() {
         [UndoEntry('p1.json', before)], {'p1.json': live}, {'p1.json': merged});
     expect(_ids(undo.single.pageData), ['a']);
   });
+
+  test('a page resize is one undo step and keeps the page list in step', () {
+    final drawn = _page('p1', [_line('a', 10)]);
+    n.state = _state({'p1.json': drawn},
+        undo: [UndoEntry('p1.json', _page('p1', []))]);
+    n.setPageSize(420, 595);
+    PageData cur() => c.read(canvasProvider)!.pages['p1.json']!;
+    PageEntry entry() => c.read(canvasProvider)!.document.pages.single;
+    expect([cur().width, cur().height, entry().width, entry().height],
+        [420, 595, 420, 595]);
+    expect(_ids(cur()), ['a']);
+
+    n.undo(); // the resize, not the stroke before it
+    expect([cur().width, cur().height, entry().width, entry().height],
+        [595, 842, 595, 842]);
+    expect(_ids(cur()), ['a']);
+
+    n.redo();
+    expect([cur().width, cur().height, entry().width], [420, 595, 420]);
+    n.undo();
+    n.undo(); // now the stroke, at the original size
+    expect(_ids(cur()), isEmpty);
+    expect(cur().width, 595);
+  });
+
+  test('a resize made by the other device is kept by an undo here', () {
+    final before = {'p1.json': _page('p1', [_line('a', 10)])};
+    final after = {
+      'p1.json': _page('p1', [_line('a', 10)]).copyWith(width: 420)
+    };
+    final rebased = CanvasNotifier.rebaseHistoryOnMerge(
+        [UndoEntry('p1.json', _page('p1', []))], before, after);
+    expect(rebased.single.pageData.width, 420);
+  });
 }

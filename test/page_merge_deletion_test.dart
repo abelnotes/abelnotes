@@ -59,4 +59,31 @@ void main() {
     );
     expect(idsOf(merged), ['s2', 's4']);
   });
+
+  test('a resize on one side survives a merge with strokes from the other', () {
+    final resized = page(['s1']).copyWith(width: 200, height: 150);
+    final merged = CanvasNotifier.mergePageElementsForTest(
+      base: page(['s1']),
+      local: resized,
+      remote: page(['s1', 's2']),
+    );
+    expect(idsOf(merged), ['s1', 's2']);
+    expect([merged!.width, merged.height], [200, 150]);
+
+    final mirrored = CanvasNotifier.mergePageElementsForTest(
+      base: page(['s1']),
+      local: page(['s1', 's2']),
+      remote: resized,
+    );
+    expect([mirrored!.width, mirrored.height], [200, 150]);
+  });
+
+  test('resized differently on both sides is a conflict', () {
+    final merged = CanvasNotifier.mergePageElementsForTest(
+      base: page(['s1']),
+      local: page(['s1']).copyWith(width: 200),
+      remote: page(['s1', 's2']).copyWith(width: 300),
+    );
+    expect(merged, isNull);
+  });
 }

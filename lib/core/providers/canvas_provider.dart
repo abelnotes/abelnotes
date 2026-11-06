@@ -962,10 +962,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       return null; // both changed background differently → conflict
     }
 
+    // Page size: the same rule, or a resize on one side is lost.
+    bool sameSize(PageData a, PageData b) =>
+        a.width == b.width && a.height == b.height;
+    final PageData sized;
+    if (sameSize(local, remote) || sameSize(local, base)) {
+      sized = remote;
+    } else if (sameSize(remote, base)) {
+      sized = local;
+    } else {
+      return null; // both resized differently → conflict
+    }
+
     merged.sort((a, b) => zOf(a).compareTo(zOf(b)));
     final lMod = local.modifiedAt;
     final rMod = remote.modifiedAt;
     return remote.copyWith(
+      width: sized.width,
+      height: sized.height,
       layers: RenderingLayers(background: bg, content: merged),
       modifiedAt: (rMod != null && lMod != null && rMod.isAfter(lMod))
           ? rMod
@@ -3118,7 +3132,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   // ── Paper type ──
 
   void setPaperType(PaperType type) {
-    if (state == null) return;
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
@@ -3171,7 +3185,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Sets the gap between the current page's lines, grid squares or dots,
   /// in points. New pages copy it from the page they're added after.
   void setLineSpacing(double spacing) {
-    if (state == null) return;
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
@@ -3198,32 +3212,48 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   /// Resizes the current page. What's drawn keeps its place from the top
-  /// left corner, so anything past a new edge is cut off, not moved. Not
-  /// undoable: undo restores a page's content, while the size also lives
-  /// in the document's page list.
+  /// left corner; what falls past a new edge stays on the page, outside the
+  /// paper, and comes back if the page grows again. One undo step.
   void setPageSize(double width, double height) {
-    if (state == null) return;
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
     if (page.width == width && page.height == height) return;
 
     final fileName = s.currentPageFileName;
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = page.copyWith(
+    final undoStack = _pushUndo(s, fileName, page);
+    final resized = page.copyWith(
       width: width,
       height: height,
       modifiedAt: DateTime.now(),
     );
-    final document = s.document.copyWith(pages: [
-      for (final e in s.document.pages)
-        e.fileName == fileName ? e.copyWith(width: width, height: height) : e,
-    ]);
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = resized;
     state = s.copyWith(
       pages: updatedPages,
-      document: document,
+      document: _withEntrySize(s.document, fileName, resized),
+      undoStack: undoStack,
+      redoStack: [],
       isDirty: true,
     );
+  }
+
+  /// The document's page list also records each page's size: keep it in
+  /// step when a resize is made, undone or redone.
+  static DocumentStructure _withEntrySize(
+      DocumentStructure doc, String fileName, PageData page) {
+    if (!doc.pages.any((e) =>
+        e.fileName == fileName &&
+        (e.width != page.width || e.height != page.height))) {
+      return doc;
+    }
+    return doc.copyWith(pages: [
+      for (final e in doc.pages)
+        e.fileName == fileName
+            ? e.copyWith(width: page.width, height: page.height)
+            : e,
+    ]);
   }
 
   // ── Drawing ──
@@ -4951,6 +4981,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     updatedPages[fileName] = entry.pageData;
     state = s.copyWith(
         pages: updatedPages,
+        document: _withEntrySize(s.document, fileName, entry.pageData),
         undoStack: newUndo,
         redoStack: newRedo,
         isDirty: true);
@@ -4975,6 +5006,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     updatedPages[fileName] = entry.pageData;
     state = s.copyWith(
         pages: updatedPages,
+        document: _withEntrySize(s.document, fileName, entry.pageData),
         undoStack: newUndo,
         redoStack: newRedo,
         isDirty: true);
@@ -4997,6 +5029,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       List<ContentElement> added,
       Map<String, ContentElement> changed,
       BackgroundLayer? background,
+      Size? size,
     })>{};
     for (final fn in after.keys) {
       final b = before[fn];
@@ -5016,11 +5049,23 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final bg = b.layers.background != a.layers.background
           ? a.layers.background
           : null;
-      if (removed.isEmpty && added.isEmpty && changed.isEmpty && bg == null) {
+      final size = b.width != a.width || b.height != a.height
+          ? Size(a.width, a.height)
+          : null;
+      if (removed.isEmpty &&
+          added.isEmpty &&
+          changed.isEmpty &&
+          bg == null &&
+          size == null) {
         continue;
       }
-      deltas[fn] =
-          (removed: removed, added: added, changed: changed, background: bg);
+      deltas[fn] = (
+        removed: removed,
+        added: added,
+        changed: changed,
+        background: bg,
+        size: size,
+      );
     }
     if (deltas.isEmpty) return stack;
     return [
@@ -5036,6 +5081,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
                 if (!ids.contains(idOf(e))) e,
             ];
             return page.copyWith(
+                width: d.size?.width ?? page.width,
+                height: d.size?.height ?? page.height,
                 layers: RenderingLayers(
                     background: d.background ?? page.layers.background,
                     content: content));
