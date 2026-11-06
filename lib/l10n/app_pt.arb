@@ -340,6 +340,8 @@
   "setPencilDoubleTapSub": "Toque duas vezes no Apple Pencil para alternar entre caneta e borracha",
   "setFillShapes": "Preencher formas",
   "setFillShapesSub": "Círculos, retângulos e triângulos reconhecidos recebem um tom suave da cor da tinta",
+  "setTapUndo": "Tocar para desfazer",
+  "setTapUndoSub": "Toque com dois dedos para desfazer, com três para refazer",
   "setSyncConnectedDesc": "Conectado a um servidor WebDAV. Os cadernos sincronizam em todos os seus dispositivos.",
   "setSyncLocalOnlyDesc": "Modo somente local: os cadernos ficam neste dispositivo. Conecte um servidor WebDAV para acessá-los de vários dispositivos.",
   "setSyncWebdav": "WebDAV",
@@ -958,5 +960,7 @@
   "pgtToastDestUnavailable": "Esse caderno não pode ser editado agora. Nada foi alterado.",
   "pgtToastSourceFailed": "As páginas foram adicionadas, mas não puderam ser removidas de {notebook}. Estão nos dois cadernos; a bandeja agora é uma cópia.",
   "pgtToastMoveResumed": "{count, plural, one{A movimentação interrompida de 1 página foi concluída.} other{A movimentação interrompida de {count} páginas foi concluída.}}",
-  "pgtToastUndoFailed": "Não foi possível desfazer. Verifique os dois cadernos."
+  "pgtToastUndoFailed": "Não foi possível desfazer. Verifique os dois cadernos.",
+  "csTapUndone": "Desfeito",
+  "csTapRedone": "Refeito"
 }

@@ -61,6 +61,7 @@ import 'package:abelnotes/core/services/pen_monitor_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_painter_notifiers.dart';
+import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -1299,6 +1300,35 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       e.kind == PointerDeviceKind.stylus ||
       e.kind == PointerDeviceKind.invertedStylus;
 
+  /// Two fingers tapping undo, three redo (Settings → Finger tap to undo).
+  late final MultiFingerTapDetector _fingerTaps =
+      MultiFingerTapDetector(onTap: _onFingerTap);
+
+  /// What the last finger tap did, shown briefly at the top of the canvas so
+  /// an undo nobody meant (a palm) doesn't go unnoticed.
+  final ValueNotifier<({bool redo, bool visible})> _tapFlash =
+      ValueNotifier((redo: false, visible: false));
+  Timer? _tapFlashTimer;
+
+  void _onFingerTap(int fingers) {
+    if (!mounted || !ref.read(appSettingsProvider).tapUndo) return;
+    final notif = ref.read(canvasProvider.notifier);
+    if (notif.pagesLoading.value || notif.isPreview) return;
+    if (fingers == 2) {
+      if (!notif.canUndo) return;
+      notif.undo();
+    } else {
+      if (!notif.canRedo) return;
+      notif.redo();
+    }
+    _tapFlash.value = (redo: fingers != 2, visible: true);
+    _tapFlashTimer?.cancel();
+    _tapFlashTimer = Timer(const Duration(milliseconds: 900), () {
+      _tapFlash.value = (redo: _tapFlash.value.redo, visible: false);
+    });
+    HapticFeedback.selectionClick();
+  }
+
   /// Web palm handling at pointer-down. Returns true when [event] is a palm
   /// and must be dropped.
   bool _webPalmDown(PointerDownEvent event) {
@@ -1691,6 +1721,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   @override
   void dispose() {
     _zoomSnapshot.dispose();
+    _tapFlashTimer?.cancel();
+    _tapFlash.dispose();
     webTouchDevice.removeListener(_onWebTouchDeviceChanged);
     _dockFlyX.dispose();
     _dockFlyY.dispose();
@@ -5492,8 +5524,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onPagesTap: () => _showPageManager(canvasState),
                     onAddPage: () =>
                         ref.read(canvasProvider.notifier).addPage(),
-                    onSymbolsTap: () =>
-                        _showSymbolsDialog(_visibleCenterPagePos(canvasState)),
+                    onSymbolsTap: notifier.isPreview
+                        ? null
+                        : () => _showSymbolsDialog(
+                            _visibleCenterPagePos(canvasState)),
                     onExportTap: () => _showExportSheet(),
                     onMoreTap: () => _showMoreSheet(canvasState),
                     mouseDraws: mouseDraws,
@@ -5875,14 +5909,26 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       noteWebTouchInput();
                     }
                     _mouseDoubleClickZoom(e, live);
+                    // Fingers landing while the pen writes (or just wrote)
+                    // are a palm, not a tap.
+                    _fingerTaps.down(e);
+                    if (_stylusDown || _webPenRecentlyActive) {
+                      _fingerTaps.spoil();
+                    }
                     _onPointerDown(e, live, canvasSize);
+                    // A touch the canvas just dropped as a palm.
+                    if (_ignoredPalmPointers.contains(e.pointer)) {
+                      _fingerTaps.spoil();
+                    }
                   },
                   onPointerMove: (e) {
+                    _fingerTaps.move(e);
                     final live = ref.read(canvasProvider) ?? canvasState;
                     _updatePenHover(e, live);
                     _onPointerMove(e, live, canvasSize);
                   },
                   onPointerHover: (e) {
+                    _fingerTaps.hover(e);
                     if (!_hoverKindUnreliable) {
                       _lastPointerWasMouse = e.kind == PointerDeviceKind.mouse;
                     }
@@ -5913,8 +5959,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     }
                     if (_mouseHoverCursor.value != c) _mouseHoverCursor.value = c;
                   },
-                  onPointerUp: _onPointerUp,
-                  onPointerCancel: _onPointerCancel,
+                  onPointerUp: (e) {
+                    _onPointerUp(e);
+                    // After the canvas: an undo lands once the second
+                    // finger's lift has finished its own bookkeeping.
+                    _fingerTaps.up(e);
+                  },
+                  onPointerCancel: (e) {
+                    _fingerTaps.cancel(e);
+                    _onPointerCancel(e);
+                  },
                   onPointerSignal: (event) {
                     // Read live state — `canvasState` from the build
                     // closure is intentionally STALE on pan/zoom/cursor
@@ -6436,6 +6490,58 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   ),
                 ),
 
+              // What a finger tap just undid or redid; below a pending
+              // placement hint when one is showing.
+              Positioned(
+                top: canvasState.pendingSymbol != null ||
+                        (canvasState.pendingPaste &&
+                            canvasState.clipboard != null)
+                    ? 64
+                    : 16,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: ValueListenableBuilder(
+                      valueListenable: _tapFlash,
+                      builder: (context, flash, _) {
+                        final l10n = AppLocalizations.of(context);
+                        return AnimatedOpacity(
+                          opacity: flash.visible ? 1 : 0,
+                          duration: Duration(
+                              milliseconds: flash.visible ? 120 : 260),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: p.ink0.withValues(alpha: 0.88),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: hwShadow2(p.brightness),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(flash.redo ? Icons.redo : Icons.undo,
+                                    color: p.paper0, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  flash.redo
+                                      ? l10n.csTapRedone
+                                      : l10n.csTapUndone,
+                                  style: TextStyle(
+                                      color: p.paper0,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
               // Pending symbol placement hint
               if (canvasState.pendingSymbol != null)
                 Positioned(
@@ -7249,7 +7355,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                         style: const TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w600)),
                     const Spacer(),
-                    Text(AppLocalizations.of(ctx).csWidthPx(width.toStringAsFixed(1)),
+                    Text(AppLocalizations.of(ctx).csWidthPx(
+                        width.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '')),
                         style: TextStyle(fontSize: 12, color: p.ink1)),
                   ],
                 ),
@@ -7266,7 +7373,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   child: Slider(
                     min: 0.5,
                     max: 20.0,
-                    divisions: 39,
+                    divisions: 78,
                     value: width.clamp(0.5, 20.0),
                     onChanged: (v) {
                       setSheetState(() => width = v);

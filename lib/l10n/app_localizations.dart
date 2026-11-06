@@ -2148,6 +2148,18 @@ abstract class AppLocalizations {
   /// **'Cerchi, rettangoli e triangoli riconosciuti prendono una tinta leggera del colore dell\'inchiostro'**
   String get setFillShapesSub;
 
+  /// No description provided for @setTapUndo.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocco per annullare'**
+  String get setTapUndo;
+
+  /// No description provided for @setTapUndoSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca con due dita per annullare, con tre per ripristinare'**
+  String get setTapUndoSub;
+
   /// No description provided for @setSyncConnectedDesc.
   ///
   /// In it, this message translates to:
@@ -5681,6 +5693,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Impossibile annullare. Controlla i due taccuini.'**
   String get pgtToastUndoFailed;
+
+  /// No description provided for @csTapUndone.
+  ///
+  /// In it, this message translates to:
+  /// **'Annullato'**
+  String get csTapUndone;
+
+  /// No description provided for @csTapRedone.
+  ///
+  /// In it, this message translates to:
+  /// **'Ripristinato'**
+  String get csTapRedone;
 }
 
 class _AppLocalizationsDelegate

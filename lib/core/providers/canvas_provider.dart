@@ -24,6 +24,8 @@ import 'package:abelnotes/core/services/webdav_service.dart' show WebDavExceptio
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
         CanvasRenderEngine,
+        ballpointWidthFactor,
+        penWidthFactor,
         circleDragBox,
         circleResizeBox,
         scaledShapeResizeBox,
@@ -3521,10 +3523,27 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
 
+  /// The width the ink of [points] is drawn at, on average, so a shape made
+  /// from them matches the pen: the slider's width times the stroke's own
+  /// width factor (a pen with pressure off is drawn ~1.24x the slider).
+  double _inkWidth(List<StrokePoint> points) {
+    final width = state!.toolSettings.strokeWidth;
+    if (points.isEmpty) return width;
+    final factor = switch (state!.currentTool) {
+      CanvasTool.pen => penWidthFactor,
+      CanvasTool.ballpoint => ballpointWidthFactor,
+      _ => null, // highlighter, brush, calligraphy: left at the slider's width
+    };
+    if (factor == null) return width;
+    final mean =
+        points.fold<double>(0, (t, p) => t + factor(p.pressure)) / points.length;
+    return width * mean;
+  }
+
   ShapeData? _recognizeShape(List<StrokePoint> points) => recognizeShape(
         points,
         color: state!.toolSettings.color,
-        strokeWidth: state!.toolSettings.strokeWidth,
+        strokeWidth: _inkWidth(points),
         isHighlighter: state!.currentTool == CanvasTool.highlighter,
         fill: _ref.read(appSettingsProvider).fillRecognizedShapes,
       );
@@ -7589,480 +7608,80 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     state = state!.copyWith(clearPendingSymbol: true);
   }
 
-  Future<void> insertSymbol(ReusableSymbol symbol, Offset position) async {
-    if (state == null) return;
-    // Clear pending symbol immediately to prevent multiple placements
-    state = state!.copyWith(clearPendingSymbol: true);
-
+  /// Drops [symbol] on the page centred on [position], as the vector
+  /// elements it was saved from (like [paste]), so it stays sharp at any
+  /// zoom, resize and export. Left selected for nudging.
+  void insertSymbol(ReusableSymbol symbol, Offset position) {
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
     final fileName = s.currentPageFileName;
     final undoStack = _pushUndo(s, fileName, page);
 
-    final symbolImage = await _rasterizeSymbol(symbol);
-    if (symbolImage == null || state == null) return;
-
-    // Re-read current state after async gap (state may have changed)
-    final current = state!;
-    final currentPage = current.currentPage;
-    if (currentPage == null) return;
-    final currentFileName = current.currentPageFileName;
-
-    // Compute the same padding used during rasterization
-    double maxHalfStroke = 2.0;
-    for (final e in symbol.elements) {
-      e.mapOrNull(
-        stroke: (s) {
-          final half = s.data.baseWidth / 2.0;
-          if (half > maxHalfStroke) maxHalfStroke = half;
-        },
-        shape: (s) {
-          final half = s.data.strokeWidth / 2.0;
-          if (half > maxHalfStroke) maxHalfStroke = half;
-        },
-      );
+    final offset = position - symbol.bounds.center;
+    final baseZ = _nextZIndex(page);
+    final newElements = <ContentElement>[];
+    final newRefs = <String>[];
+    for (final element in symbol.elements) {
+      // A picture inside the symbol only comes along when this notebook has
+      // its bytes; otherwise it would be a reference to nothing.
+      if (element is ImageElement) {
+        final p = element.data.assetPath;
+        if (!s.assetBytes.containsKey(p)) continue;
+        if (!page.assetReferences.contains(p) && !newRefs.contains(p)) {
+          newRefs.add(p);
+        }
+      }
+      final newId = const Uuid().v4();
+      final z = baseZ + newElements.length;
+      newElements.add(_translateElement(element, offset).map(
+        unknown: (u) => u.copyWith(id: newId, zIndex: z),
+        stroke: (e) => ContentElement.stroke(id: newId, zIndex: z, data: e.data),
+        text: (e) => ContentElement.text(id: newId, zIndex: z, data: e.data),
+        image: (e) => ContentElement.image(id: newId, zIndex: z, data: e.data),
+        shape: (e) => ContentElement.shape(id: newId, zIndex: z, data: e.data),
+        math: (e) => ContentElement.math(id: newId, zIndex: z, data: e.data),
+      ));
     }
-    final paddedBounds = symbol.bounds.inflate(maxHalfStroke);
-    final symbolW = paddedBounds.width <= 0 ? 1.0 : paddedBounds.width;
-    final symbolH = paddedBounds.height <= 0 ? 1.0 : paddedBounds.height;
-    final assetId = 'symbol_${const Uuid().v4()}.png';
+    if (newElements.isEmpty) {
+      state = s.copyWith(clearPendingSymbol: true);
+      return;
+    }
 
-    final imgElement = ContentElement.image(
-      id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
-      data: ImageData(
-        x: position.dx - symbolW / 2,
-        y: position.dy - symbolH / 2,
-        width: symbolW,
-        height: symbolH,
-        assetPath: assetId,
-      ),
-    );
-
-    final updatedPage = carryPdfTextLayer(currentPage, PageData(
-      pageId: currentPage.pageId, pageNumber: currentPage.pageNumber,
-      width: currentPage.width, height: currentPage.height,
-      layers: RenderingLayers(background: currentPage.layers.background, content: [...currentPage.layers.content, imgElement]),
-      assetReferences: currentPage.assetReferences,
-      createdAt: currentPage.createdAt, modifiedAt: DateTime.now(),
+    final updatedPage = carryPdfTextLayer(page, PageData(
+      pageId: page.pageId, pageNumber: page.pageNumber,
+      width: page.width, height: page.height,
+      layers: RenderingLayers(background: page.layers.background, content: [...page.layers.content, ...newElements]),
+      assetReferences: [...page.assetReferences, ...newRefs],
+      createdAt: page.createdAt, modifiedAt: DateTime.now(),
     ));
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = updatedPage;
 
-    final updatedPages = Map<String, PageData>.from(current.pages);
-    updatedPages[currentFileName] = updatedPage;
-
-    final newAssets = Map<String, Uint8List>.from(current.assetBytes);
-    newAssets[assetId] = symbolImage.$1;
-    final newCache = Map<String, ui.Image>.from(current.imageCache);
-    newCache[assetId] = symbolImage.$2;
-    _markAssetDirty(assetId);
-
-    state = current.copyWith(
+    // Land in lasso mode on the placed symbol: it is usually dropped roughly
+    // right and then nudged or resized, which needs it selected at once.
+    state = s.copyWith(
       pages: updatedPages,
-      assetBytes: newAssets,
-      imageCache: newCache,
       undoStack: undoStack,
       redoStack: [],
       isDirty: true,
-      // Land in selection mode on the just-placed symbol (mirrors
-      // addImageElement) instead of deselecting — a symbol is usually
-      // dropped in roughly the right spot and then nudged/resized, which
-      // needs it selected immediately rather than forcing a manual re-tap.
-      selectedElementId: imgElement.map(unknown: (u) => u.id,
-          stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id,
-          shape: (e) => e.id, math: (e) => e.id),
-      clearLasso: true,
+      lassoPath: [],
+      lassoSelection: LassoSelection(
+        selectedIds: [
+          for (final e in newElements)
+            e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id,
+                image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id)
+        ],
+        bounds: symbol.bounds.shift(offset),
+      ),
       clearPendingSymbol: true,
       currentTool: CanvasTool.lasso,
     );
-    imageCacheVersion.value++;
-  }
-
-  Future<(Uint8List, ui.Image)?> _rasterizeSymbol(ReusableSymbol symbol) async {
-    // Render at 3x resolution for crisp quality
-    const double renderScale = 3.0;
-
-    // Compute padding: half of the thickest stroke so edges aren't clipped
-    double maxHalfStroke = 2.0; // minimum padding
-    for (final e in symbol.elements) {
-      e.mapOrNull(
-        stroke: (s) {
-          final half = s.data.baseWidth / 2.0;
-          if (half > maxHalfStroke) maxHalfStroke = half;
-        },
-        shape: (s) {
-          final half = s.data.strokeWidth / 2.0;
-          if (half > maxHalfStroke) maxHalfStroke = half;
-        },
-      );
+    // Pictures are drawn from the decoded cache only; paste decodes too.
+    for (final e in newElements) {
+      if (e is ImageElement) ensureAssetDecodedForThumbnail(e.data.assetPath);
     }
-
-    final paddedBounds = symbol.bounds.inflate(maxHalfStroke);
-    final baseW = paddedBounds.width <= 0 ? 1.0 : paddedBounds.width;
-    final baseH = paddedBounds.height <= 0 ? 1.0 : paddedBounds.height;
-    final renderW = (baseW * renderScale).ceil();
-    final renderH = (baseH * renderScale).ceil();
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, renderW.toDouble(), renderH.toDouble()));
-    canvas.scale(renderScale);
-    canvas.translate(-paddedBounds.left, -paddedBounds.top);
-
-    for (final element in symbol.elements) {
-      element.map(unknown: (_) {},
-        stroke: (e) => _paintStrokeSymbol(canvas, e.data),
-        text: (e) => _paintTextSymbol(canvas, e.data),
-        image: (e) => _paintImageSymbol(canvas, e.data),
-        shape: (e) => _paintShapeSymbol(canvas, e.data),
-        math: (_) {},
-      );
-    }
-
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(renderW, renderH);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) {
-      image.dispose();
-      return null;
-    }
-    return (byteData.buffer.asUint8List(), image);
-  }
-
-  void _paintStrokeSymbol(Canvas canvas, StrokeData stroke) {
-    if (stroke.points.length < 2) return;
-    final color = Color(stroke.color);
-
-    // Highlighter
-    if (stroke.isHighlighter) {
-      final paint = Paint()
-        ..color = color.withValues(alpha: 0.35)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..strokeWidth = stroke.baseWidth
-        ..blendMode = BlendMode.multiply
-        ..isAntiAlias = true;
-      final path = Path()..moveTo(stroke.points[0].x, stroke.points[0].y);
-      for (int i = 1; i < stroke.points.length; i++) {
-        path.lineTo(stroke.points[i].x, stroke.points[i].y);
-      }
-      canvas.drawPath(path, paint);
-      return;
-    }
-
-    // Ballpoint
-    if (stroke.toolType == 'ballpoint') {
-      final paint = Paint()
-        ..color = color.withValues(alpha: stroke.opacity)
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..isAntiAlias = true;
-      final interp = _catmullRomInterpolateSymbol(stroke.points);
-      for (int i = 0; i < interp.length - 1; i++) {
-        final p0 = interp[i];
-        final p1 = interp[i + 1];
-        final avgP = (p0.pressure + p1.pressure) / 2;
-        paint.strokeWidth = stroke.baseWidth * (0.6 + avgP * 0.4);
-        canvas.drawLine(Offset(p0.x, p0.y), Offset(p1.x, p1.y), paint);
-      }
-      return;
-    }
-
-    // Brush
-    if (stroke.toolType == 'brush') {
-      final interp = _catmullRomInterpolateSymbol(stroke.points);
-      for (int layer = 0; layer < 3; layer++) {
-        final alpha = (stroke.opacity * (0.3 - layer * 0.08)).clamp(0.05, 1.0);
-        final widthMul = 1.0 + layer * 0.6;
-        final paint = Paint()
-          ..color = color.withValues(alpha: alpha)
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round
-          ..isAntiAlias = true;
-        for (int i = 0; i < interp.length - 1; i++) {
-          final p0 = interp[i];
-          final p1 = interp[i + 1];
-          final avgP = (p0.pressure + p1.pressure) / 2;
-          paint.strokeWidth = stroke.baseWidth * widthMul * (0.2 + avgP * 0.8);
-          canvas.drawLine(Offset(p0.x, p0.y), Offset(p1.x, p1.y), paint);
-        }
-      }
-      return;
-    }
-
-    // Fountain pen (default). MUST mirror the width formula in
-    // render_engine.dart's _paintStroke exactly — this used to be an
-    // independently-hand-tuned copy (old pressure/velocity constants),
-    // so a symbol's rendered thickness visibly diverged from the same
-    // stroke drawn live on the canvas. Keep these two in sync.
-    final n = stroke.points.length;
-
-    // Velocity in PAGE-UNITS PER SECOND, normalised across input rates.
-    final velocities = List<double>.filled(n, 0.0);
-    for (int i = 1; i < n; i++) {
-      final dx = stroke.points[i].x - stroke.points[i - 1].x;
-      final dy = stroke.points[i].y - stroke.points[i - 1].y;
-      final dt = stroke.points[i].timestamp - stroke.points[i - 1].timestamp;
-      final dtMs = dt < 1 ? 1 : dt;
-      velocities[i] = sqrt(dx * dx + dy * dy) * 1000.0 / dtMs;
-    }
-    if (n > 1) velocities[0] = velocities[1];
-
-    for (int i = 1; i < n - 1; i++) {
-      velocities[i] = (velocities[i - 1] + velocities[i] * 2 + velocities[i + 1]) / 4;
-    }
-
-    final rawWidths = List<double>.filled(n, stroke.baseWidth);
-    for (int i = 0; i < n; i++) {
-      final excessV = (velocities[i] - 800.0).clamp(0.0, 4000.0);
-      final velocityFactor = CanvasRenderEngine.speedWidth
-          ? 1.0 - (excessV / 4000.0) * 0.15
-          : 1.0;
-      final pc = sqrt(stroke.points[i].pressure.clamp(0.0, 1.0));
-      final pressureFactor = 0.35 + pc * 1.15;
-      rawWidths[i] = stroke.baseWidth * pressureFactor * velocityFactor;
-    }
-    for (int pass = 0; pass < 2; pass++) {
-      for (int i = 1; i < n - 1; i++) {
-        rawWidths[i] = (rawWidths[i - 1] + rawWidths[i] * 2 + rawWidths[i + 1]) / 4;
-      }
-    }
-
-    final interp = _catmullRomAdaptiveWithWidthSymbol(stroke.points, rawWidths);
-    if (interp.length < 2) return;
-
-    // Render as filled outline polygon for smooth edges.
-    final count = interp.length;
-    final nxArr = List<double>.filled(count, 0.0);
-    final nyArr = List<double>.filled(count, 0.0);
-    for (int i = 0; i < count; i++) {
-      double dx, dy;
-      if (i == 0) {
-        dx = interp[1].$1 - interp[0].$1;
-        dy = interp[1].$2 - interp[0].$2;
-      } else if (i == count - 1) {
-        dx = interp[i].$1 - interp[i - 1].$1;
-        dy = interp[i].$2 - interp[i - 1].$2;
-      } else {
-        dx = interp[i + 1].$1 - interp[i - 1].$1;
-        dy = interp[i + 1].$2 - interp[i - 1].$2;
-      }
-      final len = sqrt(dx * dx + dy * dy);
-      if (len > 0.0001) {
-        nxArr[i] = -dy / len;
-        nyArr[i] = dx / len;
-      } else if (i > 0) {
-        nxArr[i] = nxArr[i - 1];
-        nyArr[i] = nyArr[i - 1];
-      }
-    }
-
-    final path = Path();
-    final hw0 = (interp[0].$4 * 0.5).clamp(0.2, 999.0);
-
-    // Right edge (forward)
-    path.moveTo(
-      interp[0].$1 + nxArr[0] * hw0,
-      interp[0].$2 + nyArr[0] * hw0,
-    );
-    for (int i = 1; i < count; i++) {
-      final hw = (interp[i].$4 * 0.5).clamp(0.2, 999.0);
-      path.lineTo(
-        interp[i].$1 + nxArr[i] * hw,
-        interp[i].$2 + nyArr[i] * hw,
-      );
-    }
-
-    // Left edge (backward) — straight connection at the end
-    for (int i = count - 1; i >= 0; i--) {
-      final hw = (interp[i].$4 * 0.5).clamp(0.2, 999.0);
-      path.lineTo(
-        interp[i].$1 - nxArr[i] * hw,
-        interp[i].$2 - nyArr[i] * hw,
-      );
-    }
-    path.close();
-
-    final fillPaint = Paint()
-      ..color = color.withValues(alpha: stroke.opacity)
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true;
-    canvas.drawPath(path, fillPaint);
-
-    // Round endpoint circles
-    canvas.drawCircle(
-      Offset(interp.first.$1, interp.first.$2),
-      hw0,
-      fillPaint,
-    );
-    final lastHw = (interp.last.$4 * 0.5).clamp(0.2, 999.0);
-    canvas.drawCircle(
-      Offset(interp.last.$1, interp.last.$2),
-      lastHw,
-      fillPaint,
-    );
-  }
-
-  List<StrokePoint> _catmullRomInterpolateSymbol(List<StrokePoint> points) {
-    if (points.length < 4) return points;
-    final result = <StrokePoint>[];
-    for (int i = 0; i < points.length - 1; i++) {
-      final p0 = i > 0 ? points[i - 1] : points[i];
-      final p1 = points[i];
-      final p2 = points[i + 1];
-      final p3 = i + 2 < points.length ? points[i + 2] : points[i + 1];
-      final dx = p2.x - p1.x;
-      final dy = p2.y - p1.y;
-      final dist = sqrt(dx * dx + dy * dy);
-      final segments = dist < 2 ? 2 : dist < 8 ? 4 : dist < 20 ? 6 : 8;
-      for (int j = 0; j < segments; j++) {
-        final t = j / segments;
-        final t2 = t * t;
-        final t3 = t2 * t;
-        final x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
-        final y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-        final pressure = p1.pressure + (p2.pressure - p1.pressure) * t;
-        result.add(StrokePoint(x: x, y: y, pressure: pressure));
-      }
-    }
-    result.add(points.last);
-    return result;
-  }
-
-  /// Adaptive Catmull-Rom with width for symbol rasterization.
-  /// Returns list of (x, y, pressure, width) tuples.
-  List<(double, double, double, double)> _catmullRomAdaptiveWithWidthSymbol(
-      List<StrokePoint> points, List<double> widths) {
-    if (points.length < 4) {
-      return List.generate(points.length, (i) =>
-          (points[i].x, points[i].y, points[i].pressure, widths[i]));
-    }
-    final result = <(double, double, double, double)>[];
-    for (int i = 0; i < points.length - 1; i++) {
-      final p0 = i > 0 ? points[i - 1] : points[i];
-      final p1 = points[i];
-      final p2 = points[i + 1];
-      final p3 = i + 2 < points.length ? points[i + 2] : points[i + 1];
-      final w1 = widths[i];
-      final w2 = widths[i + 1];
-      final dx = p2.x - p1.x;
-      final dy = p2.y - p1.y;
-      final dist = sqrt(dx * dx + dy * dy);
-      final segments = dist < 2 ? 2 : dist < 8 ? 4 : dist < 20 ? 6 : 8;
-      for (int j = 0; j < segments; j++) {
-        final t = j / segments;
-        final t2 = t * t;
-        final t3 = t2 * t;
-        final x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
-        final y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
-        final w = w1 + (w2 - w1) * t;
-        result.add((x, y, p1.pressure + (p2.pressure - p1.pressure) * t, w));
-      }
-    }
-    result.add((points.last.x, points.last.y, points.last.pressure, widths.last));
-    return result;
-  }
-
-  void _paintTextSymbol(Canvas canvas, TextData textData) {
-    final style = ui.TextStyle(
-      color: Color(textData.color),
-      fontSize: textData.fontSize,
-      fontFamily: textData.fontFamily,
-      fontWeight: textData.bold ? FontWeight.bold : FontWeight.normal,
-      fontStyle: textData.italic ? FontStyle.italic : FontStyle.normal,
-    );
-    final paragraphStyle = ui.ParagraphStyle(
-      textAlign: textData.alignment == 'center'
-          ? TextAlign.center
-          : textData.alignment == 'right'
-              ? TextAlign.right
-              : TextAlign.left,
-    );
-    final builder = ui.ParagraphBuilder(paragraphStyle)..pushStyle(style)..addText(textData.content);
-    final paragraph = builder.build()..layout(ui.ParagraphConstraints(width: textData.width));
-    canvas.drawParagraph(paragraph, Offset(textData.x, textData.y));
-  }
-
-  void _paintImageSymbol(Canvas canvas, ImageData imageData) {
-    final cachedImage = state?.imageCache[imageData.assetPath];
-    if (cachedImage == null) return;
-
-    canvas.save();
-    if (imageData.rotation != 0) {
-      final cx = imageData.x + imageData.width / 2;
-      final cy = imageData.y + imageData.height / 2;
-      canvas.translate(cx, cy);
-      canvas.rotate(imageData.rotation);
-      canvas.translate(-cx, -cy);
-    }
-
-    final srcRect = Rect.fromLTWH(0, 0, cachedImage.width.toDouble(), cachedImage.height.toDouble());
-    final dstRect = Rect.fromLTWH(imageData.x, imageData.y, imageData.width, imageData.height);
-    final paint = Paint()..color = Colors.white.withValues(alpha: imageData.opacity);
-    canvas.drawImageRect(cachedImage, srcRect, dstRect, paint);
-    canvas.restore();
-  }
-
-  void _paintShapeSymbol(Canvas canvas, ShapeData shape) {
-    final strokePaint = Paint()
-      ..color = Color(shape.strokeColor)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = shape.strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..isAntiAlias = true;
-
-    Paint? fillPaint;
-    if (shape.fillColor != null) {
-      fillPaint = Paint()
-        ..color = Color(shape.fillColor!)
-        ..style = PaintingStyle.fill
-        ..blendMode = BlendMode.multiply; // as render_engine's _paintShape
-    }
-
-    canvas.save();
-    if (shape.rotation != 0) {
-      final cx = (shape.x1 + shape.x2) / 2;
-      final cy = (shape.y1 + shape.y2) / 2;
-      canvas.translate(cx, cy);
-      canvas.rotate(shape.rotation);
-      canvas.translate(-cx, -cy);
-    }
-
-    switch (shape.shapeType) {
-      case 'rectangle':
-        final rect = Rect.fromPoints(Offset(shape.x1, shape.y1), Offset(shape.x2, shape.y2));
-        if (fillPaint != null) canvas.drawRect(rect, fillPaint);
-        canvas.drawRect(rect, strokePaint);
-        break;
-      case 'circle':
-        final oval = shapeEllipseRect(shape);
-        if (fillPaint != null) canvas.drawOval(oval, fillPaint);
-        canvas.drawOval(oval, strokePaint);
-        break;
-      case 'line':
-      case 'arrow':
-        canvas.drawLine(Offset(shape.x1, shape.y1), Offset(shape.x2, shape.y2), strokePaint);
-        break;
-      case 'triangle':
-        final tLeft = min(shape.x1, shape.x2);
-        final tRight = max(shape.x1, shape.x2);
-        final tTop = min(shape.y1, shape.y2);
-        final tBottom = max(shape.y1, shape.y2);
-        final tPath = Path()
-          ..moveTo((tLeft + tRight) / 2, tTop)
-          ..lineTo(tLeft, tBottom)
-          ..lineTo(tRight, tBottom)
-          ..close();
-        if (fillPaint != null) canvas.drawPath(tPath, fillPaint);
-        canvas.drawPath(tPath, strokePaint);
-        break;
-      default:
-        canvas.drawRect(Rect.fromPoints(Offset(shape.x1, shape.y1), Offset(shape.x2, shape.y2)), strokePaint);
-    }
-    canvas.restore();
   }
 
   // ── Page management ──

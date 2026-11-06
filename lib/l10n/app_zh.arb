@@ -340,6 +340,8 @@
   "setPencilDoubleTapSub": "轻点两下 Apple Pencil 在笔和橡皮擦之间切换",
   "setFillShapes": "填充形状",
   "setFillShapesSub": "识别出的圆形、矩形和三角形会以墨水颜色的浅色填充",
+  "setTapUndo": "轻点撤销",
+  "setTapUndoSub": "双指轻点撤销，三指轻点重做",
   "setSyncConnectedDesc": "已连接到 WebDAV 服务器。笔记本会在你的所有设备之间同步。",
   "setSyncLocalOnlyDesc": "仅本地模式：笔记本只保存在这台设备上。连接 WebDAV 服务器即可在多台设备上使用。",
   "setSyncWebdav": "WebDAV",
@@ -958,5 +960,7 @@
   "pgtToastDestUnavailable": "该笔记本目前无法编辑，未做任何改动。",
   "pgtToastSourceFailed": "页面已添加，但无法从 {notebook} 中移除。两个笔记本里都有这些页面；托盘现在是副本。",
   "pgtToastMoveResumed": "{count, plural, other{已完成之前中断的 {count} 页移动。}}",
-  "pgtToastUndoFailed": "无法撤销，请检查两个笔记本。"
+  "pgtToastUndoFailed": "无法撤销，请检查两个笔记本。",
+  "csTapUndone": "已撤销",
+  "csTapRedone": "已重做"
 }

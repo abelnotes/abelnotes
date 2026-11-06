@@ -1263,6 +1263,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setFillShapesSub => '识别出的圆形、矩形和三角形会以墨水颜色的浅色填充';
 
   @override
+  String get setTapUndo => '轻点撤销';
+
+  @override
+  String get setTapUndoSub => '双指轻点撤销，三指轻点重做';
+
+  @override
   String get setSyncConnectedDesc => '已连接到 WebDAV 服务器。笔记本会在你的所有设备之间同步。';
 
   @override
@@ -3533,4 +3539,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pgtToastUndoFailed => '无法撤销，请检查两个笔记本。';
+
+  @override
+  String get csTapUndone => '已撤销';
+
+  @override
+  String get csTapRedone => '已重做';
 }
