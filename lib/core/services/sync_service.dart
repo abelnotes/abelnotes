@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show compactPageJson, decodePageData;
+    show CanvasNotifier, decodePageBytes, encodePageBytes;
 import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
@@ -135,7 +135,7 @@ class SyncService {
     // pages/
     for (final entry in pages.entries) {
       final cached = preEncodedPages?[entry.key];
-      final pageBytes = cached ?? utf8.encode(jsonEncode(entry.value.toJson()));
+      final pageBytes = cached ?? encodePageBytes(entry.value);
       archive.addFile(ArchiveFile(
         '${AppConfig.pagesDir}/${entry.key}',
         pageBytes.length,
@@ -646,7 +646,7 @@ class SyncService {
       // re-running that encode on the UI isolate — the save already
       // produced the exact same bytes for the local ZIP build.
       final bytes = preEncodedPages?[e.key] ??
-          Uint8List.fromList(utf8.encode(compactPageJson(e.value)));
+          encodePageBytes(e.value);
       final path = '${dir}pages/${e.key}';
       final base =
           _conditionalPagePuts ? (pageBaseVersions?[e.key]) : null;
@@ -987,8 +987,7 @@ class SyncService {
     final data = await _remote.downloadFile(
       '${_deltaDir(notebookId)}pages/$pageFileName',
     );
-    final json = jsonDecode(utf8.decode(data));
-    return decodePageData(json as Map<String, dynamic>);
+    return decodePageBytes(data);
   }
 
   /// Fetches ONLY `.sync/<id>/metadata.json` — a ≤1 KB file containing the
@@ -1193,8 +1192,7 @@ class SyncService {
       for (var attempt = 0; attempt < maxPageRetries; attempt++) {
         try {
           final data = await _remote.downloadFile('${dir}pages/$fileName');
-          final json = jsonDecode(utf8.decode(data));
-          pages[fileName] = decodePageData(json as Map<String, dynamic>);
+          pages[fileName] = decodePageBytes(data);
           return;
         } catch (e) {
           if (attempt == maxPageRetries - 1) {
@@ -1323,7 +1321,7 @@ class SyncService {
     archive.addFile(ArchiveFile(AppConfig.documentFile, docBytes.length, docBytes));
 
     for (final entry in pages.entries) {
-      final bytes = utf8.encode(jsonEncode(entry.value.toJson()));
+      final bytes = encodePageBytes(entry.value);
       archive.addFile(ArchiveFile(
         '${AppConfig.pagesDir}/${entry.key}', bytes.length, bytes,
       ));
@@ -1356,8 +1354,7 @@ class SyncService {
       if (file.name.startsWith('${AppConfig.pagesDir}/') &&
           file.name.endsWith('.json')) {
         final fileName = file.name.split('/').last;
-        final json = jsonDecode(utf8.decode(file.content as List<int>));
-        pages[fileName] = decodePageData(json as Map<String, dynamic>);
+        pages[fileName] = decodePageBytes(file.content as List<int>);
       }
     }
 
@@ -1408,6 +1405,15 @@ class SyncService {
   /// blocking the UI.
   Future<LooseStoreContents?> loadLooseStoreFromDisk(String dir) {
     return compute(_loadLooseStoreImpl, dir);
+  }
+
+  /// Just the page a notebook opens on (see [CanvasNotifier.startPosition])
+  /// and the assets it shows, so the editor can appear while
+  /// [loadLooseStoreFromDisk] reads the rest. Null when the store or that
+  /// page cannot be read: the caller then waits for the full load.
+  Future<LooseStoreStart?> loadLooseStoreStart(
+      String dir, String? savedChapter, int savedPage) {
+    return compute(_loadLooseStoreStartImpl, (dir, savedChapter, savedPage));
   }
 
   /// Scarica un notebook completo con tutte le pagine.
@@ -1556,11 +1562,62 @@ typedef LooseStoreContents = ({
   List<Map<String, dynamic>> symbolLibraries,
 });
 
+/// The opening page of a loose store, see [SyncService.loadLooseStoreStart].
+typedef LooseStoreStart = ({
+  NotebookMetadata metadata,
+  DocumentStructure document,
+  Map<String, PageData> pages,
+  Map<String, Uint8List> assets,
+  String? chapterId,
+  int pageIndex,
+});
+
+LooseStoreStart? _loadLooseStoreStartImpl((String, String?, int) args) {
+  final (dir, savedChapter, savedPage) = args;
+  try {
+    final metadata = NotebookMetadata.fromJson(jsonDecode(utf8.decode(
+            File(p.join(dir, AppConfig.metadataFile)).readAsBytesSync()))
+        as Map<String, dynamic>);
+    final document = DocumentStructure.fromJson(jsonDecode(utf8.decode(
+            File(p.join(dir, AppConfig.documentFile)).readAsBytesSync()))
+        as Map<String, dynamic>);
+    final pos = CanvasNotifier.startPosition(
+        metadata, document, savedChapter, savedPage);
+    if (pos.pageIndex < 0 || pos.pageIndex >= document.pages.length) {
+      return null;
+    }
+    final fileName = document.pages[pos.pageIndex].fileName;
+    final page = _decodePageFiles(
+        [p.join(dir, AppConfig.pagesDir, fileName)]).values.single;
+    final assets = <String, Uint8List>{};
+    for (final key in {
+      ...page.assetReferences,
+      if (page.layers.background.pdfAsset != null)
+        page.layers.background.pdfAsset!,
+      for (final e in page.layers.content)
+        if (e is ImageElement && e.data.assetPath.isNotEmpty) e.data.assetPath,
+    }) {
+      final f = File(p.joinAll([dir, AppConfig.assetsDir, ...key.split('/')]));
+      if (f.existsSync()) assets[key] = f.readAsBytesSync();
+    }
+    return (
+      metadata: metadata,
+      document: document,
+      pages: {fileName: page},
+      assets: assets,
+      chapterId: pos.chapterId,
+      pageIndex: pos.pageIndex,
+    );
+  } catch (_) {
+    return null; // missing or unreadable: the full load decides what to do
+  }
+}
+
 /// Isolate entry point for [SyncService.loadLooseStoreFromDisk]. Reads every
-/// loose-store file SYNCHRONOUSLY (no event-loop round-trips) and parses pages
-/// inline — both cheap on a dedicated, idle isolate. Returns null if the store
-/// or its metadata/document are missing.
-LooseStoreContents? _loadLooseStoreImpl(String dir) {
+/// loose-store file SYNCHRONOUSLY (no event-loop round-trips); pages are
+/// parsed across a few isolates when the device has the cores. Returns null
+/// if the store or its metadata/document are missing.
+Future<LooseStoreContents?> _loadLooseStoreImpl(String dir) async {
   if (!Directory(dir).existsSync()) return null;
 
   final metaFile = File(p.join(dir, AppConfig.metadataFile));
@@ -1587,20 +1644,18 @@ LooseStoreContents? _loadLooseStoreImpl(String dir) {
 
   // Pages: flat `pages/page_xxx.json`, keyed by file name (matches
   // extractAllPages' `file.name.split('/').last`).
-  final pages = <String, PageData>{};
   final pagesDir = Directory(p.join(dir, AppConfig.pagesDir));
-  if (pagesDir.existsSync()) {
-    for (final e in pagesDir.listSync(recursive: true)) {
-      if (e is File && e.path.endsWith('.json')) {
-        try {
-          final json = jsonDecode(utf8.decode(e.readAsBytesSync()));
-          pages[p.basename(e.path)] =
-              decodePageData(json as Map<String, dynamic>);
-        } catch (_) {
-          return null; // corrupt page → full fallback, see note above
-        }
-      }
-    }
+  final pagePaths = pagesDir.existsSync()
+      ? [
+          for (final e in pagesDir.listSync(recursive: true))
+            if (e is File && e.path.endsWith('.json')) e.path,
+        ]
+      : const <String>[];
+  final Map<String, PageData> pages;
+  try {
+    pages = await _decodePageFilesParallel(pagePaths);
+  } catch (_) {
+    return null; // corrupt page → full fallback, see note above
   }
 
   // Assets: keyed by the sub-path after `assets/` (matches extractAllAssets),
@@ -1637,6 +1692,51 @@ LooseStoreContents? _loadLooseStoreImpl(String dir) {
   );
 }
 
+/// Pages keyed by file name. Native: split over up to 4 isolates (parsing
+/// is most of an open). Web has one thread: yields now and then so the
+/// screen keeps drawing.
+Future<Map<String, PageData>> _decodePageFilesParallel(
+    List<String> paths) async {
+  final workers =
+      kIsWeb ? 1 : (Platform.numberOfProcessors - 1).clamp(1, 4).toInt();
+  if (workers == 1 || paths.length < 8) {
+    if (!kIsWeb) return _decodePageFiles(paths);
+    final pages = <String, PageData>{};
+    final sw = Stopwatch()..start();
+    for (final path in paths) {
+      pages.addAll(_decodePageFiles([path]));
+      if (sw.elapsedMilliseconds > 12) {
+        await Future<void>.delayed(Duration.zero);
+        sw.reset();
+      }
+    }
+    return pages;
+  }
+  // Interleaved so each share gets a mix of light and dense pages.
+  final shares = [
+    for (var i = 0; i < workers; i++)
+      [for (var j = i; j < paths.length; j += workers) paths[j]],
+  ];
+  final others = [for (final s in shares.skip(1)) compute(_decodePageFiles, s)];
+  try {
+    final pages = _decodePageFiles(shares.first);
+    for (final m in await Future.wait(others)) {
+      pages.addAll(m);
+    }
+    return pages;
+  } catch (_) {
+    for (final f in others) {
+      f.ignore();
+    }
+    rethrow;
+  }
+}
+
+Map<String, PageData> _decodePageFiles(List<String> paths) => {
+      for (final path in paths)
+        p.basename(path): decodePageBytes(File(path).readAsBytesSync()),
+    };
+
 /// Shared implementation for [SyncService.extractNotebookContents] and its
 /// isolate variant — top level so [compute] can take it directly.
 NcnoteContents _extractContentsImpl(Uint8List data) {
@@ -1657,9 +1757,8 @@ NcnoteContents _extractContentsImpl(Uint8List data) {
       // the opener's `pages.isEmpty` check still falls back to a full
       // server download.
       try {
-        final json = jsonDecode(utf8.decode(file.content as List<int>));
         pages[name.split('/').last] =
-            decodePageData(json as Map<String, dynamic>);
+            decodePageBytes(file.content as List<int>);
       } catch (_) {}
     } else if (name.startsWith(assetsPrefix)) {
       final assetName = name.substring(assetsPrefix.length);
@@ -1689,8 +1788,7 @@ Map<String, PageData> _extractAllPagesInIsolate(Uint8List data) {
   for (final file in archive.files) {
     if (file.name.startsWith(prefix) && file.name.endsWith('.json')) {
       final fileName = file.name.split('/').last;
-      final json = jsonDecode(utf8.decode(file.content as List<int>));
-      pages[fileName] = decodePageData(json as Map<String, dynamic>);
+      pages[fileName] = decodePageBytes(file.content as List<int>);
     }
   }
   return pages;

@@ -7,6 +7,7 @@ import 'package:abelnotes/ui/primitives/hw_open_route.dart';
 import 'package:abelnotes/ui/primitives/sync_badge.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
@@ -175,7 +176,62 @@ Future<void> _openNotebookAndNavigate(
     // again" round trip entirely.
     if (syncService != null) {
       final dir = fileService.notebookStoreDir(entry.metadata.id);
-      final data = await syncService.loadLooseStoreFromDisk(dir);
+      final id = entry.metadata.id;
+      // The whole notebook loads in the background; the page it opens on
+      // comes first, so the editor appears on it while the rest arrives.
+      final full = syncService.loadLooseStoreFromDisk(dir);
+      LooseStoreStart? start;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        start = await syncService.loadLooseStoreStart(dir,
+            prefs.getString('last_chapter_$id'), prefs.getInt('last_page_$id') ?? 0);
+      } catch (_) {}
+      if (start != null) {
+        if (await abandoned()) return;
+        final notifier = ref.read(canvasProvider.notifier);
+        await notifier.showLoadingSnapshot(
+          metadata: start.metadata,
+          document: start.document,
+          pages: start.pages,
+          assets: start.assets,
+          chapterId: start.chapterId,
+          pageIndex: start.pageIndex,
+          remotePath: entry.remotePath,
+        );
+        if (await abandoned() || !context.mounted) return;
+        dismissLoader();
+        final editor = Navigator.of(context).push(_editorRoute(origin, entry));
+        final data = await full;
+        // The user may have left the editor meanwhile.
+        if (!notifier.isLoadingSnapshotOf(id)) {
+          await editor;
+          return;
+        }
+        if (data != null &&
+            !(data.pages.isEmpty && data.document.pages.isNotEmpty)) {
+          await notifier.openNotebook(
+            metadata: data.metadata,
+            document: data.document,
+            pages: data.pages,
+            remotePath: entry.remotePath,
+            assets: data.assets,
+            symbolLibraries: data.symbolLibraries.isNotEmpty
+                ? data.symbolLibraries
+                    .map((j) => SymbolLibrary.fromJson(j))
+                    .toList()
+                : null,
+          );
+          await editor;
+          return;
+        }
+        // A page did not parse: leave the opening page and recover below,
+        // as an open without it would.
+        await notifier.closeNotebook();
+        if (context.mounted) Navigator.of(context).pop();
+        await editor;
+        if (!context.mounted) return;
+      }
+      final data = start == null ? await full : null;
       if (data != null) {
         final corrupted =
             data.pages.isEmpty && data.document.pages.isNotEmpty;

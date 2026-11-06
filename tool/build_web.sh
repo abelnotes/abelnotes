@@ -21,6 +21,22 @@ flutter build web --release --no-web-resources-cdn --base-href "$BASE_HREF" \
 OUT=build/web
 BUILD_ID="$(date +%Y%m%d%H%M%S)"
 
+# The app script carries the build id, so a cached older shell never runs a
+# newer script (the service worker leaves this file to the browser, see WEB_PWA.md).
+MAIN_JS="main.dart.$BUILD_ID.js"
+# flutter build leaves files it did not write: drop earlier builds' scripts.
+rm -f "$OUT"/main.dart.[0-9]*.js
+mv "$OUT/main.dart.js" "$OUT/$MAIN_JS"
+python3 - "$OUT/flutter_bootstrap.js" "$MAIN_JS" <<'PY'
+import sys
+path, main_js = sys.argv[1:3]
+src = open(path).read()
+old = '"mainJsPath":"main.dart.js"'
+if src.count(old) != 1:
+    sys.exit(f'{path}: expected one {old}')
+open(path, 'w').write(src.replace(old, f'"mainJsPath":"{main_js}"'))
+PY
+
 # Everything the app can need, relative to the site root. The CanvasKit
 # variants for other renderers (skwasm, webparagraph) are never loaded.
 FILES="$(cd "$OUT" && find . -type f \

@@ -338,12 +338,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           final main = Column(children: [
             Expanded(
               child: Stack(children: [
+                // Boundaries keep a scroll frame from repainting the bar,
+                // the sidebar and everything else on the page.
                 Positioned.fill(
-                  child: RefreshIndicator(
-                    edgeOffset: _TopBar.height,
-                    onRefresh: () =>
-                        notebookNotifier.syncNow(showProgress: false),
-                    child: body,
+                  child: RepaintBoundary(
+                    child: RefreshIndicator(
+                      edgeOffset: _TopBar.height,
+                      onRefresh: () =>
+                          notebookNotifier.syncNow(showProgress: false),
+                      child: body,
+                    ),
                   ),
                 ),
                 // Floats over the list so content scrolls under its glass.
@@ -351,7 +355,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _TopBar(
+                  child: RepaintBoundary(child: _TopBar(
                     scroll: _scroll,
                     title: folderName,
                     wide: wide,
@@ -365,7 +369,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                     onSettingsTap: _openSettings,
                     onImportTap: _importFlow,
                     sortLabel: settings.sortMode.labelOf(l10n),
-                  ),
+                  )),
                 ),
               ]),
             ),
@@ -373,7 +377,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           ]);
           if (!wide) return main;
           return Row(children: [
-            _Sidebar(
+            RepaintBoundary(child: _Sidebar(
               folders: settings.folders,
               entries: entries,
               folderOf: settings.notebookFolderId,
@@ -385,7 +389,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               onTrash: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const TrashScreen())),
               onSettings: _openSettings,
-            ),
+            )),
             Expanded(child: main),
           ]);
         }),
@@ -2421,6 +2425,14 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Grid width from the box, not a SliverLayoutBuilder: sliver constraints
+    // change on every scroll frame, which rebuilt every visible tile.
+    return LayoutBuilder(
+        builder: (context, box) =>
+            _scrollView(context, box.maxWidth - 2 * hPad));
+  }
+
+  Widget _scrollView(BuildContext context, double gridWidth) {
     final p = HwThemeScope.of(context);
     return CustomScrollView(
       controller: controller,
@@ -2429,12 +2441,14 @@ class _Body extends StatelessWidget {
         const SliverToBoxAdapter(child: SizedBox(height: _TopBar.height)),
         ...headerSlivers,
         SliverToBoxAdapter(
-          child: _SketchSection(
-            hPad: hPad,
-            sketches: sketches,
-            onCreateSketch: onCreateSketch,
-            onOpen: onOpen,
-            onLongPress: onLongPress,
+          child: RepaintBoundary(
+            child: _SketchSection(
+              hPad: hPad,
+              sketches: sketches,
+              onCreateSketch: onCreateSketch,
+              onOpen: onOpen,
+              onLongPress: onLongPress,
+            ),
           ),
         ),
         SliverToBoxAdapter(
@@ -2490,61 +2504,7 @@ class _Body extends StatelessWidget {
         if (gridView)
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: hPad),
-            sliver: SliverLayoutBuilder(
-              builder: (ctx, constraints) {
-                // Adapt cover-tile sizing to the available width so the
-                // grid doesn't stay locked to tablet proportions on phones
-                // or waste space on very wide desktops. mainExtent is
-                // derived from maxExtent via the cover's aspect ratio plus
-                // the text block below it, so the cover height always
-                // tracks its actual width instead of the two drifting
-                // apart on narrow screens (which read as the cover being
-                // stretched tall and clipping into the row below).
-                final width = constraints.crossAxisExtent;
-                final double maxExtent;
-                if (width < 480) {
-                  maxExtent = 160;
-                } else if (width > 1100) {
-                  maxExtent = 280;
-                } else {
-                  maxExtent = 232;
-                }
-                final mainExtent =
-                    _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
-                        _CoverTile.textBlockHeightFor(ctx);
-                return SliverGrid(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: maxExtent,
-                    mainAxisExtent: mainExtent,
-                    crossAxisSpacing: width < 480 ? 16 : 28,
-                    mainAxisSpacing: width < 480 ? 24 : 36,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (ctx, i) {
-                      if (i == 0) return _NewTile(onTap: onCreate);
-                      final e = entries[i - 1];
-                      final tile = _CoverTile(
-                        entry: e,
-                        favorite: favoriteIds.contains(e.metadata.id),
-                        onTap: (r) => onOpen(e, origin: r),
-                        onLongPress: () => onLongPress(e),
-                        onToggleFavorite: () => onToggleFavorite(e),
-                      );
-                      if (e.metadata.id != movingFromId) return tile;
-                      return Stack(clipBehavior: Clip.none, children: [
-                        tile,
-                        Positioned(
-                          left: -6,
-                          bottom: _CoverTile.textBlockHeightFor(ctx) + 56,
-                          child: _MovingBadge(count: movingCount),
-                        ),
-                      ]);
-                    },
-                    childCount: entries.length + 1,
-                  ),
-                );
-              },
-            ),
+            sliver: _grid(context, gridWidth),
           )
         else
           SliverPadding(
@@ -2561,6 +2521,59 @@ class _Body extends StatelessWidget {
           ),
         SliverToBoxAdapter(child: SizedBox(height: movingCount > 0 ? 190 : 80)),
       ],
+    );
+  }
+
+  Widget _grid(BuildContext context, double width) {
+    // Adapt cover-tile sizing to the available width so the
+    // grid doesn't stay locked to tablet proportions on phones
+    // or waste space on very wide desktops. mainExtent is
+    // derived from maxExtent via the cover's aspect ratio plus
+    // the text block below it, so the cover height always
+    // tracks its actual width instead of the two drifting
+    // apart on narrow screens (which read as the cover being
+    // stretched tall and clipping into the row below).
+    final double maxExtent;
+    if (width < 480) {
+      maxExtent = 160;
+    } else if (width > 1100) {
+      maxExtent = 280;
+    } else {
+      maxExtent = 232;
+    }
+    final mainExtent =
+        _CoverTile.coverWidthFor(maxExtent) / _CoverTile.aspectRatio +
+            _CoverTile.textBlockHeightFor(context);
+    return SliverGrid(
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: maxExtent,
+        mainAxisExtent: mainExtent,
+        crossAxisSpacing: width < 480 ? 16 : 28,
+        mainAxisSpacing: width < 480 ? 24 : 36,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (ctx, i) {
+          if (i == 0) return _NewTile(onTap: onCreate);
+          final e = entries[i - 1];
+          final tile = _CoverTile(
+            entry: e,
+            favorite: favoriteIds.contains(e.metadata.id),
+            onTap: (r) => onOpen(e, origin: r),
+            onLongPress: () => onLongPress(e),
+            onToggleFavorite: () => onToggleFavorite(e),
+          );
+          if (e.metadata.id != movingFromId) return tile;
+          return Stack(clipBehavior: Clip.none, children: [
+            tile,
+            Positioned(
+              left: -6,
+              bottom: _CoverTile.textBlockHeightFor(ctx) + 56,
+              child: _MovingBadge(count: movingCount),
+            ),
+          ]);
+        },
+        childCount: entries.length + 1,
+      ),
     );
   }
 }

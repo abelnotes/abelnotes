@@ -616,6 +616,7 @@ class FileService {
   /// exploded store is never observed as "present".
   Future<void> explodeZipToLooseStore(
       String notebookId, Uint8List zipBytes) async {
+    _storeSizes.remove(notebookId);
     final prev = _saveLocks[notebookId];
     final completer = Completer<void>();
     _saveLocks[notebookId] = completer.future;
@@ -716,10 +717,19 @@ class FileService {
 
   /// Best-effort total byte size of the loose store, for the DB `file_size`
   /// column (previously the package length). Sums file lengths; 0 if no store.
-  /// Off the drawing hot path (runs in the background save task).
+  /// Recounted at most once a minute per notebook: a save would otherwise
+  /// stat every file of the store, and only the trash screen shows the size.
   Future<int> looseStoreSize(String notebookId) async {
     final d = Directory(notebookStoreDir(notebookId));
-    if (!await d.exists()) return 0;
+    if (!await d.exists()) {
+      _storeSizes.remove(notebookId);
+      return 0;
+    }
+    final known = _storeSizes[notebookId];
+    if (known != null &&
+        DateTime.now().difference(known.at) < const Duration(minutes: 1)) {
+      return known.bytes;
+    }
     var total = 0;
     try {
       await for (final e in d.list(recursive: true)) {
@@ -728,8 +738,11 @@ class FileService {
         }
       }
     } catch (_) {/* best effort */}
+    _storeSizes[notebookId] = (bytes: total, at: DateTime.now());
     return total;
   }
+
+  final Map<String, ({int bytes, DateTime at})> _storeSizes = {};
 
   /// Ensure the loose store exists for [notebookId], lazily exploding the
   /// legacy `<id>.ncnote` into it on first access. Returns true if a loose
@@ -751,6 +764,7 @@ class FileService {
 
   /// Delete the loose store directory for [notebookId] (best effort).
   Future<void> deleteLooseStore(String notebookId) async {
+    _storeSizes.remove(notebookId);
     try {
       final d = Directory(notebookStoreDir(notebookId));
       if (await d.exists()) await d.delete(recursive: true);

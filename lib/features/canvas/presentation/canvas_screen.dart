@@ -251,7 +251,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // While the user drags the grip, [_dockDragOffset] holds the dock's
   // top-left in Stack-local coordinates and the dock follows the finger;
   // on release we snap to the nearest edge and write it back to settings.
-  Offset? _dockDragOffset;
+  // A notifier, not state: a drag frame moves only the dock, never
+  // rebuilds the whole editor.
+  final _dockDrag = ValueNotifier<Offset?>(null);
+  Offset? get _dockDragOffset => _dockDrag.value;
   Size _dockDragSize = Size.zero;
   Size _dockArea = Size.zero;
   final GlobalKey _dockKey = GlobalKey();
@@ -850,7 +853,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _cancelLongPressTimer();
     setState(() {
       _dockDragSize = dockBox.size;
-      _dockDragOffset = topLeft;
+      _dockDrag.value = topLeft;
       _dockRawOffset = topLeft;
       // A panel that floats around mid-drag is more distracting than
       // useful — close it; the user reopens it after parking the dock.
@@ -879,12 +882,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         _dockBand(next.dy, max(0.0, area.height - _dockDragSize.height)),
       );
     }
-    setState(() => _dockDragOffset = next);
+    _dockDrag.value = next;
   }
 
   void _onDockFly() {
     if (!mounted) return;
-    setState(() => _dockDragOffset = Offset(_dockFlyX.value, _dockFlyY.value));
+    _dockDrag.value = Offset(_dockFlyX.value, _dockFlyY.value);
   }
 
   /// Where the docked layout puts a dock of the given orientation; mirrors
@@ -913,7 +916,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final off = _dockDragOffset;
     final area = _dockArea;
     if (off == null || area.width <= 0 || area.height <= 0) {
-      setState(() => _dockDragOffset = null);
+      setState(() => _dockDrag.value = null);
       return;
     }
     // Choose the edge from where the throw is heading, not where it let go.
@@ -960,7 +963,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final gen = ++_dockFlyGen;
     void land() {
       if (++done == 2 && mounted && gen == _dockFlyGen) {
-        setState(() => _dockDragOffset = null);
+        setState(() => _dockDrag.value = null);
       }
     }
     _dockFlyX
@@ -1581,6 +1584,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     webTouchDevice.removeListener(_onWebTouchDeviceChanged);
     _dockFlyX.dispose();
     _dockFlyY.dispose();
+    _dockDrag.dispose();
     _hintMessenger?.hideCurrentSnackBar();
     WidgetsBinding.instance.removeObserver(this);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(
@@ -1886,6 +1890,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // The rest of the notebook is still loading: no shortcut acts yet.
+    if (ref.read(canvasProvider.notifier).pagesLoading.value) {
+      return KeyEventResult.handled;
+    }
     final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
     // A preview only reads: zoom and paging, no shortcut that edits.
     if (ref.read(canvasProvider.notifier).isPreview &&
@@ -5206,6 +5214,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       final doc = canvasState.document;
       final isMissing =
           doc.pages.isNotEmpty && canvasState.currentPageIndex >= 0 && canvasState.currentPageIndex < doc.pages.length;
+      // Not loaded yet is not missing: never offer recovery for it.
+      if (isMissing && ref.read(canvasProvider.notifier).pagesLoading.value) {
+        return ColoredBox(color: HwThemeScope.of(context).paper1);
+      }
       if (isMissing) {
         return MissingPageView(
           key: ValueKey(doc.pages[canvasState.currentPageIndex].fileName),
@@ -5443,14 +5455,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               // entirely in presentation mode (see [_enterPresentationMode]).
               if (_presentationMode || notifier.isPreview)
                 const SizedBox.shrink()
-              else if (_dockDragOffset != null)
-                Positioned(
-                  left: _dockDragOffset!.dx,
-                  top: _dockDragOffset!.dy,
-                  child: dockWidget,
-                )
               else
-                _dockedPositioned(dockPosition, toolDock.align, dockWidget),
+                ValueListenableBuilder<Offset?>(
+                  valueListenable: _dockDrag,
+                  child: dockWidget,
+                  builder: (_, drag, dock) => drag != null
+                      ? Positioned(left: drag.dx, top: drag.dy, child: dock!)
+                      : _dockedPositioned(dockPosition, toolDock.align, dock!),
+                ),
               if (_presentationMode) ..._presentationOverlay(canvasState),
               // Tool option popup — anchored next to the dock wherever it
               // is parked (above for bottom, below for top, beside for
@@ -5666,6 +5678,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       ),
                     ),
                   ),
+                ),
+              ),
+              // Only the opening page is loaded yet: input waits, a thin bar
+              // shows it (see CanvasNotifier.showLoadingSnapshot).
+              Positioned.fill(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: notifier.pagesLoading,
+                  builder: (context, loading, _) => loading
+                      ? const AbsorbPointer(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],
