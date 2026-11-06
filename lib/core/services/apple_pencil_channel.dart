@@ -17,8 +17,11 @@ class ApplePencilChannel {
   static bool get _supported =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
+  static void Function(String action)? _current;
+
   static void register(void Function(String action) onDoubleTap) {
     if (!_supported) return;
+    _current = onDoubleTap;
     _channel.setMethodCallHandler((call) async {
       if (call.method != 'doubleTap') return;
       final action = (call.arguments as Map?)?['action'] as String?;
@@ -35,8 +38,11 @@ class ApplePencilChannel {
     }
   }
 
-  static void unregister() {
-    if (!_supported) return;
+  /// Only the canvas that registered last can clear the handler, so one
+  /// being disposed after its replacement opened doesn't silence it.
+  static void unregister(void Function(String action) onDoubleTap) {
+    if (!_supported || _current != onDoubleTap) return;
+    _current = null;
     _channel.setMethodCallHandler(null);
   }
 }

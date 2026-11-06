@@ -1405,6 +1405,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// system's Apple Pencil settings (see [ApplePencilChannel]).
   void _onPencilDoubleTap(String action) {
     if (!mounted || !ref.read(appSettingsProvider).pencilDoubleTap) return;
+    // Not behind a sheet or dialog, nor while the notebook is still opening.
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    if (ref.read(canvasProvider.notifier).pagesLoading.value) return;
     final state = ref.read(canvasProvider);
     if (state == null) return;
     final notif = ref.read(canvasProvider.notifier);
@@ -1640,7 +1643,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _onGlobalPointerEvent,
     );
     PenInputChannel.unregister();
-    ApplePencilChannel.unregister();
+    ApplePencilChannel.unregister(_onPencilDoubleTap);
     LinuxPenPressure.unregister();
     // Flush any pending deferred stylus commit before tearing down so a
     // partial stroke isn't lost on screen close. Cancel the timer first

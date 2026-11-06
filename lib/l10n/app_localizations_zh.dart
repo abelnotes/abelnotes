@@ -1254,8 +1254,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setPencilDoubleTap => 'Pencil 轻点两下';
 
   @override
-  String get setPencilDoubleTapSub =>
-      '轻点两下 Apple Pencil 在笔和橡皮擦之间切换';
+  String get setPencilDoubleTapSub => '轻点两下 Apple Pencil 在笔和橡皮擦之间切换';
 
   @override
   String get setFillShapes => '填充形状';

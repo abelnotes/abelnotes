@@ -2133,7 +2133,7 @@ abstract class AppLocalizations {
   /// No description provided for @setPencilDoubleTapSub.
   ///
   /// In it, this message translates to:
-  /// **'Tocca due volte l'Apple Pencil per passare tra penna e gomma'**
+  /// **'Tocca due volte l\'Apple Pencil per passare tra penna e gomma'**
   String get setPencilDoubleTapSub;
 
   /// No description provided for @setFillShapes.
