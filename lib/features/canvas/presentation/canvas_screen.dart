@@ -54,6 +54,7 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/html_text.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
+import 'package:abelnotes/core/services/apple_pencil_channel.dart';
 import 'package:abelnotes/core/services/pen_input_channel.dart'
     if (dart.library.js_interop) 'package:abelnotes/core/services/pen_input_channel_web.dart';
 import 'package:abelnotes/core/services/pen_monitor_service.dart';
@@ -1088,6 +1089,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       onInverted: (down) => _onNativeBarrelChange(_NativeBarrel.upper, down),
       onBarrelPen: _onBarrelPen,
     );
+    // iPad app only: the Apple Pencil's double-tap.
+    _watchToolChanges();
+    ApplePencilChannel.register(_onPencilDoubleTap);
     // Linux-only: receive stylus pressure the GTK embedder drops. No-op
     // elsewhere. See LinuxPenPressure / _penPressure.
     LinuxPenPressure.register(onProximityOut: _clearPenHover);
@@ -1378,6 +1382,53 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
   }
 
+  /// The tool before the latest tool change, and the latest one that wasn't
+  /// an eraser: where the Pencil's double-tap goes back to.
+  CanvasTool? _previousTool;
+  CanvasTool? _lastNonEraserTool;
+
+  static bool _isEraser(CanvasTool t) =>
+      t == CanvasTool.eraserStandard || t == CanvasTool.eraserStroke;
+
+  void _watchToolChanges() {
+    _toolChangeSub = ref.listenManual<CanvasTool?>(
+      canvasProvider.select((s) => s?.currentTool),
+      (prev, next) {
+        if (prev == null || next == null || prev == next) return;
+        _previousTool = prev;
+        if (!_isEraser(prev)) _lastNonEraserTool = prev;
+      },
+    );
+  }
+
+  /// Apple Pencil double-tap, doing what the user chose for it in the
+  /// system's Apple Pencil settings (see [ApplePencilChannel]).
+  void _onPencilDoubleTap(String action) {
+    if (!mounted || !ref.read(appSettingsProvider).pencilDoubleTap) return;
+    // Not behind a sheet or dialog, nor while the notebook is still opening.
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    if (ref.read(canvasProvider.notifier).pagesLoading.value) return;
+    final state = ref.read(canvasProvider);
+    if (state == null) return;
+    final notif = ref.read(canvasProvider.notifier);
+    final current = state.currentTool;
+    switch (action) {
+      case 'switchEraser':
+        notif.setTool(_isEraser(current)
+            ? _lastNonEraserTool ?? CanvasTool.pen
+            : notif.lastEraserMode);
+        break;
+      case 'switchPrevious':
+        final prev = _previousTool;
+        if (prev == null) return;
+        notif.setTool(prev);
+        break;
+      default:
+        return;
+    }
+    HapticFeedback.selectionClick();
+  }
+
   /// True after the barrel was released mid-gesture; _onPointerUp resolves the
   /// keep-or-revert once the lasso / text selection has actually committed.
   bool _barrelRevertPending = false;
@@ -1420,6 +1471,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   ProviderSubscription<Object?>? _lassoClearedSub;
   ProviderSubscription<Object?>? _pendingImportSub;
   ProviderSubscription<Object?>? _autoSaveSub;
+  ProviderSubscription<Object?>? _toolChangeSub;
 
   void _watchForLassoCleared() {
     _lassoClearedSub = ref.listenManual<LassoSelection?>(
@@ -1591,6 +1643,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _onGlobalPointerEvent,
     );
     PenInputChannel.unregister();
+    ApplePencilChannel.unregister(_onPencilDoubleTap);
     LinuxPenPressure.unregister();
     // Flush any pending deferred stylus commit before tearing down so a
     // partial stroke isn't lost on screen close. Cancel the timer first
@@ -1638,6 +1691,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _pdfTileVersion.dispose();
     _pendingImportSub?.close();
     _autoSaveSub?.close();
+    _toolChangeSub?.close();
     _focusNode.dispose();
     _pdfTextSelController?.dispose();
     _mouseHoverCursor.dispose();

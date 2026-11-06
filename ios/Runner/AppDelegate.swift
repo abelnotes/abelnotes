@@ -41,6 +41,72 @@ import Vision
         ])
       }
     }
+
+    // Apple Pencil double-tap. See lib/core/services/apple_pencil_channel.dart.
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PencilDoubleTap") {
+      let channel = FlutterMethodChannel(
+        name: "abelnotes/pencil",
+        binaryMessenger: registrar.messenger())
+      PencilDoubleTap.shared.channel = channel
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "attach" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        PencilDoubleTap.shared.attach()
+        result(nil)
+      }
+    }
+  }
+}
+
+/// Hears the double-tap on Apple Pencil (2nd generation, Pro) and tells the
+/// canvas, with what the user picked in Settings → Apple Pencil so the app
+/// can honour it. Attached when the canvas asks: by then the Flutter view
+/// is in the key window.
+final class PencilDoubleTap: NSObject, UIPencilInteractionDelegate {
+  static let shared = PencilDoubleTap()
+
+  var channel: FlutterMethodChannel?
+  private var interaction: UIPencilInteraction?
+
+  func attach() {
+    guard interaction == nil, let view = rootView() else { return }
+    let pencil = UIPencilInteraction()
+    pencil.delegate = self
+    view.addInteraction(pencil)
+    interaction = pencil
+  }
+
+  private func rootView() -> UIView? {
+    UIApplication.shared.connectedScenes
+      .compactMap { $0 as? UIWindowScene }
+      .flatMap { $0.windows }
+      .first { $0.isKeyWindow }?
+      .rootViewController?.view
+  }
+
+  // Up to iOS 17.4; 17.5 calls the method below instead.
+  func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+    report()
+  }
+
+  @available(iOS 17.5, *)
+  func pencilInteraction(_ interaction: UIPencilInteraction,
+                         didReceiveTap tap: UIPencilInteraction.Tap) {
+    report()
+  }
+
+  private func report() {
+    let action: String
+    switch UIPencilInteraction.preferredTapAction {
+    case .switchEraser: action = "switchEraser"
+    case .switchPrevious: action = "switchPrevious"
+    case .ignore: action = "ignore"
+    // Colour palette and the like: nothing in the app to map them to.
+    default: action = "other"
+    }
+    channel?.invokeMethod("doubleTap", arguments: ["action": action])
   }
 }
 
