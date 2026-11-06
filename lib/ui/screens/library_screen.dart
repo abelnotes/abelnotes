@@ -4060,14 +4060,13 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
                 ],
               ),
               const SizedBox(height: 20),
-              Text(l10n.pageSizeLabel,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: p.ink2,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
               PageSizePicker(
+                label: Text(l10n.pageSizeLabel,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: p.ink2,
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.w600)),
                 size: _pageSize,
                 onChanged: (size) => setState(() => _pageSize = size),
               ),

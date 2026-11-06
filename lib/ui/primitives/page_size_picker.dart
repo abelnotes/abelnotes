@@ -4,15 +4,18 @@ import 'package:abelnotes/core/providers/canvas_state.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 
-/// Paper size chips, a "Custom" chip that asks for width and height in
-/// millimetres, and a portrait/landscape pair. Shared by the new-notebook
-/// dialog and the editor's paper sheet. [size] is in points.
+/// The section's [label] with a portrait/landscape toggle at its right, then
+/// paper size chips and a "Custom" chip (width and height in millimetres).
+/// Shared by the new-notebook dialog and the editor's paper sheet. [size] is
+/// in points.
 class PageSizePicker extends StatelessWidget {
+  final Widget label;
   final Size size;
   final ValueChanged<Size> onChanged;
 
   const PageSizePicker({
     super.key,
+    required this.label,
     required this.size,
     required this.onChanged,
   });
@@ -47,9 +50,24 @@ class PageSizePicker extends StatelessWidget {
     final preset = pageSizePresetOf(size.width, size.height);
     final landscape = size.width > size.height;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        Row(
+          children: [
+            Expanded(child: label),
+            // A square page reads the same either way round: dimmed, kept in
+            // place so the chips below don't jump.
+            if (size.width != size.height)
+              _orientation(context, l10n, landscape)
+            else
+              IgnorePointer(
+                child: Opacity(
+                    opacity: 0.35, child: _orientation(context, l10n, false)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Wrap(
           spacing: 6,
           runSpacing: 6,
@@ -68,22 +86,48 @@ class PageSizePicker extends StatelessWidget {
             ),
           ],
         ),
-        // A square page reads the same either way round.
-        if (size.width != size.height) ...[
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            children: [
-              _chip(context, l10n.pageSizePortrait, !landscape, () {
-                if (landscape) onChanged(size.flipped);
-              }),
-              _chip(context, l10n.pageSizeLandscape, landscape, () {
-                if (!landscape) onChanged(size.flipped);
-              }),
-            ],
-          ),
-        ],
       ],
+    );
+  }
+
+  /// Two-segment icon toggle, the same height as a chip's text line.
+  Widget _orientation(
+      BuildContext context, AppLocalizations l10n, bool landscape) {
+    final p = HwThemeScope.of(context);
+    Widget segment(IconData icon, String name, bool selected) => Tooltip(
+          message: name,
+          child: Semantics(
+            button: true,
+            selected: selected,
+            label: name,
+            child: GestureDetector(
+              onTap: selected ? null : () => onChanged(size.flipped),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: selected ? p.ink0 : null,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Icon(icon,
+                    size: 18, color: selected ? p.paper0 : p.ink1),
+              ),
+            ),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: p.paper2,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          segment(Icons.crop_portrait, l10n.pageSizePortrait, !landscape),
+          segment(Icons.crop_landscape, l10n.pageSizeLandscape, landscape),
+        ],
+      ),
     );
   }
 

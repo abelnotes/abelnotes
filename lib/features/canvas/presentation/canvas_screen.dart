@@ -9445,19 +9445,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 if (page != null && !live.isScratch && !isPdf)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(l10n.pageSizeLabel,
-                            style: const TextStyle(
-                                fontSize: 14, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        PageSizePicker(
-                          size: Size(page.width, page.height),
-                          onChanged: (size) =>
-                              notifier.setPageSize(size.width, size.height),
-                        ),
-                      ],
+                    child: PageSizePicker(
+                      label: Text(l10n.pageSizeLabel,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600)),
+                      size: Size(page.width, page.height),
+                      onChanged: (size) =>
+                          notifier.setPageSize(size.width, size.height),
                     ),
                   ),
               ],
