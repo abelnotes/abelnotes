@@ -3685,4 +3685,10 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get pgtToastUndoFailed =>
       'Não foi possível desfazer. Verifique os dois cadernos.';
+
+  @override
+  String get csTapUndone => 'Desfeito';
+
+  @override
+  String get csTapRedone => 'Refeito';
 }

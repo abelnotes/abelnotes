@@ -3533,4 +3533,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pgtToastUndoFailed => '无法撤销，请检查两个笔记本。';
+
+  @override
+  String get csTapUndone => '已撤销';
+
+  @override
+  String get csTapRedone => '已重做';
 }

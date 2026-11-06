@@ -3077,5 +3077,9 @@
     }
   },
   "pgtToastUndoFailed": "Impossibile annullare. Controlla i due taccuini.",
-  "@pgtToastUndoFailed": {}
+  "@pgtToastUndoFailed": {},
+  "csTapUndone": "Annullato",
+  "@csTapUndone": {},
+  "csTapRedone": "Ripristinato",
+  "@csTapRedone": {}
 }

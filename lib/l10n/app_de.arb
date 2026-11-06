@@ -993,5 +993,7 @@
   "pgtToastDestUnavailable": "Dieses Notizbuch kann gerade nicht bearbeitet werden. Es wurde nichts geändert.",
   "pgtToastSourceFailed": "Die Seiten wurden hinzugefügt, konnten aber nicht aus {notebook} entfernt werden. Sie sind jetzt in beiden Notizbüchern; die Ablage ist nun eine Kopie.",
   "pgtToastMoveResumed": "{count, plural, one{Das unterbrochene Verschieben von 1 Seite wurde abgeschlossen.} other{Das unterbrochene Verschieben von {count} Seiten wurde abgeschlossen.}}",
-  "pgtToastUndoFailed": "Rückgängig machen nicht möglich. Prüfe beide Notizbücher."
+  "pgtToastUndoFailed": "Rückgängig machen nicht möglich. Prüfe beide Notizbücher.",
+  "csTapUndone": "Rückgängig gemacht",
+  "csTapRedone": "Wiederhergestellt"
 }

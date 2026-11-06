@@ -3698,4 +3698,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get pgtToastUndoFailed =>
       'Rückgängig machen nicht möglich. Prüfe beide Notizbücher.';
+
+  @override
+  String get csTapUndone => 'Rückgängig gemacht';
+
+  @override
+  String get csTapRedone => 'Wiederhergestellt';
 }

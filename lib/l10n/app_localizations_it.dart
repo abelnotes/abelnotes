@@ -3690,4 +3690,10 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get pgtToastUndoFailed =>
       'Impossibile annullare. Controlla i due taccuini.';
+
+  @override
+  String get csTapUndone => 'Annullato';
+
+  @override
+  String get csTapRedone => 'Ripristinato';
 }

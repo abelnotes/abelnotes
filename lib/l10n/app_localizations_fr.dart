@@ -3698,4 +3698,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get pgtToastUndoFailed =>
       'Impossible d\'annuler. Vérifiez les deux carnets.';
+
+  @override
+  String get csTapUndone => 'Annulé';
+
+  @override
+  String get csTapRedone => 'Rétabli';
 }

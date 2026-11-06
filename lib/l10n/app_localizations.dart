@@ -5681,6 +5681,18 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Impossibile annullare. Controlla i due taccuini.'**
   String get pgtToastUndoFailed;
+
+  /// No description provided for @csTapUndone.
+  ///
+  /// In it, this message translates to:
+  /// **'Annullato'**
+  String get csTapUndone;
+
+  /// No description provided for @csTapRedone.
+  ///
+  /// In it, this message translates to:
+  /// **'Ripristinato'**
+  String get csTapRedone;
 }
 
 class _AppLocalizationsDelegate

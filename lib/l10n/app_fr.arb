@@ -993,5 +993,7 @@
   "pgtToastDestUnavailable": "Ce carnet ne peut pas être modifié pour le moment. Rien n'a été modifié.",
   "pgtToastSourceFailed": "Les pages ont été ajoutées, mais n'ont pas pu être retirées de {notebook}. Elles sont dans les deux carnets ; le plateau est maintenant une copie.",
   "pgtToastMoveResumed": "{count, plural, one{Le déplacement interrompu de 1 page a été terminé.} other{Le déplacement interrompu de {count} pages a été terminé.}}",
-  "pgtToastUndoFailed": "Impossible d'annuler. Vérifiez les deux carnets."
+  "pgtToastUndoFailed": "Impossible d'annuler. Vérifiez les deux carnets.",
+  "csTapUndone": "Annulé",
+  "csTapRedone": "Rétabli"
 }

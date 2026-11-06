@@ -3686,4 +3686,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get pgtToastUndoFailed =>
       'No se pudo deshacer. Revisa ambos cuadernos.';
+
+  @override
+  String get csTapUndone => 'Deshecho';
+
+  @override
+  String get csTapRedone => 'Rehecho';
 }

@@ -120,4 +120,52 @@ void main() {
     up(4, 1110);
     expect(taps, [2]);
   });
+
+  void pen(String what, int t) {
+    const k = PointerDeviceKind.stylus;
+    switch (what) {
+      case 'down':
+        d.down(PointerDownEvent(pointer: 9, timeStamp: ms(t), kind: k));
+      case 'up':
+        d.up(PointerUpEvent(pointer: 9, timeStamp: ms(t), kind: k));
+      case 'hover':
+        d.hover(PointerHoverEvent(timeStamp: ms(t), kind: k));
+    }
+  }
+
+  void tapTwo(int t) {
+    down(1, t);
+    down(2, t + 20, at: const Offset(80, 0));
+    up(1, t + 120);
+    up(2, t + 130, at: const Offset(80, 0));
+  }
+
+  test('fingers landing right after the pen lifts are a palm', () {
+    pen('down', 0);
+    pen('up', 400);
+    tapTwo(700); // 300 ms after the pen: inside the quiet window
+    expect(taps, isEmpty);
+  });
+
+  test('a pen hovering in range turns resting fingers into a palm', () {
+    pen('hover', 1000);
+    tapTwo(1200);
+    expect(taps, isEmpty);
+  });
+
+  test('once the pen has been still long enough, a tap counts again', () {
+    pen('down', 0);
+    pen('up', 400);
+    tapTwo(400 + MultiFingerTapDetector.penQuiet.inMilliseconds + 50);
+    expect(taps, [2]);
+  });
+
+  test('a pen landing during the tap rules it out', () {
+    down(1, 0);
+    down(2, 20, at: const Offset(80, 0));
+    pen('down', 60);
+    up(1, 120);
+    up(2, 130, at: const Offset(80, 0));
+    expect(taps, isEmpty);
+  });
 }

@@ -3665,4 +3665,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pgtToastUndoFailed => 'Could not undo. Check both notebooks.';
+
+  @override
+  String get csTapUndone => 'Undone';
+
+  @override
+  String get csTapRedone => 'Redone';
 }

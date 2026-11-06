@@ -993,5 +993,7 @@
   "pgtToastDestUnavailable": "Ese cuaderno no se puede editar ahora. No se cambió nada.",
   "pgtToastSourceFailed": "Las páginas se añadieron, pero no se pudieron quitar de {notebook}. Están en ambos cuadernos; la bandeja ahora es una copia.",
   "pgtToastMoveResumed": "{count, plural, one{Se completó el movimiento interrumpido de 1 página.} other{Se completó el movimiento interrumpido de {count} páginas.}}",
-  "pgtToastUndoFailed": "No se pudo deshacer. Revisa ambos cuadernos."
+  "pgtToastUndoFailed": "No se pudo deshacer. Revisa ambos cuadernos.",
+  "csTapUndone": "Deshecho",
+  "csTapRedone": "Rehecho"
 }

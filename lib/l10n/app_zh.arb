@@ -958,5 +958,7 @@
   "pgtToastDestUnavailable": "该笔记本目前无法编辑，未做任何改动。",
   "pgtToastSourceFailed": "页面已添加，但无法从 {notebook} 中移除。两个笔记本里都有这些页面；托盘现在是副本。",
   "pgtToastMoveResumed": "{count, plural, other{已完成之前中断的 {count} 页移动。}}",
-  "pgtToastUndoFailed": "无法撤销，请检查两个笔记本。"
+  "pgtToastUndoFailed": "无法撤销，请检查两个笔记本。",
+  "csTapUndone": "已撤销",
+  "csTapRedone": "已重做"
 }
