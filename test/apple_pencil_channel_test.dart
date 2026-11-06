@@ -1,5 +1,6 @@
 // The Pencil channel has one handler: a canvas disposed after its replacement
-// registered must not clear the replacement's handler.
+// registered must not clear the replacement's handler. Gestures carry the
+// hover position when iPadOS knows it.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -37,5 +38,19 @@ void main() {
     ApplePencilChannel.unregister(onB);
     await send('doubleTap', {'action': 'switchEraser'});
     expect(b, ['switchEraser']);
+  });
+
+  test('a squeeze reports the action and where the Pencil hovers', () async {
+    final got = <(String, Offset?)>[];
+    void onTap(String action, Offset? at) {}
+    ApplePencilChannel.register(
+        onDoubleTap: onTap, onSqueeze: (action, at) => got.add((action, at)));
+    await send('squeeze', {'action': 'showContextualPalette', 'x': 120, 'y': 300});
+    await send('squeeze', {'action': 'showColorPalette'});
+    expect(got, [
+      ('showContextualPalette', const Offset(120, 300)),
+      ('showColorPalette', null),
+    ]);
+    ApplePencilChannel.unregister(onTap);
   });
 }

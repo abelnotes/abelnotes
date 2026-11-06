@@ -171,9 +171,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   bool _popupOpen = false;
 
   /// Where the tool panel opens instead of beside the dock: next to the
-  /// Pencil's tip after a squeeze, in canvas-stack coordinates. The dock
-  /// clears it when it opens the panel itself.
-  Offset? _popupAt;
+  /// Pencil's tip after a squeeze, with the canvas area it must stay in,
+  /// both in body-stack ([_stackKey]) coordinates. The dock clears it when
+  /// it opens the panel itself.
+  ({Offset tip, Rect area})? _popupAt;
 
   // On-device handwriting recognition. Resolves to a no-op impl off
   // iOS/macOS, so `_ocr.isSupported` gates the UI entry point.
@@ -1036,7 +1037,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     if (at == null) return _popupPositioned(pos, align, area, child);
     return Positioned.fill(
       child: CustomSingleChildLayout(
-          delegate: _NearPointLayout(at), child: child),
+          delegate: _NearPointLayout(at.tip, at.area), child: child),
     );
   }
 
@@ -1466,15 +1467,22 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// Opens the tool panel next to [global] (the Pencil's tip), or beside
   /// the dock as usual when that is unknown; closes it when it is open.
   void _toggleToolPanelAt(Offset? global) {
-    final box =
+    // The panel is laid out in the body stack, which also holds the top bar.
+    final body = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    final canvas =
         _canvasStackKey.currentContext?.findRenderObject() as RenderBox?;
     setState(() {
       if (_popupOpen) {
         _popupOpen = false;
         return;
       }
-      _popupAt =
-          global != null && box != null ? box.globalToLocal(global) : null;
+      _popupAt = global != null && body != null && canvas != null
+          ? (
+              tip: body.globalToLocal(global),
+              area: body.globalToLocal(canvas.localToGlobal(Offset.zero)) &
+                  canvas.size,
+            )
+          : null;
       _popupOpen = true;
     });
   }
@@ -9954,32 +9962,41 @@ class _PdfSelectionPainter extends CustomPainter {
 /// Puts the tool panel just below [point], or above it when there is no
 /// room, kept inside the canvas.
 class _NearPointLayout extends SingleChildLayoutDelegate {
-  const _NearPointLayout(this.point);
+  const _NearPointLayout(this.point, this.area);
 
   final Offset point;
+
+  /// The canvas, so the panel never covers the top bar.
+  final Rect area;
 
   /// Clear of the Pencil's tip, so the panel doesn't sit under the hand.
   static const double _gap = 24;
   static const double _margin = 8;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      constraints.loosen().deflate(const EdgeInsets.all(_margin));
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    final room = area.intersect(Offset.zero & constraints.biggest);
+    return BoxConstraints.loose(Size(
+      max(0, room.width - 2 * _margin),
+      max(0, room.height - 2 * _margin),
+    ));
+  }
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
+    final box = area.intersect(Offset.zero & size).deflate(_margin);
     final below = point.dy + _gap;
-    final y = below + childSize.height <= size.height - _margin
+    final y = below + childSize.height <= box.bottom
         ? below
         : point.dy - _gap - childSize.height;
     final x = point.dx - childSize.width / 2;
     return Offset(
-      x.clamp(_margin, max(_margin, size.width - childSize.width - _margin)),
-      y.clamp(_margin, max(_margin, size.height - childSize.height - _margin)),
+      x.clamp(box.left, max(box.left, box.right - childSize.width)),
+      y.clamp(box.top, max(box.top, box.bottom - childSize.height)),
     );
   }
 
   @override
   bool shouldRelayout(_NearPointLayout oldDelegate) =>
-      oldDelegate.point != point;
+      oldDelegate.point != point || oldDelegate.area != area;
 }
