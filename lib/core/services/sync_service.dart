@@ -237,6 +237,12 @@ class SyncService {
 
   /// Everything directly under the remote base directory.
   Future<List<RemoteItem>> listRemoteRoot() async {
+    // List first: an unconditional MKCOL logs a 405 on the server every sync.
+    try {
+      return await _remote.listDirectory(_remote.basePath);
+    } on RemoteStoreException catch (e) {
+      if (e.statusCode != 404) rethrow;
+    }
     await _remote.ensureBaseDirectory();
     return _remote.listDirectory(_remote.basePath);
   }

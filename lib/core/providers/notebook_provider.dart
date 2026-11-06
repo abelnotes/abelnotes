@@ -346,7 +346,6 @@ class NotebookListNotifier
     RemoteStore remote,
     FileService fileService,
   ) async {
-    await remote.ensureBaseDirectory();
     final root = await syncService.listRemoteRoot();
     unawaited(_ref.read(folderSyncProvider).sync(root: root));
     final remoteFiles = await _adoptStorageExtension(

@@ -36,9 +36,36 @@ void main() {
     final found = await sync.listRemoteNotebooks();
 
     expect(found.map((f) => f.name), ['analisi.abelnote']);
-    // The base directory is created before it is read: a first sync against
-    // an empty account must not fail on a missing folder.
-    expect(store.calls.first, 'ensureBaseDirectory');
+  });
+
+  test('a first sync against an empty account creates the base folder',
+      () async {
+    final found = await sync.listRemoteNotebooks();
+
+    expect(found, isEmpty);
+    expect(store.calls,
+        ['list /AbelNotes/', 'ensureBaseDirectory', 'list /AbelNotes/']);
+  });
+
+  test('an existing base folder is only listed, never created again',
+      () async {
+    await store.ensureBaseDirectory();
+    store.calls.clear();
+
+    await sync.listRemoteRoot();
+    await sync.listRemoteRoot();
+
+    // Each MKCOL on an existing folder logs a 405 on the server (#34).
+    expect(store.calls, ['list /AbelNotes/', 'list /AbelNotes/']);
+  });
+
+  test('a failure other than a missing folder is not hidden by a create',
+      () async {
+    final failing = _FailingListStore(503);
+    await expectLater(SyncService(failing).listRemoteRoot(),
+        throwsA(isA<RemoteStoreException>()
+            .having((e) => e.statusCode, 'statusCode', 503)));
+    expect(failing.calls, ['list /AbelNotes/']);
   });
 
   test('carries the backend version token, whatever it is', () async {
@@ -66,4 +93,16 @@ void main() {
           .having((e) => e.statusCode, 'statusCode', 404)),
     );
   });
+}
+
+class _FailingListStore extends FakeRemoteStore {
+  _FailingListStore(this.status);
+
+  final int status;
+
+  @override
+  Future<List<RemoteItem>> listDirectory(String remotePath) async {
+    calls.add('list $remotePath');
+    throw RemoteStoreException('listing failed', status);
+  }
 }
