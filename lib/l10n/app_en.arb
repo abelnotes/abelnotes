@@ -340,6 +340,8 @@
   "setPencilDoubleTapSub": "Double-tap the Apple Pencil to switch between pen and eraser",
   "setFillShapes": "Fill shapes",
   "setFillShapesSub": "Recognized circles, rectangles and triangles get a light tint of the ink color",
+  "setTapUndo": "Finger tap to undo",
+  "setTapUndoSub": "Tap with two fingers to undo, three to redo",
   "setSyncConnectedDesc": "Connected to a WebDAV server. Notebooks sync across all your devices.",
   "setSyncLocalOnlyDesc": "Local-only mode: notebooks stay on this device. Connect a WebDAV server to access them from multiple devices.",
   "setSyncWebdav": "WebDAV",
@@ -993,5 +995,7 @@
   "pgtToastDestUnavailable": "That notebook cannot be edited right now. Nothing was changed.",
   "pgtToastSourceFailed": "Pages were added, but could not be removed from {notebook}. They are in both notebooks; the tray is now a copy.",
   "pgtToastMoveResumed": "{count, plural, one{Finished moving 1 page that an interrupted move left behind.} other{Finished moving {count} pages that an interrupted move left behind.}}",
-  "pgtToastUndoFailed": "Could not undo. Check both notebooks."
+  "pgtToastUndoFailed": "Could not undo. Check both notebooks.",
+  "csTapUndone": "Undone",
+  "csTapRedone": "Redone"
 }

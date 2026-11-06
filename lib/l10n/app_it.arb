@@ -1077,6 +1077,10 @@
   "@setFillShapes": {},
   "setFillShapesSub": "Cerchi, rettangoli e triangoli riconosciuti prendono una tinta leggera del colore dell'inchiostro",
   "@setFillShapesSub": {},
+  "setTapUndo": "Tocco per annullare",
+  "@setTapUndo": {},
+  "setTapUndoSub": "Tocca con due dita per annullare, con tre per ripristinare",
+  "@setTapUndoSub": {},
   "setSyncConnectedDesc": "Connesso a un server WebDAV. I taccuini si sincronizzano su tutti i tuoi dispositivi.",
   "@setSyncConnectedDesc": {},
   "setSyncLocalOnlyDesc": "Modalità solo-locale: i taccuini restano su questo dispositivo. Connetti un server WebDAV per accedervi da più dispositivi.",
@@ -3077,5 +3081,9 @@
     }
   },
   "pgtToastUndoFailed": "Impossibile annullare. Controlla i due taccuini.",
-  "@pgtToastUndoFailed": {}
+  "@pgtToastUndoFailed": {},
+  "csTapUndone": "Annullato",
+  "@csTapUndone": {},
+  "csTapRedone": "Ripristinato",
+  "@csTapRedone": {}
 }
