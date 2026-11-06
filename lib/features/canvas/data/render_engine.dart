@@ -2203,7 +2203,10 @@ class CanvasRenderEngine extends CustomPainter {
     }
   }
 
-  void _paintLassoPathFromPoints(Canvas canvas, List<Offset> points) {
+  void _paintLassoPathFromPoints(Canvas canvas, List<Offset> raw) {
+    // Pen tremor makes a ragged outline: draw it through a short moving
+    // average (the selection itself still uses the raw points).
+    final points = _smoothLasso(raw);
     // Build the full closed path
     final fullPath = Path()..moveTo(points[0].dx, points[0].dy);
     for (int i = 1; i < points.length; i++) {
@@ -2217,12 +2220,16 @@ class CanvasRenderEngine extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawPath(fullPath, fillPaint);
 
-    // Dashed grey stroke outline (marching ants style)
+    // Dashed grey stroke outline (marching ants style), one path: a dash that
+    // spans many short segments is a single joined line, not one per segment.
     final dashPaint = Paint()
       ..color = const Color(0xFF616161)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
+      ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
+    final dashes = Path();
+    var inDash = false;
 
     // Compute total path length and draw dashes
     final allPoints = [...points, points[0]]; // include closing segment
@@ -2248,21 +2255,43 @@ class CanvasRenderEngine extends CustomPainter {
         final step = min(needed, available);
 
         if (drawing) {
-          final startX = p0.dx + ux * traveled;
-          final startY = p0.dy + uy * traveled;
-          final endX = p0.dx + ux * (traveled + step);
-          final endY = p0.dy + uy * (traveled + step);
-          canvas.drawLine(Offset(startX, startY), Offset(endX, endY), dashPaint);
+          if (!inDash) {
+            dashes.moveTo(p0.dx + ux * traveled, p0.dy + uy * traveled);
+            inDash = true;
+          }
+          dashes.lineTo(
+              p0.dx + ux * (traveled + step), p0.dy + uy * (traveled + step));
         }
 
         accumulator += step;
         traveled += step;
         if (accumulator >= (drawing ? dashLen : gapLen)) {
           drawing = !drawing;
+          inDash = false;
           accumulator = 0;
         }
       }
     }
+    canvas.drawPath(dashes, dashPaint);
+  }
+
+  /// Five-point moving average, narrower at the ends so the tip stays under
+  /// the pen while the lasso is still being drawn.
+  static List<Offset> _smoothLasso(List<Offset> pts) {
+    final n = pts.length;
+    if (n < 3) return pts;
+    return [
+      for (var i = 0; i < n; i++) _mean(pts, max(0, i - 2), min(n - 1, i + 2)),
+    ];
+  }
+
+  static Offset _mean(List<Offset> pts, int a, int b) {
+    var x = 0.0, y = 0.0;
+    for (var j = a; j <= b; j++) {
+      x += pts[j].dx;
+      y += pts[j].dy;
+    }
+    return Offset(x / (b - a + 1), y / (b - a + 1));
   }
 
   /// Render the laser-pointer trail. Strategy:

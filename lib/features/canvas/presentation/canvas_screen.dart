@@ -156,6 +156,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // kept out of CanvasState so autosave/sync don't read it as an erase.
   int? _penHoverPointer;
   final ValueNotifier<Offset?> _penHoverPos = ValueNotifier<Offset?>(null);
+  // Web: touch-screen pens send a stray hover sample where they lift and
+  // never leave, which pinned the hover badge there. See _updatePenHover.
+  Timer? _webPenHoverTimer;
+  DateTime? _webPenUpAt;
   _PenHoverHint _penHoverHint = _PenHoverHint.eraser;
   // Hint comes from a held barrel, not the dock tool.
   bool _penHoverBarrel = false;
@@ -1633,6 +1637,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _focusNode.dispose();
     _pdfTextSelController?.dispose();
     _mouseHoverCursor.dispose();
+    _webPenHoverTimer?.cancel();
     _penHoverPos.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Deliberately NOT calling DesktopWindow.setFullScreen(false) here: by
@@ -2663,6 +2668,18 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _clearPenHover();
       return;
     }
+    if (kIsWeb) {
+      // Right after a lift it is the tap's leftover, not a hover. A pen that
+      // really hovers keeps sending samples, so the badge stays up for it.
+      final up = _webPenUpAt;
+      if (up != null &&
+          DateTime.now().difference(up) < const Duration(milliseconds: 150)) {
+        return;
+      }
+      _webPenHoverTimer?.cancel();
+      _webPenHoverTimer =
+          Timer(const Duration(milliseconds: 300), _clearPenHover);
+    }
     _penHoverPointer = event.pointer;
     _penHoverBarrel = upper || lower;
     _penHoverHint = hint;
@@ -2670,6 +2687,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   void _clearPenHover() {
+    _webPenHoverTimer?.cancel();
+    _webPenHoverTimer = null;
     _penHoverPointer = null;
     _penHoverBarrel = false;
     _penHoverPos.value = null;
@@ -2836,7 +2855,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       if (state.selectedElementId != null) notif.deselectElement();
       if (state.lassoSelection != null) notif.clearSelection();
       notif.clearLassoPath();
-      _lassoPathNotifier.start(pagePos);
+      _lassoPathNotifier.start(pagePos,
+          minStep: 3 * _pageUnitsPerScreenPx(state, canvasSize));
       _mouseSelecting = true;
       return;
     }
@@ -3269,7 +3289,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // new lasso "starting offset" from the true touch location.
     if (tool == CanvasTool.lasso) {
       ref.read(canvasProvider.notifier).clearLassoPath(); // bake previous + reset provider path
-      _lassoPathNotifier.start(pagePos);
+      _lassoPathNotifier.start(pagePos,
+          minStep: 3 * _pageUnitsPerScreenPx(state, canvasSize));
       return;
     }
 
@@ -3637,6 +3658,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   void _onPointerUp(PointerUpEvent event) {
+    if (kIsWeb && _isPen(event)) _webPenUpAt = DateTime.now();
     // Matching cleanup for the synth-mouse pointer suppressed in
     // `_onPointerDown` — never bumped `_activePointers`, so don't
     // decrement it here either.
@@ -3908,10 +3930,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // still making a valid mark. Only reset touch-specific gesture state
     // and return. Previously this path undid the user's first stroke
     // whenever their palm brushed the screen mid-draw on iPad.
+    // The pen's hold-to-recognize state is the pen's, so it stays too.
     if (event.kind == PointerDeviceKind.touch && _stylusDown) {
       _isTouchPanning = false;
-      _holdRecognizeTimer?.cancel();
-      _shapeRecognizedDuringHold = false;
       return;
     }
     _isTouchPanning = false;
@@ -3923,6 +3944,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _commitLassoTransform();
     }
     _holdRecognizeTimer?.cancel();
+    final heldShape = _shapeRecognizedDuringHold &&
+        ref.read(canvasProvider)?.recognizedShape != null;
     _shapeRecognizedDuringHold = false;
     // ── Stroke-break defense ──
     //
@@ -3940,6 +3963,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // too, or it stays stuck true and keeps blocking zoom + treating every
     // touch as palm until the pen touches down again.
     if (isStylusCancel) _stylusDown = false;
+    // A shape the pen held still for is already shown as recognised (its
+    // stroke points are gone): keep it, as lifting the pen would. Safari can
+    // cancel a pen that rests in place.
+    if (isStylusCancel && heldShape) {
+      _activeStrokeNotifier.clear();
+      ref.read(canvasProvider.notifier).commitRecognizedShape();
+      _markStrokeEnded('pointerCancel.shapeCommit');
+      _strokeDbg('CANCEL_RESCUED shape kind=${event.kind.name}');
+      return;
+    }
     if (isStylusCancel &&
         _activeStrokeNotifier.isActive &&
         _activeStrokeNotifier.points.length >= 2) {
