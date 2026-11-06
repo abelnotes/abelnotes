@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show compactPageJson, decodePageData;
+    show decodePageBytes, encodePageBytes;
 import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -28,7 +28,7 @@ class TrayStore {
     await tmp.create(recursive: true);
     for (var i = 0; i < tray.pages.length; i++) {
       await _file(p.join(_tmp, 'pages', '$i.json'))
-          .writeAsString(compactPageJson(tray.pages[i].data), flush: true);
+          .writeAsBytes(encodePageBytes(tray.pages[i].data), flush: true);
     }
     for (final e in assets.entries) {
       await _file(p.join(_tmp, 'assets', e.key)).writeAsBytes(e.value);
@@ -90,9 +90,9 @@ class TrayStore {
           .toList();
       final pages = <TrayPage>[];
       for (var i = 0; i < entries.length; i++) {
-        final json = jsonDecode(
-            await File(p.join(root, 'pages', '$i.json')).readAsString());
-        pages.add(TrayPage(entries[i], decodePageData(json as Map<String, dynamic>)));
+        final bytes =
+            await File(p.join(root, 'pages', '$i.json')).readAsBytes();
+        pages.add(TrayPage(entries[i], decodePageBytes(bytes)));
       }
       final thumbs = <List<int>>[];
       for (var i = 0; i < (m['thumbs'] as int? ?? 0); i++) {

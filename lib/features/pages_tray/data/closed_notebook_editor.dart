@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show compactPageJson, decodePageData;
+    show decodePageBytes, encodePageBytes;
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/thumbnail_service.dart';
 import 'package:abelnotes/features/pages_tray/domain/page_transfer.dart';
@@ -203,8 +203,7 @@ class ClosedNotebookEditor {
               documentJson: _json(plan.document.toJson()),
               changedPages: {
                 if (blank != null)
-                  blank.fileName: Uint8List.fromList(
-                      utf8.encode(compactPageJson(plan.blankData!))),
+                  blank.fileName: encodePageBytes(plan.blankData!),
               },
               deletedPages: plan.removedFileNames.toList(),
             ));
@@ -281,8 +280,7 @@ class ClosedNotebookEditor {
               documentJson: _json(doc.toJson()),
               changedPages: {
                 for (final e in newData.entries)
-                  e.key: Uint8List.fromList(
-                      utf8.encode(compactPageJson(e.value))),
+                  e.key: encodePageBytes(e.value),
               },
               deletedPages: deletedBlank,
             ));
@@ -333,8 +331,7 @@ class ClosedNotebookEditor {
               documentJson: _json(plan.document.toJson()),
               changedPages: {
                 for (final e in plan.newPages.entries)
-                  e.key: Uint8List.fromList(
-                      utf8.encode(compactPageJson(e.value))),
+                  e.key: encodePageBytes(e.value),
               },
               changedAssets: missing,
             ));
@@ -356,10 +353,9 @@ class ClosedNotebookEditor {
     try {
       final dir = files.notebookStoreDir(id);
       final first = after.pages.first;
-      final page = decodePageData(jsonDecode(await File(
-                  p.join(dir, AppConfig.pagesDir, first.fileName))
-              .readAsString())
-          as Map<String, dynamic>);
+      final page = decodePageBytes(await File(
+              p.join(dir, AppConfig.pagesDir, first.fileName))
+          .readAsBytes());
       final tp = TrayPage(first, page);
       final assets = <String, Uint8List>{};
       for (final a in tp.assetIds) {

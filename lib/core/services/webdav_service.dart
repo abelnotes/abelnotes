@@ -158,7 +158,8 @@ class WebDavService implements RemoteStore {
     this.pinnedCertFingerprint,
     this.onCertificatePinned,
     this.onAuthRejectedChanged,
-  }) {
+    bool? preconditionHeader,
+  }) : _preconditionHeader = preconditionHeader ?? !kIsWeb {
     // Warn if not using HTTPS (credentials travel in plaintext over HTTP)
     final uri = Uri.parse(serverUrl);
     if (uri.scheme != 'https') {
@@ -875,12 +876,70 @@ class WebDavService implements RemoteStore {
 
   @override
   Future<String?> uploadFileConditional(String remotePath, Uint8List data,
-          {String? ifMatchVersion, bool ifAbsent = false}) =>
-      _put(remotePath, data, extraHeaders: {
+          {String? ifMatchVersion, bool ifAbsent = false, int? timeoutSeconds}) =>
+      _put(remotePath, data, timeoutSeconds: timeoutSeconds, extraHeaders: {
         if (ifMatchVersion != null)
           'If-Match': '"${ifMatchVersion.replaceAll('"', '')}"',
         if (ifAbsent) 'If-None-Match': '*',
       });
+
+  /// Uploads to a sibling temporary file, then MOVEs it over [remotePath].
+  /// A PUT cut off midway left Nextcloud holding the truncated bytes in
+  /// place of the good file; a cut-off upload now only spoils the
+  /// temporary file. The rename is atomic on the server, and the
+  /// precondition rides on it as an `If` header on the destination.
+  /// Whether the atomic upload's MOVE carries its precondition as an `If`
+  /// header. Off on the web: CORS setups following WEB_PWA.md don't allow
+  /// that header, so the destination's version is checked just before.
+  final bool _preconditionHeader;
+
+  @override
+  Future<String?> uploadFileAtomic(String remotePath, Uint8List data,
+      {String? ifMatchVersion, int? timeoutSeconds}) async {
+    final tmp = '$remotePath$atomicUploadMarker'
+        '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
+    try {
+      final putEtag = await _put(tmp, data, timeoutSeconds: timeoutSeconds);
+      if (ifMatchVersion != null && !_preconditionHeader) {
+        String? now;
+        try {
+          now = await getVersion(remotePath);
+        } on WebDavException catch (e) {
+          if (e.statusCode != 404) rethrow;
+        }
+        if (now?.replaceAll('"', '') != ifMatchVersion.replaceAll('"', '')) {
+          throw WebDavException('precondition failed: $remotePath', 412);
+        }
+      }
+      final request = http.Request('MOVE', Uri.parse(_fullUrl(tmp)));
+      request.headers.addAll({
+        ..._authHeaders,
+        'Destination': _fullUrl(remotePath),
+        'Overwrite': 'T',
+        if (ifMatchVersion != null && _preconditionHeader)
+          'If': '<${Uri.parse(_fullUrl(remotePath)).path}> '
+              '(["${ifMatchVersion.replaceAll('"', '')}"])',
+      });
+      final response = await _client.send(request).timeout(Duration(
+          seconds: timeoutSeconds ?? AppConfig.webdavTimeoutSeconds));
+      _drainStream(response);
+      if (response.statusCode != 201 && response.statusCode != 204) {
+        if (response.statusCode == 412) {
+          _recordSuccess();
+        } else {
+          _recordFailure('uploadFileAtomic', 'MOVE ${response.statusCode}');
+        }
+        throw WebDavException(
+            'MOVE failed: ${response.statusCode}', response.statusCode);
+      }
+      _recordSuccess();
+      // Nextcloud keeps the ETag across the rename and returns it.
+      return response.headers['etag']?.replaceAll('"', '') ?? putEtag;
+    } catch (_) {
+      unawaited(delete(tmp).catchError((Object _) {}));
+      rethrow;
+    }
+  }
 
   Future<String?> _put(String remotePath, Uint8List data,
       {int? timeoutSeconds,

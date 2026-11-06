@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Notebook files are ZIP archives: without this they open in an archive
+     manager with a generic icon. The glob wins over the ZIP magic. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-abelnote">
+    <comment>AbelNotes notebook</comment>
+    <comment xml:lang="it">Quaderno AbelNotes</comment>
+    <comment xml:lang="de">AbelNotes-Notizbuch</comment>
+    <comment xml:lang="fr">Carnet AbelNotes</comment>
+    <comment xml:lang="es">Cuaderno de AbelNotes</comment>
+    <comment xml:lang="pt">Caderno do AbelNotes</comment>
+    <comment xml:lang="zh">AbelNotes 笔记本</comment>
+    <sub-class-of type="application/zip"/>
+    <icon name="app.abelnotes.notes"/>
+    <glob pattern="*.abelnote" weight="60"/>
+    <glob pattern="*.ncnote" weight="60"/>
+  </mime-type>
+</mime-info>

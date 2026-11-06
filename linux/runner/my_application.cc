@@ -22,6 +22,10 @@ struct _MyApplication {
   // window signals and raced the embedder during teardown, crashing on
   // app close with "invalid unclassed pointer in cast to 'FlView'".
   FlMethodChannel* window_channel;  // owned
+  // Notebook files a later launch hands over ("abelnotes/file_open", the
+  // channel the Windows runner uses for the same purpose).
+  FlMethodChannel* file_open_channel;  // owned
+  GtkWindow* window;                   // owned by the application
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -166,8 +170,15 @@ static void set_window_icon(GtkWindow* window) {
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  // A later launch activates the running instance: show its window instead
+  // of starting a second engine on the same local store.
+  if (self->window != nullptr) {
+    gtk_window_present(self->window);
+    return;
+  }
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+  self->window = window;
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -244,6 +255,9 @@ static void my_application_activate(GApplication* application) {
       FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(self->window_channel,
                                             window_method_cb, self, nullptr);
+  self->file_open_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(engine), "abelnotes/file_open",
+      FL_METHOD_CODEC(codec));
   // Permission-free pressure path: a source-agnostic GtkGestureDrag that
   // reads the GDK pressure axis off its events (see forward_drag_pressure).
   // CAPTURE phase + never claiming = observe without stealing the event from
@@ -264,13 +278,26 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
 
+// Implements GApplication::open: notebook files from a later launch.
+static void my_application_open(GApplication* application, GFile** files,
+                                gint n_files, const gchar* hint) {
+  MyApplication* self = MY_APPLICATION(application);
+  if (self->window == nullptr) my_application_activate(application);
+  for (gint i = 0; i < n_files; i++) {
+    g_autofree gchar* path = g_file_get_path(files[i]);
+    if (path == nullptr || self->file_open_channel == nullptr) continue;
+    g_autoptr(FlValue) arg = fl_value_new_string(path);
+    fl_method_channel_invoke_method(self->file_open_channel, "open", arg,
+                                    nullptr, nullptr, nullptr);
+  }
+  gtk_window_present(self->window);
+}
+
 // Implements GApplication::local_command_line.
 static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
@@ -278,10 +305,29 @@ static gboolean my_application_local_command_line(GApplication* application,
     *exit_status = 1;
     return TRUE;
   }
-
-  g_application_activate(application);
   *exit_status = 0;
 
+  // Another instance is running: two processes writing one local store
+  // corrupt it, so hand over the files (or just raise it) and quit.
+  if (g_application_get_is_remote(application)) {
+    g_autoptr(GPtrArray) files = g_ptr_array_new_with_free_func(g_object_unref);
+    for (gchar** arg = *arguments + 1; *arg != nullptr; arg++) {
+      if ((*arg)[0] == '-') continue;
+      g_ptr_array_add(files, g_file_new_for_commandline_arg(*arg));
+    }
+    if (files->len > 0) {
+      g_application_open(application,
+                         reinterpret_cast<GFile**>(files->pdata), files->len,
+                         "");
+    } else {
+      g_application_activate(application);
+    }
+    return TRUE;
+  }
+
+  // Strip out the first argument as it is the binary name.
+  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  g_application_activate(application);
   return TRUE;
 }
 
@@ -309,11 +355,13 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   g_clear_object(&self->pen_channel);
   g_clear_object(&self->window_channel);
+  g_clear_object(&self->file_open_channel);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
+  G_APPLICATION_CLASS(klass)->open = my_application_open;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
@@ -332,5 +380,5 @@ MyApplication* my_application_new() {
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     G_APPLICATION_HANDLES_OPEN, nullptr));
 }

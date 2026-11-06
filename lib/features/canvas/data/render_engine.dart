@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:abelnotes/features/canvas/data/pdf_tiles.dart';
@@ -230,6 +231,10 @@ class CanvasRenderEngine extends CustomPainter {
   /// shadow + border so the big sheet reads as an edgeless whiteboard. MUST
   /// mirror [CanvasScreen]'s `_getRenderScale`/`_getCenterOffset`.
   final bool infiniteCanvas;
+  /// Small previews: each stroke as one plain polyline of its points, no
+  /// variable width or curve fitting, which a preview cannot show anyway.
+  /// Such paints never use or fill the shared picture cache.
+  final bool previewStrokes;
   /// Raster stand-in used while the zoom is moving (web only, see [ZoomSnapshot]).
   final ZoomSnapshot? zoomSnapshot;
   /// Device pixels per logical pixel, sizes the zoom snapshot.
@@ -310,6 +315,7 @@ class CanvasRenderEngine extends CustomPainter {
     this.zoom = 1.0,
     this.panOffset = Offset.zero,
     this.infiniteCanvas = false,
+    this.previewStrokes = false,
     this.zoomSnapshot,
     this.devicePixelRatio = 2.0,
     this.imageCache = const {},
@@ -438,7 +444,7 @@ class CanvasRenderEngine extends CustomPainter {
           ? 0x1fffffff &
               (_pageImageSignature() + 0x9E3779B1 * (pdfTileVersion?.call() ?? 0))
           : 0;
-      final cached = allImagesReady
+      final cached = allImagesReady && !previewStrokes
           ? _staticPictureCache.lookup(
               pageData: pageData,
               zoom: zoom,
@@ -475,13 +481,14 @@ class CanvasRenderEngine extends CustomPainter {
         );
         final pic = recorder.endRecording();
         canvas.drawPicture(pic);
-        if (allImagesReady) {
+        if (allImagesReady && !previewStrokes) {
           _staticPictureCache.store(
             pageData: pageData,
             zoom: zoom,
             lassoSelection: lassoSel,
             imageSig: imageSig,
             picture: pic,
+            infinite: infiniteCanvas,
           );
         } else {
           // Discard immediately — re-record next frame so freshly
@@ -612,10 +619,11 @@ class CanvasRenderEngine extends CustomPainter {
 
   static const double _kSnapshotMaxPx = 2048;
 
-  /// Web fast path: the finished page as a screen-resolution bitmap, so a
-  /// frame costs one blit instead of re-stroking every path in WASM. Built
-  /// at pen-down; strokes drawn since are painted over it and merged into
-  /// it later, so no stroke start pays for a rebuild. False = use vector.
+  /// Web fast path: the finished page as bitmap tiles at screen resolution,
+  /// so a frame costs a few blits instead of re-stroking every path in WASM.
+  /// Tiles are anchored to the page, so panning keeps them and only newly
+  /// shown ones are built. Strokes drawn since are painted over them and
+  /// later merged into just the tiles they touch. False = use vector.
   bool _paintLiveBitmap(
     Canvas canvas,
     Size size,
@@ -629,88 +637,146 @@ class CanvasRenderEngine extends CustomPainter {
     double cy,
     bool penDown,
   ) {
-    var img = snap.liveImage;
     final heavy = _pageWeight(pageData) >= _kLiveMinWeight;
-    if (img == null && !heavy) return false;
+    if (snap.liveTiles.isEmpty && !heavy) return false;
     final dpr = devicePixelRatio;
-    final w = (size.width * dpr).ceil(), h = (size.height * dpr).ceil();
-    if (w <= 0 || h <= 0 || w * h > 16 * 1024 * 1024) return false;
-    final key = (_StaticPictureCache._lassoKey(lassoSel), imageSig, zoom, panOffset, size, dpr, baseScale);
-    final tx = panOffset.dx + cx * zoom, ty = panOffset.dy + cy * zoom;
     final s = zoom * baseScale;
+    final k = s * dpr; // device px per page unit
+    // Page plus its drop shadow, as in the zoom snapshot.
+    final region =
+        Rect.fromLTWH(-4, -4, pageData.width + 14, pageData.height + 14);
+    final pw = (region.width * k).ceil(), ph = (region.height * k).ceil();
+    final cols = (pw / _kTile).ceil(), rows = (ph / _kTile).ceil();
+    if (cols <= 0 || rows <= 0 || cols >= _kTileStride || rows >= _kTileStride) {
+      return false;
+    }
+    final tx = panOffset.dx + cx * zoom, ty = panOffset.dy + cy * zoom;
+    // Whole device pixels, so neighbouring tiles meet without seams.
+    final ox = ((tx + region.left * s) * dpr).roundToDouble();
+    final oy = ((ty + region.top * s) * dpr).roundToDouble();
+    final c0 = max(0, (-ox / _kTile).floor());
+    final c1 = min(cols - 1, ((size.width * dpr - ox) / _kTile).ceil() - 1);
+    final r0 = max(0, (-oy / _kTile).floor());
+    final r1 = min(rows - 1, ((size.height * dpr - oy) / _kTile).ceil() - 1);
+    // Same 16 Mpx ceiling as the single screen bitmap this replaced.
+    if (c0 > c1 || r0 > r1 || (c1 - c0 + 1) * (r1 - r0 + 1) > 64) return false;
+    final key = (_StaticPictureCache._lassoKey(lassoSel), imageSig, k);
+    // Only drop real tiles: clearing also cancels the pending warm-up.
+    if (snap.liveKey != null && snap.liveKey != key) snap.clearLive();
     List<StrokeElement>? overlay;
-    if (img != null && snap.liveKey == key) {
+    if (snap.livePage != null) {
       overlay = identical(snap.livePage, pageData)
           ? const []
           : _appendedStrokes(snap.livePage as PageData?, pageData);
+      if (overlay == null) snap.clearLive();
     }
-    if (overlay != null &&
-        overlay.isNotEmpty &&
-        (overlay.length > _kLiveOverlayMax || (!penDown && snap.bakeDue))) {
-      try {
-        final rec = ui.PictureRecorder();
-        final c = Canvas(rec)..drawImage(img!, Offset.zero, Paint());
-        c
-          ..scale(dpr)
-          ..translate(tx, ty)
-          ..scale(s);
-        for (final e in overlay) {
-          _paintStroke(c, e.data);
-        }
-        final pic = rec.endRecording();
-        final next = pic.toImageSync(w, h);
-        pic.dispose();
-        img.dispose();
-        snap.liveImage = img = next;
-        snap.livePage = pageData;
-        overlay = const [];
-      } catch (_) {
-        snap.markBroken();
-        snap.clearLive();
+    final missing = [
+      for (var r = r0; r <= r1; r++)
+        for (var c = c0; c <= c1; c++)
+          if (!snap.liveTiles.containsKey(r * _kTileStride + c))
+            r * _kTileStride + c,
+    ];
+    if (missing.isNotEmpty) {
+      if (!heavy) {
+        if (snap.liveTiles.isNotEmpty) snap.clearLive();
+        return false;
+      }
+      // A busy page also gets tiles once the view rests, so dock and popup
+      // animations over it stop replaying every stroke.
+      if (!penDown && !snap.warmReady(key)) {
+        snap.warm(key);
         return false;
       }
     }
-    if (overlay == null) {
-      if (!heavy) return false;
-      if (!penDown) {
-        // A busy page also gets the bitmap once the view rests, so dock and
-        // popup animations over it stop replaying every stroke.
-        if (!snap.warmReady(key)) {
-          snap.warm(key);
-          return false;
-        }
-      }
+    ui.Image tile(int id, void Function(Canvas) paint) {
+      final c = id % _kTileStride, r = id ~/ _kTileStride;
+      final rec = ui.PictureRecorder();
+      final canvas = Canvas(rec)
+        ..translate(-c * _kTile.toDouble(), -r * _kTile.toDouble())
+        ..scale(k)
+        ..translate(-region.left, -region.top);
+      paint(canvas);
+      final pic = rec.endRecording();
       try {
+        return pic.toImageSync(
+            min(_kTile, pw - c * _kTile), min(_kTile, ph - r * _kTile));
+      } finally {
+        pic.dispose();
+      }
+    }
+
+    try {
+      // Merge pending strokes first: every tile must show the same page state.
+      if (overlay != null &&
+          overlay.isNotEmpty &&
+          (overlay.length > _kLiveOverlayMax ||
+              (!penDown && snap.bakeDue) ||
+              missing.isNotEmpty)) {
+        final strokes = overlay;
+        final dirty = <int>{};
+        for (final e in strokes) {
+          dirty.addAll(_tilesUnder(e.data, region, k, cols, rows));
+        }
+        for (final id in dirty) {
+          final old = snap.liveTiles[id];
+          if (old == null) continue;
+          snap.liveTiles[id] = tile(id, (c) {
+            c
+              ..save()
+              ..translate(region.left, region.top)
+              ..scale(1 / k)
+              ..translate((id % _kTileStride) * _kTile.toDouble(),
+                  (id ~/ _kTileStride) * _kTile.toDouble())
+              ..drawImage(old, Offset.zero, Paint())
+              ..restore();
+            for (final e in strokes) {
+              _paintStroke(c, e.data);
+            }
+          });
+          old.dispose();
+        }
+        snap.livePage = pageData;
+        overlay = const [];
+      }
+      if (missing.isNotEmpty) {
         var pic = cached;
         if (pic == null) {
           final rec = ui.PictureRecorder();
-          _paintStaticLayers(Canvas(rec), selectedIdsSet(), Offset.zero, 0, 1, Offset.zero, false);
+          _paintStaticLayers(Canvas(rec), selectedIdsSet(), Offset.zero, 0, 1,
+              Offset.zero, false);
           pic = rec.endRecording();
           _staticPictureCache.store(
-              pageData: pageData, zoom: zoom, lassoSelection: lassoSel, imageSig: imageSig, picture: pic);
+              pageData: pageData,
+              zoom: zoom,
+              lassoSelection: lassoSel,
+              imageSig: imageSig,
+              picture: pic);
         }
-        final rec = ui.PictureRecorder();
-        Canvas(rec)
-          ..scale(dpr)
-          ..translate(tx, ty)
-          ..scale(s)
-          ..drawPicture(pic);
-        final bmp = rec.endRecording();
-        final next = bmp.toImageSync(w, h);
-        bmp.dispose();
-        snap.clearLive();
-        snap.liveImage = img = next;
+        final whole = pic;
+        for (final id in missing) {
+          snap.liveTiles[id] = tile(id, (c) => c.drawPicture(whole));
+        }
         snap.livePage = pageData;
         snap.liveKey = key;
         overlay = const [];
-      } catch (_) {
-        snap.markBroken();
-        return false;
       }
+    } catch (_) {
+      snap.markBroken();
+      snap.clearLive();
+      return false;
     }
+    if (snap.liveTiles.length > _kMaxTiles) {
+      snap.liveTiles.removeWhere((id, img) {
+        final c = id % _kTileStride, r = id ~/ _kTileStride;
+        final keep = c >= c0 && c <= c1 && r >= r0 && r <= r1;
+        if (!keep) img.dispose();
+        return !keep;
+      });
+    }
+    final shown = overlay ?? const <StrokeElement>[];
     if (penDown) {
       snap.cancelBake();
-    } else if (overlay.isNotEmpty) {
+    } else if (shown.isNotEmpty) {
       snap.scheduleBake();
     } else {
       snap.bakeDue = false;
@@ -719,15 +785,51 @@ class CanvasRenderEngine extends CustomPainter {
       ..save()
       ..scale(1 / s)
       ..translate(-tx, -ty)
-      ..scale(1 / dpr)
-      ..drawImage(img!, Offset.zero, Paint()..filterQuality = FilterQuality.none)
-      ..restore();
-    for (final e in overlay) {
+      ..scale(1 / dpr);
+    final paint = Paint()..filterQuality = FilterQuality.none;
+    for (var r = r0; r <= r1; r++) {
+      for (var c = c0; c <= c1; c++) {
+        final img = snap.liveTiles[r * _kTileStride + c];
+        if (img != null) {
+          canvas.drawImage(
+              img, Offset(ox + c * _kTile, oy + r * _kTile), paint);
+        }
+      }
+    }
+    canvas.restore();
+    for (final e in shown) {
       _paintStroke(canvas, e.data);
     }
     return true;
   }
 
+  /// Tiles a stroke can mark, with room for the widest pen and curve overshoot.
+  Iterable<int> _tilesUnder(
+      StrokeData d, Rect region, double k, int cols, int rows) sync* {
+    if (d.points.isEmpty) return;
+    var x0 = d.points.first.x, x1 = x0, y0 = d.points.first.y, y1 = y0;
+    for (final p in d.points) {
+      if (p.x < x0) x0 = p.x;
+      if (p.x > x1) x1 = p.x;
+      if (p.y < y0) y0 = p.y;
+      if (p.y > y1) y1 = p.y;
+    }
+    final pad = d.baseWidth * 3 + 8;
+    final ca = max(0, ((x0 - pad - region.left) * k / _kTile).floor());
+    final cb = min(cols - 1, ((x1 + pad - region.left) * k / _kTile).floor());
+    final ra = max(0, ((y0 - pad - region.top) * k / _kTile).floor());
+    final rb = min(rows - 1, ((y1 + pad - region.top) * k / _kTile).floor());
+    for (var r = ra; r <= rb; r++) {
+      for (var c = ca; c <= cb; c++) {
+        yield r * _kTileStride + c;
+      }
+    }
+  }
+
+  static const int _kTile = 512;
+  static const int _kTileStride = 4096;
+  // About two screens of tiles; off-screen ones go first.
+  static const int _kMaxTiles = 48;
   static const int _kLiveOverlayMax = 8;
   // Ink points on a page before replaying it costs more than building the bitmap.
   static const int _kLiveMinWeight = 1500;
@@ -893,7 +995,9 @@ class CanvasRenderEngine extends CustomPainter {
       }
 
       element.map(unknown: (u) => u,
-        stroke: (e) => _paintStroke(canvas, e.data),
+        stroke: (e) => previewStrokes
+            ? _paintStrokePreview(canvas, e.data)
+            : _paintStroke(canvas, e.data),
         text: (e) {
           if (isLiveTarget && liveEl.scaleW != 1.0) {
             _paintText(canvas, e.data, widthOverride: e.data.width * liveEl.scaleW);
@@ -1327,6 +1431,34 @@ class CanvasRenderEngine extends CustomPainter {
     canvas.drawCircle(Offset(interp.first.x, interp.first.y), hw0, paint);
     final lastHw = (interp.last.w * 0.5).clamp(0.2, 999.0);
     canvas.drawCircle(Offset(interp.last.x, interp.last.y), lastHw, paint);
+  }
+
+  /// One draw call per stroke: the points go to the canvas in a single
+  /// array instead of a path built point by point.
+  void _paintStrokePreview(Canvas canvas, StrokeData stroke) {
+    final pts = stroke.points;
+    if (stroke.isHighlighter || pts.length < 2) {
+      _paintStroke(canvas, stroke);
+      return;
+    }
+    final xy = Float32List(pts.length * 2);
+    for (var i = 0; i < pts.length; i++) {
+      xy[2 * i] = pts[i].x;
+      xy[2 * i + 1] = pts[i].y;
+    }
+    canvas.drawRawPoints(
+      ui.PointMode.polygon,
+      xy,
+      Paint()
+        ..color = Color(stroke.color).withValues(alpha: stroke.opacity)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke.toolType == 'brush'
+            ? stroke.baseWidth * 1.5
+            : stroke.baseWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..isAntiAlias = true,
+    );
   }
 
   void _paintStroke(Canvas canvas, StrokeData stroke) {
@@ -2212,7 +2344,10 @@ class CanvasRenderEngine extends CustomPainter {
     }
   }
 
-  void _paintLassoPathFromPoints(Canvas canvas, List<Offset> points) {
+  void _paintLassoPathFromPoints(Canvas canvas, List<Offset> raw) {
+    // Pen tremor makes a ragged outline: draw it through a short moving
+    // average (the selection itself still uses the raw points).
+    final points = _smoothLasso(raw);
     // Build the full closed path
     final fullPath = Path()..moveTo(points[0].dx, points[0].dy);
     for (int i = 1; i < points.length; i++) {
@@ -2226,12 +2361,16 @@ class CanvasRenderEngine extends CustomPainter {
       ..style = PaintingStyle.fill;
     canvas.drawPath(fullPath, fillPaint);
 
-    // Dashed grey stroke outline (marching ants style)
+    // Dashed grey stroke outline (marching ants style), one path: a dash that
+    // spans many short segments is a single joined line, not one per segment.
     final dashPaint = Paint()
       ..color = const Color(0xFF616161)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2
+      ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
+    final dashes = Path();
+    var inDash = false;
 
     // Compute total path length and draw dashes
     final allPoints = [...points, points[0]]; // include closing segment
@@ -2257,21 +2396,43 @@ class CanvasRenderEngine extends CustomPainter {
         final step = min(needed, available);
 
         if (drawing) {
-          final startX = p0.dx + ux * traveled;
-          final startY = p0.dy + uy * traveled;
-          final endX = p0.dx + ux * (traveled + step);
-          final endY = p0.dy + uy * (traveled + step);
-          canvas.drawLine(Offset(startX, startY), Offset(endX, endY), dashPaint);
+          if (!inDash) {
+            dashes.moveTo(p0.dx + ux * traveled, p0.dy + uy * traveled);
+            inDash = true;
+          }
+          dashes.lineTo(
+              p0.dx + ux * (traveled + step), p0.dy + uy * (traveled + step));
         }
 
         accumulator += step;
         traveled += step;
         if (accumulator >= (drawing ? dashLen : gapLen)) {
           drawing = !drawing;
+          inDash = false;
           accumulator = 0;
         }
       }
     }
+    canvas.drawPath(dashes, dashPaint);
+  }
+
+  /// Five-point moving average, narrower at the ends so the tip stays under
+  /// the pen while the lasso is still being drawn.
+  static List<Offset> _smoothLasso(List<Offset> pts) {
+    final n = pts.length;
+    if (n < 3) return pts;
+    return [
+      for (var i = 0; i < n; i++) _mean(pts, max(0, i - 2), min(n - 1, i + 2)),
+    ];
+  }
+
+  static Offset _mean(List<Offset> pts, int a, int b) {
+    var x = 0.0, y = 0.0;
+    for (var j = a; j <= b; j++) {
+      x += pts[j].dx;
+      y += pts[j].dy;
+    }
+    return Offset(x / (b - a + 1), y / (b - a + 1));
   }
 
   /// Render the laser-pointer trail. Strategy:
@@ -2611,6 +2772,12 @@ class CanvasRenderEngine extends CustomPainter {
   /// through pages.
   static final _staticPictureCache = _StaticPictureCache();
 
+  /// The canvas's recording of [page] if it has one, so a cover thumbnail
+  /// can replay it instead of stroking every path again. Pictures scale
+  /// cleanly down, so the zoom it was made at does not matter.
+  static ui.Picture? recordedPage(PageData page) =>
+      _staticPictureCache.plainPage(page);
+
   /// Per-StrokeData cache of bucketed Path runs. Skips the expensive
   /// Catmull-Rom interpolation + width bucketing on every Picture
   /// rebuild — the interpolation result depends only on the stroke
@@ -2717,6 +2884,7 @@ class _StaticPictureCache {
     required LassoSelection? lassoSelection,
     required int imageSig,
     required ui.Picture picture,
+    bool infinite = false,
   }) {
     final zoomBucket = (zoom / _zoomQuantum).round();
     final lassoKey = _lassoKey(lassoSelection);
@@ -2725,6 +2893,7 @@ class _StaticPictureCache {
       zoomBucket: zoomBucket,
       lassoKey: lassoKey,
       imageSig: imageSig,
+      infinite: infinite,
       picture: picture,
     ));
     while (_entries.length > _maxEntries) {
@@ -2732,6 +2901,18 @@ class _StaticPictureCache {
       final evicted = _entries.removeAt(0);
       evicted.picture.dispose();
     }
+  }
+
+  /// Any recording of [pageData] as a plain page (no selection, not the
+  /// infinite canvas), whatever zoom it was made at.
+  ui.Picture? plainPage(PageData pageData) {
+    for (var i = _entries.length - 1; i >= 0; i--) {
+      final e = _entries[i];
+      if (identical(e.pageData, pageData) && e.lassoKey.isEmpty && !e.infinite) {
+        return e.picture;
+      }
+    }
+    return null;
   }
 
   /// Memoised cache-key per LassoSelection identity. Without this the
@@ -2766,6 +2947,7 @@ class _StaticPictureEntry {
   final int zoomBucket;
   final String lassoKey;
   final int imageSig;
+  final bool infinite;
   final ui.Picture picture;
 
   _StaticPictureEntry({
@@ -2773,6 +2955,7 @@ class _StaticPictureEntry {
     required this.zoomBucket,
     required this.lassoKey,
     required this.imageSig,
+    required this.infinite,
     required this.picture,
   });
 }
