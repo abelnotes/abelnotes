@@ -6,6 +6,9 @@
 // ═══════════════════════════════════════════════════════════════
 
 import 'dart:math';
+import 'dart:ui' as ui;
+
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/features/canvas/data/thumbnail_simplify.dart';
+import 'package:abelnotes/features/canvas/presentation/preview_rasters.dart';
 import 'package:abelnotes/features/pages_tray/domain/page_transfer.dart';
 import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart';
 import 'package:abelnotes/features/pages_tray/presentation/tray_widgets.dart';
@@ -367,6 +371,61 @@ class _PageGridState extends ConsumerState<PageGrid> {
     );
   }
 
+  CanvasRenderEngine _previewEngine(PageData page, CanvasState state,
+          Set<String> corruptAssetIds, {bool fast = false}) =>
+      CanvasRenderEngine(
+        pageData: page,
+        zoom: 1.0,
+        panOffset: Offset.zero,
+        imageCache: state.imageCache,
+        corruptAssetIds: corruptAssetIds,
+        previewStrokes: fast,
+      );
+
+  /// The preview's ink: on the web a bitmap made once (see PreviewRasters),
+  /// elsewhere the vector drawing.
+  Widget _previewInk(BuildContext ctx, Size size, PageData page,
+      CanvasState state, Set<String> corruptAssetIds, bool loading) {
+    final dpr = MediaQuery.devicePixelRatioOf(ctx);
+    final pw = (size.width * dpr).round(), ph = (size.height * dpr).round();
+    PageData simplified() => simplifyForPreview(
+        page, min(size.width / page.width, size.height / page.height) * dpr);
+    Widget vector() => CustomPaint(
+          painter: _previewEngine(simplified(), state, corruptAssetIds),
+          size: Size.infinite,
+        );
+    // A preview whose images are still decoding would be kept without them.
+    if (!kIsWeb || loading || pw <= 0 || ph <= 0 || pw * ph > 4000000) {
+      return vector();
+    }
+    final rasters = PreviewRasters.instance;
+    final key = PreviewKey(page, pw, ph, state.imageCache);
+    return ValueListenableBuilder<int>(
+      valueListenable: rasters.version,
+      builder: (_, __, ___) {
+        final img = rasters.lookup(key);
+        if (img != null) {
+          return RawImage(
+              image: img, fit: BoxFit.fill, filterQuality: FilterQuality.low);
+        }
+        if (rasters.failed(key)) return vector();
+        rasters.request(key, () {
+          final rec = ui.PictureRecorder();
+          final canvas = Canvas(rec)..scale(dpr);
+          _previewEngine(simplified(), state, corruptAssetIds, fast: true)
+              .paint(canvas, size);
+          final pic = rec.endRecording();
+          try {
+            return pic.toImageSync(pw, ph);
+          } finally {
+            pic.dispose();
+          }
+        });
+        return const SizedBox.expand();
+      },
+    );
+  }
+
   // ── thumbnail (lazy asset decoding, corrupt/loading badges) ──
 
   Widget _thumbnail(int docIndex, PageData? page, CanvasState state) {
@@ -412,14 +471,8 @@ class _PageGridState extends ConsumerState<PageGrid> {
       }
     }
     return LayoutBuilder(builder: (ctx, constraints) {
-      final previewPage = page == null
-          ? null
-          : simplifyForPreview(
-              page,
-              min(constraints.maxWidth / page.width,
-                      constraints.maxHeight / page.height) *
-                  MediaQuery.devicePixelRatioOf(ctx),
-            );
+      // Simplified only when drawn: on the web that happens between frames.
+      final previewPage = page;
       return DecoratedBox(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -429,16 +482,8 @@ class _PageGridState extends ConsumerState<PageGrid> {
           borderRadius: BorderRadius.circular(4),
           child: previewPage != null
               ? Stack(fit: StackFit.expand, children: [
-                  CustomPaint(
-                    painter: CanvasRenderEngine(
-                      pageData: previewPage,
-                      zoom: 1.0,
-                      panOffset: Offset.zero,
-                      imageCache: state.imageCache,
-                      corruptAssetIds: corruptAssetIds,
-                    ),
-                    size: Size.infinite,
-                  ),
+                  _previewInk(ctx, constraints.biggest, previewPage, state,
+                      corruptAssetIds, hasLoadingAsset),
                   if (hasCorruptAsset)
                     Positioned(
                       top: 4,

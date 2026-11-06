@@ -200,6 +200,15 @@ A page has a `BackgroundLayer` (paper type, PDF page reference for annotated imp
 
 Only the LaTeX source is ever persisted for a `math` element — the rendered glyphs are rasterized at runtime from `latex`, not stored as pixels.
 
+### Page encodings
+
+A page file keeps its `pages/*.json` name in either encoding; readers tell them apart by the first bytes.
+
+- **Compact JSON** (what is written today): the JSON above with every double rounded to 3 decimals and each stroke point as an array `[x, y, pressure, tilt, timestamp]`, trailing defaults left out (`[x, y]` for a point at pressure 0.5, tilt 0, timestamp 0). Readers also accept the map form shown above.
+- **Binary** (read by current releases, not written by any yet; switched on later by `AppConfig.writeBinaryPages`): the bytes `ABPG`, a version byte (`1`), an unsigned LEB128 varint with the byte length of a UTF-8 page in compact JSON whose strokes all have `"points": []`, that JSON, a varint with the number of strokes, then for each stroke in content order: a varint point count, a flags byte (`1` pressure, `2` tilt, `4` timestamp present; absent ones are 0.5, 0 and 0), and the values as zigzag varints of the difference from the previous point: all x, all y, then pressure, tilt and timestamp when present. x, y, pressure and tilt are in thousandths, timestamps in milliseconds, so a binary page decodes to exactly what its compact JSON decodes to, in about a third of the space.
+
+A reader that meets a binary page with a higher version byte must treat it as a newer format, never as a damaged page: a damaged page can be replaced from another copy, a newer one must be left alone.
+
 ### pdfTextLayer
 
 Pages created by importing a PDF for annotation carry an optional `pdfTextLayer`, separate from the ordered content elements above — it's an overlay-only index of the PDF's own embedded, selectable text (per-run and per-character boxes), used for text selection/copy and full-text search. It is never rendered as drawable content and has no `zIndex`.

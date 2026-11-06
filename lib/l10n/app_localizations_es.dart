@@ -119,6 +119,45 @@ class AppLocalizationsEs extends AppLocalizations {
   String get csUnsavedChangesBody => '¿Quieres guardar antes de salir?';
 
   @override
+  String get csLocalSaveFailed =>
+      'No se puede guardar en este dispositivo. Se reintenta solo: no cierres la app.';
+
+  @override
+  String get csLocalSaveFailedNoSpace =>
+      'Este dispositivo no tiene espacio: tus últimos cambios no están guardados. Libera espacio; el guardado se reintenta solo.';
+
+  @override
+  String get csUnsavedLocalBody =>
+      'Tus últimos cambios no están guardados en este dispositivo. Si sales ahora, los pierdes.';
+
+  @override
+  String csPreviewBanner(String name) {
+    return 'Vista previa de «$name»: no está en tu biblioteca y no se guarda nada.';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return 'Vista previa de «$name»: ya tienes una copia en tu biblioteca; aquí no se guarda nada.';
+  }
+
+  @override
+  String get csPreviewAdd => 'Añadir a la biblioteca';
+
+  @override
+  String get csPreviewAddCopy => 'Añadir como copia';
+
+  @override
+  String get csPreviewOpenMine => 'Abrir mi copia';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return 'Cierra el cuaderno abierto para ver «$name».';
+  }
+
+  @override
+  String get csRetrySave => 'Reintentar';
+
+  @override
   String get csDiscard => 'Descartar';
 
   @override

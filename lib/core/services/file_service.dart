@@ -8,6 +8,7 @@ import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
+import 'package:abelnotes/core/platform/store_snapshot.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:abelnotes/config/app_config.dart';
@@ -20,7 +21,7 @@ import 'package:abelnotes/config/app_config.dart';
 ///       <notebookId>.ncnote        ← full ZIP archive
 ///     snapshots/
 ///       <notebookId>/
-///         <timestamp>.ncnote       ← rolling local backups (last 3)
+///         <timestamp>.ncnote       ← rolling local backups (last 3, ≥1 h apart)
 ///     trash/
 ///       <trashId>.ncnote           ← soft-deleted notebooks
 ///       <trashId>.meta.json        ← metadata sidecar for restore
@@ -28,6 +29,9 @@ import 'package:abelnotes/config/app_config.dart';
 class FileService {
   /// Max rolling backups to keep per notebook.
   static const int _maxSnapshots = 3;
+
+  /// Minimum gap between two backups of one notebook.
+  static const Duration _snapshotEvery = Duration(hours: 1);
 
   late final String _basePath;
   late final String _notebooksDir;
@@ -72,6 +76,7 @@ class FileService {
     );
     await _migrateRemotePathPrefix();
     await _migrateStorageExtension();
+    await _recoverInterruptedSwaps();
 
     _initialized = true;
     debugPrint('[FileService] Initialized at $_basePath');
@@ -197,19 +202,8 @@ class FileService {
 
   // ── Local File I/O ──
 
-  /// Returns the local filesystem path for a notebook.
-  String localPath(String notebookId) =>
-      p.join(_notebooksDir, '$notebookId${AppConfig.storageExtension}');
-
-  /// Saves a raw .ncnote archive to local storage.
-  ///
-  /// Before overwriting the existing file, snapshots the previous version
-  /// to `snapshots/<id>/<timestamp>.ncnote` keeping only the latest [_maxSnapshots].
-  Future<void> saveNotebookFile(String notebookId, Uint8List data) async {
-    // Serialise concurrent writes to the same notebook so the later rename
-    // never overwrites an in-flight tmp file and so the two producers don't
-    // each leave a truncated .ncnote behind (the "save() vs _savePulledChanges
-    // Locally() race" path).
+  /// Runs [body] holding [notebookId]'s lock, after every earlier holder.
+  Future<T> _locked<T>(String notebookId, Future<T> Function() body) async {
     final prev = _saveLocks[notebookId];
     final completer = Completer<void>();
     _saveLocks[notebookId] = completer.future;
@@ -217,19 +211,7 @@ class FileService {
       if (prev != null) {
         try { await prev; } catch (_) {}
       }
-      await _writeNotebookAtomic(notebookId, data);
-      // Keep the loose store (the read source of truth) consistent with this
-      // FULL write — the occasional paths: server download, import, rename,
-      // cover/paper change, duplicate, pulled-changes save. Same lock, so no
-      // _saveLocks re-entrancy. Best-effort: a failure here just leaves the
-      // loose store stale until the next full write / incremental save; the
-      // freshly-written legacy file is still correct.
-      try {
-        await _explodeZipUnlocked(notebookId, data);
-      } catch (e) {
-        debugPrint('[FileService] Loose-store sync after full write '
-            'failed for $notebookId: $e');
-      }
+      return await body();
     } finally {
       completer.complete();
       if (identical(_saveLocks[notebookId], completer.future)) {
@@ -238,18 +220,59 @@ class FileService {
     }
   }
 
-  Future<void> _writeNotebookAtomic(String notebookId, Uint8List data) async {
-    final path = localPath(notebookId);
+  static final _swapLeftover = RegExp(r'^(.+)\.[0-9a-z-]+\.(tmpdir|olddir)$');
 
-    // Roll a snapshot of the previous version (best-effort, never blocks save).
+  /// A crash in the middle of [_explodeZipUnlocked]'s swap leaves the old
+  /// store parked beside a missing one: put it back. Half-written new stores
+  /// are dropped.
+  Future<void> _recoverInterruptedSwaps() async {
     try {
-      final existing = File(path);
-      if (await existing.exists()) {
-        await _rotateSnapshot(notebookId, existing);
+      await for (final e in Directory(_notebooksDir).list()) {
+        if (e is! Directory) continue;
+        final m = _swapLeftover.firstMatch(p.basename(e.path));
+        if (m == null) continue;
+        final live = Directory(p.join(_notebooksDir, m.group(1)!));
+        if (m.group(2) == 'olddir' && !await live.exists()) {
+          await e.rename(live.path);
+          debugPrint('[FileService] Recovered store ${m.group(1)} '
+              'from an interrupted swap');
+        } else {
+          await e.delete(recursive: true);
+        }
       }
     } catch (e) {
-      debugPrint('[FileService] Snapshot rotation failed for $notebookId: $e');
+      debugPrint('[FileService] Swap recovery failed: $e');
     }
+  }
+
+  /// Returns the local filesystem path for a notebook.
+  String localPath(String notebookId) =>
+      p.join(_notebooksDir, '$notebookId${AppConfig.storageExtension}');
+
+  /// Saves a raw .ncnote archive to local storage.
+  ///
+  /// Before overwriting the existing file, snapshots the previous version
+  /// to `snapshots/<id>/<timestamp>.ncnote` keeping only the latest [_maxSnapshots].
+  Future<void> saveNotebookFile(String notebookId, Uint8List data) =>
+      // Serialised with every other writer of this notebook, so a later
+      // rename never lands over an in-flight one.
+      _locked(notebookId, () async {
+        await _snapshotIfDueUnlocked(notebookId);
+        await _writeNotebookAtomic(notebookId, data);
+        // Keep the loose store (the read source of truth) in step with this
+        // FULL write: server download, import, duplicate, pulled changes.
+        try {
+          await _explodeZipUnlocked(notebookId, data);
+        } catch (e) {
+          debugPrint('[FileService] Loose-store sync after full write '
+              'failed for $notebookId: $e');
+          // A stale store would shadow the file just written.
+          await deleteLooseStore(notebookId);
+        }
+      });
+
+  Future<void> _writeNotebookAtomic(String notebookId, Uint8List data) async {
+    final path = localPath(notebookId);
 
     // Unique tmp path per call — belt-and-braces alongside _saveLocks so a
     // crash mid-save never leaves a stale "$path.tmp" that a subsequent save
@@ -270,28 +293,58 @@ class FileService {
     }
   }
 
-  /// Copies the current .ncnote into the snapshot folder and prunes older ones.
-  Future<void> _rotateSnapshot(String notebookId, File source) async {
-    final dir = Directory(p.join(_snapshotsDir, notebookId));
-    await dir.create(recursive: true);
+  /// Backs up the notebook as it is now (the loose store when there is one,
+  /// the legacy file otherwise) unless the newest backup is younger than
+  /// [every]. Never throws: a failed backup must not block a save.
+  Future<void> snapshotIfDue(String notebookId,
+          {Duration every = _snapshotEvery}) =>
+      _locked(notebookId,
+          () => _snapshotIfDueUnlocked(notebookId, every: every));
 
-    // Microsecond + counter stamp so two rotations landing on the same
-    // millisecond don't collide (older snapshot would otherwise be
-    // silently overwritten on the second `copy`).
-    final micro = DateTime.now().microsecondsSinceEpoch;
-    final seq = (++_tmpCounter).toRadixString(36);
-    final stamp = '${micro}_$seq';
-    final dest = File(p.join(dir.path, '$stamp${AppConfig.storageExtension}'));
-    await source.copy(dest.path);
+  Future<void> _snapshotIfDueUnlocked(String notebookId,
+      {Duration every = _snapshotEvery}) async {
+    if (kIsWeb) return;
+    try {
+      final existing = await listSnapshots(notebookId);
+      if (existing.isNotEmpty &&
+          DateTime.now().difference(existing.first.$1) < every) {
+        return;
+      }
+      final store = notebookStoreDir(notebookId);
+      final legacy = File(localPath(notebookId));
+      final hasStore = await Directory(store).exists();
+      if (!hasStore && !await legacy.exists()) return;
 
-    // Prune old snapshots (keep newest _maxSnapshots).
-    final snapshots = await dir
-        .list()
-        .where((e) => e is File && e.path.endsWith(AppConfig.storageExtension))
-        .toList();
-    snapshots.sort((a, b) => b.path.compareTo(a.path)); // timestamps sort lexically
-    for (var i = _maxSnapshots; i < snapshots.length; i++) {
-      try { await snapshots[i].delete(); } catch (_) {}
+      final dir = Directory(p.join(_snapshotsDir, notebookId));
+      await dir.create(recursive: true);
+      // A backup cut short (app killed mid-zip) leaves only its tmp file.
+      await for (final e in dir.list()) {
+        if (e is File && e.path.endsWith('.tmp')) {
+          try { await e.delete(); } catch (_) {}
+        }
+      }
+      // Microsecond + counter stamp so two backups never collide.
+      final micro = DateTime.now().microsecondsSinceEpoch;
+      final seq = (++_tmpCounter).toRadixString(36);
+      final dest = p.join(dir.path, '${micro}_$seq${AppConfig.storageExtension}');
+      final tmp = '$dest.tmp';
+      if (hasStore) {
+        await compute(zipStoreToFile, [store, tmp]);
+      } else {
+        await legacy.copy(tmp);
+      }
+      await File(tmp).rename(dest);
+
+      final snapshots = await dir
+          .list()
+          .where((e) => e is File && e.path.endsWith(AppConfig.storageExtension))
+          .toList();
+      snapshots.sort((a, b) => b.path.compareTo(a.path)); // stamps sort lexically
+      for (var i = _maxSnapshots; i < snapshots.length; i++) {
+        try { await snapshots[i].delete(); } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('[FileService] Snapshot failed for $notebookId: $e');
     }
   }
 
@@ -336,7 +389,11 @@ class FileService {
   /// hot-path *save* writes the loose store directly via
   /// [saveNotebookIncremental], so a one-page edit no longer rewrites the whole
   /// notebook.
-  Future<Uint8List?> readNotebookFile(String notebookId) async {
+  Future<Uint8List?> readNotebookFile(String notebookId) =>
+      // Locked: assembling while a save swaps the store would read a mix.
+      _locked(notebookId, () => _readNotebookFileUnlocked(notebookId));
+
+  Future<Uint8List?> _readNotebookFileUnlocked(String notebookId) async {
     if (await hasLooseStore(notebookId)) {
       final zip = await assembleZipFromLooseStore(notebookId);
       if (zip != null) return zip;
@@ -559,6 +616,7 @@ class FileService {
   /// exploded store is never observed as "present".
   Future<void> explodeZipToLooseStore(
       String notebookId, Uint8List zipBytes) async {
+    _storeSizes.remove(notebookId);
     final prev = _saveLocks[notebookId];
     final completer = Completer<void>();
     _saveLocks[notebookId] = completer.future;
@@ -584,43 +642,94 @@ class FileService {
     final ts = DateTime.now().microsecondsSinceEpoch;
     final seq = (++_tmpCounter).toRadixString(36);
     final tmpDir = '$dir.$ts-$seq.tmpdir';
-    final archive = ZipDecoder().decodeBytes(zipBytes);
-    for (final f in archive.files) {
-      if (!f.isFile) continue;
-      // Zip-slip guard: skip entries with absolute paths or `..` segments
-      // that would escape the tmp dir (malicious/corrupt .ncnote).
-      final entryPath = p.normalize(p.join(tmpDir, f.name));
-      if (p.isAbsolute(f.name) || !p.isWithin(tmpDir, entryPath)) continue;
-      final out = File(entryPath);
-      final parent = Directory(p.dirname(out.path));
-      if (!await parent.exists()) await parent.create(recursive: true);
-      await out.writeAsBytes(f.content as List<int>, flush: false);
-    }
-    // Source PDFs outlive packages that don't carry them (older builds,
-    // packages rebuilt from memory): keep the ones already on disk.
-    final keptSources = Directory(p.join(dir, kPdfSourcesDir));
-    if (await keptSources.exists()) {
-      final into = Directory(p.join(tmpDir, kPdfSourcesDir));
-      await for (final e in keptSources.list()) {
-        if (e is! File || e.path.endsWith('.tmp')) continue;
-        final target = File(p.join(into.path, p.basename(e.path)));
-        if (await target.exists()) continue;
-        await into.create(recursive: true);
-        await e.copy(target.path);
+    final oldDir = '$dir.$ts-$seq.olddir';
+    try {
+      final archive = ZipDecoder().decodeBytes(zipBytes);
+      for (final f in archive.files) {
+        if (!f.isFile) continue;
+        // Zip-slip guard: skip entries with absolute paths or `..` segments
+        // that would escape the tmp dir (malicious/corrupt .ncnote).
+        final entryPath = p.normalize(p.join(tmpDir, f.name));
+        if (p.isAbsolute(f.name) || !p.isWithin(tmpDir, entryPath)) continue;
+        final out = File(entryPath);
+        final parent = Directory(p.dirname(out.path));
+        if (!await parent.exists()) await parent.create(recursive: true);
+        // Flushed: after a power cut the swap below must not expose a store
+        // of empty files in place of the old one.
+        await out.writeAsBytes(f.content as List<int>, flush: true);
       }
+      // Source PDFs outlive packages that don't carry them (older builds,
+      // packages rebuilt from memory): keep the ones already on disk.
+      final keptSources = Directory(p.join(dir, kPdfSourcesDir));
+      if (await keptSources.exists()) {
+        final into = Directory(p.join(tmpDir, kPdfSourcesDir));
+        await for (final e in keptSources.list()) {
+          if (e is! File || e.path.endsWith('.tmp')) continue;
+          final target = File(p.join(into.path, p.basename(e.path)));
+          if (await target.exists()) continue;
+          await into.create(recursive: true);
+          await e.copy(target.path);
+        }
+      }
+      // Swap: park the old store, move the new one in, then drop the old.
+      // A crash in between leaves `.olddir`, which init puts back.
+      final existing = Directory(dir);
+      final hadStore = await existing.exists();
+      if (hadStore) await existing.rename(oldDir);
+      await Directory(tmpDir).rename(dir);
+      if (hadStore) {
+        try { await Directory(oldDir).delete(recursive: true); } catch (_) {}
+      }
+    } catch (e) {
+      try {
+        if (!await Directory(dir).exists() &&
+            await Directory(oldDir).exists()) {
+          await Directory(oldDir).rename(dir);
+        }
+      } catch (_) {}
+      try {
+        final t = Directory(tmpDir);
+        if (await t.exists()) await t.delete(recursive: true);
+      } catch (_) {}
+      rethrow;
     }
-    // Swap into place: remove any existing store, then rename tmp → final.
-    final existing = Directory(dir);
-    if (await existing.exists()) await existing.delete(recursive: true);
-    await Directory(tmpDir).rename(dir);
+  }
+
+  /// Rewrites only metadata.json of the loose store through [patch], under
+  /// the notebook's lock. Library edits (title, cover, tags) go through here
+  /// instead of rebuilding the notebook from a copy read earlier, which
+  /// undid any page saved in between. Returns the new metadata, or null when
+  /// this device holds no copy.
+  Future<Map<String, dynamic>?> patchStoredMetadata(String notebookId,
+      Map<String, dynamic> Function(Map<String, dynamic> meta) patch) async {
+    if (!await ensureLooseStore(notebookId)) return null;
+    return _locked(notebookId, () async {
+      final f = File(
+          p.join(notebookStoreDir(notebookId), AppConfig.metadataFile));
+      if (!await f.exists()) return null;
+      final meta = (jsonDecode(utf8.decode(await f.readAsBytes())) as Map)
+          .cast<String, dynamic>();
+      final next = patch(meta);
+      await _writeStoreFileAtomic(f.path, utf8.encode(jsonEncode(next)));
+      return next;
+    });
   }
 
   /// Best-effort total byte size of the loose store, for the DB `file_size`
   /// column (previously the package length). Sums file lengths; 0 if no store.
-  /// Off the drawing hot path (runs in the background save task).
+  /// Recounted at most once a minute per notebook: a save would otherwise
+  /// stat every file of the store, and only the trash screen shows the size.
   Future<int> looseStoreSize(String notebookId) async {
     final d = Directory(notebookStoreDir(notebookId));
-    if (!await d.exists()) return 0;
+    if (!await d.exists()) {
+      _storeSizes.remove(notebookId);
+      return 0;
+    }
+    final known = _storeSizes[notebookId];
+    if (known != null &&
+        DateTime.now().difference(known.at) < const Duration(minutes: 1)) {
+      return known.bytes;
+    }
     var total = 0;
     try {
       await for (final e in d.list(recursive: true)) {
@@ -629,8 +738,11 @@ class FileService {
         }
       }
     } catch (_) {/* best effort */}
+    _storeSizes[notebookId] = (bytes: total, at: DateTime.now());
     return total;
   }
+
+  final Map<String, ({int bytes, DateTime at})> _storeSizes = {};
 
   /// Ensure the loose store exists for [notebookId], lazily exploding the
   /// legacy `<id>.ncnote` into it on first access. Returns true if a loose
@@ -652,6 +764,7 @@ class FileService {
 
   /// Delete the loose store directory for [notebookId] (best effort).
   Future<void> deleteLooseStore(String notebookId) async {
+    _storeSizes.remove(notebookId);
     try {
       final d = Directory(notebookStoreDir(notebookId));
       if (await d.exists()) await d.delete(recursive: true);
@@ -1078,7 +1191,7 @@ class FileService {
       // resolves the live loose store first (the source of truth), falling back
       // to the legacy file — so trashing a notebook edited since migration
       // preserves the latest content, not a stale pre-migration ZIP.
-      final bytes = await readNotebookFile(notebookId);
+      final bytes = await _readNotebookFileUnlocked(notebookId);
       if (bytes == null) {
         // Nothing to preserve; still purge any stray store + DB below.
         await deleteLooseStore(notebookId);

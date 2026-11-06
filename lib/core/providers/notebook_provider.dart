@@ -1431,20 +1431,6 @@ class NotebookListNotifier
   }
 
   Future<void> updateNotebookTags(NotebookEntry entry, List<String> tags) async {
-    final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(remoteStoreProvider);
-    final fileService = _ref.read(fileServiceProvider);
-
-    final localData = await fileService.readNotebookFile(entry.metadata.id);
-    if (localData == null || syncService == null) return;
-
-    final result = syncService.parseNcnoteMetadata(localData);
-    // Single ZIP walk for pages + assets + symbols (was 3 decodes).
-    final contents = syncService.extractNotebookContents(localData);
-    final allPages = contents.pages;
-    final allAssets = contents.assets;
-    final symbolLibraries = contents.symbolLibraries;
-
     // Normalize: trim, drop empties, dedup while preserving order.
     final seen = <String>{};
     final cleanTags = <String>[];
@@ -1452,20 +1438,37 @@ class NotebookListNotifier
       if (t.isEmpty) continue;
       if (seen.add(t.toLowerCase())) cleanTags.add(t);
     }
+    await _editNotebookMetadata(
+        entry, (m) => m.copyWith(tags: cleanTags), 'Tags');
+  }
 
-    final updatedMeta = result.metadata.copyWith(
-      tags: cleanTags,
-      modifiedAt: DateTime.now(),
-    );
+  /// Applies [edit] to a notebook's metadata, persists it, flips the row to
+  /// `modified` and pushes it (best-effort).
+  ///
+  /// Only metadata.json is rewritten on disk. Rebuilding the whole notebook
+  /// from a copy read first undid any page an editor saved in between.
+  Future<void> _editNotebookMetadata(
+    NotebookEntry entry,
+    NotebookMetadata Function(NotebookMetadata) edit,
+    String what,
+  ) async {
+    final syncService = _ref.read(syncServiceProvider);
+    final webdav = _ref.read(remoteStoreProvider);
+    final fileService = _ref.read(fileServiceProvider);
+    if (syncService == null) return;
 
-    final package = syncService.createNcnotePackage(
-      metadata: updatedMeta,
-      document: result.document,
-      pages: allPages,
-      assets: allAssets.isNotEmpty ? allAssets : null,
-      symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
-    );
-    await fileService.saveNotebookFile(updatedMeta.id, package);
+    final now = DateTime.now();
+    NotebookMetadata? edited;
+    final patched = await fileService.patchStoredMetadata(entry.metadata.id,
+        (json) {
+      edited = edit(NotebookMetadata.fromJson(json)).copyWith(modifiedAt: now);
+      return edited!.toJson();
+    });
+    final updatedMeta = edited;
+    if (patched == null || updatedMeta == null) {
+      debugPrint('[Library] $what: no local copy of ${entry.metadata.id}');
+      return;
+    }
     await fileService.upsertNotebookMeta(
       id: updatedMeta.id,
       title: updatedMeta.title,
@@ -1482,21 +1485,29 @@ class NotebookListNotifier
     var remoteDone = false;
     try {
       if (webdav != null) {
+        // The root file is a full copy, built from the disk as it is now.
+        final localData = await fileService.readNotebookFile(updatedMeta.id);
+        if (localData == null) throw StateError('local copy vanished');
+        final result = syncService.parseNcnoteMetadata(localData);
+        // Single ZIP walk for pages + assets + symbols.
+        final contents = syncService.extractNotebookContents(localData);
         final etag = await syncService.uploadNotebook(
           remotePath: entry.remotePath,
           metadata: updatedMeta,
           document: result.document,
-          pages: allPages,
-          assets: allAssets.isNotEmpty ? allAssets : null,
-          symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
+          pages: contents.pages,
+          assets: contents.assets.isNotEmpty ? contents.assets : null,
+          symbolLibraries: contents.symbolLibraries.isNotEmpty
+              ? contents.symbolLibraries
+              : null,
         );
         await _patchDeltaMetadata(syncService, updatedMeta.id,
-            (m) => m.copyWith(tags: cleanTags, modifiedAt: updatedMeta.modifiedAt));
+            (m) => edit(m).copyWith(modifiedAt: updatedMeta.modifiedAt));
         await fileService.markNotebookSynced(updatedMeta.id, etag);
         remoteDone = true;
       }
     } catch (e) {
-      debugPrint('[Library] Tags uploaded locally, remote sync deferred: $e');
+      debugPrint('[Library] $what saved locally, remote sync deferred: $e');
       // Stays pending until the delta metadata carries it: the library
       // retry patches it once the server answers.
       await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
@@ -1511,169 +1522,19 @@ class NotebookListNotifier
     }).toList());
   }
 
-  /// Change a notebook's cover colour. Same flow as [renameNotebook]:
-  /// rebuild the local .ncnote with the new metadata, persist, mark
-  /// dirty, and best-effort push to the server.
+  /// Change a notebook's cover colour and pattern.
   Future<void> updateNotebookCover(
-      NotebookEntry entry, int newCoverColor, String newCoverStyle) async {
-    final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(remoteStoreProvider);
-    final fileService = _ref.read(fileServiceProvider);
-
-    final localData = await fileService.readNotebookFile(entry.metadata.id);
-    if (localData == null || syncService == null) return;
-
-    final result = syncService.parseNcnoteMetadata(localData);
-    // Single ZIP walk for pages + assets + symbols (was 3 decodes).
-    final contents = syncService.extractNotebookContents(localData);
-    final allPages = contents.pages;
-    final allAssets = contents.assets;
-    final symbolLibraries = contents.symbolLibraries;
-
-    final updatedMeta = result.metadata.copyWith(
-      coverColor: newCoverColor,
-      coverStyle: newCoverStyle,
-      modifiedAt: DateTime.now(),
-    );
-
-    final package = syncService.createNcnotePackage(
-      metadata: updatedMeta,
-      document: result.document,
-      pages: allPages,
-      assets: allAssets.isNotEmpty ? allAssets : null,
-      symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
-    );
-    await fileService.saveNotebookFile(updatedMeta.id, package);
-    await fileService.upsertNotebookMeta(
-      id: updatedMeta.id,
-      title: updatedMeta.title,
-      remotePath: entry.remotePath,
-      localModifiedAt: updatedMeta.modifiedAt,
-      syncStatus: 'modified',
-      coverColor: updatedMeta.coverColor,
-      coverStyle: updatedMeta.coverStyle,
-      paperType: updatedMeta.paperType,
-      pageCount: updatedMeta.pageCount,
-      createdAt: updatedMeta.createdAt,
-    );
-
-    var remoteDone = false;
-    try {
-      if (webdav != null) {
-        final etag = await syncService.uploadNotebook(
-          remotePath: entry.remotePath,
-          metadata: updatedMeta,
-          document: result.document,
-          pages: allPages,
-          assets: allAssets.isNotEmpty ? allAssets : null,
-          symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
-        );
-        await _patchDeltaMetadata(syncService, updatedMeta.id,
-            (m) => m.copyWith(
-              coverColor: newCoverColor,
-              coverStyle: newCoverStyle,
-              modifiedAt: updatedMeta.modifiedAt));
-        await fileService.markNotebookSynced(updatedMeta.id, etag);
-        remoteDone = true;
-      }
-    } catch (e) {
-      debugPrint('[Library] Cover change saved locally, remote sync deferred: $e');
-      // Stays pending until the delta metadata carries it: the library
-      // retry patches it once the server answers.
-      await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
-    }
-
-    final current = state.valueOrNull ?? [];
-    state = AsyncValue.data(current.map((e) {
-      if (e.metadata.id == entry.metadata.id) {
-        return e.copyWith(metadata: updatedMeta, isLocal: !remoteDone);
-      }
-      return e;
-    }).toList());
+      NotebookEntry entry, int newCoverColor, String newCoverStyle) {
+    return _editNotebookMetadata(
+        entry,
+        (m) => m.copyWith(coverColor: newCoverColor, coverStyle: newCoverStyle),
+        'Cover change');
   }
 
   /// Rinomina un notebook.
-  Future<void> renameNotebook(NotebookEntry entry, String newTitle) async {
-    final syncService = _ref.read(syncServiceProvider);
-    final webdav = _ref.read(remoteStoreProvider);
-    final fileService = _ref.read(fileServiceProvider);
-
-    // Use the local copy instead of downloading from remote.
-    // This works offline and avoids overwriting unsaved local changes.
-    final localData = await fileService.readNotebookFile(entry.metadata.id);
-    if (localData == null) {
-      // No local copy — can't rename
-      debugPrint('[Library] Cannot rename: no local file for ${entry.metadata.id}');
-      return;
-    }
-
-    if (syncService == null) return;
-
-    final result = syncService.parseNcnoteMetadata(localData);
-    // Single ZIP walk for pages + assets + symbols (was 3 decodes).
-    final contents = syncService.extractNotebookContents(localData);
-    final allPages = contents.pages;
-    final allAssets = contents.assets;
-    final symbolLibraries = contents.symbolLibraries;
-
-    final updatedMeta = result.metadata.copyWith(
-      title: newTitle,
-      modifiedAt: DateTime.now(),
-    );
-
-    // Rebuild and save locally
-    final package = syncService.createNcnotePackage(
-      metadata: updatedMeta,
-      document: result.document,
-      pages: allPages,
-      assets: allAssets.isNotEmpty ? allAssets : null,
-      symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
-    );
-    await fileService.saveNotebookFile(updatedMeta.id, package);
-    await fileService.upsertNotebookMeta(
-      id: updatedMeta.id,
-      title: newTitle,
-      remotePath: entry.remotePath,
-      localModifiedAt: updatedMeta.modifiedAt,
-      syncStatus: 'modified',
-      coverColor: updatedMeta.coverColor,
-      coverStyle: updatedMeta.coverStyle,
-      paperType: updatedMeta.paperType,
-      pageCount: updatedMeta.pageCount,
-      createdAt: updatedMeta.createdAt,
-    );
-
-    // Try to upload to server (best-effort — succeeds when online)
-    var remoteDone = false;
-    try {
-      if (webdav != null) {
-        final etag = await syncService.uploadNotebook(
-          remotePath: entry.remotePath,
-          metadata: updatedMeta,
-          document: result.document,
-          pages: allPages,
-          assets: allAssets.isNotEmpty ? allAssets : null,
-          symbolLibraries: symbolLibraries.isNotEmpty ? symbolLibraries : null,
-        );
-        await _patchDeltaMetadata(syncService, updatedMeta.id,
-            (m) => m.copyWith(title: newTitle, modifiedAt: updatedMeta.modifiedAt));
-        await fileService.markNotebookSynced(updatedMeta.id, etag);
-        remoteDone = true;
-      }
-    } catch (e) {
-      debugPrint('[Library] Rename uploaded locally, remote sync deferred: $e');
-      // Stays pending until the delta metadata carries it: the library
-      // retry patches it once the server answers.
-      await fileService.addDirtyPages(updatedMeta.id, const ['meta']);
-    }
-
-    final current = state.valueOrNull ?? [];
-    state = AsyncValue.data(current.map((e) {
-      if (e.metadata.id == entry.metadata.id) {
-        return e.copyWith(metadata: updatedMeta, isLocal: !remoteDone);
-      }
-      return e;
-    }).toList());
+  Future<void> renameNotebook(NotebookEntry entry, String newTitle) {
+    return _editNotebookMetadata(
+        entry, (m) => m.copyWith(title: newTitle), 'Rename');
   }
 
   /// Uploads the root `.ncnote` of notebooks whose create/import PUT never
@@ -1837,17 +1698,42 @@ class NotebookListNotifier
         prefs.getStringList('pending_page_deletes_$id') ?? const <String>[];
     final assetDeletes =
         prefs.getStringList('pending_asset_deletes_$id') ?? const <String>[];
-    final res = await syncService.syncDelta(
-      notebookId: id,
-      metadata: m,
-      document: local.document,
-      dirtyPages: pages,
-      dirtyAssets: assets.isEmpty ? null : assets,
-      symbolLibraries:
-          local.symbolLibraries.isNotEmpty ? local.symbolLibraries : null,
-      deletedPageFileNames: pageDeletes.isEmpty ? null : pageDeletes,
-      deletedAssetFileNames: assetDeletes.isEmpty ? null : assetDeletes,
-    );
+    final knownRaw = prefs.getString('page_etags_$id');
+    final knownPageEtags = knownRaw == null
+        ? const <String, String>{}
+        : (jsonDecode(knownRaw) as Map<String, dynamic>)
+            .map((k, v) => MapEntry(k, v as String));
+    final ({
+      String? metaEtag,
+      Map<String, String> pageEtags,
+      List<String> failedPageDeletes,
+      List<String> failedAssetDeletes,
+    }) res;
+    try {
+      res = await syncService.syncDelta(
+        notebookId: id,
+        metadata: m,
+        document: local.document,
+        dirtyPages: pages,
+        dirtyAssets: assets.isEmpty ? null : assets,
+        symbolLibraries:
+            local.symbolLibraries.isNotEmpty ? local.symbolLibraries : null,
+        deletedPageFileNames: pageDeletes.isEmpty ? null : pageDeletes,
+        deletedAssetFileNames: assetDeletes.isEmpty ? null : assetDeletes,
+        pageBaseVersions: {
+          for (final k in pages.keys)
+            if (knownPageEtags[k] != null) k: knownPageEtags[k]!,
+        },
+      );
+    } on RemotePagesChangedException catch (e) {
+      // Another device edited the same pages: only the editor can merge.
+      await _recordPushedPageEtags(prefs, id, e.uploadedEtags);
+      needsOpenToUpload.value = {...needsOpenToUpload.value, id};
+      unawaited(CrashLogger.append(
+          '[Unpushed] $id left for the editor (${e.fileNames.length} pages '
+          'changed on the server)'));
+      return;
+    }
     // Deletes that failed come back; the rest are done.
     await prefs.setStringList(
         'pending_page_deletes_$id', res.failedPageDeletes);

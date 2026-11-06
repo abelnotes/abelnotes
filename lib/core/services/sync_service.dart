@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show compactPageJson, decodePageData;
+    show CanvasNotifier, decodePageBytes, encodePageBytes;
 import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
@@ -135,7 +135,7 @@ class SyncService {
     // pages/
     for (final entry in pages.entries) {
       final cached = preEncodedPages?[entry.key];
-      final pageBytes = cached ?? utf8.encode(jsonEncode(entry.value.toJson()));
+      final pageBytes = cached ?? encodePageBytes(entry.value);
       archive.addFile(ArchiveFile(
         '${AppConfig.pagesDir}/${entry.key}',
         pageBytes.length,
@@ -467,6 +467,39 @@ class SyncService {
     return _remote.uploadFile(remotePath, package);
   }
 
+  /// False once the server answered 412 to the very version it holds: it
+  /// does not honour If-Match, so page uploads go back to plain PUTs.
+  bool _conditionalPagePuts = true;
+
+  /// PUT that only lands over [base], the server version this edit started
+  /// from. Throws [_PageMovedOnServer] when another device wrote since.
+  Future<String?> _putPageIfUnchanged(
+      String path, Uint8List bytes, String base, int timeoutSeconds) async {
+    try {
+      return await _remote.uploadFileAtomic(path, bytes,
+          ifMatchVersion: base, timeoutSeconds: timeoutSeconds);
+    } on RemoteStoreException catch (e) {
+      if (e.statusCode != 412) rethrow;
+      String? now;
+      try {
+        now = await _remote.getVersion(path);
+      } catch (_) {/* gone or unreachable: treat as moved */}
+      if (now != null && _sameVersion(now, base)) {
+        _conditionalPagePuts = false;
+        debugPrint('[Sync] Server ignores If-Match on $path; '
+            'page uploads fall back to plain PUT');
+        return _remote.uploadFileAtomic(path, bytes,
+            timeoutSeconds: timeoutSeconds);
+      }
+      throw const _PageMovedOnServer();
+    }
+  }
+
+  static bool _sameVersion(String a, String b) {
+    String norm(String v) => v.replaceFirst('W/', '').replaceAll('"', '');
+    return norm(a) == norm(b);
+  }
+
   /// Delta upload: sends only the changed pages + metadata + document.
   /// Returns metadata.json ETag + the per-page ETags we actually wrote.
   ///
@@ -487,6 +520,9 @@ class SyncService {
   /// replace it — replacing would swallow concurrent uploads from other
   /// devices (the next pull would treat those pages as unchanged and
   /// silently miss remote edits).
+  ///
+  /// [pageBaseVersions] holds, per page, the server version the edit started
+  /// from: that page only lands over it, else [RemotePagesChangedException].
   Future<({
     String? metaEtag,
     Map<String, String> pageEtags,
@@ -502,6 +538,7 @@ class SyncService {
     List<Map<String, dynamic>>? symbolLibraries,
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
+    Map<String, String>? pageBaseVersions,
   }) async {
     try {
       return await _syncDeltaInner(
@@ -514,6 +551,7 @@ class SyncService {
         symbolLibraries: symbolLibraries,
         deletedPageFileNames: deletedPageFileNames,
         deletedAssetFileNames: deletedAssetFileNames,
+        pageBaseVersions: pageBaseVersions,
       );
     } catch (e) {
       // A 409/404 mid-upload usually means the delta folder vanished under
@@ -545,6 +583,7 @@ class SyncService {
     List<Map<String, dynamic>>? symbolLibraries,
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
+    Map<String, String>? pageBaseVersions,
   }) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
@@ -596,6 +635,7 @@ class SyncService {
     const dt = AppConfig.webdavDeltaTimeoutSeconds;
     final pageUploads = <String, Future<String?>>{};
     final dataUploads = <Future<String?>>[];
+    final movedPages = <String>[];
 
     for (final e in dirtyPages.entries) {
       // compactPageJson() rounds doubles to 3 decimals — cuts the per-
@@ -606,9 +646,24 @@ class SyncService {
       // re-running that encode on the UI isolate — the save already
       // produced the exact same bytes for the local ZIP build.
       final bytes = preEncodedPages?[e.key] ??
-          Uint8List.fromList(utf8.encode(compactPageJson(e.value)));
-      pageUploads[e.key] = _remote.uploadFile(
-          '${dir}pages/${e.key}', bytes, timeoutSeconds: dt);
+          encodePageBytes(e.value);
+      final path = '${dir}pages/${e.key}';
+      final base =
+          _conditionalPagePuts ? (pageBaseVersions?[e.key]) : null;
+      if (base == null) {
+        // Atomic even without a precondition: the page overwritten here
+        // may be the only good copy anywhere.
+        pageUploads[e.key] =
+            _remote.uploadFileAtomic(path, bytes, timeoutSeconds: dt);
+      } else {
+        final fn = e.key;
+        pageUploads[fn] = _putPageIfUnchanged(path, bytes, base, dt)
+            .catchError((Object err, StackTrace st) {
+          if (err is! _PageMovedOnServer) Error.throwWithStackTrace(err, st);
+          movedPages.add(fn);
+          return null;
+        });
+      }
     }
 
     // Track expected sizes of asset uploads for the batched post-PUT
@@ -644,6 +699,22 @@ class SyncService {
       ...dataUploads,
       ...deleteFutures,
     ]);
+
+    // Another device rewrote some of these pages: nothing may be committed
+    // over them until they are merged.
+    if (movedPages.isNotEmpty) {
+      final uploaded = <String, String>{};
+      for (final entry in pageUploads.entries) {
+        final etag = await entry.value;
+        if (etag != null && etag.isNotEmpty) {
+          uploaded[entry.key] = etag.replaceAll('"', '');
+        }
+      }
+      throw RemotePagesChangedException(
+        fileNames: movedPages,
+        uploadedEtags: uploaded,
+      );
+    }
 
     // ── Phase 1.4: Batched asset-size verification ──
     //
@@ -832,6 +903,7 @@ class SyncService {
   Future<Map<String, String>> getRemotePageEtags(String notebookId) async {
     final dir = _deltaDir(notebookId);
     final items = await _remote.listDirectory('${dir}pages/');
+    _sweepAbandonedUploads('${dir}pages/', items);
     return {
       for (final item in items)
         if (!item.isDirectory &&
@@ -839,6 +911,22 @@ class SyncService {
             item.version != null)
           item.name: item.version!,
     };
+  }
+
+  /// Temporary files of atomic uploads whose client died before the rename.
+  /// An hour is far past any upload still in flight.
+  void _sweepAbandonedUploads(String folder, List<RemoteItem> items) {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 1));
+    for (final item in items) {
+      final lm = item.lastModified;
+      if (item.isDirectory ||
+          !item.name.contains(atomicUploadMarker) ||
+          lm == null ||
+          lm.isAfter(cutoff)) {
+        continue;
+      }
+      unawaited(_remote.delete('$folder${item.name}').catchError((Object _) {}));
+    }
   }
 
   /// Fetch metadata ETag + page ETags in one parallel call.
@@ -899,8 +987,7 @@ class SyncService {
     final data = await _remote.downloadFile(
       '${_deltaDir(notebookId)}pages/$pageFileName',
     );
-    final json = jsonDecode(utf8.decode(data));
-    return decodePageData(json as Map<String, dynamic>);
+    return decodePageBytes(data);
   }
 
   /// Fetches ONLY `.sync/<id>/metadata.json` — a ≤1 KB file containing the
@@ -1105,8 +1192,7 @@ class SyncService {
       for (var attempt = 0; attempt < maxPageRetries; attempt++) {
         try {
           final data = await _remote.downloadFile('${dir}pages/$fileName');
-          final json = jsonDecode(utf8.decode(data));
-          pages[fileName] = decodePageData(json as Map<String, dynamic>);
+          pages[fileName] = decodePageBytes(data);
           return;
         } catch (e) {
           if (attempt == maxPageRetries - 1) {
@@ -1235,7 +1321,7 @@ class SyncService {
     archive.addFile(ArchiveFile(AppConfig.documentFile, docBytes.length, docBytes));
 
     for (final entry in pages.entries) {
-      final bytes = utf8.encode(jsonEncode(entry.value.toJson()));
+      final bytes = encodePageBytes(entry.value);
       archive.addFile(ArchiveFile(
         '${AppConfig.pagesDir}/${entry.key}', bytes.length, bytes,
       ));
@@ -1268,8 +1354,7 @@ class SyncService {
       if (file.name.startsWith('${AppConfig.pagesDir}/') &&
           file.name.endsWith('.json')) {
         final fileName = file.name.split('/').last;
-        final json = jsonDecode(utf8.decode(file.content as List<int>));
-        pages[fileName] = decodePageData(json as Map<String, dynamic>);
+        pages[fileName] = decodePageBytes(file.content as List<int>);
       }
     }
 
@@ -1320,6 +1405,15 @@ class SyncService {
   /// blocking the UI.
   Future<LooseStoreContents?> loadLooseStoreFromDisk(String dir) {
     return compute(_loadLooseStoreImpl, dir);
+  }
+
+  /// Just the page a notebook opens on (see [CanvasNotifier.startPosition])
+  /// and the assets it shows, so the editor can appear while
+  /// [loadLooseStoreFromDisk] reads the rest. Null when the store or that
+  /// page cannot be read: the caller then waits for the full load.
+  Future<LooseStoreStart?> loadLooseStoreStart(
+      String dir, String? savedChapter, int savedPage) {
+    return compute(_loadLooseStoreStartImpl, (dir, savedChapter, savedPage));
   }
 
   /// Scarica un notebook completo con tutte le pagine.
@@ -1429,6 +1523,27 @@ class MetadataCommitFailedException implements Exception {
       'MetadataCommitFailedException(nb=$notebookId, bytes=${metadataBytes.length}, cause=$cause)';
 }
 
+/// Thrown by [SyncService.syncDelta] when another device rewrote some of
+/// the pages since the version this upload started from. Those pages were
+/// left alone and document.json / metadata.json were not written: merge
+/// first, then push again. [uploadedEtags] are the pages that did go up.
+class RemotePagesChangedException implements Exception {
+  final List<String> fileNames;
+  final Map<String, String> uploadedEtags;
+
+  RemotePagesChangedException({
+    required this.fileNames,
+    required this.uploadedEtags,
+  });
+
+  @override
+  String toString() => 'RemotePagesChangedException($fileNames)';
+}
+
+class _PageMovedOnServer implements Exception {
+  const _PageMovedOnServer();
+}
+
 /// Pages + assets + symbol libraries decoded from a .ncnote archive in a
 /// single pass. See [SyncService.extractNotebookContents].
 typedef NcnoteContents = ({
@@ -1447,11 +1562,62 @@ typedef LooseStoreContents = ({
   List<Map<String, dynamic>> symbolLibraries,
 });
 
+/// The opening page of a loose store, see [SyncService.loadLooseStoreStart].
+typedef LooseStoreStart = ({
+  NotebookMetadata metadata,
+  DocumentStructure document,
+  Map<String, PageData> pages,
+  Map<String, Uint8List> assets,
+  String? chapterId,
+  int pageIndex,
+});
+
+LooseStoreStart? _loadLooseStoreStartImpl((String, String?, int) args) {
+  final (dir, savedChapter, savedPage) = args;
+  try {
+    final metadata = NotebookMetadata.fromJson(jsonDecode(utf8.decode(
+            File(p.join(dir, AppConfig.metadataFile)).readAsBytesSync()))
+        as Map<String, dynamic>);
+    final document = DocumentStructure.fromJson(jsonDecode(utf8.decode(
+            File(p.join(dir, AppConfig.documentFile)).readAsBytesSync()))
+        as Map<String, dynamic>);
+    final pos = CanvasNotifier.startPosition(
+        metadata, document, savedChapter, savedPage);
+    if (pos.pageIndex < 0 || pos.pageIndex >= document.pages.length) {
+      return null;
+    }
+    final fileName = document.pages[pos.pageIndex].fileName;
+    final page = _decodePageFiles(
+        [p.join(dir, AppConfig.pagesDir, fileName)]).values.single;
+    final assets = <String, Uint8List>{};
+    for (final key in {
+      ...page.assetReferences,
+      if (page.layers.background.pdfAsset != null)
+        page.layers.background.pdfAsset!,
+      for (final e in page.layers.content)
+        if (e is ImageElement && e.data.assetPath.isNotEmpty) e.data.assetPath,
+    }) {
+      final f = File(p.joinAll([dir, AppConfig.assetsDir, ...key.split('/')]));
+      if (f.existsSync()) assets[key] = f.readAsBytesSync();
+    }
+    return (
+      metadata: metadata,
+      document: document,
+      pages: {fileName: page},
+      assets: assets,
+      chapterId: pos.chapterId,
+      pageIndex: pos.pageIndex,
+    );
+  } catch (_) {
+    return null; // missing or unreadable: the full load decides what to do
+  }
+}
+
 /// Isolate entry point for [SyncService.loadLooseStoreFromDisk]. Reads every
-/// loose-store file SYNCHRONOUSLY (no event-loop round-trips) and parses pages
-/// inline — both cheap on a dedicated, idle isolate. Returns null if the store
-/// or its metadata/document are missing.
-LooseStoreContents? _loadLooseStoreImpl(String dir) {
+/// loose-store file SYNCHRONOUSLY (no event-loop round-trips); pages are
+/// parsed across a few isolates when the device has the cores. Returns null
+/// if the store or its metadata/document are missing.
+Future<LooseStoreContents?> _loadLooseStoreImpl(String dir) async {
   if (!Directory(dir).existsSync()) return null;
 
   final metaFile = File(p.join(dir, AppConfig.metadataFile));
@@ -1478,20 +1644,18 @@ LooseStoreContents? _loadLooseStoreImpl(String dir) {
 
   // Pages: flat `pages/page_xxx.json`, keyed by file name (matches
   // extractAllPages' `file.name.split('/').last`).
-  final pages = <String, PageData>{};
   final pagesDir = Directory(p.join(dir, AppConfig.pagesDir));
-  if (pagesDir.existsSync()) {
-    for (final e in pagesDir.listSync(recursive: true)) {
-      if (e is File && e.path.endsWith('.json')) {
-        try {
-          final json = jsonDecode(utf8.decode(e.readAsBytesSync()));
-          pages[p.basename(e.path)] =
-              decodePageData(json as Map<String, dynamic>);
-        } catch (_) {
-          return null; // corrupt page → full fallback, see note above
-        }
-      }
-    }
+  final pagePaths = pagesDir.existsSync()
+      ? [
+          for (final e in pagesDir.listSync(recursive: true))
+            if (e is File && e.path.endsWith('.json')) e.path,
+        ]
+      : const <String>[];
+  final Map<String, PageData> pages;
+  try {
+    pages = await _decodePageFilesParallel(pagePaths);
+  } catch (_) {
+    return null; // corrupt page → full fallback, see note above
   }
 
   // Assets: keyed by the sub-path after `assets/` (matches extractAllAssets),
@@ -1528,6 +1692,51 @@ LooseStoreContents? _loadLooseStoreImpl(String dir) {
   );
 }
 
+/// Pages keyed by file name. Native: split over up to 4 isolates (parsing
+/// is most of an open). Web has one thread: yields now and then so the
+/// screen keeps drawing.
+Future<Map<String, PageData>> _decodePageFilesParallel(
+    List<String> paths) async {
+  final workers =
+      kIsWeb ? 1 : (Platform.numberOfProcessors - 1).clamp(1, 4).toInt();
+  if (workers == 1 || paths.length < 8) {
+    if (!kIsWeb) return _decodePageFiles(paths);
+    final pages = <String, PageData>{};
+    final sw = Stopwatch()..start();
+    for (final path in paths) {
+      pages.addAll(_decodePageFiles([path]));
+      if (sw.elapsedMilliseconds > 12) {
+        await Future<void>.delayed(Duration.zero);
+        sw.reset();
+      }
+    }
+    return pages;
+  }
+  // Interleaved so each share gets a mix of light and dense pages.
+  final shares = [
+    for (var i = 0; i < workers; i++)
+      [for (var j = i; j < paths.length; j += workers) paths[j]],
+  ];
+  final others = [for (final s in shares.skip(1)) compute(_decodePageFiles, s)];
+  try {
+    final pages = _decodePageFiles(shares.first);
+    for (final m in await Future.wait(others)) {
+      pages.addAll(m);
+    }
+    return pages;
+  } catch (_) {
+    for (final f in others) {
+      f.ignore();
+    }
+    rethrow;
+  }
+}
+
+Map<String, PageData> _decodePageFiles(List<String> paths) => {
+      for (final path in paths)
+        p.basename(path): decodePageBytes(File(path).readAsBytesSync()),
+    };
+
 /// Shared implementation for [SyncService.extractNotebookContents] and its
 /// isolate variant — top level so [compute] can take it directly.
 NcnoteContents _extractContentsImpl(Uint8List data) {
@@ -1548,9 +1757,8 @@ NcnoteContents _extractContentsImpl(Uint8List data) {
       // the opener's `pages.isEmpty` check still falls back to a full
       // server download.
       try {
-        final json = jsonDecode(utf8.decode(file.content as List<int>));
         pages[name.split('/').last] =
-            decodePageData(json as Map<String, dynamic>);
+            decodePageBytes(file.content as List<int>);
       } catch (_) {}
     } else if (name.startsWith(assetsPrefix)) {
       final assetName = name.substring(assetsPrefix.length);
@@ -1580,8 +1788,7 @@ Map<String, PageData> _extractAllPagesInIsolate(Uint8List data) {
   for (final file in archive.files) {
     if (file.name.startsWith(prefix) && file.name.endsWith('.json')) {
       final fileName = file.name.split('/').last;
-      final json = jsonDecode(utf8.decode(file.content as List<int>));
-      pages[fileName] = decodePageData(json as Map<String, dynamic>);
+      pages[fileName] = decodePageBytes(file.content as List<int>);
     }
   }
   return pages;

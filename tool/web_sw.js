@@ -4,7 +4,8 @@
 // that same file name, so no page code has to change.
 //
 // Strategy: every file of the build is precached on install, then served
-// cache-first, so the app opens with no network at all. A new build gets a new
+// cache-first (the app script only offline, see the fetch handler), so the app
+// opens with no network at all. A new build gets a new
 // CACHE name; the old cache is dropped once the new worker activates.
 'use strict';
 
@@ -34,6 +35,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // Only our own files. WebDAV / Drive traffic goes straight to the network.
   if (url.origin !== self.location.origin) return;
+  // V8 recompiles a script served from here on every launch, so the app script
+  // goes to the browser; flutter_bootstrap.js adds ?offline when that can't work.
+  if (/\/main\.dart\.[^/]+\.js$/.test(url.pathname) && !url.searchParams.has('offline')) return;
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);

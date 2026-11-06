@@ -25,6 +25,7 @@ import 'package:abelnotes/features/pages_tray/presentation/pages_tray_overlay.da
 import 'package:abelnotes/features/sync/sync_notices.dart';
 import 'package:abelnotes/ui/screens/library_screen.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
+import 'package:abelnotes/ui/widgets/above_navigator_overlay.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// [args] carries the file the OS asked us to open: on desktop a `.abelnote`
@@ -158,8 +159,11 @@ class AbelNotesApp extends ConsumerWidget {
         return HwThemeScope(
           palette: palette,
           variant: variant,
-          child: ReauthBannerHost(
-              child: PagesTrayOverlay(child: child ?? const SizedBox.shrink())),
+          child: AboveNavigatorOverlay(
+            child: ReauthBannerHost(
+                child:
+                    PagesTrayOverlay(child: child ?? const SizedBox.shrink())),
+          ),
         );
       },
     );

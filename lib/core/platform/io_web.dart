@@ -31,6 +31,7 @@ class Platform {
   static const String operatingSystem = 'web';
   static const String resolvedExecutable = '';
   static const Map<String, String> environment = <String, String>{};
+  static const int numberOfProcessors = 1;
 }
 
 // ───────────────────────── Virtual store ─────────────────────────
