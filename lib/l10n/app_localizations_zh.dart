@@ -118,6 +118,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csUnsavedChangesBody => '离开前要保存吗？';
 
   @override
+  String get csLocalSaveFailed => '无法在此设备上保存。正在自动重试，请勿关闭应用。';
+
+  @override
+  String get csLocalSaveFailedNoSpace => '此设备存储空间已满：最近的更改尚未保存。请释放空间，保存会自动重试。';
+
+  @override
+  String get csUnsavedLocalBody => '最近的更改尚未保存在此设备上。现在离开将丢失这些更改。';
+
+  @override
+  String csPreviewBanner(String name) {
+    return '“$name”预览：不在你的资料库中，不会保存任何内容。';
+  }
+
+  @override
+  String csPreviewBannerOwned(String name) {
+    return '“$name”预览：资料库中已有一份副本，此处不会保存任何内容。';
+  }
+
+  @override
+  String get csPreviewAdd => '添加到资料库';
+
+  @override
+  String get csPreviewAddCopy => '添加为副本';
+
+  @override
+  String get csPreviewOpenMine => '打开我的副本';
+
+  @override
+  String libOpenAfterClose(String name) {
+    return '关闭当前笔记本以查看“$name”。';
+  }
+
+  @override
+  String get csRetrySave => '重试';
+
+  @override
   String get csDiscard => '放弃';
 
   @override

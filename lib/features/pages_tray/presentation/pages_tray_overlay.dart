@@ -73,6 +73,18 @@ Future<void> showTrayMenu(
     position: RelativeRect.fromRect(rect, Offset.zero & overlay.size),
     color: p.paper0,
     items: [
+      if (inEditor && !inPages)
+        row('where', 'pages', l.pgtChooseWhere,
+            hint: l.pgtChooseWhereHint),
+      if (canOpenSource)
+        row('source', 'book', l.pgtOpenSource(tray.sourceTitle),
+            hint: l.pgtOpenSourceHint),
+      if (tray.isMove)
+        row('cancel', 'undo', l.pgtCancelMove, hint: l.pgtCancelMoveHint)
+      else
+        row('clear', 'x', l.pgtClearTray),
+      // Last: the menu opens over the tray, and a second tap on the
+      // same spot lands here instead of on "Cancel move".
       if (tray.saved)
         PopupMenuItem<String>(
           enabled: false,
@@ -86,16 +98,6 @@ Future<void> showTrayMenu(
             ),
           ]),
         ),
-      if (inEditor && !inPages)
-        row('where', 'pages', l.pgtChooseWhere,
-            hint: l.pgtChooseWhereHint),
-      if (canOpenSource)
-        row('source', 'book', l.pgtOpenSource(tray.sourceTitle),
-            hint: l.pgtOpenSourceHint),
-      if (tray.isMove)
-        row('cancel', 'undo', l.pgtCancelMove, hint: l.pgtCancelMoveHint)
-      else
-        row('clear', 'x', l.pgtClearTray),
     ],
   );
   switch (picked) {

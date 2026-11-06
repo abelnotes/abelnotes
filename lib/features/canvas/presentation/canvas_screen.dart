@@ -2,6 +2,10 @@ import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/platform/io.dart' as io;
+import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
+import 'package:abelnotes/core/platform/storage_health.dart'
+    if (dart.library.js_interop) 'package:abelnotes/core/platform/storage_health_web.dart'
+    show isOutOfSpace;
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/desktop_window.dart';
 import 'package:abelnotes/core/services/nextcloud_share_service.dart' show ShareLink;
@@ -153,6 +157,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // kept out of CanvasState so autosave/sync don't read it as an erase.
   int? _penHoverPointer;
   final ValueNotifier<Offset?> _penHoverPos = ValueNotifier<Offset?>(null);
+  // Web: touch-screen pens send a stray hover sample where they lift and
+  // never leave, which pinned the hover badge there. See _updatePenHover.
+  Timer? _webPenHoverTimer;
+  DateTime? _webPenUpAt;
   _PenHoverHint _penHoverHint = _PenHoverHint.eraser;
   // Hint comes from a held barrel, not the dock tool.
   bool _penHoverBarrel = false;
@@ -244,7 +252,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // While the user drags the grip, [_dockDragOffset] holds the dock's
   // top-left in Stack-local coordinates and the dock follows the finger;
   // on release we snap to the nearest edge and write it back to settings.
-  Offset? _dockDragOffset;
+  // A notifier, not state: a drag frame moves only the dock, never
+  // rebuilds the whole editor.
+  final _dockDrag = ValueNotifier<Offset?>(null);
+  Offset? get _dockDragOffset => _dockDrag.value;
   Size _dockDragSize = Size.zero;
   Size _dockArea = Size.zero;
   final GlobalKey _dockKey = GlobalKey();
@@ -515,6 +526,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   Timer? _autoSaveDebounce;
   Timer? _autoSaveMaxWait;
   bool _wasDirty = false;
+
+  /// Saves in a row that left the notebook dirty, for the retry backoff.
+  int _stuckSaves = 0;
+
+  /// The notice shown while local writes fail, closed once one succeeds.
+  ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _localErrorBar;
+  ValueNotifier<Object?>? _localErrorSource;
   static const _autoSaveIdle = Duration(milliseconds: 1200);
   static const _autoSaveMaxDelay = Duration(seconds: 15);
 
@@ -836,7 +854,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _cancelLongPressTimer();
     setState(() {
       _dockDragSize = dockBox.size;
-      _dockDragOffset = topLeft;
+      _dockDrag.value = topLeft;
       _dockRawOffset = topLeft;
       // A panel that floats around mid-drag is more distracting than
       // useful — close it; the user reopens it after parking the dock.
@@ -865,12 +883,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         _dockBand(next.dy, max(0.0, area.height - _dockDragSize.height)),
       );
     }
-    setState(() => _dockDragOffset = next);
+    _dockDrag.value = next;
   }
 
   void _onDockFly() {
     if (!mounted) return;
-    setState(() => _dockDragOffset = Offset(_dockFlyX.value, _dockFlyY.value));
+    _dockDrag.value = Offset(_dockFlyX.value, _dockFlyY.value);
   }
 
   /// Where the docked layout puts a dock of the given orientation; mirrors
@@ -899,7 +917,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final off = _dockDragOffset;
     final area = _dockArea;
     if (off == null || area.width <= 0 || area.height <= 0) {
-      setState(() => _dockDragOffset = null);
+      setState(() => _dockDrag.value = null);
       return;
     }
     // Choose the edge from where the throw is heading, not where it let go.
@@ -946,7 +964,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final gen = ++_dockFlyGen;
     void land() {
       if (++done == 2 && mounted && gen == _dockFlyGen) {
-        setState(() => _dockDragOffset = null);
+        setState(() => _dockDrag.value = null);
       }
     }
     _dockFlyX
@@ -1059,6 +1077,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     WidgetsBinding.instance.addObserver(this);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     _startAutoSave();
+    _localErrorSource = ref.read(canvasProvider.notifier).localSaveError
+      ..addListener(_onLocalSaveError);
     _watchForPendingImport();
     // Hook the Windows-side pen-button bridge. No-op on other
     // platforms. See PenInputChannel for why this exists.
@@ -1613,6 +1633,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     webTouchDevice.removeListener(_onWebTouchDeviceChanged);
     _dockFlyX.dispose();
     _dockFlyY.dispose();
+    _dockDrag.dispose();
     _hintMessenger?.hideCurrentSnackBar();
     WidgetsBinding.instance.removeObserver(this);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(
@@ -1650,6 +1671,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _laserStrokeNotifier.dispose();
     _autoSaveDebounce?.cancel();
     _autoSaveMaxWait?.cancel();
+    _localErrorSource?.removeListener(_onLocalSaveError);
     _holdRecognizeTimer?.cancel();
     _longPressTimer?.cancel();
     // Close the manual provider subscriptions opened in initState.
@@ -1670,6 +1692,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _focusNode.dispose();
     _pdfTextSelController?.dispose();
     _mouseHoverCursor.dispose();
+    _webPenHoverTimer?.cancel();
     _penHoverPos.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // Deliberately NOT calling DesktopWindow.setFullScreen(false) here: by
@@ -1716,7 +1739,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   void _triggerAutoSave() {
     final state = ref.read(canvasProvider);
-    if (state == null || !state.isDirty || _isSaving) return;
+    if (state == null || !state.isDirty) return;
     // Defer the save while a stroke is mid-flight OR an eraser drag is
     // in progress. _saveInner does enough sync work (state.copyWith,
     // setState in the canvas chrome) plus a 50 MB ZIP rebuild via
@@ -1730,7 +1753,55 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _autoSaveDebounce = Timer(const Duration(milliseconds: 600), _triggerAutoSave);
       return;
     }
+    if (_isSaving) {
+      // The running save may wait minutes on the network: keep the disk
+      // current meanwhile and come back, instead of dropping this tick.
+      unawaited(ref.read(canvasProvider.notifier).persistLocalNow());
+      _autoSaveDebounce?.cancel();
+      _autoSaveDebounce =
+          Timer(const Duration(milliseconds: 1500), _triggerAutoSave);
+      return;
+    }
     _save(silent: true);
+  }
+
+  /// A save that leaves the notebook dirty (a guard held it back, the lock
+  /// timed out) produces no clean-to-dirty edge, so nothing would ever
+  /// autosave again: schedule the next attempt here.
+  void _rearmAutoSaveIfStillDirty() {
+    if (!mounted || _closing) return;
+    final dirty = ref.read(canvasProvider)?.isDirty ?? false;
+    if (!dirty) {
+      _stuckSaves = 0;
+      return;
+    }
+    _stuckSaves++;
+    final secs = (2 * (1 << (_stuckSaves - 1).clamp(0, 4))).clamp(2, 30);
+    _autoSaveDebounce?.cancel();
+    _autoSaveDebounce = Timer(Duration(seconds: secs), _triggerAutoSave);
+  }
+
+  void _onLocalSaveError() {
+    if (!mounted) return;
+    final err = _localErrorSource?.value;
+    if (err == null) {
+      _localErrorBar?.close();
+      _localErrorBar = null;
+      return;
+    }
+    if (_localErrorBar != null) return;
+    final l10n = AppLocalizations.of(context);
+    final bar = ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(isOutOfSpace(err)
+          ? l10n.csLocalSaveFailedNoSpace
+          : l10n.csLocalSaveFailed),
+      duration: const Duration(days: 1),
+      showCloseIcon: true,
+    ));
+    _localErrorBar = bar;
+    bar.closed.then((_) {
+      if (identical(_localErrorBar, bar)) _localErrorBar = null;
+    });
   }
 
   @override
@@ -1757,6 +1828,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       // lifting the pen.
       _flushDeferredCommit();
 
+      // Disk first and unconditionally: a save already running may be
+      // waiting on the network, and the OS can kill us any moment now.
+      unawaited(ref.read(canvasProvider.notifier).persistLocalNow());
       final canvas = ref.read(canvasProvider);
       if (canvas != null && canvas.isDirty && !_isSaving) {
         _save(silent: true);
@@ -1839,6 +1913,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _saveInFlight = null;
       completer.complete();
       if (!silent && mounted) setState(() {});
+      _rearmAutoSaveIfStillDirty();
     }
   }
 
@@ -1866,7 +1941,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // The rest of the notebook is still loading: no shortcut acts yet.
+    if (ref.read(canvasProvider.notifier).pagesLoading.value) {
+      return KeyEventResult.handled;
+    }
     final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
+    // A preview only reads: zoom and paging, no shortcut that edits.
+    if (ref.read(canvasProvider.notifier).isPreview &&
+        !_previewKeys.contains(event.logicalKey)) {
+      return KeyEventResult.ignored;
+    }
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
     if (ctrl) {
@@ -2168,40 +2252,118 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
+  static final Set<LogicalKeyboardKey> _previewKeys = {
+    LogicalKeyboardKey.digit0,
+    LogicalKeyboardKey.numpad0,
+    LogicalKeyboardKey.equal,
+    LogicalKeyboardKey.add,
+    LogicalKeyboardKey.numpadAdd,
+    LogicalKeyboardKey.minus,
+    LogicalKeyboardKey.numpadSubtract,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.pageUp,
+    LogicalKeyboardKey.pageDown,
+    LogicalKeyboardKey.home,
+    LogicalKeyboardKey.end,
+    LogicalKeyboardKey.escape,
+  };
+
+  /// Says the notebook is only being looked at, and offers to keep it.
+  Widget _previewBar() {
+    final preview = ref.watch(notebookPreviewProvider);
+    if (preview == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            Icon(Icons.visibility_outlined,
+                size: 18, color: scheme.onSecondaryContainer),
+            Text(
+                preview.libraryCopyId != null
+                    ? l10n.csPreviewBannerOwned(preview.fileName)
+                    : l10n.csPreviewBanner(preview.fileName),
+                style: TextStyle(color: scheme.onSecondaryContainer)),
+            if (preview.libraryCopyId != null)
+              TextButton(
+                style: TextButton.styleFrom(
+                    foregroundColor: scheme.onSecondaryContainer),
+                onPressed: () => _leavePreview(PreviewChoice.openLibraryCopy),
+                child: Text(l10n.csPreviewOpenMine),
+              ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: scheme.onSecondaryContainer,
+                  foregroundColor: scheme.secondaryContainer),
+              onPressed: () => _leavePreview(PreviewChoice.addToLibrary),
+              child: Text(preview.libraryCopyId != null
+                  ? l10n.csPreviewAddCopy
+                  : l10n.csPreviewAdd),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _leavePreview(PreviewChoice choice) {
+    _closing = true;
+    final notifier = ref.read(canvasProvider.notifier);
+    Navigator.of(context).pop(choice);
+    unawaited(notifier.closeNotebook());
+  }
+
   Future<bool> _onWillPop() async {
     // Mark closing so didChangeAppLifecycleState doesn't fire a parallel
     // save if the OS backgrounds the app during the pop dialog.
     _closing = true;
-    // If a save is in flight, wait for it to finish before deciding whether
-    // to prompt. Otherwise the user just pressed "Save" and sees a
-    // "save before leaving?" dialog for the same changes that are already
-    // being persisted.
-    if (_isSaving) {
-      final inFlight = _saveInFlight;
-      if (inFlight != null) await inFlight;
-    }
+    // A save in flight is not waited for: it may sit behind the network for
+    // minutes, and the disk write below answers the only question here.
     if (!mounted) return false;
-    final state = ref.read(canvasProvider);
-    if (state != null && state.isDirty) {
-      final result = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(AppLocalizations.of(ctx).csUnsavedChangesTitle),
-          content: Text(AppLocalizations.of(ctx).csUnsavedChangesBody),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(AppLocalizations.of(ctx).csDiscard)),
-            TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: Text(AppLocalizations.of(ctx).csCancel)),
-            FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(AppLocalizations.of(ctx).csSave)),
-          ],
-        ),
-      );
-      // Tapping outside the dialog chose nothing: stay, like Cancel.
-      if (result == null || result == 'cancel') {
-        // User backed out — re-enable lifecycle autosave.
-        _closing = false;
-        return false;
+    _flushDeferredCommit();
+    final editor = ref.read(canvasProvider.notifier);
+    // Checked even when nothing is dirty: a write that failed after the
+    // upload went through leaves the notebook clean but the disk behind.
+    // A preview writes nothing, so it has nothing to lose.
+    if (ref.read(canvasProvider) != null && !editor.isPreview) {
+      // On disk already: the upload finishes in the background flush below,
+      // so there is nothing to ask. Ask only when the disk refused it.
+      var onDisk = await editor.persistLocalNow();
+      while (!onDisk) {
+        if (!mounted) return false;
+        final result = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(AppLocalizations.of(ctx).csUnsavedChangesTitle),
+            content: Text(AppLocalizations.of(ctx).csUnsavedLocalBody),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, 'discard'), child: Text(AppLocalizations.of(ctx).csDiscard)),
+              TextButton(onPressed: () => Navigator.pop(ctx, 'cancel'), child: Text(AppLocalizations.of(ctx).csCancel)),
+              FilledButton(onPressed: () => Navigator.pop(ctx, 'retry'), child: Text(AppLocalizations.of(ctx).csRetrySave)),
+            ],
+          ),
+        );
+        // Tapping outside the dialog chose nothing: stay, like Cancel.
+        if (result == null || result == 'cancel') {
+          _closing = false;
+          return false;
+        }
+        if (result == 'discard') {
+          editor.discardUnsavedEdits();
+          break;
+        }
+        onDisk = await editor.persistLocalNow();
       }
-      if (result == 'save') await _save();
+      if (!mounted) return false;
     }
     // Fast-close flow:
     //
@@ -2565,6 +2727,18 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _clearPenHover();
       return;
     }
+    if (kIsWeb) {
+      // Right after a lift it is the tap's leftover, not a hover. A pen that
+      // really hovers keeps sending samples, so the badge stays up for it.
+      final up = _webPenUpAt;
+      if (up != null &&
+          DateTime.now().difference(up) < const Duration(milliseconds: 150)) {
+        return;
+      }
+      _webPenHoverTimer?.cancel();
+      _webPenHoverTimer =
+          Timer(const Duration(milliseconds: 300), _clearPenHover);
+    }
     _penHoverPointer = event.pointer;
     _penHoverBarrel = upper || lower;
     _penHoverHint = hint;
@@ -2572,6 +2746,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   void _clearPenHover() {
+    _webPenHoverTimer?.cancel();
+    _webPenHoverTimer = null;
     _penHoverPointer = null;
     _penHoverBarrel = false;
     _penHoverPos.value = null;
@@ -2738,7 +2914,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       if (state.selectedElementId != null) notif.deselectElement();
       if (state.lassoSelection != null) notif.clearSelection();
       notif.clearLassoPath();
-      _lassoPathNotifier.start(pagePos);
+      _lassoPathNotifier.start(pagePos,
+          minStep: 3 * _pageUnitsPerScreenPx(state, canvasSize));
       _mouseSelecting = true;
       return;
     }
@@ -3171,7 +3348,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // new lasso "starting offset" from the true touch location.
     if (tool == CanvasTool.lasso) {
       ref.read(canvasProvider.notifier).clearLassoPath(); // bake previous + reset provider path
-      _lassoPathNotifier.start(pagePos);
+      _lassoPathNotifier.start(pagePos,
+          minStep: 3 * _pageUnitsPerScreenPx(state, canvasSize));
       return;
     }
 
@@ -3539,6 +3717,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   void _onPointerUp(PointerUpEvent event) {
+    if (kIsWeb && _isPen(event)) _webPenUpAt = DateTime.now();
     // Matching cleanup for the synth-mouse pointer suppressed in
     // `_onPointerDown` — never bumped `_activePointers`, so don't
     // decrement it here either.
@@ -3810,10 +3989,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // still making a valid mark. Only reset touch-specific gesture state
     // and return. Previously this path undid the user's first stroke
     // whenever their palm brushed the screen mid-draw on iPad.
+    // The pen's hold-to-recognize state is the pen's, so it stays too.
     if (event.kind == PointerDeviceKind.touch && _stylusDown) {
       _isTouchPanning = false;
-      _holdRecognizeTimer?.cancel();
-      _shapeRecognizedDuringHold = false;
       return;
     }
     _isTouchPanning = false;
@@ -3825,6 +4003,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _commitLassoTransform();
     }
     _holdRecognizeTimer?.cancel();
+    final heldShape = _shapeRecognizedDuringHold &&
+        ref.read(canvasProvider)?.recognizedShape != null;
     _shapeRecognizedDuringHold = false;
     // ── Stroke-break defense ──
     //
@@ -3842,6 +4022,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // too, or it stays stuck true and keeps blocking zoom + treating every
     // touch as palm until the pen touches down again.
     if (isStylusCancel) _stylusDown = false;
+    // A shape the pen held still for is already shown as recognised (its
+    // stroke points are gone): keep it, as lifting the pen would. Safari can
+    // cancel a pen that rests in place.
+    if (isStylusCancel && heldShape) {
+      _activeStrokeNotifier.clear();
+      ref.read(canvasProvider.notifier).commitRecognizedShape();
+      _markStrokeEnded('pointerCancel.shapeCommit');
+      _strokeDbg('CANCEL_RESCUED shape kind=${event.kind.name}');
+      return;
+    }
     if (isStylusCancel &&
         _activeStrokeNotifier.isActive &&
         _activeStrokeNotifier.points.length >= 2) {
@@ -5075,6 +5265,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       final doc = canvasState.document;
       final isMissing =
           doc.pages.isNotEmpty && canvasState.currentPageIndex >= 0 && canvasState.currentPageIndex < doc.pages.length;
+      // Not loaded yet is not missing: never offer recovery for it.
+      if (isMissing && ref.read(canvasProvider.notifier).pagesLoading.value) {
+        return ColoredBox(color: HwThemeScope.of(context).paper1);
+      }
       if (isMissing) {
         return MissingPageView(
           key: ValueKey(doc.pages[canvasState.currentPageIndex].fileName),
@@ -5217,7 +5411,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     coverColor: Color(canvasState.metadata.coverColor),
                     currentPage: canvasState.currentPageIndex + 1,
                     totalPages: canvasState.document.pages.length,
-                    dirty: canvasState.isDirty,
+                    dirty: canvasState.isDirty && !notifier.isPreview,
                     canUndo: notifier.canUndo,
                     canRedo: notifier.canRedo,
                     syncState: syncState,
@@ -5256,6 +5450,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       );
                     },
                   ),
+                  if (notifier.isPreview) _previewBar(),
                   Expanded(
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
@@ -5309,21 +5504,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
               // While dragging it follows the finger at a free offset;
               // otherwise it sits docked against its persisted edge. Hidden
               // entirely in presentation mode (see [_enterPresentationMode]).
-              if (_presentationMode)
+              if (_presentationMode || notifier.isPreview)
                 const SizedBox.shrink()
-              else if (_dockDragOffset != null)
-                Positioned(
-                  left: _dockDragOffset!.dx,
-                  top: _dockDragOffset!.dy,
-                  child: dockWidget,
-                )
               else
-                _dockedPositioned(dockPosition, toolDock.align, dockWidget),
+                ValueListenableBuilder<Offset?>(
+                  valueListenable: _dockDrag,
+                  child: dockWidget,
+                  builder: (_, drag, dock) => drag != null
+                      ? Positioned(left: drag.dx, top: drag.dy, child: dock!)
+                      : _dockedPositioned(dockPosition, toolDock.align, dock!),
+                ),
               if (_presentationMode) ..._presentationOverlay(canvasState),
               // Tool option popup — anchored next to the dock wherever it
               // is parked (above for bottom, below for top, beside for
               // left/right).
-              if (!_presentationMode)
+              if (!_presentationMode && !notifier.isPreview)
                 _popupPositioned(
                   dockPosition,
                   toolDock.align,
@@ -5534,6 +5729,21 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       ),
                     ),
                   ),
+                ),
+              ),
+              // Only the opening page is loaded yet: input waits, a thin bar
+              // shows it (see CanvasNotifier.showLoadingSnapshot).
+              Positioned.fill(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: notifier.pagesLoading,
+                  builder: (context, loading, _) => loading
+                      ? const AbsorbPointer(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: LinearProgressIndicator(minHeight: 2),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],

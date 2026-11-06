@@ -6,6 +6,7 @@
 #   /usr/bin/abelnotes               — wrapper symlink → /usr/lib/abelnotes/abelnotes
 #   /usr/share/applications/abelnotes.desktop
 #   /usr/share/icons/hicolor/{512x512,192x192}/apps/abelnotes.png
+#   /usr/share/mime/packages/abelnotes.xml  (.abelnote file type)
 #
 # The Flutter binary's RUNPATH is `$ORIGIN/lib`, so it finds its bundled
 # .so files relative to itself — no LD_LIBRARY_PATH wrapper needed.
@@ -90,9 +91,16 @@ Comment=Handwriting note-taking app with Nextcloud sync
 Exec=abelnotes %F
 Icon=abelnotes
 Categories=Office;Graphics;
+MimeType=application/x-abelnote;
 StartupNotify=true
 Terminal=false
 EOF
+
+echo "→ notebook file type"
+mkdir -p "${STAGE}/usr/share/mime/packages"
+sed 's|<icon name="app.abelnotes.notes"/>|<icon name="abelnotes"/>|' \
+  "${PROJECT_ROOT}/packaging/linux/app.abelnotes.notes.xml" \
+  > "${STAGE}/usr/share/mime/packages/abelnotes.xml"
 
 # Compute installed size (KB).
 INSTALLED_SIZE=$(du -sk "${STAGE}/usr" | awk '{print $1}')
@@ -122,6 +130,9 @@ if command -v update-desktop-database >/dev/null 2>&1; then
 fi
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+fi
+if command -v update-mime-database >/dev/null 2>&1; then
+  update-mime-database /usr/share/mime || true
 fi
 exit 0
 EOF

@@ -201,7 +201,7 @@ class GoogleDriveStore implements RemoteStore {
 
   @override
   Future<String?> uploadFileConditional(String remotePath, Uint8List data,
-      {String? ifMatchVersion, bool ifAbsent = false}) async {
+      {String? ifMatchVersion, bool ifAbsent = false, int? timeoutSeconds}) async {
     // Drive has no If-Match for media updates: check just before the write.
     // A write racing this check is repaired by the caller's next merge.
     String? current;
@@ -218,8 +218,17 @@ class GoogleDriveStore implements RemoteStore {
       throw RemoteStoreException(
           'precondition failed: $remotePath changed', 412);
     }
-    return uploadFile(remotePath, data);
+    return uploadFile(remotePath, data, timeoutSeconds: timeoutSeconds);
   }
+
+  /// A Drive upload is all or nothing already.
+  @override
+  Future<String?> uploadFileAtomic(String remotePath, Uint8List data,
+          {String? ifMatchVersion, int? timeoutSeconds}) =>
+      ifMatchVersion == null
+          ? uploadFile(remotePath, data, timeoutSeconds: timeoutSeconds)
+          : uploadFileConditional(remotePath, data,
+              ifMatchVersion: ifMatchVersion, timeoutSeconds: timeoutSeconds);
 
   @override
   Future<void> createDirectory(String remotePath) async {

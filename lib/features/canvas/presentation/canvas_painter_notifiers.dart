@@ -685,18 +685,28 @@ class LaserStrokeNotifier extends ChangeNotifier {
 class LassoPathNotifier extends ChangeNotifier {
   final List<Offset> _points = [];
   bool _active = false;
+  double _minStepSq = 0;
 
   List<Offset> get points => _points;
   bool get isActive => _active;
 
-  void start(Offset pos) {
+  /// [minStep]: closer samples than this (page units) are dropped. Pens send
+  /// hundreds of jittery samples a second, which made the dashed outline
+  /// ragged; the selection does not need them.
+  void start(Offset pos, {double minStep = 0}) {
     _points.clear();
     _active = true;
+    _minStepSq = minStep * minStep;
     _points.add(pos);
     notifyListeners();
   }
 
   void addPoint(Offset pos) {
+    if (_minStepSq > 0 &&
+        _points.isNotEmpty &&
+        (pos - _points.last).distanceSquared < _minStepSq) {
+      return;
+    }
     _points.add(pos);
     notifyListeners();
   }
