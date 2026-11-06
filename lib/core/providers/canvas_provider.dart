@@ -7593,7 +7593,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// elements it was saved from (like [paste]), so it stays sharp at any
   /// zoom, resize and export. Left selected for nudging.
   void insertSymbol(ReusableSymbol symbol, Offset position) {
-    if (state == null) return;
+    if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
@@ -7659,6 +7659,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       clearPendingSymbol: true,
       currentTool: CanvasTool.lasso,
     );
+    // Pictures are drawn from the decoded cache only; paste decodes too.
+    for (final e in newElements) {
+      if (e is ImageElement) ensureAssetDecodedForThumbnail(e.data.assetPath);
+    }
   }
 
   // ── Page management ──

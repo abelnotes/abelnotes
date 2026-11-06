@@ -26,6 +26,7 @@ class SymbolLibraryPanel extends ConsumerStatefulWidget {
 class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
   String? _selectedLibId;
   final _previewCache = <String, ui.Image>{};
+  final _previewPending = <String>{};
 
   @override
   void initState() {
@@ -46,8 +47,10 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
   void _ensurePreviewsFor(SymbolLibrary lib, Map<String, ui.Image> imageCache,
       double pixelRatio) {
     for (final sym in lib.symbols) {
-      if (!_previewCache.containsKey(sym.id)) {
-        _renderSymbolPreview(sym, imageCache, pixelRatio);
+      // Runs on every build: one render per symbol, not one per rebuild.
+      if (!_previewCache.containsKey(sym.id) && _previewPending.add(sym.id)) {
+        _renderSymbolPreview(sym, imageCache, pixelRatio)
+            .whenComplete(() => _previewPending.remove(sym.id));
       }
     }
   }
@@ -144,9 +147,12 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
     final picture = recorder.endRecording();
     final px = (previewSize * pixelRatio).ceil();
     final img = await picture.toImage(px, px);
-    if (mounted) {
-      setState(() => _previewCache[symbol.id] = img);
+    picture.dispose();
+    if (!mounted) {
+      img.dispose();
+      return;
     }
+    setState(() => _previewCache[symbol.id] = img);
   }
 
   Future<void> _createLibrary() async {

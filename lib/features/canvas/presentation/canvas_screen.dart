@@ -5377,8 +5377,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onPagesTap: () => _showPageManager(canvasState),
                     onAddPage: () =>
                         ref.read(canvasProvider.notifier).addPage(),
-                    onSymbolsTap: () =>
-                        _showSymbolsDialog(_visibleCenterPagePos(canvasState)),
+                    onSymbolsTap: notifier.isPreview
+                        ? null
+                        : () => _showSymbolsDialog(
+                            _visibleCenterPagePos(canvasState)),
                     onExportTap: () => _showExportSheet(),
                     onMoreTap: () => _showMoreSheet(canvasState),
                     mouseDraws: mouseDraws,
