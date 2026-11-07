@@ -1376,7 +1376,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     Offset centered(Size vp) => s.isScratch
         ? Offset(vp.width / 2 - AppConfig.scratchPageSize * s.zoom / 2,
             vp.height / 2 - AppConfig.scratchPageSize * s.zoom / 2)
-        : Offset(vp.width * (1 - s.zoom) / 2, 0);
+        : centeredPanIn(vp, s.zoom, Size(page.width, page.height));
     double base(Size vp) => s.isScratch
         ? 1.0
         : min(vp.width / page.width, vp.height / page.height);
@@ -1385,11 +1385,34 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     state = s.copyWith(panOffset: centered(to) + delta * ratio);
   }
 
-  /// Compute the panOffset that horizontally centres the page at given zoom.
-  Offset _centeredPanOffset(double zoom) {
+  /// Pan for [page] (default: the current one) at [zoom]: centred across,
+  /// and down the screen centred when it fits, else top edge at the top.
+  Offset _centeredPanOffset(double zoom, [PageData? page]) {
     final vp = _viewportSize;
     if (vp == null) return Offset.zero;
-    return Offset(vp.width * (1 - zoom) / 2, 0);
+    final p = page ?? state?.currentPage;
+    return centeredPanIn(vp, zoom, p == null ? null : Size(p.width, p.height));
+  }
+
+  // screen = (page * fit + fitCentre) * zoom + pan; a zero vertical pan
+  // scaled the fit's centring too, leaving a band above short pages.
+  @visibleForTesting
+  static Offset centeredPanIn(Size vp, double zoom, Size? page) {
+    final dx = vp.width * (1 - zoom) / 2;
+    if (page == null || page.width <= 0 || page.height <= 0) {
+      return Offset(dx, 0);
+    }
+    final fit = min(vp.width / page.width, vp.height / page.height);
+    final fitTop = (vp.height - page.height * fit) / 2;
+    final top = max(0.0, (vp.height - page.height * fit * zoom) / 2);
+    return Offset(dx, top - fitTop * zoom);
+  }
+
+  static PageData? _pageAt(
+      DocumentStructure document, Map<String, PageData> pages, int index) {
+    if (document.pages.isEmpty) return null;
+    return pages[document.pages[index.clamp(0, document.pages.length - 1)]
+        .fileName];
   }
 
   /// Pan that puts the centre of the big scratch page at the viewport centre.
@@ -1452,7 +1475,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           ? Offset.zero
           : isScratch
               ? _scratchCenterPan(zoom)
-              : _centeredPanOffset(zoom),
+              : _centeredPanOffset(zoom, _pageAt(document, pages, pageIndex)),
       currentTool: CanvasTool.pen,
     );
     for (final id in _assetRefsForPage(pageIndex, document, pages)) {
@@ -1570,11 +1593,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // do this — but that only fires on FIRST layout; re-opening a
     // notebook with a known viewport left panOffset at (0,0) which
     // made the page render off-center (user saw it "shifted left").
-    final initialPan = _viewportSize != null
-        ? (isScratch
-            ? _scratchCenterPan(initialZoom)
-            : _centeredPanOffset(2.0)) // 2.0 = default zoom in CanvasState
-        : Offset.zero;
+    Offset initialPan(DocumentStructure doc, Map<String, PageData> pages) =>
+        _viewportSize == null
+            ? Offset.zero
+            : isScratch
+                ? _scratchCenterPan(initialZoom)
+                : _centeredPanOffset(
+                    initialZoom, _pageAt(doc, pages, startPageIndex));
 
     // ── Self-healing: repair duplicate fileNames before first render ──
     // Two sessions running simultaneously can independently generate the
@@ -1618,7 +1643,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       activeChapterId: restoredChapterId,
       currentPageIndex: startPageIndex,
       zoom: initialZoom,
-      panOffset: initialPan,
+      panOffset: initialPan(repaired.document, repaired.pages),
       currentTool: _preview ? CanvasTool.pan : CanvasTool.pen,
     );
 
@@ -5175,7 +5200,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         lassoPath: [],
         clearSelectedElement: true,
         zoom: 2.0,
-        panOffset: _centeredPanOffset(2.0),
+        panOffset: _centeredPanOffset(2.0, _pageAt(s.document, s.pages, index)),
       );
     } else {
       state = s.copyWith(
@@ -5269,7 +5294,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       pages: updatedPages,
       currentPageIndex: insertIndex,
       zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0),
+      panOffset: _centeredPanOffset(2.0, newPage),
       isDirty: true,
     );
   }
@@ -5332,7 +5357,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       pages: updatedPages,
       currentPageIndex: insertIdx,
       zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0),
+      panOffset: _centeredPanOffset(2.0, newPage),
       isDirty: true,
     );
   }
@@ -5496,7 +5521,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       currentPageIndex: insertIndex,
       activeChapterId: chapterId,
       zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0),
+      panOffset: _centeredPanOffset(2.0, newPage),
       isDirty: true,
     );
   }

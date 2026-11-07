@@ -451,6 +451,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   late final ViewportSettler _pdfSettler = ViewportSettler(_showPdfViewport);
   ProviderSubscription<Object?>? _pdfNotebookSub;
   ProviderSubscription<Object?>? _pdfViewportSub;
+  // Kept so dispose can detach without ref, which may already be unusable.
+  CanvasNotifier? _pdfListenNotifier;
 
   void _watchPdfSources() {
     _pdfNotebookSub = ref.listenManual<String?>(
@@ -464,6 +466,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       (_, __) => _pdfSettler.poke(),
     );
     final notifier = ref.read(canvasProvider.notifier);
+    _pdfListenNotifier = notifier;
     notifier.imageCacheVersion.addListener(_pdfSettler.poke);
     notifier.pdfSourcesVersion.addListener(reloadPdfSources);
   }
@@ -495,10 +498,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   void _bumpPdfTiles() => _pdfTileVersion.value++;
 
   void _showPdfViewport() {
+    if (!mounted) return;
     final sharpener = _pdfSharpener;
     final s = ref.read(canvasProvider);
     final size = _lastCanvasSize;
-    if (!mounted || sharpener == null || s == null || size.isEmpty) return;
+    if (sharpener == null || s == null || size.isEmpty) return;
     final page = s.currentPage;
     if (page == null) return;
     final a = _toPageCoords(Offset.zero, s, size);
@@ -1772,11 +1776,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _lassoClearedSub?.close();
     _pdfNotebookSub?.close();
     _pdfViewportSub?.close();
-    try {
-      final notifier = ref.read(canvasProvider.notifier);
-      notifier.imageCacheVersion.removeListener(_pdfSettler.poke);
-      notifier.pdfSourcesVersion.removeListener(reloadPdfSources);
-    } catch (_) {}
+    final pdfNotifier = _pdfListenNotifier;
+    if (pdfNotifier != null) {
+      try {
+        pdfNotifier.imageCacheVersion.removeListener(_pdfSettler.poke);
+        pdfNotifier.pdfSourcesVersion.removeListener(reloadPdfSources);
+      } catch (_) {}
+    }
     _pdfSettler.dispose();
     _pdfSharpener?.dispose();
     _pdfTileVersion.dispose();

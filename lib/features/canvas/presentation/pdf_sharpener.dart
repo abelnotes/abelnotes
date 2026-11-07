@@ -95,10 +95,16 @@ class ViewportSettler {
   ViewportSettler(this.onSettled,
       {this.delay = const Duration(milliseconds: 140)});
 
+  bool _disposed = false;
+
   void poke() {
+    if (_disposed) return;
     _t?.cancel();
     _t = Timer(delay, onSettled);
   }
 
-  void dispose() => _t?.cancel();
+  void dispose() {
+    _disposed = true;
+    _t?.cancel();
+  }
 }
