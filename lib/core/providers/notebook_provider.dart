@@ -1796,6 +1796,17 @@ class NotebookListNotifier
     }
   }
 
+  /// After a whole-notebook upload the server holds exactly these versions;
+  /// without them the editor's first pull downloads every page again.
+  Future<void> _recordFullUploadEtags(
+      String id, String? metaEtag, Map<String, String> pageEtags) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (metaEtag != null && metaEtag.isNotEmpty) {
+      await prefs.setString('delta_meta_etag_$id', metaEtag);
+    }
+    await prefs.setString('page_etags_$id', jsonEncode(pageEtags));
+  }
+
   Future<void> _recordPushedPageEtags(SharedPreferences prefs, String id,
       Map<String, String> pushed) async {
     if (pushed.isEmpty) return;
@@ -1886,12 +1897,9 @@ class NotebookListNotifier
         symbolLibraries:
             local.symbolLibraries.isEmpty ? null : local.symbolLibraries,
       );
-      final etag = res.metaEtag;
-      if (etag != null && etag.isNotEmpty) {
-        await prefs.setString('delta_meta_etag_$id', etag);
-      }
+      await _recordFullUploadEtags(id, res.metaEtag, res.pageEtags);
       await fileService.clearDirtyPages(id);
-      await fileService.markNotebookSynced(id, etag);
+      await fileService.markNotebookSynced(id, res.metaEtag);
     }
     // Both cases: the root file other devices list must be there too.
     await _uploadPendingRoot(syncService, fileService, id);
@@ -1995,6 +2003,7 @@ class NotebookListNotifier
         // Every page and the metadata read above just went up.
         await fileService.clearDirtyPagesOf(id, pushedKeys);
         await fileService.markNotebookSynced(id, res.metaEtag);
+        await _recordFullUploadEtags(id, res.metaEtag, res.pageEtags);
         // The root file is what other devices list; without it the folder
         // just written is invisible to them.
         await PendingRootUploads.add(id);

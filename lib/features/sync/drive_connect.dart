@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/file_service.dart';
+import 'package:abelnotes/core/services/remote_baselines.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/services/google_oauth.dart';
 import 'package:abelnotes/core/services/google_sign_in_desktop.dart';
@@ -146,5 +147,6 @@ Future<void> applySyncBackend({
   required String? backend,
 }) async {
   await files.markAllNotebooksLocal();
+  await RemoteBaselines.forgetAll();
   settings.setSyncBackend(backend);
 }

@@ -26,6 +26,8 @@ class SyncService {
   // an upload that failed after MKCOL left an empty folder that
   // deltaFolderExists called alive, and callers marked the notebook synced.
   final Set<String> _deltaCommitted = {};
+  // The shared `_delta/` parent is known to exist on the server.
+  bool _deltaRootReady = false;
 
   SyncService(this._remoteOrNull, [FileService? fileService]);
 
@@ -239,12 +241,20 @@ class SyncService {
   Future<List<RemoteItem>> listRemoteRoot() async {
     // List first: an unconditional MKCOL logs a 405 on the server every sync.
     try {
-      return await _remote.listDirectory(_remote.basePath);
+      return _noteDeltaRoot(await _remote.listDirectory(_remote.basePath));
     } on RemoteStoreException catch (e) {
       if (e.statusCode != 404) rethrow;
     }
     await _remote.ensureBaseDirectory();
-    return _remote.listDirectory(_remote.basePath);
+    return _noteDeltaRoot(await _remote.listDirectory(_remote.basePath));
+  }
+
+  List<RemoteItem> _noteDeltaRoot(List<RemoteItem> root) {
+    const name = AppConfig.deltaSyncDir;
+    _deltaRootReady = root.any((i) =>
+        i.isDirectory &&
+        i.name.replaceAll('/', '') == name.replaceAll('/', ''));
+    return root;
   }
 
   /// Accepts both spellings even though uploads still write
@@ -372,11 +382,15 @@ class SyncService {
 
     // MKCOL tolerates 405 (already exists) inside createDirectory().
     // Only catch RemoteStoreException with 405 — propagate real errors.
-    try {
-      await _remote.createDirectory(
-          '${_remote.basePath}${AppConfig.deltaSyncDir}');
-    } on RemoteStoreException catch (e) {
-      if (e.statusCode != 405) rethrow;
+    // Skipped once the parent is known: each 405 is an error line on the server.
+    if (!_deltaRootReady) {
+      try {
+        await _remote.createDirectory(
+            '${_remote.basePath}${AppConfig.deltaSyncDir}');
+      } on RemoteStoreException catch (e) {
+        if (e.statusCode != 405) rethrow;
+      }
+      _deltaRootReady = true;
     }
     // These are critical — propagate real errors.
     await _remote.createDirectory(dir);
@@ -569,6 +583,7 @@ class SyncService {
           (cause.statusCode == 409 || cause.statusCode == 404)) {
         _explodedDirsReady.remove(notebookId);
         _deltaCommitted.remove(notebookId);
+        _deltaRootReady = false;
       }
       rethrow;
     }

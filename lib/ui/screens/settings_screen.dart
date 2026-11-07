@@ -20,6 +20,7 @@ import 'package:abelnotes/core/services/webdav_service.dart';
 import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
+import 'package:abelnotes/core/services/remote_baselines.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/sync/drive_connect.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
@@ -936,6 +937,7 @@ class _SyncSection extends ConsumerWidget {
     // would be hard-deleted by the library's remote-deletion cleanup the
     // moment a different account is connected. See markAllNotebooksLocal.
     await ref.read(fileServiceProvider).markAllNotebooksLocal();
+    await RemoteBaselines.forgetAll();
     // Logout, then stay in the app in local-only mode instead of bouncing
     // to onboarding (the user still has their local notebooks).
     await ref.read(credentialsProvider.notifier).logout();

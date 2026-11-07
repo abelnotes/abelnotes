@@ -5,6 +5,7 @@
 
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:abelnotes/core/services/remote_store.dart';
@@ -57,6 +58,33 @@ void main() {
 
     // Each MKCOL on an existing folder logs a 405 on the server (#34).
     expect(store.calls, ['list /AbelNotes/', 'list /AbelNotes/']);
+  });
+
+  test('the shared delta folder is created once, not per new notebook',
+      () async {
+    final zip = Uint8List.fromList(ZipEncoder().encode(Archive()
+      ..addFile(ArchiveFile('metadata.json', 2, [123, 125])))!);
+    const delta = 'mkdir /AbelNotes/_delta/';
+    await store.ensureBaseDirectory();
+
+    await sync.migrateToExploded('a', zip);
+    await sync.migrateToExploded('b', zip);
+    expect(store.calls.where((c) => c == delta), hasLength(1));
+
+    // A later session that has listed the root already knows it is there.
+    store.calls.clear();
+    final next = SyncService(store);
+    await next.listRemoteRoot();
+    await next.migrateToExploded('c', zip);
+    expect(store.calls, isNot(contains(delta)));
+    expect(store.calls, contains('mkdir /AbelNotes/_delta/c/'));
+
+    // Without that listing it still makes sure, once.
+    store.calls.clear();
+    final cold = SyncService(store);
+    await cold.migrateToExploded('d', zip);
+    await cold.migrateToExploded('e', zip);
+    expect(store.calls.where((c) => c == delta), hasLength(1));
   });
 
   test('a failure other than a missing folder is not hidden by a create',

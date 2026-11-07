@@ -95,6 +95,33 @@ void main() {
     expect(dirty.map((r) => r['id']), contains('nextcloud_nb'));
   });
 
+  test("the old server's baselines are forgotten, local state is kept",
+      () async {
+    await addNotebook('nb', 'synced', etag: 'e');
+    SharedPreferences.setMockInitialValues({
+      'delta_meta_etag_nb': '"meta"',
+      'page_etags_nb': '{"page_001.json":"p1"}',
+      'pending_meta_commit_nb': 'bytes',
+      'last_page_nb': 3,
+      'pending_page_deletes_nb': <String>['page_002.json'],
+    });
+
+    await applySyncBackend(
+      files: fs,
+      settings: container.read(appSettingsProvider.notifier),
+      backend: SyncBackend.drive,
+    );
+
+    // Read as "it was on the server", the next server's lack of it looked
+    // like a deletion on another device and the notebook stopped syncing.
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('delta_meta_etag_nb'), isNull);
+    expect(prefs.getString('page_etags_nb'), isNull);
+    expect(prefs.getString('pending_meta_commit_nb'), isNull);
+    expect(prefs.getInt('last_page_nb'), 3);
+    expect(prefs.getStringList('pending_page_deletes_nb'), ['page_002.json']);
+  });
+
   test('going back to local-only un-claims too', () async {
     await addNotebook('drive_nb', 'synced', etag: 'md5-abc');
 

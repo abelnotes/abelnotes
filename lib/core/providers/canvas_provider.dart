@@ -9737,6 +9737,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         _reportReachable(false);
         _recomputeSyncStatus();
       }
+      // Delta folder never seen from here (the first save creates it): the
+      // full fetch below would only repeat the same 404s. The safety net looks.
+      if (fastMetaEtag == null &&
+          _remoteMetaEtag == null &&
+          _lastPageEtags.isEmpty &&
+          !mustDoSafetyNet) {
+        _idlePullCount++;
+        return;
+      }
       final metaMoved = fastMetaEtag != null &&
           (_remoteMetaEtag == null || fastMetaEtag != _remoteMetaEtag);
       if (fastMetaEtag != null) {
@@ -9759,6 +9768,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             // so adaptive backoff engages instead of re-hitting the 404
             // at full cadence (which also spammed "Pull failed" forever).
             _idlePullCount++;
+            // The listing ran and answered: the safety net is satisfied too,
+            // or it would rerun this same 404 fetch on every tick.
+            _pagePropfindCounter = 0;
+            _lastFullPropfindAt = now;
             unawaited(CrashLogger.append(
               '[Pull] skip: remote delta folder missing (404) — '
               'notebook not pushed yet',
