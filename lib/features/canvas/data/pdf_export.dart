@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
+import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -24,13 +25,106 @@ class PdfExportRun {
   });
 }
 
+/// One recorded drawing op, in coordinates mapped to the PDF page (origin
+/// top-left, points) by the affine [m] = [a, b, c, d, e, f].
+sealed class PdfVecOp {
+  final List<double> m;
+  const PdfVecOp(this.m);
+}
+
+/// A filled or stroked path. [cmds] is flat: `0 x y` moveTo, `1 x y`
+/// lineTo, `2 x1 y1 x2 y2 x3 y3` curveTo, `3` close.
+class PdfVecPath extends PdfVecOp {
+  final List<double> cmds;
+  final int color; // ARGB
+  final double? strokeWidth; // null = fill
+  final int cap; // StrokeCap.index, same order as PdfLineCap
+  final int join; // StrokeJoin.index, same order as PdfLineJoin
+  final bool multiply;
+
+  const PdfVecPath({
+    required List<double> m,
+    required this.cmds,
+    required this.color,
+    this.strokeWidth,
+    this.cap = 0,
+    this.join = 0,
+    this.multiply = false,
+  }) : super(m);
+}
+
+/// An encoded image (PNG/JPEG) drawn into the rect [x],[y],[w],[h].
+class PdfVecImage extends PdfVecOp {
+  final Uint8List bytes;
+  final double x, y, w, h, alpha;
+
+  const PdfVecImage({
+    required List<double> m,
+    required this.bytes,
+    required this.x,
+    required this.y,
+    required this.w,
+    required this.h,
+    this.alpha = 1,
+  }) : super(m);
+}
+
+/// Real text in a standard PDF font, baseline-left at [x],[y], stretched
+/// horizontally by [hscale] to the width the canvas laid it out at.
+class PdfVecText extends PdfVecOp {
+  final String text; // already passed through [pdfSafeText]
+  final double x, y, size, hscale;
+  final int color; // ARGB
+  final bool mono, bold, italic;
+
+  const PdfVecText({
+    required List<double> m,
+    required this.text,
+    required this.x,
+    required this.y,
+    required this.size,
+    this.hscale = 1,
+    required this.color,
+    this.mono = false,
+    this.bold = false,
+    this.italic = false,
+  }) : super(m);
+}
+
+/// Width of [text] at [size] in the standard font [buildPdfDocument] draws
+/// a [PdfVecText] with. Plain metrics, no document needed.
+double pdfTextWidth(String text, double size,
+    {bool mono = false, bool bold = false, bool italic = false}) {
+  final i = _fontIndex(mono, bold, italic);
+  final font = _metricsFonts[i] ??= _standardFont(_metricsDoc, i);
+  return font.stringMetrics(text).width * size;
+}
+
+int _fontIndex(bool mono, bool bold, bool italic) =>
+    (mono ? 4 : 0) + (bold ? 2 : 0) + (italic ? 1 : 0);
+
+PdfFont _standardFont(PdfDocument doc, int i) => switch (i) {
+      0 => PdfFont.helvetica(doc),
+      1 => PdfFont.helveticaOblique(doc),
+      2 => PdfFont.helveticaBold(doc),
+      3 => PdfFont.helveticaBoldOblique(doc),
+      4 => PdfFont.courier(doc),
+      5 => PdfFont.courierOblique(doc),
+      6 => PdfFont.courierBold(doc),
+      _ => PdfFont.courierBoldOblique(doc),
+    };
+
+final _metricsDoc = PdfDocument();
+final _metricsFonts = <int, PdfFont>{};
+
 /// A page ready for the PDF writer. Plain data so it crosses isolates.
-/// Either [flatPng] (whole page rasterised) or [baseImage] (the imported
-/// PDF page's own raster) plus an optional transparent [overlayPng] of the
-/// annotations drawn on top.
+/// Either [vector] (the page as drawing ops), [flatPng] (whole page
+/// rasterised) or [baseImage] (the imported PDF page's own raster) plus an
+/// optional transparent [overlayPng] of the annotations drawn on top.
 class PdfExportPage {
   final double width;
   final double height;
+  final List<PdfVecOp>? vector;
   final Uint8List? flatPng;
   final Uint8List? baseImage;
   final Uint8List? overlayPng;
@@ -39,6 +133,7 @@ class PdfExportPage {
   const PdfExportPage({
     required this.width,
     required this.height,
+    this.vector,
     this.flatPng,
     this.baseImage,
     this.overlayPng,
@@ -170,11 +265,27 @@ String pdfSafeText(String s) {
   return out.toString();
 }
 
+/// Whether [pdfSafeText] keeps every character of [s] (standard PDF
+/// fonts only cover Latin-1).
+bool pdfCanEncode(String s) => s.runes.every((r) =>
+    (r >= 0x20 && r < 0x7F) ||
+    (r >= 0xA0 && r <= 0xFF) ||
+    r == 0x09 ||
+    r == 0x0A ||
+    _punct.containsKey(String.fromCharCode(r)));
+
 /// Embeds [bytes]. Opaque pages drop the alpha channel (no SMask) and
 /// scan-like ones (dense PNG) are re-encoded as JPEG; overlays keep alpha.
-PdfImage _embed(PdfDocument doc, Uint8List bytes, {required bool opaque}) {
+/// [opaque] null = decide from the image: JPEGs go in untouched, PNGs
+/// without a single translucent pixel are treated as opaque.
+PdfImage _embed(PdfDocument doc, Uint8List bytes, {bool? opaque}) {
+  if (opaque == null && bytes.length > 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    return PdfImage.jpeg(doc, image: bytes);
+  }
   final decoded = img.decodeImage(bytes);
   if (decoded == null) return PdfImage.file(doc, bytes: bytes);
+  opaque ??= !decoded.hasAlpha ||
+      decoded.every((px) => px.a >= px.maxChannelValue);
   if (!opaque) return PdfImage.fromImage(doc, image: decoded);
   final rgb = decoded.numChannels == 3
       ? decoded
@@ -195,9 +306,20 @@ PdfImage _embed(PdfDocument doc, Uint8List bytes, {required bool opaque}) {
 Future<Uint8List> buildPdfDocument(List<PdfExportPage> pages) async {
   final doc = PdfDocument();
   final font = PdfFont.helvetica(doc);
+  final images = Map<Uint8List, PdfImage>.identity(); // one XObject per asset
+  final fonts = <int, PdfFont>{0: font}; // the rest made on first use
   for (final p in pages) {
     final page = PdfPage(doc, pageFormat: PdfPageFormat(p.width, p.height));
     final g = page.getGraphics();
+    if (p.vector != null) {
+      g.saveContext();
+      g.setTransform(_affine([1, 0, 0, -1, 0, p.height])); // y down, like the canvas
+      for (final op in p.vector!) {
+        _drawOp(g, op, (b) => images[b] ??= _embed(doc, b),
+            (i) => fonts[i] ??= _standardFont(doc, i));
+      }
+      g.restoreContext();
+    }
     final base = p.baseImage ?? p.flatPng;
     if (base != null) {
       g.drawImage(_embed(doc, base, opaque: true), 0, 0, p.width, p.height);
@@ -221,10 +343,75 @@ Future<Uint8List> buildPdfDocument(List<PdfExportPage> pages) async {
   return Uint8List.fromList(await doc.save());
 }
 
+Matrix4 _affine(List<double> m) => Matrix4(
+    m[0], m[1], 0, 0, m[2], m[3], 0, 0, 0, 0, 1, 0, m[4], m[5], 0, 1);
+
+void _drawOp(PdfGraphics g, PdfVecOp op, PdfImage Function(Uint8List) image,
+    PdfFont Function(int) font) {
+  g.saveContext();
+  g.setTransform(_affine(op.m));
+  switch (op) {
+    case PdfVecPath():
+      final alpha = ((op.color >> 24) & 0xFF) / 255;
+      if (alpha < 1 || op.multiply) {
+        g.setGraphicState(PdfGraphicState(
+            fillOpacity: alpha,
+            strokeOpacity: alpha,
+            blendMode: op.multiply ? PdfBlendMode.multiply : null));
+      }
+      final c = op.cmds;
+      for (var i = 0; i < c.length;) {
+        switch (c[i].toInt()) {
+          case 0:
+            g.moveTo(c[i + 1], c[i + 2]);
+            i += 3;
+          case 1:
+            g.lineTo(c[i + 1], c[i + 2]);
+            i += 3;
+          case 2:
+            g.curveTo(c[i + 1], c[i + 2], c[i + 3], c[i + 4], c[i + 5], c[i + 6]);
+            i += 7;
+          default:
+            g.closePath();
+            i += 1;
+        }
+      }
+      final color = PdfColor.fromInt(op.color | 0xFF000000);
+      if (op.strokeWidth == null) {
+        g.setFillColor(color);
+        g.fillPath();
+      } else {
+        g.setStrokeColor(color);
+        g.setLineWidth(op.strokeWidth!);
+        g.setLineCap(PdfLineCap.values[op.cap]);
+        g.setLineJoin(PdfLineJoin.values[op.join]);
+        g.strokePath();
+      }
+    case PdfVecText():
+      final alpha = ((op.color >> 24) & 0xFF) / 255;
+      if (alpha < 1) g.setGraphicState(PdfGraphicState(fillOpacity: alpha));
+      g.setFillColor(PdfColor.fromInt(op.color | 0xFF000000));
+      // Text draws y-up; flip back at the baseline.
+      g.setTransform(_affine([1, 0, 0, -1, op.x, op.y]));
+      g.drawString(font(_fontIndex(op.mono, op.bold, op.italic)), op.size,
+          op.text, 0, 0,
+          scale: op.hscale);
+    case PdfVecImage():
+      if (op.alpha < 1) {
+        g.setGraphicState(
+            PdfGraphicState(fillOpacity: op.alpha, strokeOpacity: op.alpha));
+      }
+      // Images draw y-up; flip back inside the target rect.
+      g.setTransform(_affine([1, 0, 0, -1, op.x, op.y + op.h]));
+      g.drawImage(image(op.bytes), 0, 0, op.w, op.h);
+  }
+  g.restoreContext();
+}
+
 /// Smallest raster scale (px per point) that keeps [widthPt]x[heightPt]
-/// within [maxPixels].
+/// within [maxPixels]. 4 px/pt ≈ 288 DPI, print sharp; 2 looked blurry zoomed.
 double exportScaleFor(double widthPt, double heightPt,
-    {double preferred = 2.0, double maxPixels = 12e6}) {
+    {double preferred = 4.0, double maxPixels = 12e6}) {
   final px = widthPt * heightPt * preferred * preferred;
   if (px <= maxPixels) return preferred;
   return preferred * math.sqrt(maxPixels / px);
