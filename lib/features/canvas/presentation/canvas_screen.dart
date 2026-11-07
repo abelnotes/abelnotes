@@ -40,6 +40,7 @@ import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/features/canvas/data/zoom_snapshot.dart';
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/features/canvas/data/pdf_export.dart';
+import 'package:abelnotes/features/canvas/data/pdf_vector_canvas.dart';
 import 'package:abelnotes/features/canvas/data/pdf_import_support.dart';
 import 'package:abelnotes/features/canvas/data/pdf_text_extractor.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_password_dialog.dart';
@@ -7974,13 +7975,22 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   // ── Export ──
 
-  /// One page for the PDF writer: the imported PDF raster itself plus a
-  /// transparent annotation overlay when possible (no second rasterisation),
-  /// otherwise a flat render; PDF text stays as an invisible layer.
+  /// One page for the PDF writer: vector paths when the page can be drawn
+  /// that way, else the imported PDF raster itself plus a transparent
+  /// annotation overlay when possible (no second rasterisation), otherwise a
+  /// flat render; PDF text stays as an invisible layer.
   Future<PdfExportPage?> _pdfExportPage(
       PageData page, Map<String, ui.Image> imageCache) async {
     final runs = pdfExportRuns(page);
     final size = pdfExportPageSize(page);
+    try {
+      final ops = await _renderPageToVector(page, imageCache,
+          sx: size.width / page.width, sy: size.height / page.height);
+      return PdfExportPage(
+          width: size.width, height: size.height, vector: ops, runs: runs);
+    } on VectorUnsupported catch (e) {
+      debugPrint('PDF export: raster fallback for page ${page.pageId}: $e');
+    }
     final scale = exportScaleFor(page.width, page.height);
     final split = splitPdfBackground(page);
     final base = split == null
@@ -8005,6 +8015,33 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         width: size.width, height: size.height, flatPng: flat, runs: runs);
   }
 
+  /// Records a page as PDF drawing ops, mapped by [sx]/[sy] to the PDF
+  /// page size. Throws [VectorUnsupported] for anything it can't draw.
+  Future<List<PdfVecOp>> _renderPageToVector(
+      PageData page, Map<String, ui.Image> imageCache,
+      {double sx = 1, double sy = 1}) {
+    final assetBytes = ref.read(canvasProvider)?.assetBytes ?? const <String, Uint8List>{};
+    return _withExportCaches(page, imageCache, VectorCanvas.rasterScale,
+        (images, maths) {
+      final known = Map<ui.Image, Uint8List>.identity();
+      images.forEach((path, img) {
+        final b = assetBytes[path];
+        if (b != null) known[img] = b;
+      });
+      final canvas = VectorCanvas(knownBytes: known, sx: sx, sy: sy);
+      CanvasRenderEngine(
+        pageData: page,
+        zoom: 3.0, // curve interpolation density: smooth when zoomed in
+        panOffset: Offset.zero,
+        imageCache: images,
+        mathCache: maths,
+        mathPixelRatio: VectorCanvas.rasterScale,
+        pathFactory: VectorPath.new,
+      ).paintPage(canvas, Size(page.width, page.height), 1.0, Offset.zero);
+      return canvas.finish();
+    });
+  }
+
   /// Render a single page to a PNG [Uint8List] at the given [scale].
   Future<Uint8List?> _renderPageToPng(PageData page, Map<String, ui.Image> imageCache, {double scale = 2.0, bool transparent = false}) async {
     final w = page.width;
@@ -8012,7 +8049,41 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final renderW = (w * scale).round();
     final renderH = (h * scale).round();
     if (renderW <= 0 || renderH <= 0) return null;
+    final mathPr = scale.clamp(1.0, 4.0).toDouble();
+    return _withExportCaches(page, imageCache, mathPr, (images, maths) async {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, w * scale, h * scale));
+      canvas.scale(scale);
+      if (!transparent) {
+        canvas.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..color = Colors.white);
+      }
 
+      final engine = CanvasRenderEngine(
+        pageData: page,
+        zoom: 1.0,
+        panOffset: Offset.zero,
+        imageCache: images,
+        mathCache: maths,
+        mathPixelRatio: mathPr,
+      );
+      engine.paintPage(canvas, Size(w, h), 1.0, Offset.zero);
+
+      final picture = recorder.endRecording();
+      final img = await picture.toImage(renderW, renderH);
+      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+      img.dispose();
+      picture.dispose();
+      return byteData?.buffer.asUint8List();
+    });
+  }
+
+  /// Runs [paint] with every image of [page] decoded and every equation
+  /// rasterised at [mathPr], disposing what was made here afterwards.
+  Future<T> _withExportCaches<T>(
+      PageData page,
+      Map<String, ui.Image> imageCache,
+      double mathPr,
+      Future<T> Function(Map<String, ui.Image> images, Map<String, MathRaster> math) paint) async {
     // The live imageCache only holds textures for pages near the current
     // one (windowed decode + LRU eviction). Pages outside the window
     // would export with grey placeholders — decode their assets here
@@ -8043,7 +8114,6 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // every math element here (await) and inject a warm math cache, mirroring
     // the image pre-decode above. Without this, equations would export as
     // the placeholder box.
-    final mathPr = scale.clamp(1.0, 4.0);
     final mathTemp = <String, MathRaster>{};
     for (final el in page.layers.content) {
       if (el is! MathElement) continue;
@@ -8062,29 +8132,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
 
     try {
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, w * scale, h * scale));
-      canvas.scale(scale);
-      if (!transparent) {
-        canvas.drawRect(Rect.fromLTWH(0, 0, w, h), Paint()..color = Colors.white);
-      }
-
-      final engine = CanvasRenderEngine(
-        pageData: page,
-        zoom: 1.0,
-        panOffset: Offset.zero,
-        imageCache: effectiveCache,
-        mathCache: mathTemp,
-        mathPixelRatio: mathPr.toDouble(),
-      );
-      engine.paintPage(canvas, Size(w, h), 1.0, Offset.zero);
-
-      final picture = recorder.endRecording();
-      final img = await picture.toImage(renderW, renderH);
-      final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
-      img.dispose();
-      picture.dispose();
-      return byteData?.buffer.asUint8List();
+      return await paint(effectiveCache, mathTemp);
     } finally {
       for (final img in temp.values) {
         img.dispose();
