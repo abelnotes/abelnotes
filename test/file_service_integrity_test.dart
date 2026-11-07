@@ -75,6 +75,34 @@ void main() {
       File(p.join(fs.notebookStoreDir(id), AppConfig.pagesDir, fn))
           .readAsStringSync();
 
+  test('tmp files a crash left behind are swept once they are old', () async {
+    await fs.explodeZipToLooseStore('nb', _notebook(pages: {'p1.json': 'mine'}));
+    final store = fs.notebookStoreDir('nb');
+    final notebooks = p.dirname(store);
+    final old = DateTime.now().subtract(const Duration(hours: 1));
+    File mk(String path, {bool stale = true}) {
+      final f = File(path)..writeAsStringSync('x');
+      if (stale) f.setLastModifiedSync(old);
+      return f;
+    }
+
+    final staleTop = mk(p.join(notebooks, 'nb2.abelnote.1794073022687023-a-aoqvx5.tmp'));
+    final stalePage = mk(p.join(store, AppConfig.pagesDir, 'p2.json.1794073022687023-b.tmp'));
+    final staleRoot = mk(p.join(p.dirname(notebooks), 'symbols.json.1794073022687023-c.tmp'));
+    final fresh = mk(p.join(store, AppConfig.pagesDir, 'p3.json.1794073022687023-d.tmp'),
+        stale: false);
+    final foreign = mk(p.join(notebooks, 'notes.tmp'));
+
+    await fs.sweepStaleTemps();
+
+    expect(staleTop.existsSync(), isFalse);
+    expect(stalePage.existsSync(), isFalse);
+    expect(staleRoot.existsSync(), isFalse);
+    expect(fresh.existsSync(), isTrue, reason: 'a write in flight keeps its tmp');
+    expect(foreign.existsSync(), isTrue, reason: 'only our own tmp names');
+    expect(page('nb', 'p1.json'), 'mine');
+  });
+
   test('a store parked by an interrupted swap is put back at start', () async {
     await fs.explodeZipToLooseStore('nb', _notebook(pages: {'p1.json': 'mine'}));
     final live = Directory(fs.notebookStoreDir('nb'));

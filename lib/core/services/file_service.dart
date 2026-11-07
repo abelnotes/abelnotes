@@ -77,6 +77,7 @@ class FileService {
     await _migrateRemotePathPrefix();
     await _migrateStorageExtension();
     await _recoverInterruptedSwaps();
+    unawaited(sweepStaleTemps());
 
     _initialized = true;
     debugPrint('[FileService] Initialized at $_basePath');
@@ -242,6 +243,42 @@ class FileService {
       }
     } catch (e) {
       debugPrint('[FileService] Swap recovery failed: $e');
+    }
+  }
+
+  // `<name>.<micros>-<seq>[-<rand>].tmp` from the atomic writers below.
+  static final _tmpLeftover = RegExp(r'\.\d+-[0-9a-z]+(-[0-9a-z]+)?\.tmp$');
+
+  /// Drops tmp files a crash left between write and rename. Only ones older
+  /// than [olderThan], so a write in flight elsewhere is never touched.
+  @visibleForTesting
+  Future<void> sweepStaleTemps(
+      {Duration olderThan = const Duration(minutes: 10)}) async {
+    final cutoff = DateTime.now().subtract(olderThan);
+    Future<void> sweep(Directory dir) async {
+      if (!await dir.exists()) return;
+      await for (final e in dir.list()) {
+        if (e is! File || !_tmpLeftover.hasMatch(p.basename(e.path))) continue;
+        try {
+          if ((await e.lastModified()).isBefore(cutoff)) await e.delete();
+        } catch (_) {}
+      }
+    }
+
+    try {
+      await sweep(Directory(_basePath));
+      await sweep(Directory(_trashDir));
+      final root = Directory(_notebooksDir);
+      await sweep(root);
+      await for (final e in root.list()) {
+        if (e is! Directory) continue;
+        await sweep(e);
+        for (final sub in const ['pages', 'assets', kPdfSourcesDir]) {
+          await sweep(Directory(p.join(e.path, sub)));
+        }
+      }
+    } catch (e) {
+      debugPrint('[FileService] Temp sweep failed: $e');
     }
   }
 
