@@ -11,6 +11,7 @@ Cross-platform, self-hostable, open source. Your notes sync to a place *you* con
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-Windows_·_Linux_·_Android_·_Web-informational)
+[![Sponsor](https://img.shields.io/badge/sponsor-GitHub_Sponsors-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/abelnotes)
 
 </div>
 
@@ -148,6 +149,12 @@ a Rust toolchain to rebuild it yourself with `native/build_onenote_bridge.sh`.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how the app is put together and why
 - [ABELNOTE_FORMAT_GUIDE.md](ABELNOTE_FORMAT_GUIDE.md) — the notebook format on disk, file by file
 - [SECURITY.md](SECURITY.md) — threat model, encryption, how to report a vulnerability
+
+---
+
+## Support the project
+
+AbelNotes is free and has no ads, accounts or tracking. If it's useful to you, you can support its development on [GitHub Sponsors](https://github.com/sponsors/abelnotes). The current goal is covering the Apple developer fee, so AbelNotes can ship on iOS and macOS.
 
 ---
 
