@@ -967,6 +967,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   }
 
   Future<void> _createNotebook() async {
+    final folderId = _selectedFolderId;
     final chapterTitle = AppLocalizations.of(context).quDefaultChapter;
     final res = await showDialog<_NewNotebookResult>(
       context: context,
@@ -988,6 +989,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                 pageWidth: res.pageSize.width,
                 pageHeight: res.pageSize.height,
               );
+      _fileCreatedNotebook(entry, folderId);
       if (mounted) _openNotebook(entry);
     } catch (e) {
       if (!mounted) return;
@@ -1004,6 +1006,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   /// away — a quick-sketch flow with no dialog friction. Background/texture
   /// is picked later from the editor toolbar.
   Future<void> _createSketch() async {
+    final folderId = _selectedFolderId;
     try {
       final entry =
           await ref.read(notebookListProvider.notifier).createNotebook(
@@ -1013,6 +1016,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                 coverColor: HwTheme.cover4.toARGB32(),
                 chapterTitle: AppLocalizations.of(context).quDefaultChapter,
               );
+      _fileCreatedNotebook(entry, folderId);
       if (mounted) _openNotebook(entry);
     } catch (e) {
       if (!mounted) return;
@@ -1022,6 +1026,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                 .libErrorCreateSketch(syncErrorText(AppLocalizations.of(context), e)))),
       );
     }
+  }
+
+  void _fileCreatedNotebook(NotebookEntry entry, String? folderId) {
+    if (!mounted || folderId == null) return;
+    if (!ref.read(appSettingsProvider).folders.any((f) => f.id == folderId)) {
+      return;
+    }
+    ref
+        .read(appSettingsProvider.notifier)
+        .setNotebookFolder(entry.metadata.id, folderId);
   }
 
   /// One-click favorite toggle from the cover star overlay. Avoids the
