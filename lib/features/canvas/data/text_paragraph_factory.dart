@@ -51,6 +51,30 @@ ui.TextStyle textStyleFor(TextData t, TextSpanData? span,
   );
 }
 
+/// The styled runs of [textData], in paragraph order: rich spans when
+/// present, otherwise one legacy run carrying the element-level style
+/// (null span). Inside each run, URL matches get the link affordance so
+/// Ctrl+click targets stay visible in both forms.
+Iterable<({String text, TextSpanData? span, bool asLink})> textRuns(
+    TextData textData) sync* {
+  final runs =
+      textData.spans.isNotEmpty ? textData.spans : <TextSpanData?>[null];
+  for (final span in runs) {
+    final text = span?.text ?? textData.content;
+    var last = 0;
+    for (final m in urlInTextPattern.allMatches(text)) {
+      if (m.start > last) {
+        yield (text: text.substring(last, m.start), span: span, asLink: false);
+      }
+      yield (text: text.substring(m.start, m.end), span: span, asLink: true);
+      last = m.end;
+    }
+    if (last < text.length) {
+      yield (text: text.substring(last), span: span, asLink: false);
+    }
+  }
+}
+
 /// Build (and lay out) the paragraph for [textData]. [width] overrides the
 /// layout width; defaults to the element's own box width.
 ui.Paragraph buildTextParagraph(TextData textData, {double? width}) {
@@ -62,40 +86,13 @@ ui.Paragraph buildTextParagraph(TextData textData, {double? width}) {
             : TextAlign.left,
   );
   final builder = ui.ParagraphBuilder(paragraphStyle);
-
-  // Normalise to a list of styled runs: rich spans when present,
-  // otherwise one legacy run carrying the element-level style. Inside
-  // each run, URL matches get the link affordance layered on top so
-  // Ctrl+click targets stay visible in both forms.
-  final runs =
-      textData.spans.isNotEmpty ? textData.spans : <TextSpanData?>[null];
   var any = false;
-  for (final span in runs) {
-    final text = span?.text ?? textData.content;
-    if (text.isEmpty) continue;
+  for (final r in textRuns(textData)) {
     any = true;
-    final base = textStyleFor(textData, span);
-    final link = textStyleFor(textData, span, asLink: true);
-    var last = 0;
-    for (final m in urlInTextPattern.allMatches(text)) {
-      if (m.start > last) {
-        builder
-          ..pushStyle(base)
-          ..addText(text.substring(last, m.start))
-          ..pop();
-      }
-      builder
-        ..pushStyle(link)
-        ..addText(text.substring(m.start, m.end))
-        ..pop();
-      last = m.end;
-    }
-    if (last < text.length) {
-      builder
-        ..pushStyle(base)
-        ..addText(text.substring(last))
-        ..pop();
-    }
+    builder
+      ..pushStyle(textStyleFor(textData, r.span, asLink: r.asLink))
+      ..addText(r.text)
+      ..pop();
   }
   if (!any) {
     builder
