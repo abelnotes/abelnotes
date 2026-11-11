@@ -693,19 +693,22 @@ class HwFloatingDock extends StatelessWidget {
               width: m.btn,
               height: m.btn,
               child: Center(
-                // Inset so two neighbouring toggles that are both on don't
-                // merge into one blob.
+                // A ring, not the filled pill: only the active tool gets
+                // the pill, so a switch that's on never reads as selected.
+                // Inset so two neighbouring rings don't touch.
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   width: m.btn - 4 * m.scale,
                   height: m.btn - 4 * m.scale,
                   decoration: BoxDecoration(
-                    color: on ? p.accentSoft : Colors.transparent,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                        color: on ? p.accent : Colors.transparent,
+                        width: 1.5),
                   ),
                   child: Center(
                     child: HwIcon(icon,
-                        size: m.icon, color: on ? p.accentDeep : p.ink1),
+                        size: m.icon, color: on ? p.accent : p.ink1),
                   ),
                 ),
               ),
