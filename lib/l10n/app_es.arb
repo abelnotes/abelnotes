@@ -592,6 +592,8 @@
   "chromeAllPages": "Todas las páginas",
   "chromePageIndicator": "{current} / {total}",
   "chromeAddPage": "Añadir página",
+  "chromePrevPage": "Página anterior",
+  "chromeNextPage": "Página siguiente",
   "chromeSymbols": "Símbolos",
   "chromeExport": "Exportar",
   "chromeMore": "Más",

@@ -1644,6 +1644,8 @@
     }
   },
   "chromeAddPage": "Aggiungi pagina",
+  "chromePrevPage": "Pagina precedente",
+  "chromeNextPage": "Pagina successiva",
   "@chromeAddPage": {},
   "chromeSymbols": "Simboli",
   "@chromeSymbols": {},

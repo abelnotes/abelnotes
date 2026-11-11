@@ -573,6 +573,8 @@
   "chromeAllPages": "全部页面",
   "chromePageIndicator": "{current} / {total}",
   "chromeAddPage": "添加页面",
+  "chromePrevPage": "上一页",
+  "chromeNextPage": "下一页",
   "chromeSymbols": "符号",
   "chromeExport": "导出",
   "chromeMore": "更多",

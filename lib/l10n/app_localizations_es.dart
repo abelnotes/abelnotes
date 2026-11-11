@@ -2047,6 +2047,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chromeAddPage => 'Añadir página';
 
   @override
+  String get chromePrevPage => 'Página anterior';
+
+  @override
+  String get chromeNextPage => 'Página siguiente';
+
+  @override
   String get chromeSymbols => 'Símbolos';
 
   @override
