@@ -856,15 +856,27 @@ class HwToolPopup extends StatelessWidget {
           if (_showColor) ...[
             _section(l10n.chromeColorSection, p),
             const SizedBox(height: 6),
+            // Two rows of six presets; the custom picker ends the first.
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (int i = 0; i < presetColors.length; i++)
+                for (int i = 0; i < presetColors.length && i < 6; i++)
                   _colorChip(presetColors[i], i, p, context),
                 _customColorChip(context, p),
               ],
             ),
+            if (presetColors.length > 6) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (int i = 6; i < presetColors.length; i++)
+                    _colorChip(presetColors[i], i, p, context),
+                ],
+              ),
+            ],
             const SizedBox(height: 6),
             if (onPresetColorEdited != null)
               Text(

@@ -20,6 +20,13 @@ class PresetColorsNotifier extends StateNotifier<List<int>> {
     0xFFFFFFFF, // white
     0xFFFF9800, // orange
     0xFF2E7D32, // green
+    // Second row (added later; older saved palettes get these appended).
+    0xFFFDD835, // yellow
+    0xFF6A1B9A, // purple
+    0xFFD81B60, // pink
+    0xFF00897B, // teal
+    0xFF6D4C41, // brown
+    0xFF757575, // grey
   ];
 
   PresetColorsNotifier() : super(defaults) {
@@ -32,7 +39,8 @@ class PresetColorsNotifier extends StateNotifier<List<int>> {
       final raw = prefs.getString(_prefsKey);
       if (raw == null || raw.isEmpty) return;
       final list = (jsonDecode(raw) as List).cast<int>();
-      if (list.length == defaults.length) state = list;
+      if (list.isEmpty || list.length > defaults.length) return;
+      state = [...list, ...defaults.skip(list.length)];
     } catch (_) {}
   }
 
