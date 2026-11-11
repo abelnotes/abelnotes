@@ -93,7 +93,9 @@ class HwGlass extends StatelessWidget {
             BoxShadow(
               color: s.color,
               blurRadius: s.blurRadius,
-              offset: s.offset,
+              // Outer blur clears the offset shape, which left a bare strip
+              // under the panel; it only looks right centred.
+              offset: kIsWeb ? s.offset : Offset.zero,
               // Normal on web: the only style Skia draws analytically.
               blurStyle: kIsWeb ? BlurStyle.normal : BlurStyle.outer,
             ),
