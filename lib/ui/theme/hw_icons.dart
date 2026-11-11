@@ -123,6 +123,9 @@ class _HwIconPainter extends CustomPainter {
         circle(4, 16, 0.8, filled: true);
         circle(16, 4, 0.8, filled: true);
         break;
+      case 'shape-fill':
+        pf('M10 4l6.5 12h-13z');
+        break;
       case 'image':
         canvas.drawRRect(
             RRect.fromLTRBR(3, 4, 17, 16, const Radius.circular(2)), stroke);
