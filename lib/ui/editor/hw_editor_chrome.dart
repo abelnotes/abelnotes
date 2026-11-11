@@ -689,17 +689,25 @@ class HwFloatingDock extends StatelessWidget {
             onLongPressStart: onSecondary == null
                 ? null
                 : (d) => onSecondary(d.globalPosition),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
+            child: SizedBox(
               width: m.btn,
               height: m.btn,
-              decoration: BoxDecoration(
-                color: on ? p.accentSoft : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
-                child: HwIcon(icon,
-                    size: m.icon, color: on ? p.accentDeep : p.ink1),
+                // Inset so two neighbouring toggles that are both on don't
+                // merge into one blob.
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: m.btn - 4 * m.scale,
+                  height: m.btn - 4 * m.scale,
+                  decoration: BoxDecoration(
+                    color: on ? p.accentSoft : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: HwIcon(icon,
+                        size: m.icon, color: on ? p.accentDeep : p.ink1),
+                  ),
+                ),
               ),
             ),
           ),
