@@ -50,6 +50,7 @@ import 'package:abelnotes/features/canvas/presentation/image_handle_overlay.dart
 import 'package:abelnotes/features/canvas/presentation/remote_changes_banner.dart';
 import 'package:abelnotes/features/canvas/presentation/conflict_resolution_screen.dart';
 import 'package:abelnotes/features/canvas/presentation/symbol_library_panel.dart';
+import 'package:abelnotes/features/canvas/presentation/math_editor_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/text_editor_dialog.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/html_text.dart';
@@ -3029,6 +3030,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           final txt = _findTextElementAt(state, pagePos);
           if (txt != null && txt.id == elId) {
             _handleTextTool(event.localPosition, state, canvasSize);
+            return;
+          }
+          // A math element: its LaTeX editor.
+          final math = state.currentPage?.layers.content
+              .whereType<MathElement>()
+              .where((e) => e.id == elId)
+              .firstOrNull;
+          if (math != null) {
+            notif.selectElement(elId);
+            _editMath(math);
             return;
           }
         }
@@ -6951,6 +6962,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 n.resizeTextElement(elementId, fontScale: 1.15);
               }
             : null,
+        onEditMath: element is MathElement ? () => _editMath(element) : null,
         onDragStart: () {
           // Push undo once (Riverpod), then switch to the local notifier
           // for the rest of the gesture so per-frame moves don't fire
@@ -7537,7 +7549,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _toast(action.busyLabel(l10n));
     SelectionOutcome outcome;
     try {
-      outcome = await action.run(SelectionRequest(ink: notifier.selectedInk, pageWidth: page.width));
+      outcome = await action.run(SelectionRequest(
+          ink: notifier.selectedInk, mathInk: notifier.selectedMathInk, pageWidth: page.width));
     } catch (e, st) {
       outcome = ActionFailed('$e\n$st', reason: ActionFailReason.error);
     }
@@ -7554,7 +7567,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       case ReplaceInk(:final removedIds, :final added):
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         notifier.replaceStrokesWithDrawing(fileName, removedIds, added);
+      case InsertMath(:final removedIds, :final latex):
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        await notifier.replaceInkWithMath(fileName, removedIds, latex);
     }
+  }
+
+  /// Opens the LaTeX editor on [element] and applies the result.
+  Future<void> _editMath(MathElement element) async {
+    final latex = await showMathEditorDialog(context, initial: element.data.latex);
+    if (latex == null || !mounted) return;
+    await ref.read(canvasProvider.notifier).updateMathLatex(element.id, latex);
   }
 
   /// Redraws the circuit in image [elementId] as strokes in its place, one

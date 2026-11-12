@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:abelnotes/features/modules/bundled_model.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 import '../ink_recognizer/model_file.dart';
@@ -32,35 +33,12 @@ final circuitRecognizerProvider = FutureProvider.autoDispose<CircuitRecognizer?>
   if (kIsWeb) return null;
   final dir = await getApplicationSupportDirectory();
   final path = '${dir.path}${Platform.pathSeparator}models${Platform.pathSeparator}$kCircuitModelFileName';
-  await installBundledCircuitModel(
+  await installBundledModel(
       path, kBundledCircuitModelSha256, () => rootBundle.load(kBundledCircuitModelAsset));
   final r = await CircuitRecognizer.load(path);
   ref.onDispose(() => r?.dispose());
   return r;
 });
-
-/// Copies the bundled model to [path] unless the copy there is that very file:
-/// a stamp beside it records the installed hash, since two models can have the
-/// same length. [load] runs only when a copy is needed.
-Future<void> installBundledCircuitModel(String path, String sha256, Future<ByteData> Function() load) async {
-  final file = File(path);
-  final stamp = File('$path.sha256');
-  if (file.existsSync() && stamp.existsSync() && stamp.readAsStringSync().trim() == sha256) return;
-  final ByteData data;
-  try {
-    data = await load();
-  } catch (e) {
-    debugPrint('[circuit] bundled model missing: $e');
-    return;
-  }
-  await file.parent.create(recursive: true);
-  // Stamp last, so a copy cut short is redone at the next start.
-  if (stamp.existsSync()) await stamp.delete();
-  final tmp = File('$path.tmp');
-  await tmp.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
-  await tmp.rename(path);
-  await stamp.writeAsString(sha256, flush: true);
-}
 
 /// How an added polyline is drawn: the user's ink kept as drawn, or a clean
 /// line: thin (wires, leads), twice as thick (part outlines), or filled.

@@ -145,6 +145,9 @@ flutter:
     # Listed by name: anything else in assets/models stays out of the app.
     - assets/licenses/circuit_detector_NOTICE.txt
     - assets/models/circuit_detector.ablm
+    # Formula recognition model and its notice, see ml/MODEL_CARD.md.
+    - assets/licenses/math_ink_NOTICE.txt
+    - assets/models/math_ink.ablm
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
     # Apache-2.0 text for the bundled Roboto, registered in LicenseRegistry.

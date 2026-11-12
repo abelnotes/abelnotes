@@ -17,10 +17,13 @@ class SelectionSummary {
 
 /// What an action receives when tapped. Element lists are built on demand.
 class SelectionRequest {
-  const SelectionRequest({required this.ink, required this.pageWidth});
+  const SelectionRequest({required this.ink, required this.mathInk, required this.pageWidth});
 
   /// Every stroke plus shapes traced as polylines, with their element ids.
   final List<(String, StrokeData)> Function() ink;
+
+  /// Pen strokes and line shapes only, as handwriting models expect.
+  final List<(String, StrokeData)> Function() mathInk;
   final double pageWidth;
 }
 
@@ -33,6 +36,13 @@ class ReplaceInk extends SelectionOutcome {
   const ReplaceInk(this.removedIds, this.added);
   final Set<String> removedIds;
   final List<StrokeData> added;
+}
+
+/// Swap the elements with [removedIds] for a formula typeset from [latex].
+class InsertMath extends SelectionOutcome {
+  const InsertMath(this.removedIds, this.latex);
+  final Set<String> removedIds;
+  final String latex;
 }
 
 /// Why an action changed nothing; each case has its own message.

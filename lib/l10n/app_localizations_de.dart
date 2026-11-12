@@ -3805,6 +3805,28 @@ class AppLocalizationsDe extends AppLocalizations {
       'Erkennt die ausgewählte handgezeichnete Schaltung und zeichnet sie mit sauberen Symbolen und Leitungen neu. Prüfe das Ergebnis: Einzelne Bauteile können falsch sein.';
 
   @override
+  String get modMathInkName => 'Formelerkennung';
+
+  @override
+  String get modMathInkDesc =>
+      'Erkennt die ausgewählte handgeschriebene Formel und wandelt sie in bearbeitbares LaTeX um. Prüfe das Ergebnis: Einzelne Symbole können falsch sein.';
+
+  @override
+  String get csRecognizeMath => 'In LaTeX umwandeln';
+
+  @override
+  String get csRecognizeMathFailed => 'Keine Formel erkannt';
+
+  @override
+  String get mathEditTitle => 'Formel bearbeiten';
+
+  @override
+  String get mathEditHint => 'LaTeX-Code';
+
+  @override
+  String get mathEditInvalid => 'Ungültige Formel';
+
+  @override
   String get csRecognizeCircuit => 'Schaltung erkennen';
 
   @override

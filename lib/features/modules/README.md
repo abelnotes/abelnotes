@@ -19,7 +19,10 @@ is meant to carry external modules later.
   editor applies it. Modules never touch the canvas state directly, so every
   action is one undo step and a module only has to produce data.
 - `builtin_modules.dart` — the catalog of modules compiled into the app:
-  circuit tidy-up (`ml/circuits/README.md`).
+  circuit recognition (`ml/circuits/README.md`) and formula recognition
+  (`canvas/data/ink_recognizer/`, `ml/README.md`).
+- `bundled_model.dart` — copies a model asset to the support folder once,
+  with a hash stamp beside it, because the recogniser isolates load by path.
 - `module_registry.dart` — `moduleEntriesProvider` (each module with its
   status) and `selectionActionsProvider` (actions of ready modules). A
   disabled module's runtime provider is never watched, so its model is never
@@ -52,3 +55,19 @@ Ids under `abelnotes.` are reserved for built-ins. `entitlement`
 
 No new extension points until a module needs one. Each one added without a
 user is a guess at an API that third parties would then depend on.
+
+## Formula recognition
+
+The lasso action recognises pen strokes and line shapes (fraction bars) as
+one expression and swaps them for a `MathElement` (`InsertMath`), fitted to
+the ink's box, in its colour, one undo step. A transformer in pure Dart
+(`ink_to_latex.dart`, checked against PyTorch by
+`test/ink_recognizer_parity_test.dart`) runs on a long-lived isolate; where
+packages/circuit_engine is built, its dense layers run in C (`ce_linear`,
+about 3x faster). On the web it runs inline, there are no isolates.
+
+The weights are `assets/models/math_ink.ablm`, listed by name in
+pubspec.yaml like the circuit detector. Weights trained on non-commercial
+data (MathWriting ink, CROHME) must never go there: the shipped model is
+licence-clean, see `ml/MODEL_CARD.md`. `test/ink_model_asset_test.dart`
+pins its hash.

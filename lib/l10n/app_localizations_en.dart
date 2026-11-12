@@ -3772,6 +3772,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'Recognizes the selected hand-drawn circuit and redraws it with clean symbols and wires. Check the result: some parts may be wrong.';
 
   @override
+  String get modMathInkName => 'Formula recognition';
+
+  @override
+  String get modMathInkDesc =>
+      'Recognizes the selected handwritten formula and turns it into editable LaTeX. Check the result: some symbols may be wrong.';
+
+  @override
+  String get csRecognizeMath => 'Convert to LaTeX';
+
+  @override
+  String get csRecognizeMathFailed => 'No formula recognised';
+
+  @override
+  String get mathEditTitle => 'Edit formula';
+
+  @override
+  String get mathEditHint => 'LaTeX source';
+
+  @override
+  String get mathEditInvalid => 'Invalid formula';
+
+  @override
   String get csRecognizeCircuit => 'Recognize circuit';
 
   @override

@@ -4891,6 +4891,101 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         (e is StrokeElement || (e is ShapeElement && shapeOutline(e.data) != null)));
   }
 
+  /// Selected ink for formula recognition: pen strokes plus line shapes
+  /// (fraction bars, minus signs). Highlighter is left out.
+  List<(String, StrokeData)> selectedMathInk() {
+    final s = state;
+    final sel = s?.lassoSelection;
+    final page = s?.currentPage;
+    if (s == null || sel == null || page == null) return const [];
+    return [
+      for (final e in page.layers.content)
+        if (sel.selectedIds.contains(e.id))
+          if (e is StrokeElement && !e.data.isHighlighter && e.data.toolType != 'highlighter')
+            (e.id, e.data)
+          else if (e is ShapeElement && e.data.shapeType == 'line' && !e.data.isHighlighter)
+            if (shapeOutline(e.data) case final outline?)
+              (
+                e.id,
+                StrokeData(
+                  points: [for (final p in outline) StrokePoint(x: p.dx, y: p.dy)],
+                  color: e.data.strokeColor,
+                  baseWidth: e.data.strokeWidth,
+                ),
+              ),
+    ];
+  }
+
+  /// Swaps the ink [removedIds] on page [fileName] for a formula typeset from
+  /// [latex], fitted to that ink's box and centred on it, in one undo step.
+  Future<void> replaceInkWithMath(String fileName, Set<String> removedIds, String latex) async {
+    if (latex.trim().isEmpty) return;
+    bool replaced(ContentElement e) => (e is StrokeElement || e is ShapeElement) && removedIds.contains(e.id);
+    final ink = state?.pages[fileName]?.layers.content.where(replaced).toList() ?? const [];
+    if (ink.isEmpty) return;
+    var bounds = _elementBounds(ink.first);
+    for (final e in ink.skip(1)) {
+      bounds = bounds.expandToInclude(_elementBounds(e));
+    }
+    // The colour of the ink it replaces, not of the pen held now.
+    final first = ink.first;
+    final color = first is StrokeElement ? first.data.color : (first as ShapeElement).data.strokeColor;
+    const probe = 24.0;
+    var fontSize = probe;
+    var size = await measureMath(latex, colorArgb: color, fontSize: probe, displayMode: false);
+    if (size != null && size.width > 0 && size.height > 0) {
+      final scale = min(bounds.height / size.height, bounds.width / size.width);
+      fontSize = (probe * scale).clamp(10.0, 96.0).toDouble();
+      size = await measureMath(latex, colorArgb: color, fontSize: fontSize, displayMode: false);
+    }
+    if (_disposed) return;
+    final s = state;
+    final page = s?.pages[fileName];
+    if (s == null || page == null || !page.layers.content.any(replaced)) return;
+    final width = size?.width ?? bounds.width;
+    final height = size?.height ?? bounds.height;
+    final undoStack = _pushUndo(s, fileName, page);
+    final id = const Uuid().v4();
+    final updatedPage = carryPdfTextLayer(page, PageData(
+      pageId: page.pageId,
+      pageNumber: page.pageNumber,
+      width: page.width,
+      height: page.height,
+      layers: RenderingLayers(
+        background: page.layers.background,
+        content: [
+          ...page.layers.content.where((e) => !replaced(e)),
+          ContentElement.math(
+            id: id,
+            zIndex: _nextZIndex(page),
+            data: MathData(
+              x: bounds.center.dx - width / 2,
+              y: bounds.center.dy - height / 2,
+              width: width,
+              height: height,
+              latex: latex,
+              displayMode: false,
+              color: color,
+              fontSize: fontSize,
+            ),
+          ),
+        ],
+      ),
+      assetReferences: page.assetReferences,
+      createdAt: page.createdAt,
+      modifiedAt: DateTime.now(),
+    ));
+    state = s.copyWith(
+      pages: Map<String, PageData>.from(s.pages)..[fileName] = updatedPage,
+      undoStack: undoStack,
+      redoStack: [],
+      isDirty: true,
+      lassoPath: [],
+      clearLasso: true,
+      selectedElementId: id,
+    );
+  }
+
   /// Swaps the elements [removedIds] on page [fileName] for [added], over
   /// [image] (a new picture, PNG) if any, in one undo step. A recogniser runs
   /// for a while: if the page no longer holds any of them, nothing changes.
@@ -7582,6 +7677,68 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       lassoSelection:
           LassoSelection(selectedIds: newIds, bounds: newBounds),
     );
+  }
+
+  /// Replaces the LaTeX of math element [elementId], re-measured and kept
+  /// centred where it was. One undo entry.
+  Future<void> updateMathLatex(String elementId, String latex) async {
+    if (latex.trim().isEmpty) return;
+    var s = state;
+    var page = s?.currentPage;
+    if (s == null || page == null) return;
+    final fileName = s.currentPageFileName;
+    final old = page.layers.content
+        .whereType<MathElement>()
+        .where((e) => e.id == elementId)
+        .firstOrNull;
+    if (old == null || old.data.latex == latex) return;
+
+    final d = old.data;
+    final size = await measureMath(latex,
+        colorArgb: d.color, fontSize: d.fontSize, displayMode: d.displayMode);
+    // A resize stretches the box, not fontSize: carry that stretch over.
+    final oldSize = await measureMath(d.latex,
+        colorArgb: d.color, fontSize: d.fontSize, displayMode: d.displayMode);
+    final sx = (oldSize != null && oldSize.width > 0) ? d.width / oldSize.width : 1.0;
+    final sy = (oldSize != null && oldSize.height > 0) ? d.height / oldSize.height : 1.0;
+
+    // measureMath awaited: re-read by file name, as in replaceInkWithMath.
+    if (_disposed) return;
+    s = state;
+    page = s?.pages[fileName];
+    if (s == null || page == null) return;
+    final idx = page.layers.content
+        .indexWhere((e) => e is MathElement && e.id == elementId);
+    if (idx < 0) return;
+    final current = page.layers.content[idx] as MathElement;
+
+    final width = size != null ? size.width * sx : current.data.width;
+    final height = size != null ? size.height * sy : current.data.height;
+    final cx = current.data.x + current.data.width / 2;
+    final cy = current.data.y + current.data.height / 2;
+    final undoStack = _pushUndo(s, fileName, page);
+
+    final newContent = List<ContentElement>.from(page.layers.content);
+    newContent[idx] = current.copyWith(
+      data: current.data.copyWith(
+        latex: latex,
+        x: cx - width / 2,
+        y: cy - height / 2,
+        width: width,
+        height: height,
+      ),
+    );
+    final updatedPage = carryPdfTextLayer(page, PageData(
+      pageId: page.pageId, pageNumber: page.pageNumber,
+      width: page.width, height: page.height,
+      layers: RenderingLayers(
+          background: page.layers.background, content: newContent),
+      assetReferences: page.assetReferences,
+      createdAt: page.createdAt, modifiedAt: DateTime.now(),
+    ));
+    final updatedPages = Map<String, PageData>.from(s.pages)..[fileName] = updatedPage;
+    state = s.copyWith(
+        pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
   }
 
   void duplicateElement(String elementId) {

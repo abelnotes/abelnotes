@@ -1,0 +1,23 @@
+Formula recognition (Beta) turns handwritten formulas into LaTeX with a model
+bundled in the app (assets/models/math_ink.ablm). It is a small model that
+runs entirely on your device: nothing is sent to any server or third party.
+
+Model weights license: CC BY-SA 4.0,
+https://creativecommons.org/licenses/by-sa/4.0/
+
+The model was trained from scratch on:
+
+- Handwritten symbols from the HWRT database of on-line handwritten symbols
+  by Martin Thoma (https://zenodo.org/records/50022), licensed under the
+  Open Database License (ODbL) 1.0: https://opendatacommons.org/licenses/odbl/1-0/
+- Synthetic expressions laid out from those symbols, following the LaTeX
+  labels of the MathWriting dataset by Google
+  (https://github.com/google-research/google-research/tree/master/mathwriting),
+  licensed under CC BY-SA 4.0. Only the LaTeX labels were used, no
+  MathWriting ink.
+- The author's own handwriting.
+- Handwritten lecture notes, used with their authors' permission.
+
+No other handwriting dataset was used, and nothing licensed for
+non-commercial use only. How it was made: ml/MODEL_CARD.md in the source
+repository.

@@ -43,3 +43,17 @@ class NativeImage {
           Uint8List rgba, int w, int h, List<(Float64List, double)> cut) =>
       throw UnsupportedError('no native engine');
 }
+
+/// No native dense layers on this platform.
+class NativeMath {
+  NativeMath._();
+
+  static bool forceDart = false;
+  static NativeMath? get instance => null;
+
+  Float32List adopt(Float32List v) => v;
+
+  bool linear(Float32List x, Float32List w, Float32List? bias, Float32List out,
+          {required int m, required int k, required int n}) =>
+      false;
+}

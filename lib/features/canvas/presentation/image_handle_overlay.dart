@@ -32,6 +32,8 @@ class ImageHandleOverlay extends StatefulWidget {
   /// box never changes the font, so these are the only way to scale glyphs.
   final VoidCallback? onFontSmaller;
   final VoidCallback? onFontLarger;
+  /// Math only: open the LaTeX editor.
+  final VoidCallback? onEditMath;
   final bool isLocked;
   final bool hasComment;
   final bool isFlipped;
@@ -62,6 +64,7 @@ class ImageHandleOverlay extends StatefulWidget {
     this.onTidyCircuit,
     this.onFontSmaller,
     this.onFontLarger,
+    this.onEditMath,
     this.isLocked = false,
     this.hasComment = false,
     this.isFlipped = false,
@@ -366,6 +369,11 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
                   widget.onFontSmaller!, l10n.imgFontSmaller),
               _actionBtn(Icons.text_increase_rounded, p.ink2,
                   widget.onFontLarger!, l10n.imgFontLarger),
+              _divider(),
+            ],
+            if (widget.onEditMath != null) ...[
+              _actionBtn(Icons.edit_rounded, p.ink2, widget.onEditMath!,
+                  l10n.mathEditTitle),
               _divider(),
             ],
             if (widget.onCrop != null && !widget.isLocked) ...[

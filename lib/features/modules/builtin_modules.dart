@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_recognizer_service.dart';
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_strokes.dart';
+import 'package:abelnotes/features/canvas/data/ink_recognizer/ink_recognizer_service.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 
 import 'module_manifest.dart';
@@ -39,6 +40,7 @@ class AppModule {
 List<SelectionAction> _noActions(Ref _) => const [];
 
 const kCircuitsModuleId = 'abelnotes.circuits';
+const kMathInkModuleId = 'abelnotes.math-ink';
 
 final List<AppModule> builtinModules = [
   // Not on the web: the detector would freeze the UI for seconds there.
@@ -68,7 +70,59 @@ final List<AppModule> builtinModules = [
       actions: (ref) => [_TidyCircuit(ref)],
       beta: true,
     ),
+  AppModule(
+    manifest: const ModuleManifest(
+      id: kMathInkModuleId,
+      version: '1.0.0',
+      license: 'AGPL-3.0-or-later',
+      permissions: {
+        ModulePermission.selectionRead,
+        ModulePermission.selectionWrite,
+        ModulePermission.modelRun,
+      },
+      assets: [
+        ModuleAsset(kInkModelFileName, sha256: kBundledInkModelSha256, license: 'CC-BY-SA-4.0'),
+      ],
+      selectionActions: ['abelnotes.math-ink.recognize'],
+    ),
+    name: (l) => l.modMathInkName,
+    description: (l) => l.modMathInkDesc,
+    runtime: inkRecognizerProvider,
+    actions: (ref) => [_RecognizeMath(ref)],
+    beta: true,
+  ),
 ];
+
+class _RecognizeMath extends SelectionAction {
+  const _RecognizeMath(this._ref);
+  final Ref _ref;
+
+  @override
+  String get id => 'abelnotes.math-ink.recognize';
+  @override
+  IconData get icon => Icons.functions_rounded;
+  @override
+  String label(AppLocalizations l10n) => l10n.csRecognizeMath;
+  @override
+  String busyLabel(AppLocalizations l10n) => l10n.csRecognizeBusy;
+  @override
+  String failedLabel(AppLocalizations l10n) => l10n.csRecognizeMathFailed;
+  @override
+  bool appliesTo(SelectionSummary selection) => selection.hasInk;
+
+  @override
+  Future<SelectionOutcome> run(SelectionRequest request) async {
+    final recognizer = _ref.read(inkRecognizerProvider).valueOrNull;
+    if (recognizer == null) return const ActionFailed('model not loaded', reason: ActionFailReason.modelMissing);
+    final ink = request.mathInk();
+    if (ink.isEmpty) return const ActionFailed('no ink', reason: ActionFailReason.noInk);
+    final result = await recognizer.recognize([for (final e in ink) e.$2]);
+    debugPrint('[math] ${result.latex ?? result.error} in ${result.milliseconds} ms '
+        '(confidence ${result.confidence.toStringAsFixed(2)})');
+    if (!result.ok) return ActionFailed('${result.error}');
+    return InsertMath({for (final e in ink) e.$1}, result.latex!);
+  }
+}
 
 class _TidyCircuit extends SelectionAction {
   const _TidyCircuit(this._ref);

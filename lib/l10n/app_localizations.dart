@@ -5868,6 +5868,48 @@ abstract class AppLocalizations {
   /// **'Riconosce il circuito disegnato a mano selezionato e lo ridisegna con simboli e fili puliti. Controlla il risultato: qualche componente può essere sbagliato.'**
   String get modCircuitsDesc;
 
+  /// No description provided for @modMathInkName.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconoscimento formule'**
+  String get modMathInkName;
+
+  /// No description provided for @modMathInkDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosce la formula scritta a mano selezionata e la trasforma in LaTeX modificabile. Controlla il risultato: qualche simbolo può essere sbagliato.'**
+  String get modMathInkDesc;
+
+  /// No description provided for @csRecognizeMath.
+  ///
+  /// In it, this message translates to:
+  /// **'Converti in LaTeX'**
+  String get csRecognizeMath;
+
+  /// No description provided for @csRecognizeMathFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna formula riconosciuta'**
+  String get csRecognizeMathFailed;
+
+  /// No description provided for @mathEditTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Modifica formula'**
+  String get mathEditTitle;
+
+  /// No description provided for @mathEditHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Codice LaTeX'**
+  String get mathEditHint;
+
+  /// No description provided for @mathEditInvalid.
+  ///
+  /// In it, this message translates to:
+  /// **'Formula non valida'**
+  String get mathEditInvalid;
+
   /// No description provided for @csRecognizeCircuit.
   ///
   /// In it, this message translates to:

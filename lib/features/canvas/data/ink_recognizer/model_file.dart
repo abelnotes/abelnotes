@@ -3,12 +3,13 @@
 //     magic     4 bytes   "ABLM"
 //     version   uint32
 //     jsonLen   uint32
-//     json      bytes     {"kind": "...", ..., "tensors": [...]}
+//     json      bytes     {"kind": "...", "config": {...}, "vocab": [...], "tensors": [...]}
 //     payload   bytes     every tensor, concatenated, each 8-byte aligned
 //
 // Weights are stored as float16 and widened here. Dart has no float16 type, so
 // the conversion is done by hand — about twenty lines, in exchange for halving
-// the file that ships with the app.
+// the file that ships with the app. Rounding the trained weights through
+// float16 left ExpRate and CER unchanged on the validation split.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -23,25 +24,71 @@ class ModelFileException implements Exception {
   String toString() => 'ModelFileException: $message';
 }
 
+/// Configuration of the exported model, as recorded at training time.
+class ModelConfig {
+  ModelConfig({
+    required this.nVocab,
+    required this.nFeatures,
+    required this.dModel,
+    required this.nHeads,
+    required this.dFf,
+    required this.nEncoderLayers,
+    required this.nDecoderLayers,
+    required this.maxTargetLen,
+    required this.stemStrides,
+  });
+
+  factory ModelConfig.fromJson(Map<String, dynamic> json) => ModelConfig(
+        nVocab: json['n_vocab'] as int,
+        nFeatures: json['n_features'] as int,
+        dModel: json['d_model'] as int,
+        nHeads: json['n_heads'] as int,
+        dFf: json['d_ff'] as int,
+        nEncoderLayers: json['n_encoder_layers'] as int,
+        nDecoderLayers: json['n_decoder_layers'] as int,
+        maxTargetLen: json['max_target_len'] as int,
+        stemStrides:
+            (json['stem_strides'] as List<dynamic>).map((e) => e as int).toList(growable: false),
+      );
+
+  final int nVocab;
+  final int nFeatures;
+  final int dModel;
+  final int nHeads;
+  final int dFf;
+  final int nEncoderLayers;
+  final int nDecoderLayers;
+  final int maxTargetLen;
+  final List<int> stemStrides;
+
+  int get dHead => dModel ~/ nHeads;
+
+  /// Total downsampling applied by the conv stem, i.e. how many input points
+  /// each encoder position covers.
+  int get downsample => stemStrides.fold(1, (a, b) => a * b);
+}
+
 /// A named tensor: its shape and its data widened to float32, or int32.
 class Tensor {
-  Tensor(this.name, this.shape, this._f32, this.i32, [this._widen]);
+  Tensor(this.name, this.shape, this.f32, this.i32, [this._widen]);
   final String name;
   final List<int> shape;
-  Float32List? _f32;
+  Float32List? f32;
   final Int32List? i32;
 
   /// Pending float16 widening: done on first use, so loading a model costs no
   /// pass over its weights.
   Float32List Function()? _widen;
 
+  bool get hasFloats => f32 != null || _widen != null;
+
   Float32List get floats {
     final w = _widen;
     if (w != null) {
-      _f32 = w();
+      f32 = w();
       _widen = null;
     }
-    final f = _f32;
+    final f = f32;
     if (f == null) throw ModelFileException('$name is not a float tensor');
     return f;
   }
@@ -57,7 +104,8 @@ class Tensor {
 
 /// A parsed ABLM file: header metadata plus every tensor by name.
 class ModelFile {
-  ModelFile._(this.kind, this.header, this._tensors);
+  ModelFile._(this.kind, this.header, this.config, this.vocab, this.bosId, this.eosId,
+      this.padId, this._tensors);
 
   static ModelFile parse(Uint8List bytes) {
     if (bytes.length < 12) throw ModelFileException('file too short');
@@ -100,19 +148,62 @@ class ModelFile {
       }
     }
 
-    return ModelFile._(header['kind'] as String? ?? 'weights', header, tensors);
+    final vocabJson = header['vocab'] as List<dynamic>?;
+    final config = header['config'] as Map<String, dynamic>?;
+    return ModelFile._(
+      header['kind'] as String? ?? 'weights',
+      header,
+      config == null ? null : ModelConfig.fromJson(config),
+      vocabJson?.map((e) => e as String).toList(growable: false),
+      header['bos_id'] as int? ?? 1,
+      header['eos_id'] as int? ?? 2,
+      header['pad_id'] as int? ?? 0,
+      tensors,
+    );
+  }
+
+  /// [parse] plus the weight widening, done in slices that yield to the event
+  /// loop so a model load on the UI thread does not drop frames.
+  static Future<ModelFile> parseAsync(Uint8List bytes) async {
+    final file = parse(bytes);
+    var pending = 0;
+    for (final t in file._tensors.values) {
+      if (!t.hasFloats) continue;
+      pending += t.floats.length;
+      if (pending > (1 << 19)) {
+        pending = 0;
+        await Future<void>.delayed(Duration.zero);
+      }
+    }
+    return file;
   }
 
   final String kind;
 
-  /// The decoded JSON header, verbatim.
+  /// The decoded JSON header, verbatim. The typed fields below cover what
+  /// inference needs; this is here for the rest — a test-vector file's `step`,
+  /// `labels` and `predictions`, and the `storage_dtype` a parity test needs to
+  /// pick its tolerance.
   final Map<String, dynamic> header;
 
+  final ModelConfig? config;
+  final List<String>? vocab;
+  final int bosId;
+  final int eosId;
+  final int padId;
   final Map<String, Tensor> _tensors;
 
   Iterable<String> get names => _tensors.keys;
 
   bool has(String name) => _tensors.containsKey(name);
+
+  /// Replaces every float tensor with [move] of it (into native memory, for
+  /// the C dense layers), once, before any layer holds a reference.
+  void moveFloats(Float32List Function(Float32List) move) {
+    for (final t in _tensors.values) {
+      if (t.hasFloats) t.f32 = move(t.floats);
+    }
+  }
 
   Tensor operator [](String name) {
     final t = _tensors[name];

@@ -1,18 +1,21 @@
-// Numeric kernels for on-device models.
+// Numeric kernels for on-device models (circuit detector, formula recogniser).
 //
-// The circuit detector's dense convolutions are im2col + a matrix product, so
-// this file is one well-tuned matmul. It has no dependencies: no FFI, no
-// platform channel, no native library, so it runs on every target Flutter
-// compiles for. Where packages/circuit_engine is built the detector runs there
-// instead (see detector.dart).
+// Mostly one well-tuned matmul plus the elementwise pieces of a transformer.
+// No dependencies, so it runs on every target Flutter compiles for, web
+// included. Where packages/circuit_engine is built, adopted weights run there.
 //
 // Layout convention, chosen to match PyTorch so no weight is ever transposed:
 // a Linear's weight arrives as [outFeatures, inFeatures] and the forward pass is
 // y = x · Wᵀ. Written as a dot product of row i of x with row j of W, both walk
 // their memory forwards, which is what makes the SIMD path below worth having:
 // the four-lane accumulate runs about 5x the scalar loop.
+//
+// Everything computes in float32; weights are stored as float16 (ModelFile).
 
+import 'dart:math' as math;
 import 'dart:typed_data';
+
+import '../circuit_recognizer/native_engine.dart';
 
 /// y[m, n] = x[m, k] · wᵀ + bias, with `w` shaped [n, k] and `bias` length n.
 ///
@@ -27,6 +30,8 @@ void linear(
   required int k,
   required int n,
 }) {
+  // Weights moved to native memory run in C (packages/circuit_engine).
+  if (NativeMath.instance?.linear(x, w, bias, out, m: m, k: k, n: n) ?? false) return;
   // The SIMD path indexes rows as (i * k) >> 2, i.e. in units of four floats, so
   // it is only correct when a row boundary *is* a lane boundary: at any other k
   // the row bases would silently truncate and read a fraction of a lane off the
@@ -160,4 +165,126 @@ void _linearScalar(
       out[i * n + j] = bias == null ? sum : sum + bias[j];
     }
   }
+}
+
+/// In-place layer normalisation over the last axis, then scale and shift.
+///
+/// Matches torch.nn.LayerNorm with elementwise_affine=true: the variance is
+/// biased (divided by n, not n-1) and eps is added inside the square root's
+/// denominator, i.e. (x - mean) / sqrt(var + eps).
+void layerNorm(
+  Float32List x,
+  Float32List gamma,
+  Float32List beta, {
+  required int m,
+  required int n,
+  double eps = 1e-5,
+}) {
+  for (var i = 0; i < m; i++) {
+    final base = i * n;
+    var sum = 0.0;
+    for (var j = 0; j < n; j++) {
+      sum += x[base + j];
+    }
+    final mean = sum / n;
+    var sq = 0.0;
+    for (var j = 0; j < n; j++) {
+      final d = x[base + j] - mean;
+      sq += d * d;
+    }
+    final inv = 1.0 / math.sqrt(sq / n + eps);
+    for (var j = 0; j < n; j++) {
+      x[base + j] = (x[base + j] - mean) * inv * gamma[j] + beta[j];
+    }
+  }
+}
+
+/// Abramowitz & Stegun 7.1.26. Maximum absolute error 1.5e-7, which is float32
+/// epsilon — the exactness that matters here is agreement with the erf PyTorch
+/// used during training, and at this precision the two are indistinguishable in
+/// float32 arithmetic.
+double erf(double x) {
+  final sign = x < 0 ? -1.0 : 1.0;
+  final ax = x.abs();
+  final t = 1.0 / (1.0 + 0.3275911 * ax);
+  final y = 1.0 -
+      (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t +
+              0.254829592) *
+          t *
+          math.exp(-ax * ax);
+  return sign * y;
+}
+
+/// In-place exact GELU: x * 0.5 * (1 + erf(x / sqrt(2))).
+///
+/// Exact rather than the tanh approximation because that is what nn.GELU()
+/// defaults to and therefore what the weights were trained against. The two
+/// formulas differ by up to 5e-4 per element, which a 1024-wide feed-forward
+/// then sums into a visible error.
+void gelu(Float32List x, int count) {
+  const invSqrt2 = 0.7071067811865476;
+  for (var i = 0; i < count; i++) {
+    final v = x[i];
+    x[i] = v * 0.5 * (1.0 + erf(v * invSqrt2));
+  }
+}
+
+/// In-place softmax over `[0, count)`, shifted by the maximum for stability.
+void softmax(Float32List x, int offset, int count) {
+  var maxV = double.negativeInfinity;
+  for (var i = 0; i < count; i++) {
+    final v = x[offset + i];
+    if (v > maxV) maxV = v;
+  }
+  var sum = 0.0;
+  for (var i = 0; i < count; i++) {
+    final e = math.exp(x[offset + i] - maxV);
+    x[offset + i] = e;
+    sum += e;
+  }
+  final inv = 1.0 / sum;
+  for (var i = 0; i < count; i++) {
+    x[offset + i] *= inv;
+  }
+}
+
+/// Adds the sinusoidal position encoding for absolute positions
+/// `[start, start + m)` into `x[m, n]`, in place.
+///
+/// Mirrors sinusoids_at in ml/src/model.py: the first half of each row holds
+/// sines, the second half cosines, and frequencies decay geometrically. Computed
+/// rather than stored, so a longer ink than anything in training still works and
+/// the weight file carries no table.
+void addPositions(Float32List x, {required int m, required int n, int start = 0}) {
+  final half = n >> 1;
+  final logBase = -math.log(10000.0) / half;
+  // The frequency ladder does not depend on the position, so it is built once
+  // per call instead of calling exp() m * half times.
+  final freqs = Float32List(half);
+  for (var d = 0; d < half; d++) {
+    freqs[d] = math.exp(logBase * d);
+  }
+  for (var i = 0; i < m; i++) {
+    final pos = (start + i).toDouble();
+    final base = i * n;
+    for (var d = 0; d < half; d++) {
+      final angle = pos * freqs[d];
+      x[base + d] += math.sin(angle);
+      x[base + half + d] += math.cos(angle);
+    }
+  }
+}
+
+/// argmax over `x[offset, offset + count)`.
+int argmax(Float32List x, int offset, int count) {
+  var best = 0;
+  var bestV = double.negativeInfinity;
+  for (var i = 0; i < count; i++) {
+    final v = x[offset + i];
+    if (v > bestV) {
+      bestV = v;
+      best = i;
+    }
+  }
+  return best;
 }

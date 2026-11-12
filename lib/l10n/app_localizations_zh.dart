@@ -3636,6 +3636,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modCircuitsDesc => '识别选中的手绘电路，并用规整的符号和导线重绘。请检查结果：部分元件可能有误。';
 
   @override
+  String get modMathInkName => '公式识别';
+
+  @override
+  String get modMathInkDesc => '识别选中的手写公式，并转换为可编辑的 LaTeX。请检查结果：部分符号可能有误。';
+
+  @override
+  String get csRecognizeMath => '转换为 LaTeX';
+
+  @override
+  String get csRecognizeMathFailed => '未识别出公式';
+
+  @override
+  String get mathEditTitle => '编辑公式';
+
+  @override
+  String get mathEditHint => 'LaTeX 代码';
+
+  @override
+  String get mathEditInvalid => '公式无效';
+
+  @override
   String get csRecognizeCircuit => '识别电路';
 
   @override

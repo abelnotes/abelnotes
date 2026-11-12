@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_recognizer_service.dart';
 import 'package:abelnotes/features/canvas/data/ink_recognizer/model_file.dart';
+import 'package:abelnotes/features/modules/bundled_model.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
@@ -21,7 +22,10 @@ void main() {
   test('pubspec names the model file, never the whole folder', () {
     final assets = (loadYaml(File('pubspec.yaml').readAsStringSync())['flutter']['assets'] as List).cast<String>();
     expect(assets, contains(kBundledCircuitModelAsset));
-    expect(assets.where((a) => a.startsWith('assets/models')), [kBundledCircuitModelAsset]);
+    expect(assets.where((a) => a.startsWith('assets/models')), [
+      kBundledCircuitModelAsset,
+      'assets/models/math_ink.ablm',
+    ]);
   });
 
   group('install', () {
@@ -34,13 +38,13 @@ void main() {
     tearDown(() => dir.deleteSync(recursive: true));
 
     test('copies when nothing is there', () async {
-      await installBundledCircuitModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
+      await installBundledModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
       expect(File(path).readAsBytesSync(), [1, 2, 3]);
     });
 
     test('replaces a different model of the same length', () async {
-      await installBundledCircuitModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
-      await installBundledCircuitModel(path, 'hash-b', () async => _bytes([4, 5, 6]));
+      await installBundledModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
+      await installBundledModel(path, 'hash-b', () async => _bytes([4, 5, 6]));
       expect(File(path).readAsBytesSync(), [4, 5, 6]);
     });
 
@@ -48,19 +52,19 @@ void main() {
       File(path)
         ..createSync(recursive: true)
         ..writeAsBytesSync([9, 9, 9]);
-      await installBundledCircuitModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
+      await installBundledModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
       expect(File(path).readAsBytesSync(), [1, 2, 3]);
     });
 
     test('leaves the right copy alone without reading the asset', () async {
-      await installBundledCircuitModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
-      await installBundledCircuitModel(path, 'hash-a', () async => throw StateError('should not load'));
+      await installBundledModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
+      await installBundledModel(path, 'hash-a', () async => throw StateError('should not load'));
       expect(File(path).readAsBytesSync(), [1, 2, 3]);
     });
 
     test('a missing asset keeps what is there', () async {
-      await installBundledCircuitModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
-      await installBundledCircuitModel(path, 'hash-b', () async => throw StateError('no asset'));
+      await installBundledModel(path, 'hash-a', () async => _bytes([1, 2, 3]));
+      await installBundledModel(path, 'hash-b', () async => throw StateError('no asset'));
       expect(File(path).readAsBytesSync(), [1, 2, 3]);
     });
   });

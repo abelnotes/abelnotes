@@ -78,6 +78,17 @@ AGPL-3.0, with CC BY 4.0 attribution to CGHD. Notice shipped at
 `assets/licenses/circuit_detector_NOTICE.txt` and registered in the in-app
 licenses page.
 
+## Formula recognition
+
+| Component | License | Notes |
+|---|---|---|
+| [HWRT](https://zenodo.org/records/50022) (Martin Thoma) | ODbL 1.0 | Handwritten symbols the formula model is trained on, alone and laid out as synthetic expressions; see `ml/MODEL_CARD.md`. |
+| [MathWriting](https://github.com/google-research/google-research/tree/master/mathwriting) (Google) | CC BY-SA 4.0 (LaTeX labels) | Only the LaTeX labels, as layouts for the synthetic expressions. No MathWriting ink was used: it is licensed for non-commercial use only. |
+
+The formula model itself (`assets/models/math_ink.ablm`) is licensed
+CC BY-SA 4.0. Notice shipped at `assets/licenses/math_ink_NOTICE.txt` and
+registered in the in-app licenses page.
+
 Pen pressure on Linux is read directly from the kernel evdev interface
 (`/dev/input`) — no external library involved.
 

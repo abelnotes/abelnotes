@@ -33,6 +33,7 @@
 typedef float v8f __attribute__((vector_size(32)));
 typedef float v8f_u __attribute__((vector_size(32), aligned(4), may_alias));
 #define ld8(p) ((v8f)*(const v8f_u*)(p))
+#define hsum8(v) ((((v)[0] + (v)[1]) + ((v)[2] + (v)[3])) + (((v)[4] + (v)[5]) + ((v)[6] + (v)[7])))
 #endif
 
 #define CE_MAX_T 512
@@ -748,4 +749,52 @@ CE_EXPORT void ce_destroy(void* h) {
   for (int i = 0; i < CE_MAX_T; i++) tensor_free(&n->t[i]);
   pool_free(n->pool);
   free(n);
+}
+
+// ---- dense layer for the ink-to-LaTeX model ----
+
+// out[m, n] = x[m, k] . w[n, k]^T (+ bias): four weight rows per pass, so
+// each load of x feeds four multiply-adds.
+// Clang refuses target_clones on an exported symbol, hence the wrapper below.
+CE_HOT static void linear(const float* x, const float* w, const float* bias, float* out, int m, int k, int n) {
+  for (int i = 0; i < m; i++) {
+    const float* xi = x + (size_t)i * k;
+    int j = 0;
+#if defined(__GNUC__)
+    for (; j + 4 <= n; j += 4) {
+      const float *w0 = w + (size_t)j * k, *w1 = w0 + k, *w2 = w1 + k, *w3 = w2 + k;
+      v8f a0 = {0}, a1 = {0}, a2 = {0}, a3 = {0};
+      int p = 0;
+      for (; p + 8 <= k; p += 8) {
+        const v8f xv = ld8(xi + p);
+        a0 += xv * ld8(w0 + p);
+        a1 += xv * ld8(w1 + p);
+        a2 += xv * ld8(w2 + p);
+        a3 += xv * ld8(w3 + p);
+      }
+      float s0 = hsum8(a0), s1 = hsum8(a1), s2 = hsum8(a2), s3 = hsum8(a3);
+      for (; p < k; p++) {
+        s0 += xi[p] * w0[p];
+        s1 += xi[p] * w1[p];
+        s2 += xi[p] * w2[p];
+        s3 += xi[p] * w3[p];
+      }
+      float* o = out + (size_t)i * n + j;
+      o[0] = bias ? s0 + bias[j] : s0;
+      o[1] = bias ? s1 + bias[j + 1] : s1;
+      o[2] = bias ? s2 + bias[j + 2] : s2;
+      o[3] = bias ? s3 + bias[j + 3] : s3;
+    }
+#endif
+    for (; j < n; j++) {
+      const float* wj = w + (size_t)j * k;
+      float s = 0;
+      for (int p = 0; p < k; p++) s += xi[p] * wj[p];
+      out[(size_t)i * n + j] = bias ? s + bias[j] : s;
+    }
+  }
+}
+
+CE_EXPORT void ce_linear(const float* x, const float* w, const float* bias, float* out, int m, int k, int n) {
+  linear(x, w, bias, out, m, k, n);
 }

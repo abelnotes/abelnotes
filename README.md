@@ -28,7 +28,7 @@ Cross-platform, self-hostable, open source. Your notes sync to a place *you* con
 Most handwriting apps are walled gardens: your notes live on someone else's cloud, in a format you don't control, on the platforms they decide to support. AbelNotes takes the opposite bet.
 
 - **Your data, your account.** Sync over WebDAV to your own Nextcloud (or ownCloud), or to your own Google Drive. Nothing passes through a cloud we run.
-- **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, on-device circuit recognition, and paper types that actually matter for technical work, like Cornell, isometric and music staff.
+- **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, on-device circuit and formula recognition, and paper types that actually matter for technical work, like Cornell, isometric and music staff.
 - **Actually cross-platform.** Not "mobile-first, desktop-someday." Windows, Linux, Android and the web are first-class today, with real per-platform work under the hood.
 - **Open source, AGPL-3.0.** You can read exactly how your notes are handled. Build it yourself for free, or grab a store build to support development.
 
@@ -50,6 +50,7 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 **For technical work**
 - **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
 - **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
+- **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and pick Convert to LaTeX in its ⋯ menu. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
 - **PDF import** with rasterized pages *and* selectable embedded text; annotate on top with the normal drawing tools
 - **8 paper types**, including Cornell, isometric and music staff, switchable after you've started writing
 - Symbol library: save anything you drew as a reusable symbol

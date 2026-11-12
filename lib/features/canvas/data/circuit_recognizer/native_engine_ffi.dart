@@ -308,3 +308,75 @@ class NativeImage {
     }
   }
 }
+
+typedef _LinearC = Void Function(Pointer<Float>, Pointer<Float>, Pointer<Float>, Pointer<Float>, Int32, Int32, Int32);
+typedef _Linear = void Function(Pointer<Float>, Pointer<Float>, Pointer<Float>, Pointer<Float>, int, int, int);
+
+/// Dense layers of the ink-to-LaTeX model in C. Weights are moved to native
+/// memory once ([adopt]); [linear] then runs on them without copying.
+class NativeMath {
+  NativeMath._(DynamicLibrary lib) : _linear = lib.lookupFunction<_LinearC, _Linear>('ce_linear');
+
+  final _Linear _linear;
+  final _addr = Expando<int>();
+  Pointer<Float> _scratch = nullptr;
+  var _cap = 0;
+
+  static bool forceDart = false;
+  static NativeMath? _instance;
+  static var _tried = false;
+
+  static NativeMath? get instance {
+    if (forceDart || Platform.environment['ABELNOTES_CIRCUIT_NATIVE'] == '0') return null;
+    if (_tried) return _instance;
+    _tried = true;
+    final lib = NativeEngine._lib();
+    if (lib == null) return null;
+    try {
+      return _instance = NativeMath._(lib);
+    } catch (_) {
+      return null; // an older library without ce_linear
+    }
+  }
+
+  /// [v] copied into native memory, as a list over it (freed with the list).
+  Float32List adopt(Float32List v) {
+    final ptr = malloc<Float>(math.max(1, v.length));
+    final view = ptr.asTypedList(v.length, finalizer: malloc.nativeFree);
+    view.setAll(0, v);
+    _addr[view] = ptr.address;
+    return view;
+  }
+
+  Pointer<Float> _space(int floats) {
+    if (floats > _cap) {
+      if (_scratch != nullptr) malloc.free(_scratch);
+      _cap = math.max(floats, 2 * _cap);
+      _scratch = malloc<Float>(_cap);
+    }
+    return _scratch;
+  }
+
+  Pointer<Float> _in(Float32List v, Pointer<Float> spare) {
+    final a = _addr[v];
+    if (a != null) return Pointer<Float>.fromAddress(a);
+    spare.asTypedList(v.length).setAll(0, v);
+    return spare;
+  }
+
+  /// out = x . w^T + bias as ops.linear, when w was adopted; false otherwise.
+  bool linear(Float32List x, Float32List w, Float32List? bias, Float32List out,
+      {required int m, required int k, required int n}) {
+    final wa = _addr[w];
+    if (wa == null) return false;
+    final xs = m * k, bs = bias == null || _addr[bias] != null ? 0 : n, os = _addr[out] == null ? m * n : 0;
+    final base = _space(xs + bs + os);
+    final xp = _in(Float32List.sublistView(x, 0, xs), base);
+    final bp = bias == null ? nullptr.cast<Float>() : _in(bias, base + xs);
+    final oa = _addr[out];
+    final op = oa != null ? Pointer<Float>.fromAddress(oa) : base + xs + bs;
+    _linear(xp, Pointer<Float>.fromAddress(wa), bp, op, m, k, n);
+    if (oa == null) out.setAll(0, op.asTypedList(m * n));
+    return true;
+  }
+}

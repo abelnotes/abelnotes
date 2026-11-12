@@ -91,3 +91,4 @@ __pycache__/
 assets/models/*
 !assets/models/.gitkeep
 !assets/models/circuit_detector.ablm
+!assets/models/math_ink.ablm

@@ -3805,6 +3805,28 @@ class AppLocalizationsFr extends AppLocalizations {
       'Reconnaît le circuit dessiné à la main sélectionné et le redessine avec des symboles et des fils nets. Vérifiez le résultat : certains composants peuvent être faux.';
 
   @override
+  String get modMathInkName => 'Reconnaissance de formules';
+
+  @override
+  String get modMathInkDesc =>
+      'Reconnaît la formule manuscrite sélectionnée et la transforme en LaTeX modifiable. Vérifiez le résultat : certains symboles peuvent être faux.';
+
+  @override
+  String get csRecognizeMath => 'Convertir en LaTeX';
+
+  @override
+  String get csRecognizeMathFailed => 'Aucune formule reconnue';
+
+  @override
+  String get mathEditTitle => 'Modifier la formule';
+
+  @override
+  String get mathEditHint => 'Code LaTeX';
+
+  @override
+  String get mathEditInvalid => 'Formule non valide';
+
+  @override
   String get csRecognizeCircuit => 'Reconnaître le circuit';
 
   @override
