@@ -12,6 +12,38 @@ import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
+/// Runs at most [max] remote calls at once. Firing every page at the
+/// connection pool queued them all and started each timeout at queue time,
+/// so a big first upload timed out in cascade and restarted from scratch.
+class _Gate {
+  _Gate(this.max);
+  final int max;
+  int _active = 0;
+  final _waiting = <Completer<void>>[];
+
+  Future<T> run<T>(Future<T> Function() task) async {
+    if (_active < max) {
+      _active++;
+    } else {
+      final turn = Completer<void>();
+      _waiting.add(turn);
+      await turn.future; // the finishing task hands its slot over
+    }
+    try {
+      return await task();
+    } finally {
+      if (_waiting.isNotEmpty) {
+        _waiting.removeAt(0).complete();
+      } else {
+        _active--;
+      }
+    }
+  }
+}
+
+/// Same cap as the page pull in CanvasNotifier.
+const _remoteParallelism = 4;
+
 /// Engine di sincronizzazione offline-first.
 ///
 /// Strategia:
@@ -654,6 +686,7 @@ class SyncService {
     // Fix: ordered commit — pages/assets first, document.json only if they
     // all succeeded, then metadata.json as the final commit marker.
     const dt = AppConfig.webdavDeltaTimeoutSeconds;
+    final gate = _Gate(_remoteParallelism);
     final pageUploads = <String, Future<String?>>{};
     final dataUploads = <Future<String?>>[];
     final movedPages = <String>[];
@@ -674,11 +707,12 @@ class SyncService {
       if (base == null) {
         // Atomic even without a precondition: the page overwritten here
         // may be the only good copy anywhere.
-        pageUploads[e.key] =
-            _remote.uploadFileAtomic(path, bytes, timeoutSeconds: dt);
+        pageUploads[e.key] = gate.run(
+            () => _remote.uploadFileAtomic(path, bytes, timeoutSeconds: dt));
       } else {
         final fn = e.key;
-        pageUploads[fn] = _putPageIfUnchanged(path, bytes, base, dt)
+        pageUploads[fn] = gate
+            .run(() => _putPageIfUnchanged(path, bytes, base, dt))
             .catchError((Object err, StackTrace st) {
           if (err is! _PageMovedOnServer) Error.throwWithStackTrace(err, st);
           movedPages.add(fn);
@@ -698,9 +732,9 @@ class SyncService {
     if (dirtyAssets != null && dirtyAssets.isNotEmpty) {
       for (final e in dirtyAssets.entries) {
         expectedAssetSizes[e.key] = e.value.length;
-        dataUploads.add(_remote.uploadFile(
+        dataUploads.add(gate.run(() => _remote.uploadFile(
             '${dir}assets/${e.key}', e.value,
-            timeoutSeconds: dt, skipVerify: true));
+            timeoutSeconds: dt, skipVerify: true)));
       }
     }
 
@@ -708,8 +742,9 @@ class SyncService {
       final symBytes = Uint8List.fromList(
         utf8.encode(jsonEncode(symbolLibraries)),
       );
-      dataUploads.add(_remote.uploadFile('${dir}symbols.json', symBytes,
-          timeoutSeconds: dt));
+      dataUploads.add(gate.run(() => _remote.uploadFile(
+          '${dir}symbols.json', symBytes,
+          timeoutSeconds: dt)));
     }
 
     // Wait for every data file. If any throws, we exit here and document.json
@@ -1163,7 +1198,7 @@ class SyncService {
   }
 
   /// One-time migration: explodes a .ncnote ZIP into the per-page folder.
-  /// All files are uploaded in parallel for speed.
+  /// Files go up [_remoteParallelism] at a time.
   Future<void> migrateToExploded(String notebookId, Uint8List ncnoteData) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
@@ -1183,13 +1218,13 @@ class SyncService {
       await _remote.createDirectory('$dir$sub/');
     }
 
-    // Upload all files in parallel
+    final gate = _Gate(_remoteParallelism);
     final futures = archive.files
         .where((f) => f.isFile)
-        .map((f) => _remote.uploadFile(
+        .map((f) => gate.run(() => _remote.uploadFile(
               '$dir${f.name}',
               Uint8List.fromList(f.content as List<int>),
-            ))
+            )))
         .toList();
 
     await Future.wait(futures);
@@ -1227,10 +1262,11 @@ class SyncService {
       }
     }
 
+    final gate = _Gate(_remoteParallelism);
     final pageFutures = <Future<void>>[];
     for (final item in pageItems) {
       if (!item.isDirectory && item.name.endsWith('.json')) {
-        pageFutures.add(downloadPage(item.name));
+        pageFutures.add(gate.run(() => downloadPage(item.name)));
       }
     }
     // eagerError:false so all pages attempt even if some fail
@@ -1289,7 +1325,7 @@ class SyncService {
       final assetFutures = <Future<void>>[];
       for (final item in assetItems) {
         if (!item.isDirectory) {
-          assetFutures.add(downloadAsset(item.name));
+          assetFutures.add(gate.run(() => downloadAsset(item.name)));
         }
       }
       await Future.wait(assetFutures, eagerError: false);
