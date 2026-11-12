@@ -5568,6 +5568,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     // every page beyond the first was unreachable.
                     showPages: true,
                     onPagesTap: () => _showPageManager(canvasState),
+                    onPrevPage: canvasState.currentFilteredIndex > 0
+                        ? () => notifier.prevPage(resetViewport: true)
+                        : null,
+                    onNextPage: canvasState.currentFilteredIndex >= 0 &&
+                            canvasState.currentFilteredIndex <
+                                canvasState.filteredPageCount - 1
+                        ? () => notifier.nextPage(resetViewport: true)
+                        : null,
                     onAddPage: () =>
                         ref.read(canvasProvider.notifier).addPage(),
                     onSymbolsTap: notifier.isPreview
