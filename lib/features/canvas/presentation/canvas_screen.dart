@@ -1,3 +1,4 @@
+import 'package:abelnotes/core/services/oplus_pencil_channel.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
@@ -1127,6 +1128,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       onInverted: (down) => _onNativeBarrelChange(_NativeBarrel.upper, down),
       onBarrelPen: _onBarrelPen,
     );
+    OplusPencilChannel.register(_onOplusDoubleTap);
     // iPad app only: the Apple Pencil's double-tap and squeeze.
     _watchToolChanges();
     ApplePencilChannel.register(
@@ -1471,6 +1473,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
+  /// OPPO / OnePlus pen gesture, following the system's selected action.
+  void _onOplusDoubleTap(int mode) {
+    if (!mounted ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
+        _stylusDown ||
+        _activeStrokeNotifier.isActive ||
+        _presentationMode) {
+      return;
+    }
+    final action = oplusPencilActionForMode(mode);
+    if (action != null) _runPencilAction(action, null);
+  }
+
   /// Apple Pencil double-tap; Settings → Pencil double-tap can turn it off.
   void _onPencilDoubleTap(String action, Offset? at) {
     if (!ref.read(appSettingsProvider).pencilDoubleTap) return;
@@ -1771,6 +1787,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _onGlobalPointerEvent,
     );
     PenInputChannel.unregister();
+    OplusPencilChannel.unregister(_onOplusDoubleTap);
     ApplePencilChannel.unregister(_onPencilDoubleTap);
     LinuxPenPressure.unregister();
     // Flush any pending deferred stylus commit before tearing down so a
