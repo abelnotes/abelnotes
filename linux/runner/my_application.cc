@@ -110,9 +110,24 @@ static void on_pen_drag_end(GtkGestureDrag* drag, gdouble offset_x,
   send_pen_sample(MY_APPLICATION(user_data), 0.0, 0.0, 0.0, 0.0, 0.0);
 }
 
+// GDK merges queued motion events into the newest one while the app is
+// busy. For a pen that drops samples mid-curve, so turn it off.
+static void keep_every_motion_event(GdkWindow* window) {
+  if (window == nullptr) return;
+  gdk_window_set_event_compression(window, FALSE);
+  GList* children = gdk_window_get_children(window);
+  for (GList* c = children; c != nullptr; c = c->next) {
+    keep_every_motion_event(GDK_WINDOW(c->data));
+  }
+  g_list_free(children);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
-  gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+  GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(view));
+  gtk_widget_show(toplevel);
+  // The view's event windows exist only once the window is shown.
+  keep_every_motion_event(gtk_widget_get_window(toplevel));
 }
 
 // Wayland reports a pen leaving range only as GDK_PROXIMITY_OUT, which FlView
