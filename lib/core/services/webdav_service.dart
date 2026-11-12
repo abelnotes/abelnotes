@@ -159,7 +159,9 @@ class WebDavService implements RemoteStore {
     this.onCertificatePinned,
     this.onAuthRejectedChanged,
     bool? preconditionHeader,
-  }) : _preconditionHeader = preconditionHeader ?? !kIsWeb {
+    bool? freshReads,
+  }) : _freshReads = freshReads ?? kIsWeb,
+       _preconditionHeader = preconditionHeader ?? !kIsWeb {
     // Warn if not using HTTPS (credentials travel in plaintext over HTTP)
     final uri = Uri.parse(serverUrl);
     if (uri.scheme != 'https') {
@@ -537,6 +539,24 @@ class WebDavService implements RemoteStore {
   /// XML bodies above this size parse on a worker isolate.
   static const int _xmlIsolateThreshold = 32 * 1024;
 
+  // Atomic uploads PUT a temporary URL then MOVE it to the page URL. A
+  // browser cache invalidates the temporary URL, not necessarily Destination.
+  // A subsequent ordinary GET can therefore return pre-upload bytes while
+  // PROPFIND reports the new version. No extra request header is used here:
+  // Cache-Control would add a CORS requirement to existing NAS configurations.
+  final bool _freshReads;
+  static int _readNonce = 0;
+
+  Uri _readUri(String remotePath) {
+    final uri = Uri.parse(_fullUrl(remotePath));
+    if (!_freshReads) return uri;
+    return uri.replace(queryParameters: {
+      ...uri.queryParameters,
+      '_abelnotes_read':
+          '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-${_readNonce++}',
+    });
+  }
+
   /// Scarica un file dal server.
   ///
   /// [timeoutSeconds] overrides the default; pass a larger value for known-
@@ -580,7 +600,7 @@ class WebDavService implements RemoteStore {
               };
         final response = await _client
             .get(
-              Uri.parse(_fullUrl(remotePath)),
+              _readUri(remotePath),
               headers: headers,
             )
             .timeout(Duration(
@@ -798,7 +818,7 @@ class WebDavService implements RemoteStore {
       for (var attempt = 0; attempt < 3; attempt++) {
         try {
           final response = await _client
-              .get(Uri.parse(_fullUrl(remotePath)), headers: headers)
+              .get(_readUri(remotePath), headers: headers)
               .timeout(Duration(
                   seconds: timeoutSeconds ?? AppConfig.webdavTimeoutSeconds));
           // 206 Partial Content is the well-formed response; some servers
@@ -899,7 +919,7 @@ class WebDavService implements RemoteStore {
     final tmp = '$remotePath$atomicUploadMarker'
         '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
     try {
-      final putEtag = await _put(tmp, data, timeoutSeconds: timeoutSeconds);
+      await _put(tmp, data, timeoutSeconds: timeoutSeconds);
       if (ifMatchVersion != null && !_preconditionHeader) {
         String? now;
         try {
@@ -933,8 +953,11 @@ class WebDavService implements RemoteStore {
             'MOVE failed: ${response.statusCode}', response.statusCode);
       }
       _recordSuccess();
-      // Nextcloud keeps the ETag across the rename and returns it.
-      return response.headers['etag']?.replaceAll('"', '') ?? putEtag;
+      // The temporary file's ETag need not survive MOVE. Only the MOVE
+      // response can acknowledge the version committed by this write.
+      // Otherwise leave it unknown and pull afresh, rather than trusting
+      // the temporary version or a concurrent writer's later PROPFIND.
+      return response.headers['etag']?.replaceAll('"', '');
     } catch (_) {
       unawaited(delete(tmp).catchError((Object _) {}));
       rethrow;
@@ -1338,7 +1361,7 @@ class WebDavService implements RemoteStore {
     if (_headEtagUnsupported) return null;
     try {
       final response = await _client.head(
-        Uri.parse(_fullUrl(remotePath)),
+        _readUri(remotePath),
         headers: _authHeaders,
       ).timeout(const Duration(seconds: 8));
 

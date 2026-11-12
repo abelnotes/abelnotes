@@ -18,6 +18,8 @@ void main() {
   final moveIfHeaders = <String?>[];
   var counter = 0;
   var failPutsTo = '';
+  var omitMoveEtag = false;
+  var changeMoveEtag = false;
 
   setUp(() async {
     store.clear();
@@ -25,6 +27,8 @@ void main() {
     moveIfHeaders.clear();
     counter = 0;
     failPutsTo = '';
+    omitMoveEtag = false;
+    changeMoveEtag = false;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final body = await req.fold<List<int>>([], (a, b) => a..addAll(b));
@@ -46,7 +50,8 @@ void main() {
               Uri.decodeFull(Uri.parse(req.headers.value('destination')!).path);
           final cond = req.headers.value('if');
           if (cond != null) {
-            final m = RegExp(r'^<([^>]+)> \(\["([^"]+)"\]\)$').firstMatch(cond)!;
+            final m =
+                RegExp(r'^<([^>]+)> \(\["([^"]+)"\]\)$').firstMatch(cond)!;
             final cur = store[Uri.decodeFull(m.group(1)!)];
             if (cur == null || cur.etag != m.group(2)) {
               req.response.statusCode = 412;
@@ -54,9 +59,14 @@ void main() {
             }
           }
           final src = store.remove(path)!;
-          store[dest] = src;
+          store[dest] = (
+            body: src.body,
+            etag: changeMoveEtag ? 'destination-${++counter}' : src.etag
+          );
           req.response.statusCode = 204;
-          req.response.headers.set('etag', '"${src.etag}"');
+          if (!omitMoveEtag) {
+            req.response.headers.set('etag', '"${store[dest]!.etag}"');
+          }
         case 'DELETE':
           store.remove(path);
           req.response.statusCode = 204;
@@ -67,7 +77,8 @@ void main() {
             break;
           }
           req.response.statusCode = 207;
-          req.response.write('<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">'
+          req.response.write(
+              '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">'
               '<d:response><d:href>$path</d:href><d:propstat><d:prop>'
               '<d:getetag>"${cur.etag}"</d:getetag></d:prop>'
               '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>'
@@ -105,8 +116,8 @@ void main() {
     final d = dav();
     final v1 = await seed(d);
 
-    final v2 = await d.uploadFileAtomic('/p.json', bytes('newer'),
-        ifMatchVersion: v1);
+    final v2 =
+        await d.uploadFileAtomic('/p.json', bytes('newer'), ifMatchVersion: v1);
 
     expect(at('/p.json'), 'newer');
     expect(v2, isNot(v1));
@@ -161,5 +172,16 @@ void main() {
     expect(at('/p.json'), 'newer');
     expect(tmpLeft(), isFalse);
     expect(log.where((l) => l.startsWith('MOVE')), hasLength(1));
+  });
+  test('missing MOVE ETag is unknown, never the temporary file ETag', () async {
+    final d = dav();
+    final v1 = await seed(d);
+    omitMoveEtag = true;
+    changeMoveEtag = true;
+    final committed = await d.uploadFileAtomic('/p.json', bytes('newest'),
+        ifMatchVersion: v1);
+    expect(at('/p.json'), 'newest');
+    expect(committed, isNull);
+    expect(await d.getVersion('/p.json'), startsWith('destination-'));
   });
 }
