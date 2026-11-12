@@ -20,7 +20,17 @@ class PresetColorsNotifier extends StateNotifier<List<int>> {
     0xFFFFFFFF, // white
     0xFFFF9800, // orange
     0xFF2E7D32, // green
+    // second row
+    0xFF6A1B9A, // purple
+    0xFFD81B60, // pink
+    0xFF00897B, // teal
+    0xFF6D4C41, // brown
+    0xFF757575, // grey
+    0xFFFBC02D, // yellow
   ];
+
+  /// Slots per row in the pen panel.
+  static const perRow = 6;
 
   PresetColorsNotifier() : super(defaults) {
     _load();
@@ -32,9 +42,16 @@ class PresetColorsNotifier extends StateNotifier<List<int>> {
       final raw = prefs.getString(_prefsKey);
       if (raw == null || raw.isEmpty) return;
       final list = (jsonDecode(raw) as List).cast<int>();
-      if (list.length == defaults.length) state = list;
+      state = withDefaults(list);
     } catch (_) {}
   }
+
+  /// A saved palette padded with the defaults of the slots it lacks (one
+  /// saved before the second row existed keeps its colors).
+  static List<int> withDefaults(List<int> saved) => [
+        for (var i = 0; i < defaults.length; i++)
+          i < saved.length ? saved[i] : defaults[i],
+      ];
 
   Future<void> _persist() async {
     try {

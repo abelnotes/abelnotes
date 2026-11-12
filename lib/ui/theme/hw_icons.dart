@@ -57,6 +57,21 @@ class _HwIconPainter extends CustomPainter {
     void circle(double cx, double cy, double r, {bool filled = false}) {
       canvas.drawCircle(Offset(cx, cy), r, filled ? fill : stroke);
     }
+    void sw(String d, double width, {double alpha = 1}) => canvas.drawPath(
+        _parsePath(d),
+        Paint()
+          ..color = color.withValues(alpha: color.a * alpha)
+          ..strokeWidth = width
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round);
+    void dashed(String d, double dash, double gap) {
+      for (final m in _parsePath(d).computeMetrics()) {
+        for (var t = 0.0; t < m.length; t += dash + gap) {
+          canvas.drawPath(m.extractPath(t, t + dash), stroke);
+        }
+      }
+    }
 
     switch (name) {
       case 'pen':
@@ -77,25 +92,26 @@ class _HwIconPainter extends CustomPainter {
         p('M5 16l1-1');
         break;
       case 'highlighter':
-        p('M5 17v-3l8-8 3 3-8 8h-3z');
-        p('M11 7l3 3');
-        p('M3 17h6');
+        // Chisel marker + its own wide translucent swath: the swath is what
+        // tells it apart from the pen at toolbar size.
+        sw('M2.5 18.2h10', 3.6, alpha: .55);
+        p('M9.2 14.4L4.9 10.1l6.6-6.6a1.4 1.4 0 0 1 2 0l2.3 2.3a1.4 1.4 0 0 1 0 2z');
+        p('M4.9 10.1l-1.6 4.8 1.2 1.2 4.7-1.7');
         break;
       case 'eraser':
-        p('M4 14l6-6a1.5 1.5 0 0 1 2 0l4 4a1.5 1.5 0 0 1 0 2l-3 3H6l-2-2a1.5 1.5 0 0 1 0-1z');
-        p('M9 9l5 5');
+        _eraser(canvas, stroke, fill);
+        p('M11 17.5h6');
         break;
       case 'eraser-stroke':
-        p('M4 14l6-6a1.5 1.5 0 0 1 2 0l4 4a1.5 1.5 0 0 1 0 2l-3 3H6l-2-2a1.5 1.5 0 0 1 0-1z');
-        // dashed underline
-        for (var x = 3.0; x < 17; x += 4) {
-          canvas.drawLine(Offset(x, 17), Offset(x + 2, 17), stroke);
-        }
+        _eraser(canvas, stroke, fill);
+        dashed('M10.5 17.5h7', 1.6, 1.4);
         break;
       case 'lasso':
-        p('M10 4c4 0 7 2 7 5s-3 5-7 5c-2 0-4-.5-5-1.5');
-        p('M5 12.5c-1 1-1 3 0 4 .5.5 1 .5 1.5 0');
-        circle(6, 17, 1, filled: true);
+        // Dashed loop = selection, as in image editors; the rope end keeps
+        // it from reading as a speech bubble.
+        dashed('M17 8a6.5 4.6 0 1 1-13 0a6.5 4.6 0 1 1 13 0z', 2.3, 1.9);
+        p('M6.2 11.6c-1.4 1.1-1.6 2.9-.6 4.2');
+        circle(5.4, 16.6, 1.2, filled: true);
         break;
       case 'hand':
         p('M7 11V5a1 1 0 0 1 2 0v5');
@@ -399,10 +415,15 @@ class _HwIconPainter extends CustomPainter {
         circle(13, 15, 0.9, filled: true);
         break;
       case 'laser':
-        // Pen body angled top-right to bottom-left + a glowing dot near
-        // the tip — laser-pointer style.
-        p('M14 4l2 2-9 9-3 1 1-3 9-9z');
-        circle(5, 15, 1.6, filled: true);
+        // Pointer body, beam, glowing dot: the dot is what the tool leaves.
+        sw('M2.6 17.4l4.6-4.6', 3.4);
+        sw('M8.6 11.4l4.6-4.6', 1);
+        circle(15.3, 4.7, 1.9, filled: true);
+        canvas.drawCircle(const Offset(15.3, 4.7), 3.6,
+            Paint()
+              ..color = color.withValues(alpha: color.a * .45)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.2);
         break;
       case 'fit':
         p('M4 7V4h3');
@@ -472,6 +493,18 @@ class _HwIconPainter extends CustomPainter {
     }
   }
 
+  /// Block eraser with a solid rubber end, so it can't be mistaken for the
+  /// highlighter (both used to be an outlined tilted block).
+  void _eraser(Canvas canvas, Paint stroke, Paint fill) {
+    canvas.drawPath(
+        _parsePath('M8.2 16.5L3.8 12.1a1.4 1.4 0 0 1 0-2l6.4-6.4a1.4 1.4 0 0 1 2 0'
+            'l4.4 4.4a1.4 1.4 0 0 1 0 2l-6.4 6.4z'),
+        stroke);
+    canvas.drawPath(
+        _parsePath('M3.8 12.1a1.4 1.4 0 0 1 0-2l3-3 6.4 6.4-3 3a1.4 1.4 0 0 1-2 0z'),
+        fill);
+  }
+
   @override
   bool shouldRepaint(_HwIconPainter old) =>
       old.name != name ||
@@ -485,6 +518,7 @@ Path _parsePath(String d) {
   final tokens = RegExp(r'([a-zA-Z])|(-?\d*\.?\d+)').allMatches(d);
   final list = tokens.map((m) => m.group(0)!).toList();
   double cx = 0, cy = 0;
+  double sx = 0, sy = 0; // current subpath start, where Z returns to
   // Last cubic control point absolute coords — used by smooth cubic (S/s)
   // to reflect the previous control point. Null until the first C/c/S/s.
   double? lastCx2, lastCy2;
@@ -497,18 +531,30 @@ Path _parsePath(String d) {
     if (RegExp(r'[a-zA-Z]').hasMatch(t)) {
       cmd = t;
       i++;
+      // Z takes no numbers, so the switch below never sees a trailing one.
+      if (t == 'z' || t == 'Z') {
+        path.close();
+        cx = sx;
+        cy = sy;
+        lastCx2 = null;
+        lastCy2 = null;
+      }
       continue;
     }
     switch (cmd) {
       case 'M':
         cx = next();
         cy = next();
+        sx = cx;
+        sy = cy;
         path.moveTo(cx, cy);
         cmd = 'L';
         break;
       case 'm':
         cx += next();
         cy += next();
+        sx = cx;
+        sy = cy;
         path.moveTo(cx, cy);
         cmd = 'l';
         break;

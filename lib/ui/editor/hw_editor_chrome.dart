@@ -696,6 +696,7 @@ class DockMetrics {
 
 /// Popup with color preset + thickness slider + per-tool extras.
 class HwToolPopup extends StatelessWidget {
+  static const _chipsPerRow = 6;
   final CanvasTool tool;
   final Color color;
   final ValueChanged<Color> onColorChanged;
@@ -856,15 +857,21 @@ class HwToolPopup extends StatelessWidget {
           if (_showColor) ...[
             _section(l10n.chromeColorSection, p),
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (int i = 0; i < presetColors.length; i++)
-                  _colorChip(presetColors[i], i, p, context),
-                _customColorChip(context, p),
-              ],
-            ),
+            // Fixed rows, so the custom chip always closes the first one.
+            for (int r = 0; r * _chipsPerRow < presetColors.length; r++) ...[
+              if (r > 0) const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (int i = r * _chipsPerRow;
+                      i < presetColors.length && i < (r + 1) * _chipsPerRow;
+                      i++)
+                    _colorChip(presetColors[i], i, p, context),
+                  if (r == 0) _customColorChip(context, p),
+                ],
+              ),
+            ],
             const SizedBox(height: 6),
             if (onPresetColorEdited != null)
               Text(
