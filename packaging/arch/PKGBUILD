@@ -1,6 +1,6 @@
 pkgname=abelnotes-bin
-pkgver=0.37.11
-_build="69%2B20261107T214006Z.gd9e490c"
+pkgver=0.38.0
+_build="70%2B20261112T154625Z.g80a0571.dirty"
 pkgrel=1
 pkgdesc="Handwritten notes for STEM with LaTeX and sync (prebuilt binary)"
 arch=('x86_64')
@@ -22,7 +22,7 @@ conflicts=('abelnotes')
 options=('!strip' '!debug')
 source=("${pkgname}-${pkgver}.deb::${url}/releases/download/v${pkgver}/abelnotes_${pkgver}-${_build}_amd64.deb"
         "LICENSE-${pkgver}::${url}/raw/v${pkgver}/LICENSE")
-sha256sums=('154467b140424675afc67fb0f5ac2ded98a990eae122a5d2f21266458a5ef9df'
+sha256sums=('f8cc1f4b798fed3554403b60c00faf2e96f253eaca79b996b1946eb63986fcb9'
             '0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0')
 
 package() {

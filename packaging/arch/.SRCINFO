@@ -1,6 +1,6 @@
 pkgbase = abelnotes-bin
 	pkgdesc = Handwritten notes for STEM with LaTeX and sync (prebuilt binary)
-	pkgver = 0.37.11
+	pkgver = 0.38.0
 	pkgrel = 1
 	url = https://github.com/abelnotes/abelnotes
 	arch = x86_64
@@ -15,9 +15,9 @@ pkgbase = abelnotes-bin
 	conflicts = abelnotes
 	options = !strip
 	options = !debug
-	source = abelnotes-bin-0.37.11.deb::https://github.com/abelnotes/abelnotes/releases/download/v0.37.11/abelnotes_0.37.11-69%2B20261107T214006Z.gd9e490c_amd64.deb
-	source = LICENSE-0.37.11::https://github.com/abelnotes/abelnotes/raw/v0.37.11/LICENSE
-	sha256sums = 154467b140424675afc67fb0f5ac2ded98a990eae122a5d2f21266458a5ef9df
+	source = abelnotes-bin-0.38.0.deb::https://github.com/abelnotes/abelnotes/releases/download/v0.38.0/abelnotes_0.38.0-70%2B20261112T154625Z.g80a0571.dirty_amd64.deb
+	source = LICENSE-0.38.0::https://github.com/abelnotes/abelnotes/raw/v0.38.0/LICENSE
+	sha256sums = f8cc1f4b798fed3554403b60c00faf2e96f253eaca79b996b1946eb63986fcb9
 	sha256sums = 0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0
 
 pkgname = abelnotes-bin
