@@ -14,7 +14,10 @@ tool/build_web.sh /abelnotes/  # served from a sub-path
 
 Output: `build/web/` — a plain static folder (~50 MB, mostly CanvasKit).
 The script bundles CanvasKit and fonts (no CDN), and installs an offline
-service worker (`tool/web_sw.js`) that precaches every file.
+service worker (`tool/web_sw.js`) that precaches every file. The engine's Noto
+fallback fonts (emoji, CJK and other scripts, ~22 MB) are copied in by
+`tool/fetch_web_fonts.sh` from a checksummed cache and served from the app, so
+the browser never asks fonts.gstatic.com; the worker caches them only on use.
 
 ## Startup
 

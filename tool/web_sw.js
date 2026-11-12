@@ -10,6 +10,8 @@
 'use strict';
 
 const CACHE = 'abelnotes-__BUILD_ID__';
+// Fallback fonts are cached on first use and kept across builds: their paths carry a version.
+const FONTS = 'abelnotes-fonts';
 const FILES = __FILES__;
 
 self.addEventListener('install', (event) => {
@@ -24,7 +26,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== FONTS).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -40,7 +42,7 @@ self.addEventListener('fetch', (event) => {
   if (/\/main\.dart\.[^/]+\.js$/.test(url.pathname) && !url.searchParams.has('offline')) return;
 
   event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
+    const cache = await caches.open(url.pathname.includes('/fonts/fallback/') ? FONTS : CACHE);
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
     try {

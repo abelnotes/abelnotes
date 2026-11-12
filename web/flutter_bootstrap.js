@@ -4,9 +4,12 @@
 // The app script comes from the network / HTTP cache, the offline worker's copy
 // (?offline) only when the server can't give this build (WEB_PWA.md, Startup).
 (function () {
+  // Emoji/CJK fallback fonts from this site, not fonts.gstatic.com (tool/fetch_web_fonts.sh).
+  var config = { fontFallbackBaseUrl: new URL('fonts/fallback/', document.baseURI).href };
+  function load() { _flutter.loader.load({ config: config }); }
   var build = _flutter.buildConfig.builds.filter(function (b) { return b.mainJsPath; })[0];
   var sw = navigator.serviceWorker && navigator.serviceWorker.controller;
-  if (!build || !sw) return _flutter.loader.load();
+  if (!build || !sw) return load();
   var path = build.mainJsPath, started = false;
 
   function retry(e) {
@@ -25,7 +28,7 @@
     started = true;
     if (online) window.addEventListener('error', retry, true);
     else build.mainJsPath = path + '?offline';
-    _flutter.loader.load();
+    load();
   }
 
   if (navigator.onLine === false) return start(false);

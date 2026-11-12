@@ -2826,6 +2826,13 @@ class CanvasRenderEngine extends CustomPainter {
     _staticPictureCache.clearAll();
   }
 
+  /// Web fallback fonts arrive after the first paint: drop pages recorded with
+  /// missing glyphs so the next painter redraws them.
+  static void fontsChanged() {
+    _widthStyleCounter++;
+    _staticPictureCache.clearAll();
+  }
+
   /// [_widthStyleCounter] when this painter was built.
   final int _widthStyle = _widthStyleCounter;
   static List<ContentElement>? _cachedSourceContent;

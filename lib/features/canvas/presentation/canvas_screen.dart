@@ -1109,6 +1109,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   void initState() {
     super.initState();
     webTouchDevice.addListener(_onWebTouchDeviceChanged);
+    PaintingBinding.instance.systemFonts.addListener(_onSystemFonts);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addObserver(this);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
@@ -1759,6 +1760,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _tapFlashTimer?.cancel();
     _tapFlash.dispose();
     webTouchDevice.removeListener(_onWebTouchDeviceChanged);
+    PaintingBinding.instance.systemFonts.removeListener(_onSystemFonts);
     _dockFlyX.dispose();
     _dockFlyY.dispose();
     _dockDrag.dispose();
@@ -2791,6 +2793,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// whether the top bar shows the mouse-mode toggle or the touch-mode one,
   /// and is the platform-default fallback for [_effectiveStylusOnly].
   void _onWebTouchDeviceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSystemFonts() {
+    CanvasRenderEngine.fontsChanged();
     if (mounted) setState(() {});
   }
 

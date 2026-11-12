@@ -63,6 +63,7 @@ available, as it does here).
 | Rust bridge transitive crates (serde, base64, flate2, …) | MIT / Apache-2.0 dual | Standard Rust ecosystem licensing. |
 | PDFium | BSD-3-Clause | Bundled by `pdfrx` for PDF rendering and text extraction. |
 | KaTeX fonts | MIT | Bundled by `flutter_math_fork` for math rendering. |
+| Noto fonts (Noto Sans CJK, Noto Color Emoji, other scripts) | OFL-1.1 | Web only: the engine's fallback fonts for glyphs the app font lacks, served from the app (`tool/fetch_web_fonts.sh`), licence at `web/fonts/fallback/OFL.txt`. |
 
 ## Circuit recognition
 

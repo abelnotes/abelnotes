@@ -9,6 +9,8 @@
 # What it adds on top of `flutter build web`:
 #   * --no-web-resources-cdn  CanvasKit and fonts are bundled, not fetched from
 #                             gstatic, so the app can start with no network.
+#   * the engine's Noto fallback fonts (emoji, CJK...) served from the app,
+#     not from fonts.gstatic.com (tool/fetch_web_fonts.sh).
 #   * an offline service worker (tool/web_sw.js) replacing Flutter's stub.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,6 +22,8 @@ flutter build web --release --no-web-resources-cdn --base-href "$BASE_HREF" \
 
 OUT=build/web
 BUILD_ID="$(date +%Y%m%d%H%M%S)"
+rm -rf "$OUT/fonts/fallback"/*/
+tool/fetch_web_fonts.sh "$OUT"
 
 # The app script carries the build id, so a cached older shell never runs a
 # newer script (the service worker leaves this file to the browser, see WEB_PWA.md).
@@ -39,11 +43,12 @@ PY
 
 # Everything the app can need, relative to the site root. The CanvasKit
 # variants for other renderers (skwasm, webparagraph) are never loaded, and
-# model files are not worth a download for every visitor.
+# model files and fallback fonts are not worth a download for every visitor.
 FILES="$(cd "$OUT" && find . -type f \
   ! -name 'flutter_service_worker.js' ! -name '*.symbols' ! -name '*.map' \
   ! -name '.last_build_id' ! -name 'update.html' ! -path './canvaskit/skwasm*' \
   ! -path './canvaskit/experimental_webparagraph/*' ! -name '*.ablm' \
+  ! -path './fonts/fallback/*' \
   | sed 's|^\./||' | sort | python3 -c \
   'import sys,json; print(json.dumps(["./"]+[l.strip() for l in sys.stdin if l.strip()]))')"
 
