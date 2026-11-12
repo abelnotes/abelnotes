@@ -1,0 +1,15 @@
+Circuit recognition finds symbols with a detector model bundled in the app
+(assets/models/circuit_detector.ablm). It is a small model that runs entirely
+on your device: nothing is sent to any server or third party.
+
+License: AGPL-3.0, with CC BY 4.0 attribution to CGHD.
+
+The model is a YOLO11n fine-tuned from the yolo11n weights by Ultralytics
+(https://github.com/ultralytics/ultralytics, AGPL-3.0).
+
+Its training data includes the CGHD dataset of hand-drawn circuit diagrams
+by DFKI (https://zenodo.org/records/15333233), licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/. The images were binarised,
+tiled and in part edited to add current sources.
+
+How it was made: ml/circuits/MODEL_CARD.md in the source repository.

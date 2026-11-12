@@ -70,3 +70,24 @@ Testo.txt
 **/.kotlin/
 /log
 native/onenote_bridge/target/
+
+# ML: datasets, virtualenvs, caches, training runs and checkpoints live
+# outside the tree (see ml/circuits/README.md); these only catch an output
+# folder pointed inside the repo by mistake.
+ml/data/
+ml/cache/
+ml/out/
+ml/runs/
+ml/.venv*/
+weights/
+__pycache__/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Model files: only the bundled circuit detector is tracked. Anything else
+# copied here for a local build (other models, other licences) stays local.
+assets/models/*
+!assets/models/.gitkeep
+!assets/models/circuit_detector.ablm

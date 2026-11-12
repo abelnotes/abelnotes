@@ -3757,4 +3757,71 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get csTapRedone => 'Wiederhergestellt';
+
+  @override
+  String get setSectionModules => 'Module';
+
+  @override
+  String get setModulesIntro =>
+      'Optionale Funktionen. Eine abgeschaltete Funktion belegt keinen Speicher, und Seiten, die sie genutzt haben, bleiben unverändert.';
+
+  @override
+  String get modStatusReady => 'Bereit';
+
+  @override
+  String get modStatusLoading => 'Wird geladen…';
+
+  @override
+  String get modStatusUnavailable => 'Modell nicht installiert';
+
+  @override
+  String get modStatusDisabled => 'Aus';
+
+  @override
+  String modMeta(String version, String license) {
+    return 'Version $version · Lizenz $license';
+  }
+
+  @override
+  String modAssetLicense(String license) {
+    return 'Modell: $license';
+  }
+
+  @override
+  String get modBeta => 'Beta';
+
+  @override
+  String get modBetaHint => 'Kostenlos während der Testphase';
+
+  @override
+  String get modOnDevice =>
+      'Ein kleines Modell, das auf deinem Gerät läuft. Es wird nichts gesendet.';
+
+  @override
+  String get modCircuitsName => 'Schaltungserkennung';
+
+  @override
+  String get modCircuitsDesc =>
+      'Erkennt die ausgewählte handgezeichnete Schaltung und zeichnet sie mit sauberen Symbolen und Leitungen neu. Prüfe das Ergebnis: Einzelne Bauteile können falsch sein.';
+
+  @override
+  String get csRecognizeCircuit => 'Schaltung erkennen';
+
+  @override
+  String get csRecognizeCircuitFailed => 'Keine Schaltung erkannt';
+
+  @override
+  String get csRecognizeBusy => 'Erkennung…';
+
+  @override
+  String get csRecognizeModelMissing => 'Erkennungsmodell nicht geladen';
+
+  @override
+  String get csRecognizeNoInk => 'Keine Striche in der Auswahl';
+
+  @override
+  String get csRecognizeError => 'Erkennung fehlgeschlagen';
+
+  @override
+  String get csRecognizeImageMissing => 'Bild noch nicht geladen';
 }

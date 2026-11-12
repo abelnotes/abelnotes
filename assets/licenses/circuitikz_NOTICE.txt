@@ -1,0 +1,13 @@
+The circuit tidy-up draws its symbols with the shapes and proportions of
+CircuiTikZ (https://github.com/circuitikz/circuitikz), ported to Dart in
+lib/features/canvas/data/circuit_recognizer/.
+
+Copyright 2018-2023 by Romano Giannetti
+Copyright 2015-2023 by Stefan Lindner
+Copyright 2013-2023 by Stefan Erhardt
+Copyright 2007-2023 by Massimo Redaelli
+
+CircuiTikZ may be distributed and/or modified under the LaTeX Project Public
+License 1.3c and/or the GNU General Public License. AbelNotes uses it under
+the GNU General Public License, version 3:
+https://www.gnu.org/licenses/gpl-3.0.html

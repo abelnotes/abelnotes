@@ -3724,4 +3724,71 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get csTapRedone => 'Redone';
+
+  @override
+  String get setSectionModules => 'Modules';
+
+  @override
+  String get setModulesIntro =>
+      'Optional features. A switched-off feature uses no memory, and pages that used it stay as they are.';
+
+  @override
+  String get modStatusReady => 'Ready';
+
+  @override
+  String get modStatusLoading => 'Loading…';
+
+  @override
+  String get modStatusUnavailable => 'Model not installed';
+
+  @override
+  String get modStatusDisabled => 'Off';
+
+  @override
+  String modMeta(String version, String license) {
+    return 'Version $version · license $license';
+  }
+
+  @override
+  String modAssetLicense(String license) {
+    return 'Model: $license';
+  }
+
+  @override
+  String get modBeta => 'Beta';
+
+  @override
+  String get modBetaHint => 'Free while in testing';
+
+  @override
+  String get modOnDevice =>
+      'A small model that runs on your device. Nothing is sent.';
+
+  @override
+  String get modCircuitsName => 'Circuit recognition';
+
+  @override
+  String get modCircuitsDesc =>
+      'Recognizes the selected hand-drawn circuit and redraws it with clean symbols and wires. Check the result: some parts may be wrong.';
+
+  @override
+  String get csRecognizeCircuit => 'Recognize circuit';
+
+  @override
+  String get csRecognizeCircuitFailed => 'No circuit recognised';
+
+  @override
+  String get csRecognizeBusy => 'Recognising…';
+
+  @override
+  String get csRecognizeModelMissing => 'Recognition model not loaded';
+
+  @override
+  String get csRecognizeNoInk => 'No ink in the selection';
+
+  @override
+  String get csRecognizeError => 'Recognition failed';
+
+  @override
+  String get csRecognizeImageMissing => 'Image not loaded yet';
 }

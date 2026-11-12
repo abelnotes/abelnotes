@@ -26,6 +26,7 @@ import 'package:abelnotes/features/canvas/data/render_engine.dart'
         CanvasRenderEngine,
         ballpointWidthFactor,
         penWidthFactor,
+        shapeOutline,
         circleDragBox,
         circleResizeBox,
         scaledShapeResizeBox,
@@ -4851,6 +4852,93 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     state = s.copyWith(
       pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
       clearLasso: true, lassoPath: [],
+    );
+  }
+
+  /// Selected ink as (element id, stroke): freehand strokes plus shapes
+  /// traced as their outline, as circuits use them (lines for wires, a
+  /// circle for a source ring, a rhombus for a controlled source).
+  List<(String, StrokeData)> selectedInk() {
+    final s = state;
+    final sel = s?.lassoSelection;
+    final page = s?.currentPage;
+    if (s == null || sel == null || page == null) return const [];
+    return [
+      for (final e in page.layers.content)
+        if (sel.selectedIds.contains(e.id))
+          if (e is StrokeElement)
+            (e.id, e.data)
+          else if (e is ShapeElement)
+            if (shapeOutline(e.data) case final outline?)
+              (
+                e.id,
+                StrokeData(
+                  points: [for (final p in outline) StrokePoint(x: p.dx, y: p.dy)],
+                  color: e.data.strokeColor,
+                  baseWidth: e.data.strokeWidth,
+                ),
+              ),
+    ];
+  }
+
+  /// Whether [selectedInk] would find anything, without building it.
+  bool get selectionHasInk {
+    final sel = state?.lassoSelection;
+    final page = state?.currentPage;
+    if (sel == null || page == null) return false;
+    return page.layers.content.any((e) =>
+        sel.selectedIds.contains(e.id) &&
+        (e is StrokeElement || (e is ShapeElement && shapeOutline(e.data) != null)));
+  }
+
+  /// Swaps the elements [removedIds] on page [fileName] for [added], over
+  /// [image] (a new picture, PNG) if any, in one undo step. A recogniser runs
+  /// for a while: if the page no longer holds any of them, nothing changes.
+  void replaceStrokesWithDrawing(String fileName, Set<String> removedIds, List<StrokeData> added,
+      {({Uint8List png, ImageData data})? image}) {
+    final s = state;
+    final page = s?.pages[fileName];
+    if (s == null || page == null) return;
+    bool replaced(ContentElement e) =>
+        (e is StrokeElement || e is ShapeElement || e is ImageElement) && removedIds.contains(e.id);
+    if (!page.layers.content.any(replaced)) return;
+    final undoStack = _pushUndo(s, fileName, page);
+    var z = _nextZIndex(page);
+    final dupId = image == null ? null : _findIdenticalAsset(image.png, s.assetBytes);
+    final assetId = image == null ? null : dupId ?? '${const Uuid().v4()}_circuit_rest.png';
+    final updatedPage = carryPdfTextLayer(page, PageData(
+      pageId: page.pageId,
+      pageNumber: page.pageNumber,
+      width: page.width,
+      height: page.height,
+      layers: RenderingLayers(
+        background: page.layers.background,
+        content: [
+          ...page.layers.content.where((e) => !replaced(e)),
+          if (image != null)
+            ContentElement.image(id: const Uuid().v4(), zIndex: z++, data: image.data.copyWith(assetPath: assetId!)),
+          for (final data in added) ContentElement.stroke(id: const Uuid().v4(), zIndex: z++, data: data),
+        ],
+      ),
+      assetReferences: [...page.assetReferences, if (assetId != null) assetId],
+      createdAt: page.createdAt,
+      modifiedAt: DateTime.now(),
+    ));
+    var assetBytes = s.assetBytes;
+    if (image != null && dupId == null) {
+      assetBytes = {...s.assetBytes, assetId!: image.png};
+      (_assetsByLength[image.png.length] ??= []).add(assetId);
+      _decodeAndCacheImage(assetId, image.png);
+      _markAssetDirty(assetId);
+    }
+    state = s.copyWith(
+      pages: Map<String, PageData>.from(s.pages)..[fileName] = updatedPage,
+      assetBytes: assetBytes,
+      undoStack: undoStack,
+      redoStack: [],
+      isDirty: true,
+      lassoPath: [],
+      clearLasso: true,
     );
   }
 

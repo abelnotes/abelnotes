@@ -3745,4 +3745,71 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get csTapRedone => 'Rehecho';
+
+  @override
+  String get setSectionModules => 'Módulos';
+
+  @override
+  String get setModulesIntro =>
+      'Funciones opcionales. Una función desactivada no ocupa memoria y las páginas que la usaron se quedan como están.';
+
+  @override
+  String get modStatusReady => 'Listo';
+
+  @override
+  String get modStatusLoading => 'Cargando…';
+
+  @override
+  String get modStatusUnavailable => 'Modelo no instalado';
+
+  @override
+  String get modStatusDisabled => 'Desactivado';
+
+  @override
+  String modMeta(String version, String license) {
+    return 'Versión $version · licencia $license';
+  }
+
+  @override
+  String modAssetLicense(String license) {
+    return 'Modelo: $license';
+  }
+
+  @override
+  String get modBeta => 'Beta';
+
+  @override
+  String get modBetaHint => 'Gratis mientras está en pruebas';
+
+  @override
+  String get modOnDevice =>
+      'Un modelo pequeño que se ejecuta en tu dispositivo. No se envía nada.';
+
+  @override
+  String get modCircuitsName => 'Reconocimiento de circuitos';
+
+  @override
+  String get modCircuitsDesc =>
+      'Reconoce el circuito dibujado a mano seleccionado y lo vuelve a dibujar con símbolos y cables limpios. Revisa el resultado: algún componente puede salir mal.';
+
+  @override
+  String get csRecognizeCircuit => 'Reconocer circuito';
+
+  @override
+  String get csRecognizeCircuitFailed => 'No se reconoció ningún circuito';
+
+  @override
+  String get csRecognizeBusy => 'Reconociendo…';
+
+  @override
+  String get csRecognizeModelMissing => 'Modelo de reconocimiento no cargado';
+
+  @override
+  String get csRecognizeNoInk => 'No hay trazos en la selección';
+
+  @override
+  String get csRecognizeError => 'Error de reconocimiento';
+
+  @override
+  String get csRecognizeImageMissing => 'Imagen aún no cargada';
 }

@@ -25,6 +25,8 @@ class ImageHandleOverlay extends StatefulWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onCut;
   final VoidCallback? onFlipHorizontal;
+  /// Images only, with the circuits module on: redraw the circuit in it.
+  final VoidCallback? onTidyCircuit;
   /// Text only: decrease / increase the font size. Non-null marks the element
   /// as text, which shows the A−/A+ buttons in the action bar. Resizing the
   /// box never changes the font, so these are the only way to scale glyphs.
@@ -57,6 +59,7 @@ class ImageHandleOverlay extends StatefulWidget {
     this.onCopy,
     this.onCut,
     this.onFlipHorizontal,
+    this.onTidyCircuit,
     this.onFontSmaller,
     this.onFontLarger,
     this.isLocked = false,
@@ -416,6 +419,7 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
         widget.onBringToFront != null ||
         widget.onSendToBack != null ||
         (widget.onFlipHorizontal != null && !widget.isLocked) ||
+        (widget.onTidyCircuit != null && !widget.isLocked) ||
         (widget.onCut != null && !widget.isLocked);
   }
 
@@ -440,6 +444,9 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
                 break;
               case 'comment':
                 widget.onEditComment?.call();
+                break;
+              case 'circuit':
+                widget.onTidyCircuit?.call();
                 break;
               case 'flip':
                 widget.onFlipHorizontal?.call();
@@ -492,6 +499,15 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
                   ),
                   const SizedBox(width: 10),
                   Text(widget.isFlipped ? l10n.imgFlipHChecked : l10n.imgFlipH),
+                ]),
+              ),
+            if (widget.onTidyCircuit != null && !widget.isLocked)
+              PopupMenuItem<String>(
+                value: 'circuit',
+                child: Row(children: [
+                  Icon(Icons.electrical_services_rounded, size: 18, color: inactiveIcon),
+                  const SizedBox(width: 10),
+                  Text(l10n.csRecognizeCircuit),
                 ]),
               ),
             if (widget.onCut != null && !widget.isLocked)

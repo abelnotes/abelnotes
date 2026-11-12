@@ -5789,6 +5789,126 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Ripristinato'**
   String get csTapRedone;
+
+  /// No description provided for @setSectionModules.
+  ///
+  /// In it, this message translates to:
+  /// **'Moduli'**
+  String get setSectionModules;
+
+  /// No description provided for @setModulesIntro.
+  ///
+  /// In it, this message translates to:
+  /// **'Funzioni opzionali. Una funzione spenta non occupa memoria, e le pagine che l\'hanno usata restano intatte.'**
+  String get setModulesIntro;
+
+  /// No description provided for @modStatusReady.
+  ///
+  /// In it, this message translates to:
+  /// **'Pronto'**
+  String get modStatusReady;
+
+  /// No description provided for @modStatusLoading.
+  ///
+  /// In it, this message translates to:
+  /// **'Caricamento…'**
+  String get modStatusLoading;
+
+  /// No description provided for @modStatusUnavailable.
+  ///
+  /// In it, this message translates to:
+  /// **'Modello non installato'**
+  String get modStatusUnavailable;
+
+  /// No description provided for @modStatusDisabled.
+  ///
+  /// In it, this message translates to:
+  /// **'Disattivato'**
+  String get modStatusDisabled;
+
+  /// No description provided for @modMeta.
+  ///
+  /// In it, this message translates to:
+  /// **'Versione {version} · licenza {license}'**
+  String modMeta(String version, String license);
+
+  /// No description provided for @modAssetLicense.
+  ///
+  /// In it, this message translates to:
+  /// **'Modello: {license}'**
+  String modAssetLicense(String license);
+
+  /// No description provided for @modBeta.
+  ///
+  /// In it, this message translates to:
+  /// **'Beta'**
+  String get modBeta;
+
+  /// No description provided for @modBetaHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Gratis finché è in prova'**
+  String get modBetaHint;
+
+  /// No description provided for @modOnDevice.
+  ///
+  /// In it, this message translates to:
+  /// **'Un piccolo modello che gira sul tuo dispositivo. Non viene inviato nulla.'**
+  String get modOnDevice;
+
+  /// No description provided for @modCircuitsName.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconoscimento circuiti'**
+  String get modCircuitsName;
+
+  /// No description provided for @modCircuitsDesc.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosce il circuito disegnato a mano selezionato e lo ridisegna con simboli e fili puliti. Controlla il risultato: qualche componente può essere sbagliato.'**
+  String get modCircuitsDesc;
+
+  /// No description provided for @csRecognizeCircuit.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci circuito'**
+  String get csRecognizeCircuit;
+
+  /// No description provided for @csRecognizeCircuitFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun circuito riconosciuto'**
+  String get csRecognizeCircuitFailed;
+
+  /// No description provided for @csRecognizeBusy.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconoscimento…'**
+  String get csRecognizeBusy;
+
+  /// No description provided for @csRecognizeModelMissing.
+  ///
+  /// In it, this message translates to:
+  /// **'Modello di riconoscimento non caricato'**
+  String get csRecognizeModelMissing;
+
+  /// No description provided for @csRecognizeNoInk.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun tratto nella selezione'**
+  String get csRecognizeNoInk;
+
+  /// No description provided for @csRecognizeError.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore nel riconoscimento'**
+  String get csRecognizeError;
+
+  /// No description provided for @csRecognizeImageMissing.
+  ///
+  /// In it, this message translates to:
+  /// **'Immagine non ancora caricata'**
+  String get csRecognizeImageMissing;
 }
 
 class _AppLocalizationsDelegate

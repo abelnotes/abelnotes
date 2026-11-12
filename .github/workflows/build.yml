@@ -40,6 +40,9 @@ jobs:
       # by default; the repo carries style infos that must not block builds.
       # Warnings and errors stay fatal.
       - run: flutter analyze --no-fatal-infos
+      # The C engine for its parity test, which skips without the library.
+      - run: cmake -S packages/circuit_engine/src -B packages/circuit_engine/src/build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build packages/circuit_engine/src/build
       - run: flutter test
       - run: flutter test --platform chrome test/browser_file_export_test.dart
 

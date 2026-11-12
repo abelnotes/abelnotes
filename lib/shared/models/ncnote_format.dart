@@ -229,11 +229,21 @@ class ContentListConverter
 
 // ── Stroke Data ──
 
+/// Clean lines of a tidied circuit: even width, sharp corners, no smoothing.
+/// Wires and leads, part outlines (cut square at their ends, as TikZ does),
+/// and closed shapes drawn solid. No pen produces them.
+const String kTechnicalTool = 'technical';
+const String kTechnicalBodyTool = 'technical_body';
+const String kTechnicalFillTool = 'technical_fill';
+
+bool isTechnicalTool(String toolType) =>
+    toolType == kTechnicalTool || toolType == kTechnicalBodyTool || toolType == kTechnicalFillTool;
+
 @freezed
 class StrokeData with _$StrokeData {
   const factory StrokeData({
     required List<StrokePoint> points,
-    @Default('pen') String toolType, // pen, ballpoint, brush, highlighter
+    @Default('pen') String toolType, // pen, ballpoint, brush, highlighter, calligraphy, technical*
     @Default(0xFF000000) int color,
     @Default(2.0) double baseWidth,
     @Default(false) bool isHighlighter,

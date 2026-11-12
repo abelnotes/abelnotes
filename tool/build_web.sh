@@ -38,11 +38,12 @@ open(path, 'w').write(src.replace(old, f'"mainJsPath":"{main_js}"'))
 PY
 
 # Everything the app can need, relative to the site root. The CanvasKit
-# variants for other renderers (skwasm, webparagraph) are never loaded.
+# variants for other renderers (skwasm, webparagraph) are never loaded, and
+# model files are not worth a download for every visitor.
 FILES="$(cd "$OUT" && find . -type f \
   ! -name 'flutter_service_worker.js' ! -name '*.symbols' ! -name '*.map' \
   ! -name '.last_build_id' ! -name 'update.html' ! -path './canvaskit/skwasm*' \
-  ! -path './canvaskit/experimental_webparagraph/*' \
+  ! -path './canvaskit/experimental_webparagraph/*' ! -name '*.ablm' \
   | sed 's|^\./||' | sort | python3 -c \
   'import sys,json; print(json.dumps(["./"]+[l.strip() for l in sys.stdin if l.strip()]))')"
 

@@ -23,6 +23,8 @@ import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/services/remote_baselines.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/sync/drive_connect.dart';
+import 'package:abelnotes/features/modules/module_manifest.dart';
+import 'package:abelnotes/features/modules/module_registry.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/screens/trash_screen.dart';
@@ -56,6 +58,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
   Widget _buildSection() => switch (_section) {
         'general' => _GeneralSection(),
         'input' => _InputSection(),
+        'modules' => const _ModulesSection(),
         'sync' => _SyncSection(),
         'shortcuts' => _ShortcutsSection(),
         'storage' => _StorageSection(),
@@ -67,6 +70,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
+    final hasModules = ref.watch(moduleCatalogProvider).isNotEmpty;
     return Scaffold(
       backgroundColor: p.paper1,
       body: SafeArea(
@@ -76,6 +80,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
               return _phoneMenuOpen
                   ? _PhoneMenu(
                       section: _section,
+                      hasModules: hasModules,
                       onSelect: (s) => setState(() {
                         _section = s;
                         _phoneMenuOpen = false;
@@ -92,6 +97,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
               children: [
                 _Rail(
                   section: _section,
+                  hasModules: hasModules,
                   onSelect: (s) => setState(() => _section = s),
                   onClose: () => Navigator.of(context).pop(),
                 ),
@@ -115,9 +121,12 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
 
 /// Section list + label + icon, shared between the desktop rail and the
 /// phone menu so both stay in sync.
-List<(String, String, String)> _sectionItems(AppLocalizations l10n) => [
+List<(String, String, String)> _sectionItems(AppLocalizations l10n,
+        {required bool hasModules}) =>
+    [
       ('general', l10n.setSectionGeneral, 'settings'),
       ('input', l10n.setSectionInput, 'pen'),
+      if (hasModules) ('modules', l10n.setSectionModules, 'symbol'),
       ('sync', l10n.setSectionSync, 'cloud'),
       ('storage', l10n.setSectionStorage, 'pages'),
       ('shortcuts', l10n.setSectionShortcuts, 'keyboard'),
@@ -127,10 +136,12 @@ List<(String, String, String)> _sectionItems(AppLocalizations l10n) => [
 
 class _PhoneMenu extends StatelessWidget {
   final String section;
+  final bool hasModules;
   final ValueChanged<String> onSelect;
   final VoidCallback onClose;
   const _PhoneMenu({
     required this.section,
+    required this.hasModules,
     required this.onSelect,
     required this.onClose,
   });
@@ -158,7 +169,7 @@ class _PhoneMenu extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             children: [
-              for (final item in _sectionItems(l10n))
+              for (final item in _sectionItems(l10n, hasModules: hasModules))
                 _PhoneMenuItem(
                   label: item.$2,
                   icon: item.$3,
@@ -248,10 +259,12 @@ class _PhoneSectionView extends StatelessWidget {
 
 class _Rail extends StatelessWidget {
   final String section;
+  final bool hasModules;
   final ValueChanged<String> onSelect;
   final VoidCallback onClose;
   const _Rail({
     required this.section,
+    required this.hasModules,
     required this.onSelect,
     required this.onClose,
   });
@@ -260,7 +273,7 @@ class _Rail extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
-    final items = _sectionItems(l10n);
+    final items = _sectionItems(l10n, hasModules: hasModules);
     return Container(
       width: 248,
       decoration: BoxDecoration(
@@ -363,16 +376,28 @@ class _Row extends StatelessWidget {
   final String title;
   final String? sub;
   final Widget control;
-  const _Row({required this.title, this.sub, required this.control});
+
+  /// Small chip right after the title.
+  final Widget? badge;
+  const _Row(
+      {required this.title, this.sub, required this.control, this.badge});
   @override
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
+    final titleText = Text(title,
+        style: TextStyle(
+            fontSize: 14, color: p.ink0, fontWeight: FontWeight.w500));
     final label = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title,
-            style: TextStyle(
-                fontSize: 14, color: p.ink0, fontWeight: FontWeight.w500)),
+        if (badge == null)
+          titleText
+        else
+          Row(children: [
+            Flexible(child: titleText),
+            const SizedBox(width: 8),
+            badge!,
+          ]),
         if (sub != null) ...[
           const SizedBox(height: 2),
           Text(sub!,
@@ -673,6 +698,64 @@ class _InputSection extends ConsumerWidget {
                 onChanged: (v) => ref
                     .read(appSettingsProvider.notifier)
                     .setTapUndo(v))),
+      ],
+    );
+  }
+}
+
+class _ModulesSection extends ConsumerWidget {
+  const _ModulesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final p = HwThemeScope.of(context);
+    final entries = ref.watch(moduleEntriesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(l10n.setSectionModules),
+        Text(l10n.setModulesIntro,
+            style: TextStyle(fontSize: 14, color: p.ink2, height: 1.5)),
+        const SizedBox(height: 8),
+        for (final e in entries)
+          _Row(
+            title: e.module.name(l10n),
+            badge: e.module.beta
+                ? HwPill(
+                    label: l10n.modBeta,
+                    background: p.accentSoft,
+                    foreground: p.accentDeep,
+                  )
+                : null,
+            sub: [
+              e.module.description(l10n),
+              if (e.module.manifest.permissions
+                  .contains(ModulePermission.modelRun))
+                l10n.modOnDevice,
+              [
+                switch (e.status) {
+                  ModuleStatus.ready => l10n.modStatusReady,
+                  ModuleStatus.loading => l10n.modStatusLoading,
+                  ModuleStatus.unavailable => l10n.modStatusUnavailable,
+                  ModuleStatus.disabled => l10n.modStatusDisabled,
+                },
+                if (e.module.beta) l10n.modBetaHint,
+                // A built-in's licences are in the app's licenses page.
+                if (e.module.manifest.source != ModuleSource.builtin) ...[
+                  l10n.modMeta(
+                      e.module.manifest.version, e.module.manifest.license),
+                  for (final a in e.module.manifest.assets)
+                    if (a.license != null) l10n.modAssetLicense(a.license!),
+                ],
+              ].join(' · '),
+            ].join('\n'),
+            control: HwSwitch(
+                value: e.status != ModuleStatus.disabled,
+                onChanged: (v) => ref
+                    .read(appSettingsProvider.notifier)
+                    .setModuleEnabled(e.module.manifest.id, v)),
+          ),
       ],
     );
   }

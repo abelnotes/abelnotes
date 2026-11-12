@@ -5,9 +5,9 @@
 # AbelNotes
 
 **Handwritten notes for people who write equations.**
-Cross-platform, self-hostable, open source. Your notes sync to a place *you* control — your own WebDAV/Nextcloud server, or your own Google Drive. Never through a cloud we run.
+Cross-platform, self-hostable, open source. Your notes sync to a place *you* control: your own WebDAV/Nextcloud server, or your own Google Drive. Never through a cloud we run.
 
-**[Try it in your browser →](https://app.abelnotes.app)** — nothing to install, no account.
+**[Try it in your browser →](https://app.abelnotes.app)**. Nothing to install, no account.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-Windows_·_Linux_·_Android_·_Web-informational)
@@ -18,7 +18,7 @@ Cross-platform, self-hostable, open source. Your notes sync to a place *you* con
 ---
 
 <div align="center">
-<img src="assets/screenshots/hero.gif" width="800" alt="Writing a LaTeX equation and moving it onto Cornell paper">
+<img src="assets/screenshots/hero.gif" width="760" alt="Pasting a LaTeX formula, moving it, highlighting it and pointing at it with a pen arrow">
 </div>
 
 ---
@@ -28,7 +28,7 @@ Cross-platform, self-hostable, open source. Your notes sync to a place *you* con
 Most handwriting apps are walled gardens: your notes live on someone else's cloud, in a format you don't control, on the platforms they decide to support. AbelNotes takes the opposite bet.
 
 - **Your data, your account.** Sync over WebDAV to your own Nextcloud (or ownCloud), or to your own Google Drive. Nothing passes through a cloud we run.
-- **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, and paper types that actually matter for technical work — Cornell, isometric, music staff, and more.
+- **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, on-device circuit recognition, and paper types that actually matter for technical work, like Cornell, isometric and music staff.
 - **Actually cross-platform.** Not "mobile-first, desktop-someday." Windows, Linux, Android and the web are first-class today, with real per-platform work under the hood.
 - **Open source, AGPL-3.0.** You can read exactly how your notes are handled. Build it yourself for free, or grab a store build to support development.
 
@@ -37,34 +37,31 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 ## Features
 
 **Drawing**
-- Multiple pen types — pen, ballpoint, brush, calligraphy — with pressure-driven variable stroke width
+- Multiple pen types (pen, ballpoint, brush, calligraphy) with pressure-driven variable stroke width
 - Highlighter, lasso select, shapes with geometric snapping/recognition
 - Palm rejection and stylus-only mode
 - Laser pointer for presenting (not saved to the page)
 - Two canvas modes: infinite "Scratch" surface and paged notebooks
 
 <div align="center">
-<img src="assets/screenshots/shapes.gif" width="800" alt="Freehand shapes snapping to clean geometry, then saving a hand-drawn resistor as a reusable symbol">
+<img src="assets/screenshots/shapes.gif" width="680" alt="Freehand shapes snapping to clean geometry, then saving a hand-drawn resistor as a reusable symbol and placing it twice">
 </div>
 
 **For technical work**
-- **LaTeX math**, rendered natively and *searchable by its source*
-- **PDF import** with rasterized pages *and* selectable embedded text — annotate on top with the normal drawing tools
-- **8 paper types**, including Cornell, isometric and music staff
-- Symbol library for quick insertion
+- **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
+- **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
+- **PDF import** with rasterized pages *and* selectable embedded text; annotate on top with the normal drawing tools
+- **8 paper types**, including Cornell, isometric and music staff, switchable after you've started writing
+- Symbol library: save anything you drew as a reusable symbol
 
 **Sync & offline**
 - **Local-first**: everything works offline; changes sync when you reconnect
-- **Two backends, your pick**: your own WebDAV/Nextcloud server, or your own Google Drive — one at a time, switchable
+- **Two backends, your pick**: your own WebDAV/Nextcloud server, or your own Google Drive, one at a time, switchable
 - **Per-notebook opt-out**: any notebook can be kept on this device only, never uploaded, while the rest keep syncing
 - **Per-device opt-out**: a notebook can be taken off one device without leaving the account; opening it downloads it again
 - **Delta sync**: only changed pages/assets are uploaded, not the whole notebook
-- **Real conflict handling**: element-level 3-way merge, with a dedicated resolution screen when edits genuinely diverge — no silent last-write-wins
+- **Real conflict handling**: element-level 3-way merge, with a dedicated resolution screen when edits genuinely diverge, instead of a silent last-write-wins
 - Connection pooling tuned for real self-hosted setups (including flaky Tailscale links)
-
-**Search**
-- Full-text search across notebooks, including LaTeX sources
-- Handwriting OCR search on Apple platforms (Apple Vision) <!-- gated: iOS/macOS only -->
 
 **Import**
 - Import from **OneNote**
@@ -78,7 +75,7 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 ## PDF import
 
 <div align="center">
-<img src="assets/screenshots/pdf.gif" width="640" alt="Importing a PDF, selecting and copying the embedded text, then annotating with the pen">
+<img src="assets/screenshots/pdf.gif" width="760" alt="Selecting and copying the text of an imported PDF slide, then highlighting and annotating it with the pen">
 </div>
 
 ---
@@ -87,12 +84,11 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 
 Grab the latest build from the [**Releases**](../../releases) page:
 
-- **Web** — https://app.abelnotes.app, right in the browser: nothing to install, works offline once loaded, and can be added to the home screen on iPhone and iPad. Syncs with Google Drive; syncing with a WebDAV server from the browser needs that server to allow requests from app.abelnotes.app (CORS).
-- **Windows** — Installable at the Microsoft Store => https://apps.microsoft.com/detail/9nl7fk76t2fv
-- **Linux** — Flatpak with automatic updates: https://abelnotes.github.io/flatpak/ (one click in GNOME Software, KDE Discover or the Mint Software Manager), or the `.deb` from Releases
-- **Android** — `.apk`, Installable at the Google Play Store Now!
-https://play.google.com/store/apps/details?id=app.abelnotes.notes
-- **iPadOS / macOS** — working build, tested on real hardware, but not yet distributed here: an Apple Developer Program membership (paid, $100/year) is required to sign and ship builds outside Xcode. *Coming once that's set up.* Meanwhile, the web app runs on both.
+- **Web**: https://app.abelnotes.app, right in the browser: nothing to install, works offline once loaded, and can be added to the home screen on iPhone and iPad. Syncs with Google Drive; syncing with a WebDAV server from the browser needs that server to allow requests from app.abelnotes.app (CORS).
+- **Windows**: [Microsoft Store](https://apps.microsoft.com/detail/9nl7fk76t2fv)
+- **Linux**: Flatpak with automatic updates: https://abelnotes.github.io/flatpak/ (one click in GNOME Software, KDE Discover or the Mint Software Manager), or the `.deb` from Releases
+- **Android**: [Google Play](https://play.google.com/store/apps/details?id=app.abelnotes.notes)
+- **iPadOS / macOS**: working build, tested on real hardware, but not distributed yet: signing and shipping it needs the paid Apple Developer Program ($99/year), which is what [sponsoring](https://github.com/sponsors/abelnotes) is for. Meanwhile the web app runs on both.
 
 ---
 
@@ -100,10 +96,10 @@ https://play.google.com/store/apps/details?id=app.abelnotes.notes
 
 Short version, being honest rather than impressive:
 
-- WebDAV connections use TLS with **certificate pinning** (trust-on-first-use) — a certificate change without re-authenticating fails the connection instead of silently trusting it.
+- WebDAV connections use TLS with **certificate pinning** (trust-on-first-use). A certificate change without re-authenticating fails the connection instead of silently trusting it.
 - Your Nextcloud password is stored in the OS secure keystore (Keychain / Android Keystore / DPAPI / Secret Service), never in plain prefs.
-- Google Drive sync asks for the **`drive.file` scope only** — the app can see and manage the files it created, and nothing else in your Drive. No password reaches the app: mobile hands the tokens to the platform, desktop keeps a refresh token in the same OS keystore as the WebDAV password.
-- **Notebook content is not encrypted at rest** — it's plain JSON/ZIP, on-device and on your server. End-to-end encryption is on the roadmap, not yet built.
+- Google Drive sync asks for the **`drive.file` scope only**: the app can see and manage the files it created, and nothing else in your Drive. No password reaches the app: mobile hands the tokens to the platform, desktop keeps a refresh token in the same OS keystore as the WebDAV password.
+- **Notebook content is not encrypted at rest.** It's plain JSON/ZIP, on-device and on your server. End-to-end encryption is on the roadmap, not yet built.
 - Known gap: headless Linux with no Secret Service daemon falls back to storing the credential in plaintext.
 
 Full details and known limitations: see [SECURITY.md](SECURITY.md).
@@ -119,7 +115,7 @@ git clone https://github.com/abelnotes/abelnotes.git
 cd abelnotes
 flutter pub get
 
-# Desktop only, once per machine — see the note below
+# Desktop only, once per machine (see the note below)
 flutter config --enable-native-assets
 
 # Run
@@ -134,7 +130,7 @@ flutter build windows    # Windows
 
 **`--enable-native-assets` is not optional for desktop builds.** PDF support
 comes from pdfrx, which ships PDFium as a native asset rather than as a CMake
-plugin — it is listed in neither `windows/flutter/generated_plugins.cmake` nor
+plugin: it is listed in neither `windows/flutter/generated_plugins.cmake` nor
 `linux/flutter/generated_plugins.cmake`. Without the flag the build still
 succeeds and PDFium is simply absent from the bundle, so every PDF fails once
 the app is already running. Confirmed by building on Windows; Linux is wired the
@@ -146,9 +142,9 @@ a Rust toolchain to rebuild it yourself with `native/build_onenote_bridge.sh`.
 
 ### Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — how the app is put together and why
-- [ABELNOTE_FORMAT_GUIDE.md](ABELNOTE_FORMAT_GUIDE.md) — the notebook format on disk, file by file
-- [SECURITY.md](SECURITY.md) — threat model, encryption, how to report a vulnerability
+- [ARCHITECTURE.md](ARCHITECTURE.md): how the app is put together and why
+- [ABELNOTE_FORMAT_GUIDE.md](ABELNOTE_FORMAT_GUIDE.md): the notebook format on disk, file by file
+- [SECURITY.md](SECURITY.md): threat model, encryption, how to report a vulnerability
 
 ---
 
@@ -168,9 +164,9 @@ Good first areas: testing experimental WebDAV backends against real servers (Sea
 
 ## License & trademark
 
-Source code is licensed under **AGPL-3.0-or-later** — see [LICENSE](LICENSE).
+Source code is licensed under **AGPL-3.0-or-later**, see [LICENSE](LICENSE).
 
-**"AbelNotes" and the AbelNotes logo are *not* covered by the AGPL license.** They are protected separately — see [TRADEMARK.md](TRADEMARK.md). In short: build and modify the code freely, but if you redistribute publicly, use a different name and icon. This mirrors common practice (e.g. Firefox/Iceweasel, Chromium/Chrome).
+**"AbelNotes" and the AbelNotes logo are *not* covered by the AGPL license.** They are protected separately, see [TRADEMARK.md](TRADEMARK.md). In short: build and modify the code freely, but if you redistribute publicly, use a different name and icon. This mirrors common practice (e.g. Firefox/Iceweasel, Chromium/Chrome).
 
 Third-party dependencies and their licenses are listed in [ACKNOWLEDGMENTS.md](ACKNOWLEDGMENTS.md).
 

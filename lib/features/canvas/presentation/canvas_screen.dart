@@ -62,6 +62,11 @@ import 'package:abelnotes/core/services/pen_monitor_service.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:abelnotes/ui/services/file_export.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_painter_notifiers.dart';
+import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_recognizer_service.dart';
+import 'package:abelnotes/features/canvas/data/circuit_recognizer/image_circuit.dart';
+import 'package:abelnotes/features/modules/builtin_modules.dart';
+import 'package:abelnotes/features/modules/module_registry.dart';
+import 'package:abelnotes/features/modules/selection_action.dart';
 import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
@@ -7006,6 +7011,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         onFlipHorizontal: isImage ? () {
           ref.read(canvasProvider.notifier).flipImageElement(elementId);
         } : null,
+        onTidyCircuit: isImage &&
+                ref.watch(moduleEntriesProvider).any(
+                    (e) => e.module.manifest.id == kCircuitsModuleId && e.status == ModuleStatus.ready)
+            ? () => _tidyImageCircuit(elementId)
+            : null,
       ),
     ];
   }
@@ -7119,6 +7129,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   // ── Lasso selection rotation handle ──
 
   Widget _buildFloatingSelectionActions(CanvasState state, Size canvasSize) {
+    // Starts loading module models, so the ⋯ menu can offer their actions.
+    ref.read(selectionActionsProvider);
     final p = HwThemeScope.of(context);
     final originalSel = state.lassoSelection!;
     // Same live-transform override as _buildLassoHandles — keeps the
@@ -7413,6 +7425,26 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
+            // Module actions: only ready, enabled modules contribute.
+            Consumer(builder: (ctx, ref, _) {
+              final summary = SelectionSummary(
+                  hasInk: ref.read(canvasProvider.notifier).selectionHasInk);
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final a in ref.watch(selectionActionsProvider))
+                    if (a.appliesTo(summary))
+                      ListTile(
+                        leading: Icon(a.icon),
+                        title: Text(a.label(AppLocalizations.of(ctx))),
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _runSelectionAction(a);
+                        },
+                      ),
+                ],
+              );
+            }),
             ListTile(
               leading: const Icon(Icons.flip_rounded),
               title: Text(AppLocalizations.of(ctx).csFlipHorizontal),
@@ -7461,6 +7493,70 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         )),
       ),
     );
+  }
+
+  /// Runs a module's lasso action and applies its outcome in one undo step.
+  /// A miss is a toast: recognisers fail often and undo is the safety net.
+  Future<void> _runSelectionAction(SelectionAction action) async {
+    final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(canvasProvider.notifier);
+    // A selection moved but not committed yet is read where it now is.
+    notifier.applySelectionTransform();
+    final s = ref.read(canvasProvider);
+    final page = s?.currentPage;
+    if (s == null || page == null) return;
+    final fileName = s.currentPageFileName;
+
+    _toast(action.busyLabel(l10n));
+    SelectionOutcome outcome;
+    try {
+      outcome = await action.run(SelectionRequest(ink: notifier.selectedInk, pageWidth: page.width));
+    } catch (e, st) {
+      outcome = ActionFailed('$e\n$st', reason: ActionFailReason.error);
+    }
+    if (!mounted) return;
+    switch (outcome) {
+      case ActionFailed(:final debug, :final reason):
+        CrashLogger.append('[module] ${action.id} failed (${reason.name}): $debug');
+        _toast(switch (reason) {
+          ActionFailReason.notRecognized => action.failedLabel(l10n),
+          ActionFailReason.modelMissing => l10n.csRecognizeModelMissing,
+          ActionFailReason.noInk => l10n.csRecognizeNoInk,
+          ActionFailReason.error => l10n.csRecognizeError,
+        });
+      case ReplaceInk(:final removedIds, :final added):
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        notifier.replaceStrokesWithDrawing(fileName, removedIds, added);
+    }
+  }
+
+  /// Redraws the circuit in image [elementId] as strokes in its place, one
+  /// undo step. A miss is a toast, as for the lasso tidy-up.
+  Future<void> _tidyImageCircuit(String elementId) async {
+    final l10n = AppLocalizations.of(context);
+    final s = ref.read(canvasProvider);
+    final image = s?.currentPage?.layers.content.whereType<ImageElement>().where((e) => e.id == elementId).firstOrNull;
+    final bytes = image == null ? null : s!.assetBytes[image.data.assetPath];
+    final recognizer = ref.read(circuitRecognizerProvider).valueOrNull;
+    if (image == null || bytes == null || recognizer == null) {
+      CrashLogger.append('[circuit] image $elementId: image=${image != null} bytes=${bytes != null} '
+          'model=${recognizer != null}');
+      _toast(recognizer == null ? l10n.csRecognizeModelMissing : l10n.csRecognizeImageMissing);
+      return;
+    }
+    final fileName = s!.currentPageFileName;
+    _toast(l10n.csRecognizeBusy);
+    final (circuit, why) = await imageCircuitStrokes(recognizer, bytes, image.data);
+    CrashLogger.append('[circuit] image $elementId: $why');
+    if (!mounted) return;
+    if (circuit == null) {
+      _toast(l10n.csRecognizeCircuitFailed);
+      return;
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final notifier = ref.read(canvasProvider.notifier);
+    notifier.deselectElement();
+    notifier.replaceStrokesWithDrawing(fileName, {elementId}, circuit.strokes, image: circuit.rest);
   }
 
   List<Widget> _buildLassoHandles(CanvasState state, Size canvasSize) {
@@ -7737,10 +7833,29 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   void _showContextMenu(Offset globalPos, Offset localPos, CanvasState state, Size canvasSize) {
     final pagePos = _toPageCoords(localPos, state, canvasSize);
-    final tappedElement = _findElementAt(state, pagePos);
-    final hasLassoSelection = state.lassoSelection != null;
+    final sel = state.lassoSelection;
+    // On the selection the menu is about it; anywhere else drops the selection.
+    final hasLassoSelection = sel != null &&
+        Rect.fromCenter(
+          center: sel.bounds.center,
+          width: sel.bounds.width * sel.scale,
+          height: sel.bounds.height * sel.scale,
+        ).translate(sel.dragOffset.dx, sel.dragOffset.dy).inflate(12).contains(pagePos);
+    if (sel != null && !hasLassoSelection) {
+      ref.read(canvasProvider.notifier).clearSelection();
+    }
+    final tappedElement = hasLassoSelection ? null : _findElementAt(ref.read(canvasProvider) ?? state, pagePos);
+    // Page-wide entries belong to the empty canvas, not to a menu on an element.
+    final onCanvas = !hasLassoSelection && tappedElement == null;
     final hasSymbols = state.symbols.isNotEmpty;
     final l10n = AppLocalizations.of(context);
+    final summary = SelectionSummary(hasInk: ref.read(canvasProvider.notifier).selectionHasInk);
+    final moduleActions = hasLassoSelection
+        ? [
+            for (final a in ref.read(selectionActionsProvider))
+              if (a.appliesTo(summary)) a,
+          ]
+        : const <SelectionAction>[];
 
     showMenu<String>(
       context: context,
@@ -7757,43 +7872,51 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           PopupMenuItem(value: 'delete_sel', child: _MenuRow(Icons.delete_outline_rounded, l10n.csDelete, l10n.csKeyDelete)),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'create_symbol', child: _MenuRow(Icons.star_outline_rounded, l10n.csCreateSymbol, null)),
-          const PopupMenuDivider(),
+          for (final a in moduleActions)
+            PopupMenuItem(value: 'module:${a.id}', child: _MenuRow(a.icon, a.label(l10n), null)),
         ],
         // Single element operations
-        if (tappedElement != null && !hasLassoSelection) ...[
+        if (tappedElement != null) ...[
           PopupMenuItem(value: 'select_element', child: _MenuRow(Icons.touch_app_outlined, l10n.csSelect, null)),
           PopupMenuItem(value: 'duplicate_element', child: _MenuRow(Icons.copy_all_rounded, l10n.csDuplicate, null)),
           PopupMenuItem(value: 'delete_element', child: _MenuRow(Icons.delete_outline_rounded, l10n.csDelete, null)),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'create_symbol_element', child: _MenuRow(Icons.star_outline_rounded, l10n.csCreateSymbol, null)),
-          const PopupMenuDivider(),
         ],
-        // Paste: single entry — _pasteFromClipboard resolves what the user
-        // most recently copied (fresh system image/text wins over a stale
-        // in-app selection, and vice versa).
-        PopupMenuItem(value: 'paste', child: _MenuRow(Icons.paste_rounded, l10n.csPaste, 'Ctrl+V')),
-        // Insert: one picker for images AND PDFs (was two separate entries).
-        PopupMenuItem(value: 'insert_file', child: _MenuRow(Icons.attach_file_rounded, l10n.csImportFile, null)),
-        if (_cameraAvailable)
-          PopupMenuItem(value: 'insert_camera', child: _MenuRow(Icons.camera_alt_rounded, l10n.csTakePhoto, null)),
-        PopupMenuItem(value: 'insert_text', child: _MenuRow(Icons.text_fields_rounded, l10n.csInsertText, null)),
-        // Symbols
-        if (hasSymbols)
-          PopupMenuItem(
-            value: 'symbols',
-            child: _MenuRow(Icons.star_rounded, l10n.csInsertSymbolCount(state.symbols.length), null),
-          ),
-        const PopupMenuDivider(),
-        // Page operations
-        PopupMenuItem(value: 'select_all', child: _MenuRow(Icons.select_all_rounded, l10n.csSelectAll, 'Ctrl+A')),
-        PopupMenuItem(value: 'clear_page', child: _MenuRow(Icons.cleaning_services_rounded, l10n.csClearPage, null)),
-        const PopupMenuDivider(),
-        PopupMenuItem(value: 'export_png', child: _MenuRow(Icons.image_outlined, l10n.csExportPng, null)),
-        PopupMenuItem(value: 'export_pdf', child: _MenuRow(Icons.picture_as_pdf_rounded, l10n.csExportPdf, null)),
+        if (onCanvas) ...[
+          // Paste: single entry — _pasteFromClipboard resolves what the user
+          // most recently copied (fresh system image/text wins over a stale
+          // in-app selection, and vice versa).
+          PopupMenuItem(value: 'paste', child: _MenuRow(Icons.paste_rounded, l10n.csPaste, 'Ctrl+V')),
+          // Insert: one picker for images AND PDFs (was two separate entries).
+          PopupMenuItem(value: 'insert_file', child: _MenuRow(Icons.attach_file_rounded, l10n.csImportFile, null)),
+          if (_cameraAvailable)
+            PopupMenuItem(value: 'insert_camera', child: _MenuRow(Icons.camera_alt_rounded, l10n.csTakePhoto, null)),
+          PopupMenuItem(value: 'insert_text', child: _MenuRow(Icons.text_fields_rounded, l10n.csInsertText, null)),
+          // Symbols
+          if (hasSymbols)
+            PopupMenuItem(
+              value: 'symbols',
+              child: _MenuRow(Icons.star_rounded, l10n.csInsertSymbolCount(state.symbols.length), null),
+            ),
+          const PopupMenuDivider(),
+          // Page operations
+          PopupMenuItem(value: 'select_all', child: _MenuRow(Icons.select_all_rounded, l10n.csSelectAll, 'Ctrl+A')),
+          PopupMenuItem(value: 'clear_page', child: _MenuRow(Icons.cleaning_services_rounded, l10n.csClearPage, null)),
+          const PopupMenuDivider(),
+          PopupMenuItem(value: 'export_png', child: _MenuRow(Icons.image_outlined, l10n.csExportPng, null)),
+          PopupMenuItem(value: 'export_pdf', child: _MenuRow(Icons.picture_as_pdf_rounded, l10n.csExportPdf, null)),
+        ],
       ],
     ).then((value) {
       if (value == null || !mounted) return;
       final notifier = ref.read(canvasProvider.notifier);
+      for (final a in moduleActions) {
+        if (value == 'module:${a.id}') {
+          _runSelectionAction(a);
+          return;
+        }
+      }
       switch (value) {
         case 'copy': notifier.copySelection(); _toast(AppLocalizations.of(context).csSelectionCopied); break;
         case 'copy_screenshot': _copySelectionAsScreenshot(); break;

@@ -168,6 +168,9 @@ class AppSettings {
   /// Tapping the canvas with two fingers undoes, with three redoes.
   final bool tapUndo;
 
+  /// Module ids the user switched off in Settings → Modules.
+  final Set<String> disabledModules;
+
   /// Which remote the notebooks sync to: 'webdav' for the user's own
   /// server, 'drive' for their Google Drive, null for local-only. One
   /// backend at a time — a notebook living in two places at once would give
@@ -214,6 +217,7 @@ class AppSettings {
     this.pencilDoubleTap = true,
     this.fillRecognizedShapes = true,
     this.tapUndo = true,
+    this.disabledModules = const {},
     this.lastTool,
     this.syncBackend,
     this.showPageStrip = true,
@@ -248,6 +252,7 @@ class AppSettings {
     bool? pencilDoubleTap,
     bool? fillRecognizedShapes,
     bool? tapUndo,
+    Set<String>? disabledModules,
     String? lastTool,
     String? syncBackend,
     /// copyWith can't tell "leave it" from "set it to null", and going back
@@ -279,6 +284,7 @@ class AppSettings {
         pencilDoubleTap: pencilDoubleTap ?? this.pencilDoubleTap,
         fillRecognizedShapes: fillRecognizedShapes ?? this.fillRecognizedShapes,
         tapUndo: tapUndo ?? this.tapUndo,
+        disabledModules: disabledModules ?? this.disabledModules,
         lastTool: lastTool ?? this.lastTool,
         syncBackend:
             clearSyncBackend ? null : (syncBackend ?? this.syncBackend),
@@ -382,6 +388,10 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         pencilDoubleTap: map['pencil_double_tap'] as bool? ?? true,
         fillRecognizedShapes: map['fill_shapes'] as bool? ?? true,
         tapUndo: map['tap_undo'] as bool? ?? true,
+        disabledModules: {
+          for (final id in map['modules_disabled'] as List? ?? const [])
+            if (id is String) id,
+        },
         lastTool: map['last_tool'] as String?,
         syncBackend: map['sync_backend'] as String?,
         showPageStrip: map['show_page_strip'] as bool? ?? true,
@@ -421,6 +431,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         'pencil_double_tap': state.pencilDoubleTap,
         'fill_shapes': state.fillRecognizedShapes,
         'tap_undo': state.tapUndo,
+        'modules_disabled': state.disabledModules.toList(),
         if (state.lastTool != null) 'last_tool': state.lastTool,
         if (state.syncBackend != null) 'sync_backend': state.syncBackend,
         'show_page_strip': state.showPageStrip,
@@ -528,6 +539,13 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setTapUndo(bool v) {
     state = state.copyWith(tapUndo: v);
+    _persist();
+  }
+
+  void setModuleEnabled(String id, bool enabled) {
+    final next = {...state.disabledModules};
+    enabled ? next.remove(id) : next.add(id);
+    state = state.copyWith(disabledModules: next);
     _persist();
   }
 

@@ -64,6 +64,19 @@ available, as it does here).
 | PDFium | BSD-3-Clause | Bundled by `pdfrx` for PDF rendering and text extraction. |
 | KaTeX fonts | MIT | Bundled by `flutter_math_fork` for math rendering. |
 
+## Circuit recognition
+
+| Component | License | Notes |
+|---|---|---|
+| [CircuiTikZ](https://github.com/circuitikz/circuitikz) | LPPL-1.3c / GPL-3.0 dual, used under GPL-3.0 | The tidy-up redraws symbols with CircuiTikZ's shapes and proportions, ported to Dart (`lib/features/canvas/data/circuit_recognizer/`). © R. Giannetti, S. Lindner, S. Erhardt, M. Redaelli. Notice shipped at `assets/licenses/circuitikz_NOTICE.txt` and registered in the in-app licenses page. |
+| [CGHD](https://zenodo.org/records/15333233) (DFKI) | CC BY 4.0 | Hand-drawn circuit dataset the symbol detector is trained on; see `ml/circuits/MODEL_CARD.md`. |
+| [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics) | AGPL-3.0 | The symbol detector was fine-tuned from the `yolo11n` weights. |
+
+The detector model itself (`assets/models/circuit_detector.ablm`) is licensed
+AGPL-3.0, with CC BY 4.0 attribution to CGHD. Notice shipped at
+`assets/licenses/circuit_detector_NOTICE.txt` and registered in the in-app
+licenses page.
+
 Pen pressure on Linux is read directly from the kernel evdev interface
 (`/dev/input`) — no external library involved.
 

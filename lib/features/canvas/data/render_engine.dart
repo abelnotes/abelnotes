@@ -149,6 +149,53 @@ bool shapeBodyContains(ShapeData sh, Offset p) {
   }
 }
 
+/// A shape's outline as a page-space polyline (closed for closed shapes),
+/// as the painter draws it; null for shapes with no outline to trace (arrows).
+List<Offset>? shapeOutline(ShapeData sh) {
+  final rect = Rect.fromPoints(Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2));
+  final List<Offset> pts;
+  switch (sh.shapeType) {
+    case 'line':
+      pts = [Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2)];
+    case 'circle':
+      pts = [
+        for (var k = 0; k <= 48; k++)
+          rect.center +
+              Offset(rect.width / 2 * cos(2 * pi * k / 48),
+                  rect.height / 2 * sin(2 * pi * k / 48)),
+      ];
+    case 'triangle':
+      // Corners already in page space, rotation included.
+      final c = triangleCorners(sh);
+      return [...c, c.first];
+    case 'rhombus':
+      pts = [
+        Offset(rect.center.dx, rect.top),
+        Offset(rect.right, rect.center.dy),
+        Offset(rect.center.dx, rect.bottom),
+        Offset(rect.left, rect.center.dy),
+        Offset(rect.center.dx, rect.top),
+      ];
+    case 'rectangle':
+      pts = [
+        rect.topLeft,
+        rect.topRight,
+        rect.bottomRight,
+        rect.bottomLeft,
+        rect.topLeft,
+      ];
+    default:
+      return null;
+  }
+  if (sh.rotation == 0) return pts;
+  final c = rect.center, ca = cos(sh.rotation), sa = sin(sh.rotation);
+  return [
+    for (final p in pts)
+      Offset(c.dx + (p.dx - c.dx) * ca - (p.dy - c.dy) * sa,
+          c.dy + (p.dx - c.dx) * sa + (p.dy - c.dy) * ca),
+  ];
+}
+
 /// Even-odd containment for a small convex vertex list.
 bool _pointInConvex(Offset p, List<Offset> poly) {
   var inside = false;
@@ -173,6 +220,60 @@ double penWidthFactor(double pressure) =>
 double ballpointWidthFactor(double pressure) =>
     0.6 + pressure.clamp(0.0, 1.0) * 0.4;
 
+final _technicalPaths = Expando<Path>();
+
+/// A technical stroke (see [kTechnicalTool]): the polyline as stored, at
+/// constant width with sharp corners, filled solid for the fill variant.
+/// [pixel] is one device pixel in page units: zoomed out, wires keep at
+/// least that and outlines twice it, as a PDF viewer keeps hairlines.
+void paintTechnicalStroke(Canvas canvas, StrokeData stroke, {double pixel = 0}) {
+  final pts = stroke.points;
+  if (pts.length < 2) return;
+  final path = _technicalPaths[stroke] ??= () {
+    // Corners only: a thin line through many collinear joints beads on the GPU.
+    final p = Path()..moveTo(pts.first.x, pts.first.y);
+    var last = pts.first;
+    for (var i = 1; i < pts.length; i++) {
+      final cur = pts[i];
+      if (i + 1 < pts.length) {
+        final next = pts[i + 1];
+        final cross = (cur.x - last.x) * (next.y - cur.y) -
+            (cur.y - last.y) * (next.x - cur.x);
+        final dot = (cur.x - last.x) * (next.x - cur.x) +
+            (cur.y - last.y) * (next.y - cur.y);
+        if (cross.abs() < 1e-6 && dot > 0) continue;
+      }
+      p.lineTo(cur.x, cur.y);
+      last = cur;
+    }
+    final gap = Offset(pts.last.x - pts.first.x, pts.last.y - pts.first.y);
+    if (gap.distance < 1e-6) p.close();
+    return p;
+  }();
+  final color = Color(stroke.color).withValues(alpha: stroke.opacity);
+  if (stroke.toolType == kTechnicalFillTool) {
+    canvas.drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill
+          ..isAntiAlias = true);
+  }
+  // Outlines end flat as in TikZ; wires end square so joints show no seam.
+  // Past 60 degrees (zigzag peaks) the miter falls back to a bevel.
+  final body = stroke.toolType == kTechnicalBodyTool;
+  canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(stroke.baseWidth, body ? 2 * pixel : pixel)
+        ..strokeCap = body ? StrokeCap.butt : StrokeCap.square
+        ..strokeJoin = StrokeJoin.miter
+        ..strokeMiterLimit = 2
+        ..isAntiAlias = true);
+}
+
 /// High-performance canvas render engine.
 /// Handles all rendering including zoom/pan transform internally.
 class CanvasRenderEngine extends CustomPainter {
@@ -186,6 +287,9 @@ class CanvasRenderEngine extends CustomPainter {
   /// fit scale). Set at the top of [paint]/[paintPage]; lets the background
   /// pattern painters skip sub-pixel patterns (thumbnail moiré + cost).
   double _bgPatternScale = 1.0;
+
+  /// One device pixel in page units, for the current paint.
+  double _devicePixel = 0;
 
   final PageData pageData;
   final List<StrokePoint>? activeStroke;
@@ -363,6 +467,11 @@ class CanvasRenderEngine extends CustomPainter {
     );
     canvas.scale(zoom * baseScale);
     _bgPatternScale = zoom * baseScale;
+    _devicePixel = 1 /
+        (zoom *
+            baseScale *
+            (ui.PlatformDispatcher.instance.implicitView?.devicePixelRatio ??
+                1));
 
     // Infinite/scratch: fill the WHOLE visible viewport with the paper +
     // texture every frame (uncached, pan-dependent) so there is no page
@@ -1092,6 +1201,7 @@ class CanvasRenderEngine extends CustomPainter {
     canvas.translate(offset.dx, offset.dy);
     canvas.scale(scale);
     _bgPatternScale = scale;
+    _devicePixel = 1 / scale;
 
     // Background
     _paintBackground(canvas, pageData.layers.background);
@@ -1455,7 +1565,9 @@ class CanvasRenderEngine extends CustomPainter {
   /// array instead of a path built point by point.
   void _paintStrokePreview(Canvas canvas, StrokeData stroke) {
     final pts = stroke.points;
-    if (stroke.isHighlighter || pts.length < 2) {
+    if (stroke.isHighlighter ||
+        pts.length < 2 ||
+        isTechnicalTool(stroke.toolType)) {
       _paintStroke(canvas, stroke);
       return;
     }
@@ -1504,6 +1616,11 @@ class CanvasRenderEngine extends CustomPainter {
       // body on the worst-case-light Apple Pencil quick tap.
       final pf = 0.6 + p.pressure * 0.4;
       canvas.drawCircle(Offset(p.x, p.y), (radius * pf).clamp(0.5, 50.0), paint);
+      return;
+    }
+
+    if (isTechnicalTool(stroke.toolType)) {
+      paintTechnicalStroke(canvas, stroke, pixel: _devicePixel);
       return;
     }
 

@@ -3,7 +3,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
+import 'package:abelnotes/features/canvas/data/render_engine.dart' show paintTechnicalStroke;
 import 'package:abelnotes/l10n/app_localizations.dart';
+import 'package:abelnotes/shared/models/ncnote_format.dart' show isTechnicalTool;
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 
 /// Full-featured symbol library side panel.
@@ -86,6 +88,10 @@ class _SymbolLibraryPanelState extends ConsumerState<SymbolLibraryPanel> {
       element.map(unknown: (_) {},
         stroke: (e) {
           if (e.data.points.length < 2) return;
+          if (isTechnicalTool(e.data.toolType)) {
+            paintTechnicalStroke(canvas, e.data, pixel: 1 / (scale * pixelRatio));
+            return;
+          }
           final paint = Paint()
             ..color = Color(e.data.color)
             ..style = PaintingStyle.stroke

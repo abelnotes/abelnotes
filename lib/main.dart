@@ -67,6 +67,13 @@ void main(List<String> args) async {
           .loadString('assets/licenses/onenote_parser_LICENSE.txt');
       yield LicenseEntryWithLineBreaks(const ['onenote_parser'], text);
     });
+    // Attribution for the circuit tidy-up: symbol geometry and detector.
+    LicenseRegistry.addLicense(() async* {
+      yield LicenseEntryWithLineBreaks(const ['CircuiTikZ'],
+          await rootBundle.loadString('assets/licenses/circuitikz_NOTICE.txt'));
+      yield LicenseEntryWithLineBreaks(const ['Circuit detector model'],
+          await rootBundle.loadString('assets/licenses/circuit_detector_NOTICE.txt'));
+    });
     LicenseRegistry.addLicense(() async* {
       final text =
           await rootBundle.loadString('assets/fonts/InstrumentSans-OFL.txt');

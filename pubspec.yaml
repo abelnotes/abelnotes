@@ -73,6 +73,8 @@ dependencies:
   # node (EVIOCGABS ioctl) so pen pressure is correct for ANY tablet
   # without a hardcoded per-device maximum.
   ffi: ^2.1.0
+  circuit_engine:
+    path: packages/circuit_engine
   
   # File picker for images/PDFs
   file_picker: ^8.0.0
@@ -137,6 +139,12 @@ flutter:
     # MPL-2.0 attribution for the onenote_parser crate used by the OneNote
     # import bridge (native/onenote_bridge) — registered in LicenseRegistry.
     - assets/licenses/onenote_parser_LICENSE.txt
+    # GPL-3.0 notice for the CircuiTikZ symbol geometry (circuit tidy-up).
+    - assets/licenses/circuitikz_NOTICE.txt
+    # Circuit symbol detector and its notice, see ml/circuits/MODEL_CARD.md.
+    # Listed by name: anything else in assets/models stays out of the app.
+    - assets/licenses/circuit_detector_NOTICE.txt
+    - assets/models/circuit_detector.ablm
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
     # Apache-2.0 text for the bundled Roboto, registered in LicenseRegistry.

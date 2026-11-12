@@ -3591,4 +3591,68 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get csTapRedone => '已重做';
+
+  @override
+  String get setSectionModules => '模块';
+
+  @override
+  String get setModulesIntro => '可选功能。关闭的功能不占用内存，用过它的页面保持不变。';
+
+  @override
+  String get modStatusReady => '就绪';
+
+  @override
+  String get modStatusLoading => '加载中…';
+
+  @override
+  String get modStatusUnavailable => '未安装模型';
+
+  @override
+  String get modStatusDisabled => '已关闭';
+
+  @override
+  String modMeta(String version, String license) {
+    return '版本 $version · 许可证 $license';
+  }
+
+  @override
+  String modAssetLicense(String license) {
+    return '模型：$license';
+  }
+
+  @override
+  String get modBeta => '测试版';
+
+  @override
+  String get modBetaHint => '测试期间免费';
+
+  @override
+  String get modOnDevice => '小型模型，完全在你的设备上运行，不发送任何数据。';
+
+  @override
+  String get modCircuitsName => '电路识别';
+
+  @override
+  String get modCircuitsDesc => '识别选中的手绘电路，并用规整的符号和导线重绘。请检查结果：部分元件可能有误。';
+
+  @override
+  String get csRecognizeCircuit => '识别电路';
+
+  @override
+  String get csRecognizeCircuitFailed => '未识别到电路';
+
+  @override
+  String get csRecognizeBusy => '正在识别…';
+
+  @override
+  String get csRecognizeModelMissing => '识别模型未加载';
+
+  @override
+  String get csRecognizeNoInk => '所选内容中没有笔迹';
+
+  @override
+  String get csRecognizeError => '识别出错';
+
+  @override
+  String get csRecognizeImageMissing => '图片尚未加载';
 }
