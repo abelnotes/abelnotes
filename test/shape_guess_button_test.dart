@@ -67,4 +67,30 @@ void main() {
     await pumpDock(tester, withOptions: false);
     expect(find.byTooltip('Auto-shape · off'), findsOneWidget);
   });
+
+  testWidgets('fill button toggles fill shapes', (tester) async {
+    final filled = <bool>[];
+    await tester.pumpWidget(MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: const Locale('en'),
+      home: Scaffold(
+        body: Center(
+          child: HwFloatingDock(
+            currentTool: CanvasTool.pen,
+            onToolChanged: (_, __) {},
+            onActiveTap: (_) {},
+            activeInkColor: const Color(0xFF000000),
+            shapeGuess: true,
+            onShapeGuessChanged: (_) {},
+            fillShapes: true,
+            onFillShapesChanged: filled.add,
+            position: DockPosition.bottom,
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.bySemanticsLabel('Fill shapes · on'));
+    expect(filled, [false]);
+  });
 }

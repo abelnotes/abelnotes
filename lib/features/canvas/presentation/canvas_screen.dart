@@ -5488,6 +5488,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     canvasState.toolSettings.copyWith(shapeRecognition: v));
               },
               onShapeGuessSecondary: _showShapeGuessMenu,
+              fillShapes: appSettings.fillRecognizedShapes,
+              onFillShapesChanged: (v) => ref
+                  .read(appSettingsProvider.notifier)
+                  .setFillRecognizedShapes(v),
               onToolChanged: (t, kind) {
                 _noteDockTapDevice(kind);
                 _pickTool(t);

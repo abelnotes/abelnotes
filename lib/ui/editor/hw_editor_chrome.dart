@@ -332,6 +332,9 @@ class HwFloatingDock extends StatelessWidget {
   final ValueChanged<bool> onShapeGuessChanged;
   /// Long press or right click on the auto-shape button: its options menu.
   final void Function(Offset globalPosition)? onShapeGuessSecondary;
+  /// Fill recognized shapes. The button is hidden when the callback is null.
+  final bool fillShapes;
+  final ValueChanged<bool>? onFillShapesChanged;
   /// Last eraser sub-mode the user picked (per-stroke vs per-area). The
   /// dock's eraser button activates THIS instead of always defaulting
   /// to `eraserStroke`, so going pen → eraser → pen → eraser keeps the
@@ -359,6 +362,8 @@ class HwFloatingDock extends StatelessWidget {
     required this.shapeGuess,
     required this.onShapeGuessChanged,
     this.onShapeGuessSecondary,
+    this.fillShapes = false,
+    this.onFillShapesChanged,
     this.lastEraserMode = CanvasTool.eraserStroke,
     this.position = DockPosition.floating,
     this.onDragStart,
@@ -377,7 +382,7 @@ class HwFloatingDock extends StatelessWidget {
   static const double _ruleBase = 20;
   static const double _rulePadBase = 4;
   static const double _borderBase = 1;
-  static const int _btnCount = 8;
+  static const int _btnCount = 9;
   /// Buttons stop shrinking here; narrower than that the bar scrolls.
   static const double _minScale = 0.8;
 
@@ -436,6 +441,17 @@ class HwFloatingDock extends StatelessWidget {
           _toolBtn(context, CanvasTool.pan, 'hand', l10n.chromeToolPan, m),
           _gap(isVert, context, m),
           _shapeGuessBtn(context, m),
+          if (onFillShapesChanged != null)
+            _toggleBtn(
+              context,
+              m,
+              icon: 'shape-fill',
+              on: fillShapes,
+              label: fillShapes
+                  ? l10n.chromeFillShapesOn
+                  : l10n.chromeFillShapesOff,
+              onTap: () => onFillShapesChanged!(!fillShapes),
+            ),
         ],
       );
       // The active-tool pill slides between buttons instead of cutting.
@@ -628,45 +644,73 @@ class HwFloatingDock extends StatelessWidget {
   }
 
   Widget _shapeGuessBtn(BuildContext context, DockMetrics m) {
-    final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
-    final label =
-        shapeGuess ? l10n.chromeShapeGuessOn : l10n.chromeShapeGuessOff;
+    final secondary = onShapeGuessSecondary;
+    return _toggleBtn(
+      context,
+      m,
+      icon: 'shape-guess',
+      on: shapeGuess,
+      label: shapeGuess ? l10n.chromeShapeGuessOn : l10n.chromeShapeGuessOff,
+      hint: secondary == null ? null : l10n.chromeHoldForOptions,
+      onTap: () => onShapeGuessChanged(!shapeGuess),
+      onSecondary: secondary,
+    );
+  }
+
+  /// On/off dock button; [onSecondary] fires on long press or right click.
+  Widget _toggleBtn(
+    BuildContext context,
+    DockMetrics m, {
+    required String icon,
+    required bool on,
+    required String label,
+    String? hint,
+    required VoidCallback onTap,
+    void Function(Offset globalPosition)? onSecondary,
+  }) {
+    final p = HwThemeScope.of(context);
     return Semantics(
       button: true,
       label: label,
       child: Tooltip(
-        message: onShapeGuessSecondary == null
-            ? label
-            : '$label\n${l10n.chromeHoldForOptions}',
+        message: hint == null ? label : '$label\n$hint',
         waitDuration: const Duration(milliseconds: 400),
         // A long press opens the options, so touch never shows the tooltip.
-        triggerMode: onShapeGuessSecondary == null
-            ? null
-            : TooltipTriggerMode.manual,
+        triggerMode: onSecondary == null ? null : TooltipTriggerMode.manual,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => onShapeGuessChanged(!shapeGuess),
-            onSecondaryTapDown: onShapeGuessSecondary == null
+            onTap: onTap,
+            onSecondaryTapDown: onSecondary == null
                 ? null
-                : (d) => onShapeGuessSecondary!(d.globalPosition),
-            onLongPressStart: onShapeGuessSecondary == null
+                : (d) => onSecondary(d.globalPosition),
+            onLongPressStart: onSecondary == null
                 ? null
-                : (d) => onShapeGuessSecondary!(d.globalPosition),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
+                : (d) => onSecondary(d.globalPosition),
+            child: SizedBox(
               width: m.btn,
               height: m.btn,
-              decoration: BoxDecoration(
-                color: shapeGuess ? p.accentSoft : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
               child: Center(
-                child: HwIcon('shape-guess',
-                    size: m.icon,
-                    color: shapeGuess ? p.accentDeep : p.ink1),
+                // A ring, not the filled pill: only the active tool gets
+                // the pill, so a switch that's on never reads as selected.
+                // Inset so two neighbouring rings don't touch.
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  width: m.btn - 4 * m.scale,
+                  height: m.btn - 4 * m.scale,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: on ? p.accent : Colors.transparent,
+                        width: 1.5),
+                  ),
+                  child: Center(
+                    child: HwIcon(icon,
+                        size: m.icon, color: on ? p.accent : p.ink1),
+                  ),
+                ),
               ),
             ),
           ),

@@ -606,6 +606,8 @@
   "chromeDragToMoveBar": "Ziehen, um die Werkzeugleiste zu verschieben",
   "chromeShapeGuessOn": "Auto-Form · an",
   "chromeShapeGuessOff": "Auto-Form · aus",
+  "chromeFillShapesOn": "Formen füllen · an",
+  "chromeFillShapesOff": "Formen füllen · aus",
   "chromeHoldForOptions": "Gedrückt halten oder Rechtsklick für Optionen",
   "chromeLabelPen": "Stift",
   "chromeLabelBallpoint": "Kugelschreiber",

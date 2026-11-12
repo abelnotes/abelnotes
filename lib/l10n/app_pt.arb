@@ -587,6 +587,8 @@
   "chromeDragToMoveBar": "Arraste para mover a barra de ferramentas",
   "chromeShapeGuessOn": "Formas automáticas · ligado",
   "chromeShapeGuessOff": "Formas automáticas · desligado",
+  "chromeFillShapesOn": "Preencher formas · ligado",
+  "chromeFillShapesOff": "Preencher formas · desligado",
   "chromeHoldForOptions": "Toque e segure ou clique com o botão direito para ver as opções",
   "chromeLabelPen": "Caneta",
   "chromeLabelBallpoint": "Esferográfica",
