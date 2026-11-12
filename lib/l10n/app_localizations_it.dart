@@ -3817,4 +3817,40 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Immagine non ancora caricata';
+
+  @override
+  String shareImportTitle(String name) {
+    return 'Importa $name';
+  }
+
+  @override
+  String shareImportTitleMany(int count) {
+    return 'Importa $count file';
+  }
+
+  @override
+  String get shareImportNewNotebookHint =>
+      'Ogni pagina del PDF diventa una pagina';
+
+  @override
+  String get shareImportAddTo => 'Aggiungi a un taccuino';
+
+  @override
+  String get shareImportDefaultTitle => 'Importato';
+
+  @override
+  String shareImportWhere(String notebook) {
+    return 'Dove in «$notebook»?';
+  }
+
+  @override
+  String shareImportEndOf(String chapter) {
+    return 'In fondo a «$chapter»';
+  }
+
+  @override
+  String get shareImportNewChapterHint => 'Dopo l\'ultimo capitolo';
+
+  @override
+  String get shareImportAtEnd => 'In fondo al taccuino';
 }

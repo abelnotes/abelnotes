@@ -3655,4 +3655,39 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => '图片尚未加载';
+
+  @override
+  String shareImportTitle(String name) {
+    return '导入 $name';
+  }
+
+  @override
+  String shareImportTitleMany(int count) {
+    return '导入 $count 个文件';
+  }
+
+  @override
+  String get shareImportNewNotebookHint => 'PDF 的每一页成为一页';
+
+  @override
+  String get shareImportAddTo => '添加到笔记本';
+
+  @override
+  String get shareImportDefaultTitle => '已导入';
+
+  @override
+  String shareImportWhere(String notebook) {
+    return '放在“$notebook”的哪里？';
+  }
+
+  @override
+  String shareImportEndOf(String chapter) {
+    return '“$chapter”末尾';
+  }
+
+  @override
+  String get shareImportNewChapterHint => '在最后一章之后';
+
+  @override
+  String get shareImportAtEnd => '笔记本末尾';
 }

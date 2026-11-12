@@ -34,6 +34,9 @@ import 'package:abelnotes/features/import/presentation/import_messages.dart';
 import 'package:abelnotes/features/import/presentation/import_progress_dialog.dart';
 import 'package:abelnotes/features/import/presentation/import_report_dialog.dart';
 import 'package:abelnotes/features/import/presentation/import_source_sheet.dart';
+import 'package:abelnotes/features/import/presentation/shared_import_sheet.dart';
+import 'package:abelnotes/core/providers/pending_import_provider.dart';
+import 'package:abelnotes/core/services/share_receiver.dart';
 import 'package:abelnotes/features/sync/sync_notices.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/ui/screens/settings_screen.dart';
@@ -80,6 +83,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // fireImmediately: a file that launched the app is already waiting.
+    ref.listenManual<SharedImport?>(shareReceiverProvider, (_, next) {
+      if (next != null && next.files.isNotEmpty) _importSharedFiles(next);
+    }, fireImmediately: true);
     Future.microtask(() async {
       ref.read(notebookListProvider.notifier).loadDeletedElsewhere();
       ref.read(notebookListProvider.notifier).refresh();
@@ -376,9 +383,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
             ),
             if (!wide) _FooterBar(),
           ]);
-          if (!wide) return main;
+          // One tree at every width: moving `main` in and out of the row
+          // rebuilt the list, which lost its scroll and briefly shared it.
           return Row(children: [
-            RepaintBoundary(child: _Sidebar(
+            if (wide) RepaintBoundary(child: _Sidebar(
               folders: settings.folders,
               entries: entries,
               folderOf: settings.notebookFolderId,
@@ -513,6 +521,81 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => const SettingsScreenV2(),
     ));
+  }
+
+  /// The library list, waiting for it on a cold start.
+  Future<List<NotebookEntry>> _notebooksWhenLoaded() async {
+    final now = ref.read(notebookListProvider).valueOrNull;
+    if (now != null) return now;
+    final done = Completer<List<NotebookEntry>>();
+    final sub = ref.listenManual(notebookListProvider, (_, next) {
+      if (done.isCompleted) return;
+      if (next.hasValue) done.complete(next.value!);
+      if (next.hasError) done.complete(const []);
+    });
+    try {
+      return await done.future
+          .timeout(const Duration(seconds: 10), onTimeout: () => const []);
+    } finally {
+      sub.close();
+    }
+  }
+
+  /// A PDF or image opened with / shared to the app: ask where it goes,
+  /// then open that notebook; the canvas inserts the files once loaded.
+  Future<void> _importSharedFiles(SharedImport shared) async {
+    ref.read(shareReceiverProvider.notifier).consume();
+    final paths = shared.files.map((f) => f.path).toList();
+    final all = await _notebooksWhenLoaded();
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context);
+    final firstName = paths.first.split(RegExp(r'[\\/]+')).last;
+    final target = await showSharedImportSheet(
+      context,
+      title: paths.length == 1
+          ? l10n.shareImportTitle(firstName)
+          : l10n.shareImportTitleMany(paths.length),
+      // Pages cannot go into an infinite sketch.
+      notebooks: all
+          .where((n) => n.metadata.paperType != AppConfig.infinitePaperType)
+          .toList(),
+    );
+    if (target == null || !mounted) return;
+    final base = firstName.replaceAll(RegExp(r'\.[^.]+$'), '');
+    var entry = target.notebook;
+    if (entry == null) {
+      try {
+        entry = await ref.read(notebookListProvider.notifier).createNotebook(
+              title: base.isEmpty ? l10n.shareImportDefaultTitle : base,
+              paperType: 'blank',
+              coverColor: HwTheme.cover1.toARGB32(),
+              chapterTitle: l10n.quDefaultChapter,
+            );
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(l10n.libErrorCreate(syncErrorText(l10n, e)))));
+        return;
+      }
+      if (!mounted) return;
+    }
+    final id = entry.metadata.id;
+    var pending = PendingImport(filePaths: paths, notebookId: id);
+    if (target.notebook != null) {
+      final place = await showSharedImportPlaceSheet(context, notebook: entry);
+      if (place == null || !mounted) return;
+      pending = PendingImport(
+        filePaths: paths,
+        notebookId: id,
+        atEnd: true,
+        targetChapterId: place.chapterId,
+        newChapterTitle: place.newChapter
+            ? (base.isEmpty ? l10n.shareImportDefaultTitle : base)
+            : null,
+      );
+    }
+    ref.read(pendingImportProvider.notifier).state = pending;
+    _openNotebook(entry);
   }
 
   /// Entry point of the import flow: source chooser first, then the
@@ -789,6 +872,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         NotebookPreview(fileName: name, libraryCopyId: mine?.metadata.id);
     final choice = await Navigator.of(context).push<Object?>(
         MaterialPageRoute(builder: (_) => const CanvasScreen()));
+    if (choice is EditorExit) await choice.save;
     if (!mounted) return;
     ref.read(notebookPreviewProvider.notifier).state = null;
     if (choice == PreviewChoice.addToLibrary) {
@@ -2062,6 +2146,11 @@ class _SideItemState extends State<_SideItem> {
   }
 }
 
+// Not `offset`: crossing the sidebar width (rotating an iPad) rebuilds the
+// list, and for one frame two scroll views share the controller.
+double _scrollY(ScrollController c) =>
+    c.hasClients ? c.positions.last.pixels : 0.0;
+
 /// Folder name + count; fades as it scrolls under the bar, where the
 /// inline title takes over.
 class _LargeTitle extends StatelessWidget {
@@ -2083,7 +2172,7 @@ class _LargeTitle extends StatelessWidget {
     return AnimatedBuilder(
       animation: scroll,
       builder: (context, child) {
-        final y = scroll.hasClients ? scroll.offset : 0.0;
+        final y = _scrollY(scroll);
         return Opacity(
             opacity: (1 - (y - 4) / 28).clamp(0.0, 1.0), child: child);
       },
@@ -2171,7 +2260,7 @@ class _TopBar extends StatelessWidget {
               child: AnimatedBuilder(
                 animation: scroll,
                 builder: (_, child) {
-                  final y = scroll.hasClients ? scroll.offset : 0.0;
+                  final y = _scrollY(scroll);
                   return Opacity(
                       opacity: ((y - 28) / 18).clamp(0.0, 1.0), child: child);
                 },
@@ -2236,7 +2325,7 @@ class _TopBar extends StatelessWidget {
       return AnimatedBuilder(
         animation: scroll,
         builder: (_, child) {
-          final y = scroll.hasClients ? scroll.offset : 0.0;
+          final y = _scrollY(scroll);
           final edge = (y / 20).clamp(0.0, 1.0);
           if (edge == 0) return child!;
           // Web: fill only, no blur (see HwGlass).

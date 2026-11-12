@@ -1031,5 +1031,14 @@
   "csRecognizeModelMissing": "Recognition model not loaded",
   "csRecognizeNoInk": "No ink in the selection",
   "csRecognizeError": "Recognition failed",
-  "csRecognizeImageMissing": "Image not loaded yet"
+  "csRecognizeImageMissing": "Image not loaded yet",
+  "shareImportTitle": "Import {name}",
+  "shareImportTitleMany": "Import {count} files",
+  "shareImportNewNotebookHint": "Each PDF page becomes a page",
+  "shareImportAddTo": "Add to a notebook",
+  "shareImportDefaultTitle": "Imported",
+  "shareImportWhere": "Where in “{notebook}”?",
+  "shareImportEndOf": "At the end of “{chapter}”",
+  "shareImportNewChapterHint": "After the last chapter",
+  "shareImportAtEnd": "At the end of the notebook"
 }

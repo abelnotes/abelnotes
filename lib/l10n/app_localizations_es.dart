@@ -3812,4 +3812,40 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Imagen aún no cargada';
+
+  @override
+  String shareImportTitle(String name) {
+    return 'Importar $name';
+  }
+
+  @override
+  String shareImportTitleMany(int count) {
+    return 'Importar $count archivos';
+  }
+
+  @override
+  String get shareImportNewNotebookHint =>
+      'Cada página del PDF se convierte en una página';
+
+  @override
+  String get shareImportAddTo => 'Añadir a un cuaderno';
+
+  @override
+  String get shareImportDefaultTitle => 'Importado';
+
+  @override
+  String shareImportWhere(String notebook) {
+    return '¿Dónde en «$notebook»?';
+  }
+
+  @override
+  String shareImportEndOf(String chapter) {
+    return 'Al final de «$chapter»';
+  }
+
+  @override
+  String get shareImportNewChapterHint => 'Después del último capítulo';
+
+  @override
+  String get shareImportAtEnd => 'Al final del cuaderno';
 }

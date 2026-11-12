@@ -996,5 +996,14 @@
   "csRecognizeModelMissing": "识别模型未加载",
   "csRecognizeNoInk": "所选内容中没有笔迹",
   "csRecognizeError": "识别出错",
-  "csRecognizeImageMissing": "图片尚未加载"
+  "csRecognizeImageMissing": "图片尚未加载",
+  "shareImportTitle": "导入 {name}",
+  "shareImportTitleMany": "导入 {count} 个文件",
+  "shareImportNewNotebookHint": "PDF 的每一页成为一页",
+  "shareImportAddTo": "添加到笔记本",
+  "shareImportDefaultTitle": "已导入",
+  "shareImportWhere": "放在“{notebook}”的哪里？",
+  "shareImportEndOf": "“{chapter}”末尾",
+  "shareImportNewChapterHint": "在最后一章之后",
+  "shareImportAtEnd": "笔记本末尾"
 }

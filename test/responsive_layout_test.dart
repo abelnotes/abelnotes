@@ -348,6 +348,42 @@ void main() {
     }
   });
 
+  testWidgets('the library survives the window crossing the sidebar width',
+      (tester) async {
+    addTearDown(tester.view.reset);
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 500);
+    await tester.pumpWidget(_app(
+      1.0,
+      const LibraryScreenV2(),
+      overrides: [
+        notebookListProvider.overrideWith((ref) => _FakeLibrary(ref)),
+      ],
+    ));
+    await tester.pump(const Duration(milliseconds: 300));
+    // The notebook list, not the sidebar's.
+    final list = find.descendant(
+        of: find.byType(CustomScrollView), matching: find.byType(Scrollable)).first;
+    await tester.drag(list, const Offset(0, -120));
+    await tester.pump(const Duration(seconds: 1));
+    double scrolled() => tester.state<ScrollableState>(list).position.pixels;
+    final y = scrolled();
+    expect(y, greaterThan(0));
+    // Back and forth over the 900 px sidebar breakpoint, as when a window
+    // is resized or a tablet turned.
+    for (final w in [850.0, 1280.0, 400.0, 1280.0]) {
+      tester.view.physicalSize = Size(w, 500);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.takeException(), isNull, reason: 'width $w');
+      expect(find.byType(ErrorWidget), findsNothing, reason: 'width $w');
+      // The list stays where it was rather than jumping back to the top.
+      expect(scrolled(), y, reason: 'width $w');
+    }
+    // Lets the fling and scrollbar timers from the drag run out.
+    await tester.pump(const Duration(seconds: 3));
+  });
+
   testWidgets('the library names what is still to upload, new apart from edits',
       (tester) async {
     // The per-row cloud badge only answers the question if you know to hover

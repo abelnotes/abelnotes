@@ -100,6 +100,13 @@ class _ExportSelection {
   });
 }
 
+/// What the editor's route completes with when the user leaves: the save
+/// still running. Wrapped so the route completes at the pop, not after it.
+class EditorExit {
+  const EditorExit(this.save);
+  final Future<void> save;
+}
+
 class CanvasScreen extends ConsumerStatefulWidget {
   const CanvasScreen({super.key});
 
@@ -1664,32 +1671,34 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// Waits for the notebook to finish loading, then runs any pending share
   /// import (files dropped in via the Android/iOS share sheet). Fires once.
   ///
-  /// Listens to a narrow select (`s != null`) instead of the full state so
-  /// the callback doesn't run 60×/s during pan/zoom.
+  /// Listens to a narrow select instead of the full state so the callback
+  /// doesn't run 60×/s during pan/zoom.
   void _watchForPendingImport() {
     bool handled = false;
-    _pendingImportSub = ref.listenManual<bool>(
-      canvasProvider.select((s) => s != null),
-      (_, hasState) {
-        if (handled) return;
-        if (!hasState) return;
+    // The id of the loaded notebook, null until its current page is there:
+    // canvasProvider is global and may still hold the previous notebook.
+    _pendingImportSub = ref.listenManual<String?>(
+      canvasProvider
+          .select((s) => s?.currentPage == null ? null : s!.metadata.id),
+      (_, loadedId) {
+        if (handled || loadedId == null) return;
         final pending = ref.read(pendingImportProvider);
         if (pending == null) return;
+        if (pending.notebookId != null && pending.notebookId != loadedId) {
+          return;
+        }
         handled = true;
-        ref.read(pendingImportProvider.notifier).state = null;
-        // Pin the notebook that satisfied the select: canvasProvider is a
-        // single GLOBAL provider, so if the user navigates to a different
-        // notebook before the post-frame callback runs, the import would
-        // silently land in the wrong notebook.
-        final targetNotebookId = ref.read(canvasProvider)?.metadata.id;
+        // After the frame: this can fire from initState, where a provider
+        // must not be written.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          if (ref.read(canvasProvider)?.metadata.id != targetNotebookId) {
-            return;
-          }
+          ref.read(pendingImportProvider.notifier).state = null;
+          if (ref.read(canvasProvider)?.metadata.id != loadedId) return;
           _runPendingImport(pending);
         });
       },
+      // The notebook is often loaded before this screen is pushed.
+      fireImmediately: true,
     );
   }
 
@@ -1698,14 +1707,29 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final notifier = ref.read(canvasProvider.notifier);
     if (pending.newChapterTitle != null && pending.newChapterTitle!.isNotEmpty) {
       notifier.addChapter(pending.newChapterTitle!);
+      // The chapter switch rebuilds the page view; let it settle before the
+      // import opens its dialog.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
     } else if (pending.targetChapterId != null) {
       notifier.setActiveChapter(pending.targetChapterId);
+      // Imported pages follow the chapter's last page.
+      final last = ref.read(canvasProvider)?.document.pages.lastIndexWhere(
+              (p) => p.chapterId == pending.targetChapterId) ??
+          -1;
+      if (pending.atEnd && last >= 0) notifier.goToPage(last);
+    } else if (pending.atEnd) {
+      final count = ref.read(canvasProvider)?.pageCount ?? 0;
+      if (count > 0) notifier.goToPage(count - 1);
     }
     for (final path in pending.filePaths) {
       if (!mounted) break;
       try {
         final file = io.File(path);
-        if (!await file.exists()) continue;
+        if (!await file.exists()) {
+          debugPrint('[Canvas] Pending import: no file at $path');
+          continue;
+        }
         final bytes = await file.readAsBytes();
         final name = path.split(io.Platform.pathSeparator).last;
         final state = ref.read(canvasProvider);
@@ -2471,24 +2495,15 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       }
       if (!mounted) return false;
     }
-    // Fast-close flow:
-    //
-    //  1) Kick off flushPendingWork() in the background — it drains
-    //     pending pulls + pulled-saves + remote-syncs so the SQLite row
-    //     reflects the final state.  We do NOT await it before popping
-    //     because on a slow network the flush can take seconds and the
-    //     user should not be held hostage to a spinner when pressing
-    //     back.
-    //  2) Hand the flush Future to the route as the pop result.  The
-    //     library's `.then()` callback awaits it before refreshing so
-    //     the library card still shows the up-to-date pageCount the
-    //     moment the flush lands (no stale "1 pagina" card).
-    //  3) Fire closeNotebook() unawaited — it internally awaits
-    //     flushPendingWork (idempotent) and then tears down state.
+    // Fast-close flow: closeNotebook() drains pending pulls, pulled saves
+    // and uploads, then tears the canvas down. It is NOT awaited before
+    // popping: on a slow network that takes seconds or more, and back must
+    // not wait on a spinner. Its future goes to the route, wrapped in
+    // [EditorExit]: the opener awaits it before the library refreshes (no
+    // stale "1 pagina" card), and the next notebook opens after it.
     final notifier = ref.read(canvasProvider.notifier);
-    final flushFuture = notifier.flushPendingWork();
-    if (mounted) Navigator.of(context).pop<Future<void>>(flushFuture);
-    unawaited(notifier.closeNotebook());
+    final closing = notifier.closeNotebook();
+    if (mounted) Navigator.of(context).pop(EditorExit(closing));
     return false; // already popped above — don't pop again
   }
 

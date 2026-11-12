@@ -1031,5 +1031,14 @@
   "csRecognizeModelMissing": "Modelo de reconocimiento no cargado",
   "csRecognizeNoInk": "No hay trazos en la selección",
   "csRecognizeError": "Error de reconocimiento",
-  "csRecognizeImageMissing": "Imagen aún no cargada"
+  "csRecognizeImageMissing": "Imagen aún no cargada",
+  "shareImportTitle": "Importar {name}",
+  "shareImportTitleMany": "Importar {count} archivos",
+  "shareImportNewNotebookHint": "Cada página del PDF se convierte en una página",
+  "shareImportAddTo": "Añadir a un cuaderno",
+  "shareImportDefaultTitle": "Importado",
+  "shareImportWhere": "¿Dónde en «{notebook}»?",
+  "shareImportEndOf": "Al final de «{chapter}»",
+  "shareImportNewChapterHint": "Después del último capítulo",
+  "shareImportAtEnd": "Al final del cuaderno"
 }

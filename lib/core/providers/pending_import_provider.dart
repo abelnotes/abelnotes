@@ -17,8 +17,17 @@ class PendingImport {
   /// importing the pages. Ignored if [targetChapterId] is set.
   final String? newChapterTitle;
 
+  /// The notebook the files are for; the canvas ignores any other.
+  final String? notebookId;
+
+  /// Start after the last page of the chapter (or of the notebook)
+  /// instead of at the page the notebook was left on.
+  final bool atEnd;
+
   const PendingImport({
     required this.filePaths,
+    this.notebookId,
+    this.atEnd = false,
     this.targetChapterId,
     this.newChapterTitle,
   });

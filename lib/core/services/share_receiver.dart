@@ -33,9 +33,9 @@ class SharedImport {
 /// there.
 final shareReceiverProvider =
     StateNotifierProvider<ShareReceiver, SharedImport?>((ref) {
+  // The provider disposes the notifier itself; disposing it here too threw.
   final notifier = ShareReceiver();
   notifier._start();
-  ref.onDispose(notifier.dispose);
   return notifier;
 });
 

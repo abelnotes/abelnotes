@@ -36,16 +36,37 @@ class NoLocalCopyOfflineException implements Exception {
 /// Cancel releases it at once (the stale call may sit minutes in a download),
 /// and a generation token keeps that stale call from touching the canvas or
 /// navigator when it finally resumes.
+///
+/// An editor the user left keeps the canvas until its save lands, which can
+/// take minutes on a slow server. A tap meanwhile is not dropped: the new
+/// open takes over the guard and waits for [pendingLeave] first.
 @visibleForTesting
 class OpenGate {
   int _gen = 0;
   bool _busy = false;
+  int? _leftToken;
+  Future<void>? _leftSave;
 
   /// A token for the new open, or null when one is already in flight.
   int? begin() {
-    if (_busy) return null;
+    if (_busy && _leftToken != _gen) return null;
     _busy = true;
     return ++_gen;
+  }
+
+  /// The save of the editor last left, while it runs.
+  Future<void>? get pendingLeave => _leftSave;
+
+  /// The editor of [token] was left; [save] is its save, still running.
+  void left(int token, Future<void> save) {
+    if (token != _gen) return;
+    _leftToken = token;
+    final f = _leftSave = save.catchError((Object _) {});
+    f.whenComplete(() {
+      if (!identical(_leftSave, f)) return;
+      _leftSave = null;
+      _leftToken = null;
+    });
   }
 
   /// True while [token] is the open the user is still waiting for.
@@ -88,7 +109,7 @@ Future<void> openNotebookAndNavigate(
   }
 }
 
-Route<void> _editorRoute(Rect? origin, NotebookEntry entry) => origin == null
+Route<Object?> _editorRoute(Rect? origin, NotebookEntry entry) => origin == null
     ? MaterialPageRoute(builder: (_) => const CanvasScreen())
     : HwOpenRoute(
         builder: (_) => const CanvasScreen(),
@@ -159,7 +180,25 @@ Future<void> _openNotebookAndNavigate(
     return true;
   }
 
+  /// Shows the editor, until it is closed and its save has landed. Leaving
+  /// it lets the next open start at once, queued behind that save.
+  var left = false;
+  Future<void> untilClosed(Route<Object?> editor) async {
+    final result = await Navigator.of(context).push(editor);
+    left = true;
+    if (result is EditorExit) {
+      _openGate.left(token, result.save);
+      await result.save;
+    }
+  }
+
   try {
+    // The notebook left just before still owns the canvas until it saved.
+    final previous = _openGate.pendingLeave;
+    if (previous != null) {
+      await previous;
+      if (!_openGate.isCurrent(token) || !context.mounted) return;
+    }
     final syncService = ref.read(syncServiceProvider);
     final fileService = ref.read(fileServiceProvider);
 
@@ -200,10 +239,10 @@ Future<void> _openNotebookAndNavigate(
         );
         if (await abandoned() || !context.mounted) return;
         dismissLoader();
-        final editor = Navigator.of(context).push(_editorRoute(origin, entry));
+        final editor = untilClosed(_editorRoute(origin, entry));
         final data = await full;
         // The user may have left the editor meanwhile.
-        if (!notifier.isLoadingSnapshotOf(id)) {
+        if (left || !notifier.isLoadingSnapshotOf(id)) {
           await editor;
           return;
         }
@@ -227,7 +266,7 @@ Future<void> _openNotebookAndNavigate(
         // A page did not parse: leave the opening page and recover below,
         // as an open without it would.
         await notifier.closeNotebook();
-        if (context.mounted) Navigator.of(context).pop();
+        if (!left && context.mounted) Navigator.of(context).pop();
         await editor;
         if (!context.mounted) return;
       }
@@ -252,7 +291,7 @@ Future<void> _openNotebookAndNavigate(
 
           if (await abandoned() || !context.mounted) return;
           dismissLoader();
-          await Navigator.of(context).push(_editorRoute(origin, entry));
+          await untilClosed(_editorRoute(origin, entry));
           return;
         }
         // Corrupted loose store (no pages but document expects them) — fall
@@ -295,7 +334,7 @@ Future<void> _openNotebookAndNavigate(
 
         if (await abandoned() || !context.mounted) return;
         dismissLoader();
-        await Navigator.of(context).push(_editorRoute(origin, entry));
+        await untilClosed(_editorRoute(origin, entry));
         return;
       }
     }
@@ -353,7 +392,7 @@ Future<void> _openNotebookAndNavigate(
 
     if (await abandoned() || !context.mounted) return;
     dismissLoader();
-    await Navigator.of(context).push(_editorRoute(origin, entry));
+    await untilClosed(_editorRoute(origin, entry));
   } catch (e) {
     if (!context.mounted || !_openGate.isCurrent(token)) return;
     dismissLoader();
