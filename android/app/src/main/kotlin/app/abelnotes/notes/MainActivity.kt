@@ -8,8 +8,19 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var pencilBridge: OplusPencilBridge? = null
+
+    override fun onResume() { super.onResume(); pencilBridge?.onResume() }
+    override fun onPause() { pencilBridge?.onPause(); super.onPause() }
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        pencilBridge?.dispose()
+        pencilBridge = null
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        pencilBridge = OplusPencilBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         // Lets the canvas slow its idle polling on metered data or battery saver.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "abelnotes/sync_thrift")
             .setMethodCallHandler { call, result ->
