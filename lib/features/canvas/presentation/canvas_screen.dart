@@ -7177,13 +7177,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       top: top,
       child: Center(
         child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8),
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: p.paper0,
             borderRadius: BorderRadius.circular(22),
             boxShadow: hwShadow2(p.brightness),
           ),
-          child: Row(
+          // Module actions can outgrow a phone's width: scroll, don't overflow.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _FloatingActionBtn(Icons.copy_rounded, AppLocalizations.of(context).csCopy, () {
@@ -7249,6 +7253,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 ref.read(canvasProvider.notifier).clearSelection();
               }),
             ],
+          ),
           ),
         ),
       ),

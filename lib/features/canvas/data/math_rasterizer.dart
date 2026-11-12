@@ -113,12 +113,25 @@ class MathRasterizer {
         child: content,
       ).attachToRenderTree(buildOwner);
 
-      buildOwner.buildScope(rootElement);
-      buildOwner.finalizeTree();
+      void frame() {
+        buildOwner.buildScope(rootElement!);
+        buildOwner.finalizeTree();
+        pipelineOwner.flushLayout();
+        pipelineOwner.flushCompositingBits();
+        pipelineOwner.flushPaint();
+      }
 
-      pipelineOwner.flushLayout();
-      pipelineOwner.flushCompositingBits();
-      pipelineOwner.flushPaint();
+      frame();
+      // Radicals, big delimiters and accents are SvgPictures that decode on
+      // a background isolate; capturing before they land drops them. Pump
+      // every tick: under a LayoutBuilder their setState only marks layout,
+      // so BuildOwner.onBuildScheduled never fires.
+      final deadline = DateTime.now().add(const Duration(seconds: 3));
+      while (_hasPendingVectorGraphic(rootElement) &&
+          DateTime.now().isBefore(deadline)) {
+        await Future<void>.delayed(const Duration(milliseconds: 16));
+        frame();
+      }
 
       final Size logicalSize = boundary.size;
       if (logicalSize.isEmpty) return null;
@@ -140,6 +153,36 @@ class MathRasterizer {
       renderView.dispose();
     }
   }
+}
+
+/// True while some VectorGraphic under [root] still shows its placeholder.
+///
+/// Matched by type name: vector_graphics is only a transitive dependency and
+/// its loaded render objects are not exported.
+bool _hasPendingVectorGraphic(Element root) {
+  var pending = false;
+  void hasLoaded(Element e, void Function() found) {
+    final name = e.renderObject?.runtimeType.toString() ?? '';
+    if (e is RenderObjectElement && name.contains('VectorGraphic')) {
+      found();
+      return;
+    }
+    e.visitChildren((c) => hasLoaded(c, found));
+  }
+
+  void visit(Element e) {
+    if (pending) return;
+    if (e.widget.runtimeType.toString() == 'VectorGraphic') {
+      var loaded = false;
+      e.visitChildren((c) => hasLoaded(c, () => loaded = true));
+      if (!loaded) pending = true;
+      return;
+    }
+    e.visitChildren(visit);
+  }
+
+  visit(root);
+  return pending;
 }
 
 /// Cache key for a rasterized equation: latex | colorARGB | fontSize-bucket
