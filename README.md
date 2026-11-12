@@ -51,6 +51,7 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 - **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
 - **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
 - **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and pick Convert to LaTeX in its ⋯ menu. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
+- Both recognisers are part of the open-source code (AGPL-3.0): building from source, and the Flatpak, AUR and GitHub builds, always include every feature
 - **PDF import** with rasterized pages *and* selectable embedded text; annotate on top with the normal drawing tools
 - **8 paper types**, including Cornell, isometric and music staff, switchable after you've started writing
 - Symbol library: save anything you drew as a reusable symbol
