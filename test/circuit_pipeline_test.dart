@@ -49,6 +49,25 @@ void main() {
     });
   }
 
+  // Finger-drawn on a phone's sketch sheet (6000 units wide): 32 px across at
+  // the page's own scale, where the detector sees nothing.
+  test('a drawing far too small for its page is still tidied', () {
+    final f = _fixture('sketch_rc');
+    expect(f.pageWidth, 6000);
+    expect(CircuitRecognizer.retryPageWidth(f.strokes, f.pageWidth), isNotNull);
+    final r = CircuitRecognizer.run(det, f.strokes, f.pageWidth);
+    expect(r.ok, isTrue);
+    expect(r.components, 1);
+    expect(r.removed, isNotEmpty);
+  });
+
+  test('a drawing at a readable size is run once, at its page scale', () {
+    for (final name in parts.keys) {
+      final f = _fixture(name);
+      expect(CircuitRecognizer.retryPageWidth(f.strokes, f.pageWidth), isNull, reason: name);
+    }
+  });
+
   test('the same input gives the same output', () {
     final f = _fixture('mouse_rc');
     final a = CircuitRecognizer.run(det, f.strokes, f.pageWidth);

@@ -7561,7 +7561,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     SelectionOutcome outcome;
     try {
       outcome = await action.run(SelectionRequest(
-          ink: notifier.selectedInk, mathInk: notifier.selectedMathInk, pageWidth: page.width));
+          ink: notifier.selectedInk,
+          mathInk: notifier.selectedMathInk,
+          // A sketch sheet is far wider than anything drawn on it: its ink is
+          // sized like a regular page's.
+          pageWidth: s.isScratch ? AppConfig.defaultPageWidth : page.width));
     } catch (e, st) {
       outcome = ActionFailed('$e\n$st', reason: ActionFailReason.error);
     }

@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:abelnotes/core/platform/io.dart';
 import 'package:flutter/foundation.dart';
@@ -26,6 +27,12 @@ const String kBundledCircuitModelAsset = 'assets/models/$kCircuitModelFileName';
 /// sha256 of the bundled model; test/circuit_model_asset_test.dart pins it.
 const String kBundledCircuitModelSha256 =
     'c8b7b40843559e48c8875d30a9094d3ab03348f27048cfa840c436430c2ea4f4';
+
+/// The longer side of a drawing, in model pixels, the detector reads: outside
+/// [kMinSidePx]..[kMaxSidePx] a miss is retried at [kRetrySidePx].
+const double kMinSidePx = 160;
+const double kMaxSidePx = 800;
+const double kRetrySidePx = 320;
 
 /// Auto-disposed: a module switched off in Settings frees its isolate.
 final circuitRecognizerProvider = FutureProvider.autoDispose<CircuitRecognizer?>((ref) async {
@@ -67,6 +74,9 @@ class CircuitResult {
   final String? error;
 
   bool get ok => error == null && components > 0;
+
+  /// Parts were found and some ink gives way to them.
+  bool get replaced => ok && removed.isNotEmpty;
 }
 
 class CircuitRecognizer {
@@ -146,7 +156,42 @@ class CircuitRecognizer {
   }
 
   /// The whole pipeline, synchronous; public for tests.
+  ///
+  /// Page width sets the scale only as far as people draw at one size on a
+  /// page. Ink drawn zoomed far in or out comes out too small or too large for
+  /// the detector, so a miss there is retried with the drawing at a size it
+  /// reads well.
   static CircuitResult run(CircuitDetector det, List<Float64List> strokes, double pageWidth,
+      [Stopwatch? watch, InkMask? ink]) {
+    final first = _runAt(det, strokes, pageWidth, watch, ink);
+    if (ink != null || first.replaced) return first;
+    final retry = retryPageWidth(strokes, pageWidth);
+    if (retry == null) return first;
+    final second = _runAt(det, strokes, retry, watch, null);
+    return second.replaced ? second : first;
+  }
+
+  /// The page width at which [strokes]' longer side takes [kRetrySidePx]
+  /// model pixels, or null when it is already at a size the detector reads.
+  static double? retryPageWidth(List<Float64List> strokes, double pageWidth) {
+    var minX = double.infinity, minY = double.infinity;
+    var maxX = double.negativeInfinity, maxY = double.negativeInfinity;
+    for (final s in strokes) {
+      for (var i = 0; i + 1 < s.length; i += 2) {
+        minX = math.min(minX, s[i]);
+        maxX = math.max(maxX, s[i]);
+        minY = math.min(minY, s[i + 1]);
+        maxY = math.max(maxY, s[i + 1]);
+      }
+    }
+    final side = math.max(maxX - minX, maxY - minY);
+    if (!side.isFinite || side <= 0 || pageWidth <= 0) return null;
+    final px = side * kModelPageWidthPx / pageWidth;
+    if (px >= kMinSidePx && px <= kMaxSidePx) return null;
+    return side * kModelPageWidthPx / kRetrySidePx;
+  }
+
+  static CircuitResult _runAt(CircuitDetector det, List<Float64List> strokes, double pageWidth,
       [Stopwatch? watch, InkMask? ink]) {
     final r = ink == null ? rasterize(strokes, pageWidth) : rasterizeInk(ink, strokes, pageWidth);
     final dets = det.detect(r.data, r.height, r.width);
