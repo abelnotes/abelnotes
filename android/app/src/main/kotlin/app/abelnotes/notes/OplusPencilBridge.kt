@@ -20,13 +20,11 @@ internal class OplusPencilBridge(private val activity: Activity, messenger: Bina
     private var interested = false
     private var resumed = false
     private var registered = false
-    private var lastError: String? = null
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action != ACTION || !interested || !resumed || !activity.hasWindowFocus()) return
             val mode = readMode()
             if (mode == 0) return
-            Log.i(TAG, "double-tap received; mode=$mode")
             channel.invokeMethod("doubleTap", mapOf("mode" to mode))
         }
     }
@@ -34,7 +32,7 @@ internal class OplusPencilBridge(private val activity: Activity, messenger: Bina
     init {
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
-                "attach" -> { interested = true; updateRegistration(); result.success(status()) }
+                "attach" -> { interested = true; updateRegistration(); result.success(null) }
                 "detach" -> { interested = false; updateRegistration(); result.success(null) }
                 else -> result.notImplemented()
             }
@@ -49,12 +47,6 @@ internal class OplusPencilBridge(private val activity: Activity, messenger: Bina
         Settings.Global.getInt(activity.contentResolver, "ipe_pencil_double_click", -1)
     } catch (_: SecurityException) { -1 }
 
-    private fun status(): Map<String, Any?> = mapOf(
-        "registered" to registered, "systemMode" to readMode(),
-        "model" to Build.MODEL, "androidSdk" to Build.VERSION.SDK_INT,
-        "error" to lastError,
-    )
-
     private fun updateRegistration() {
         if (interested && resumed && !registered) {
             try {
@@ -68,12 +60,9 @@ internal class OplusPencilBridge(private val activity: Activity, messenger: Bina
                     activity.registerReceiver(receiver, filter, PERMISSION, null)
                 }
                 registered = true
-                lastError = null
             } catch (e: SecurityException) {
-                lastError = "permission-denied"
                 Log.w(TAG, "pen receiver permission denied", e)
             } catch (e: IllegalArgumentException) {
-                lastError = "receiver-unavailable"
                 Log.w(TAG, "pen receiver unavailable", e)
             }
         } else if ((!interested || !resumed) && registered) {

@@ -1,4 +1,3 @@
-import 'package:abelnotes/core/services/oplus_pencil_channel.dart';
 import 'dart:async';
 import 'package:uuid/uuid.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
@@ -58,6 +57,7 @@ import 'package:abelnotes/shared/utils/html_text.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/apple_pencil_channel.dart';
+import 'package:abelnotes/core/services/oplus_pencil_channel.dart';
 import 'package:abelnotes/core/services/pen_input_channel.dart'
     if (dart.library.js_interop) 'package:abelnotes/core/services/pen_input_channel_web.dart';
 import 'package:abelnotes/core/services/pen_monitor_service.dart';
@@ -1475,14 +1475,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   /// OPPO / OnePlus pen gesture, following the system's selected action.
   void _onOplusDoubleTap(int mode) {
-    if (!mounted ||
-        ModalRoute.of(context)?.isCurrent != true ||
-        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed ||
-        _stylusDown ||
-        _activeStrokeNotifier.isActive ||
-        _presentationMode) {
-      return;
-    }
+    // Never mid-stroke; the rest is checked by [_runPencilAction].
+    if (_stylusDown || _activeStrokeNotifier.isActive) return;
     final action = oplusPencilActionForMode(mode);
     if (action != null) _runPencilAction(action, null);
   }

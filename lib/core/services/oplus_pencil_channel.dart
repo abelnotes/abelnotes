@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
@@ -27,22 +26,17 @@ class OplusPencilChannel {
       final args = call.arguments;
       final mode = args is Map ? args['mode'] : null;
       if (mode is! int) return;
-      unawaited(CrashLogger.append(
-          '[OplusPencil] double-tap received; systemMode=$mode'));
       _owner?.call(mode);
     });
-    _attach(callback);
+    _attach();
   }
 
-  static Future<void> _attach(void Function(int) callback) async {
+  // Only failures are logged: nothing about the device on a normal open.
+  static Future<void> _attach() async {
     try {
-      final status = await _channel.invokeMethod<Object?>('attach');
-      if (_owner == callback) {
-        await CrashLogger.append('[OplusPencil] bridge status: $status');
-      }
+      await _channel.invokeMethod<void>('attach');
     } on MissingPluginException {
-      await CrashLogger.append(
-          '[OplusPencil] native bridge unavailable in this build');
+      // Older runners / tests have no bridge.
     } on PlatformException catch (e) {
       await CrashLogger.append('[OplusPencil] attach failed: ${e.code}');
     }
