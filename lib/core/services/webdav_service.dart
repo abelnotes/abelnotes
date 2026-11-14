@@ -919,7 +919,7 @@ class WebDavService implements RemoteStore {
     final tmp = '$remotePath$atomicUploadMarker'
         '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
     try {
-      await _put(tmp, data, timeoutSeconds: timeoutSeconds);
+      final putEtag = await _put(tmp, data, timeoutSeconds: timeoutSeconds);
       if (ifMatchVersion != null && !_preconditionHeader) {
         String? now;
         try {
@@ -953,11 +953,8 @@ class WebDavService implements RemoteStore {
             'MOVE failed: ${response.statusCode}', response.statusCode);
       }
       _recordSuccess();
-      // The temporary file's ETag need not survive MOVE. Only the MOVE
-      // response can acknowledge the version committed by this write.
-      // Otherwise leave it unknown and pull afresh, rather than trusting
-      // the temporary version or a concurrent writer's later PROPFIND.
-      return response.headers['etag']?.replaceAll('"', '');
+      // Nextcloud keeps the ETag across the rename and returns it.
+      return response.headers['etag']?.replaceAll('"', '') ?? putEtag;
     } catch (_) {
       unawaited(delete(tmp).catchError((Object _) {}));
       rethrow;
