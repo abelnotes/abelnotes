@@ -57,6 +57,7 @@ import 'package:abelnotes/shared/utils/html_text.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/apple_pencil_channel.dart';
+import 'package:abelnotes/core/services/oplus_pencil_channel.dart';
 import 'package:abelnotes/core/services/pen_input_channel.dart'
     if (dart.library.js_interop) 'package:abelnotes/core/services/pen_input_channel_web.dart';
 import 'package:abelnotes/core/services/pen_monitor_service.dart';
@@ -1127,6 +1128,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       onInverted: (down) => _onNativeBarrelChange(_NativeBarrel.upper, down),
       onBarrelPen: _onBarrelPen,
     );
+    OplusPencilChannel.register(_onOplusDoubleTap);
     // iPad app only: the Apple Pencil's double-tap and squeeze.
     _watchToolChanges();
     ApplePencilChannel.register(
@@ -1471,6 +1473,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
+  /// OPPO / OnePlus pen gesture, following the system's selected action.
+  void _onOplusDoubleTap(int mode) {
+    // Never mid-stroke; the rest is checked by [_runPencilAction].
+    if (_stylusDown || _activeStrokeNotifier.isActive) return;
+    final action = oplusPencilActionForMode(mode);
+    if (action != null) _runPencilAction(action, null);
+  }
+
   /// Apple Pencil double-tap; Settings → Pencil double-tap can turn it off.
   void _onPencilDoubleTap(String action, Offset? at) {
     if (!ref.read(appSettingsProvider).pencilDoubleTap) return;
@@ -1771,6 +1781,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _onGlobalPointerEvent,
     );
     PenInputChannel.unregister();
+    OplusPencilChannel.unregister(_onOplusDoubleTap);
     ApplePencilChannel.unregister(_onPencilDoubleTap);
     LinuxPenPressure.unregister();
     // Flush any pending deferred stylus commit before tearing down so a
