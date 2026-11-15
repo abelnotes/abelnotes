@@ -2097,6 +2097,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromeShapeGuessOff => 'Forme auto · désactivée';
 
   @override
+  String get chromeFillShapesOn => 'Remplir les formes · activée';
+
+  @override
+  String get chromeFillShapesOff => 'Remplir les formes · désactivée';
+
+  @override
   String get chromeHoldForOptions =>
       'Appui long ou clic droit pour les options';
 

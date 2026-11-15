@@ -3450,6 +3450,18 @@ abstract class AppLocalizations {
   /// **'Auto-forma · spento'**
   String get chromeShapeGuessOff;
 
+  /// No description provided for @chromeFillShapesOn.
+  ///
+  /// In it, this message translates to:
+  /// **'Riempi le forme · attivo'**
+  String get chromeFillShapesOn;
+
+  /// No description provided for @chromeFillShapesOff.
+  ///
+  /// In it, this message translates to:
+  /// **'Riempi le forme · spento'**
+  String get chromeFillShapesOff;
+
   /// No description provided for @chromeHoldForOptions.
   ///
   /// In it, this message translates to:

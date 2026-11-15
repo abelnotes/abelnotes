@@ -606,6 +606,8 @@
   "chromeDragToMoveBar": "Arrastra para mover la barra",
   "chromeShapeGuessOn": "Autoforma · activado",
   "chromeShapeGuessOff": "Autoforma · desactivado",
+  "chromeFillShapesOn": "Rellenar formas · activado",
+  "chromeFillShapesOff": "Rellenar formas · desactivado",
   "chromeHoldForOptions": "Mantén pulsado o haz clic derecho para ver las opciones",
   "chromeLabelPen": "Pluma",
   "chromeLabelBallpoint": "Bolígrafo",

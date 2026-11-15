@@ -606,6 +606,8 @@
   "chromeDragToMoveBar": "Faites glisser pour déplacer la barre d'outils",
   "chromeShapeGuessOn": "Forme auto · activée",
   "chromeShapeGuessOff": "Forme auto · désactivée",
+  "chromeFillShapesOn": "Remplir les formes · activée",
+  "chromeFillShapesOff": "Remplir les formes · désactivée",
   "chromeHoldForOptions": "Appui long ou clic droit pour les options",
   "chromeLabelPen": "Stylo",
   "chromeLabelBallpoint": "Stylo à bille",

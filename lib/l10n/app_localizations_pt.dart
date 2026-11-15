@@ -2090,6 +2090,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String get chromeShapeGuessOff => 'Formas automáticas · desligado';
 
   @override
+  String get chromeFillShapesOn => 'Preencher formas · ligado';
+
+  @override
+  String get chromeFillShapesOff => 'Preencher formas · desligado';
+
+  @override
   String get chromeHoldForOptions =>
       'Toque e segure ou clique com o botão direito para ver as opções';
 
