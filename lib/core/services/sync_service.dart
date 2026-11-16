@@ -405,6 +405,14 @@ class SyncService {
   String _deltaDir(String notebookId) =>
       '${_remote.basePath}${AppConfig.deltaSyncDir}$notebookId/';
 
+  /// Forgets what this session cached about a notebook's server folder, so
+  /// re-uploading it (a restore after a delete elsewhere) recreates it.
+  void forgetNotebook(String notebookId) {
+    _explodedDirsReady.remove(notebookId);
+    _deltaCommitted.remove(notebookId);
+    _remote.forgetCached(_deltaDir(notebookId));
+  }
+
   /// Creates the exploded folder structure on the server (idempotent).
   /// Throws if any directory creation fails (except 405 = already exists).
   Future<void> _ensureDeltaDir(String notebookId) async {

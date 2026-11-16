@@ -838,6 +838,7 @@
   "qlDuplicateNoLocalCopy": "Este cuaderno no está en este dispositivo. Ábrelo una vez para descargarlo y luego duplícalo.",
   "qlDeleteOrphanBody": "No queda ninguna copia de este cuaderno en este dispositivo, así que no se podrá restaurar. Se quitará de la biblioteca.",
   "qlDeletedNoTrash": "Quitado. No había ninguna copia en este dispositivo, así que nada fue a la papelera.",
+  "qlDeleteNeedsCopy": "Este cuaderno no está en este dispositivo y no se pudo descargar para guardarlo en la papelera. No se ha eliminado nada: inténtalo de nuevo cuando estés conectado.",
   "qlOpenCorrupt": "Los datos de este cuaderno están dañados y no se pueden abrir.",
   "qlSearchNoResults": "Ningún cuaderno coincide con «{query}».",
   "qcMouseSelectHint": "El ratón selecciona mientras hay un lápiz activo. Activa el dibujo con ratón para dibujar con él.",

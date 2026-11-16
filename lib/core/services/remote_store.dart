@@ -144,6 +144,10 @@ abstract class RemoteStore {
   /// Idempotent: succeeds if the directory already exists.
   Future<void> createDirectory(String remotePath);
 
+  /// Drops anything cached about [remotePath] and below, e.g. after another
+  /// device deleted it. A no-op for backends that cache nothing.
+  void forgetCached(String remotePath);
+
   /// Removes a file or a directory with everything under it.
   Future<void> delete(String remotePath);
 

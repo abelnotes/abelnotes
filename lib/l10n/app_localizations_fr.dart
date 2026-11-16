@@ -2975,6 +2975,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Retiré. Il n\'y avait aucune copie sur cet appareil, rien n\'a donc été placé dans la corbeille.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'Ce carnet n\'est pas sur cet appareil et n\'a pas pu être téléchargé pour le garder dans la corbeille. Rien n\'a été supprimé : réessayez une fois connecté.';
+
+  @override
   String get qlOpenCorrupt =>
       'Les données de ce carnet sont endommagées et ne peuvent pas être ouvertes.';
 

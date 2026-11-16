@@ -2965,6 +2965,10 @@ class AppLocalizationsPt extends AppLocalizations {
       'Removido. Não havia nenhuma cópia neste dispositivo, então nada foi para a lixeira.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'Este caderno não está neste dispositivo e não foi possível baixá-lo para guardá-lo na lixeira. Nada foi excluído: tente de novo quando estiver conectado.';
+
+  @override
   String get qlOpenCorrupt =>
       'Os dados deste caderno estão danificados e não podem ser abertos.';
 

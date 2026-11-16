@@ -838,6 +838,7 @@
   "qlDuplicateNoLocalCopy": "This notebook is not on this device. Open it once to download it, then duplicate it.",
   "qlDeleteOrphanBody": "No copy of this notebook is left on this device, so there is nothing to restore. It will be removed from the library.",
   "qlDeletedNoTrash": "Removed. There was no copy on this device, so nothing went to the trash.",
+  "qlDeleteNeedsCopy": "This notebook isn't on this device and couldn't be downloaded to keep it in the trash. Nothing was deleted: try again when you're online.",
   "qlOpenCorrupt": "This notebook's data is damaged and can't be opened.",
   "qlSearchNoResults": "No notebooks match “{query}”.",
   "qcMouseSelectHint": "The mouse selects while a pen tool is active. Turn on mouse drawing to draw with it.",

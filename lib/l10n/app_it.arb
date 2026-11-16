@@ -2417,6 +2417,8 @@
   "@qlDeleteOrphanBody": {},
   "qlDeletedNoTrash": "Rimosso. Su questo dispositivo non c'era nessuna copia, quindi nulla è finito nel cestino.",
   "@qlDeletedNoTrash": {},
+  "qlDeleteNeedsCopy": "Questo taccuino non è su questo dispositivo e non è stato possibile scaricarlo per metterlo nel cestino. Non è stato eliminato nulla: riprova quando sei connesso.",
+  "@qlDeleteNeedsCopy": {},
   "qlOpenCorrupt": "I dati di questo taccuino sono danneggiati e non si possono aprire.",
   "@qlOpenCorrupt": {},
   "qlSearchNoResults": "Nessun taccuino corrisponde a “{query}”.",

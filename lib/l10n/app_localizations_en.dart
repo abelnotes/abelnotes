@@ -2950,6 +2950,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Removed. There was no copy on this device, so nothing went to the trash.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'This notebook isn\'t on this device and couldn\'t be downloaded to keep it in the trash. Nothing was deleted: try again when you\'re online.';
+
+  @override
   String get qlOpenCorrupt =>
       'This notebook\'s data is damaged and can\'t be opened.';
 

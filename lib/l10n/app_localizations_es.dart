@@ -2964,6 +2964,10 @@ class AppLocalizationsEs extends AppLocalizations {
       'Quitado. No había ninguna copia en este dispositivo, así que nada fue a la papelera.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'Este cuaderno no está en este dispositivo y no se pudo descargar para guardarlo en la papelera. No se ha eliminado nada: inténtalo de nuevo cuando estés conectado.';
+
+  @override
   String get qlOpenCorrupt =>
       'Los datos de este cuaderno están dañados y no se pueden abrir.';
 

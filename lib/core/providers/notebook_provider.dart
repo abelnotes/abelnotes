@@ -34,6 +34,14 @@ final searchServiceProvider = Provider<SearchService?>((ref) {
 });
 
 /// Un notebook nella libreria (metadata + info remote).
+/// Deleting a notebook this device doesn't hold needs a copy for the trash
+/// first, and none could be downloaded. Nothing was deleted.
+class NoCopyForTrashException implements Exception {
+  @override
+  String toString() =>
+      'NoCopyForTrashException: notebook not on this device and not downloadable';
+}
+
 class NotebookEntry {
   final NotebookMetadata metadata;
   final String remotePath;
@@ -155,6 +163,12 @@ class NotebookListNotifier
   final Map<String, String> _deletedHere = {};
 
   bool isDeletedHere(String id) => _deletedHere.containsKey(id);
+
+  /// Deleted here and gone from the server. Dropped from [_deletedHere] by
+  /// the first listing that started after: until then a listing taken
+  /// before the delete could bring it back, and after it a restore from
+  /// another device's trash must show up here again.
+  final Set<String> _deleteSettled = {};
 
   Future<void> loadDeletedElsewhere() async {
     final prefs = await SharedPreferences.getInstance();
@@ -346,6 +360,7 @@ class NotebookListNotifier
     RemoteStore remote,
     FileService fileService,
   ) async {
+    final settled = {..._deleteSettled};
     final root = await syncService.listRemoteRoot();
     unawaited(_ref.read(folderSyncProvider).sync(root: root));
     final remoteFiles = await _adoptStorageExtension(
@@ -650,13 +665,23 @@ class NotebookListNotifier
         }
         continue;
       }
-      debugPrint('[Library] Notebook $id removed from server, cleaning local cache');
-      await fileService.deleteNotebook(id);
+      debugPrint('[Library] Notebook $id removed from server, moving to trash');
+      // Deleted on another device: that device's trash is the only other
+      // copy, so this one keeps its own instead of wiping it.
+      await fileService.moveNotebookToTrash(id);
+      try {
+        await _ref.read(thumbnailServiceProvider).deleteThumbnail(id);
+      } catch (_) {}
+      syncService.forgetNotebook(id);
       changed = true;
     }
 
     if (skipped.isNotEmpty) {
       debugPrint('[Library] Skipped ${skipped.length} notebooks: $skipped');
+    }
+    for (final id in settled) {
+      _deletedHere.remove(id);
+      _deleteSettled.remove(id);
     }
 
     // Reload from DB if anything changed
@@ -1298,6 +1323,12 @@ class NotebookListNotifier
     final thumbs = _ref.read(thumbnailServiceProvider);
     final id = entry.metadata.id;
 
+    // Not on this device: fetch it first, or the trash gets nothing while
+    // the server copy (permanent on Drive) is deleted below.
+    if (webdav != null && !await fileService.hasLocalCopy(id)) {
+      await _fetchCopyForTrash(id, entry.remotePath);
+    }
+
     // Card goes now: the remote delete can take seconds, and reopening the
     // notebook meanwhile reads the vanishing server as a delete elsewhere.
     _deletedHere[id] = AppConfig.notebookStem(entry.remotePath);
@@ -1338,7 +1369,50 @@ class NotebookListNotifier
     }
     unawaited(
         _ref.read(pagesTrayProvider.notifier).onNotebookDeleted(entry.metadata.id));
+    if (!remotePending && webdav != null) _deleteSettled.add(id);
     return (trashId: trashId, remotePending: remotePending);
+  }
+
+  /// Downloads a notebook this device doesn't hold, so deleting it can put
+  /// it in the trash. Returns quietly when the server no longer has it
+  /// either; throws [NoCopyForTrashException] when it can't be fetched.
+  Future<void> _fetchCopyForTrash(String id, String remotePath) async {
+    final sync = _ref.read(syncServiceProvider);
+    final fileService = _ref.read(fileServiceProvider);
+    if (sync == null || sync.isOffline) throw NoCopyForTrashException();
+    try {
+      final r = await sync.downloadExplodedFull(id);
+      await fileService.saveNotebookFile(
+          id,
+          SyncService.buildPackageBytes(
+            metadata: r.metadata,
+            document: r.document,
+            pages: r.pages,
+            assets: r.assets,
+            symbolLibraries: r.symbolLibraries,
+          ));
+      return;
+    } catch (e) {
+      debugPrint('[Library] delta download for trash failed: $e');
+    }
+    // Notebooks from before the delta folder live only in the root file.
+    if (remotePath.isNotEmpty) {
+      try {
+        final bytes = await sync.downloadFile(remotePath);
+        SyncService.validateNcnoteArchive(bytes, context: remotePath);
+        await fileService.saveNotebookFile(id, bytes);
+        return;
+      } catch (e) {
+        debugPrint('[Library] root download for trash failed: $e');
+      }
+    }
+    try {
+      if (!await sync.deltaFolderExists(id, fresh: true) &&
+          (remotePath.isEmpty || await sync.notebookRootAbsent(remotePath))) {
+        return; // already gone everywhere: nothing left to keep
+      }
+    } catch (_) {}
+    throw NoCopyForTrashException();
   }
 
   /// Delta folder first: a root left behind is a stale copy the retry
@@ -1368,6 +1442,7 @@ class NotebookListNotifier
       try {
         await _deleteRemoteNotebook(e.key, e.value);
         await PendingRemoteDeletes.remove(e.key);
+        _deleteSettled.add(e.key);
         unawaited(CrashLogger.append('[Delete] ${e.key} remote delete done'));
       } catch (err) {
         unawaited(CrashLogger.append('[Delete] ${e.key} retry failed: $err'));
@@ -1389,6 +1464,7 @@ class NotebookListNotifier
       // the delete may already have removed.
       _deletedHere.remove(id);
       await PendingRemoteDeletes.remove(id);
+      _ref.read(syncServiceProvider)?.forgetNotebook(id);
       await PendingRootUploads.add(id);
     }
     if (meta != null) await refresh();

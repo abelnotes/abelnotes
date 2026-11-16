@@ -2971,6 +2971,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Entfernt. Auf diesem Gerät gab es keine Kopie, daher landete nichts im Papierkorb.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'Dieses Notizbuch ist nicht auf diesem Gerät und konnte nicht heruntergeladen werden, um es im Papierkorb aufzubewahren. Es wurde nichts gelöscht: Versuche es erneut, wenn du online bist.';
+
+  @override
   String get qlOpenCorrupt =>
       'Die Daten dieses Notizbuchs sind beschädigt und können nicht geöffnet werden.';
 

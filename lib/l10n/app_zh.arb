@@ -819,6 +819,7 @@
   "qlDuplicateNoLocalCopy": "此笔记本不在本设备上。请先打开一次以下载，然后再创建副本。",
   "qlDeleteOrphanBody": "这台设备上已没有此笔记本的任何副本，因此无法恢复。它将从笔记库中移除。",
   "qlDeletedNoTrash": "已移除。这台设备上没有副本，因此没有任何内容进入回收站。",
+  "qlDeleteNeedsCopy": "此笔记本不在这台设备上，也无法下载以放入回收站。未删除任何内容：请在联网后重试。",
   "qlOpenCorrupt": "此笔记本的数据已损坏，无法打开。",
   "qlSearchNoResults": "没有与“{query}”匹配的笔记本。",
   "qcMouseSelectHint": "使用笔工具时，鼠标用于选择。开启鼠标绘图后才能用鼠标书写。",

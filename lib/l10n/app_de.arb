@@ -838,6 +838,7 @@
   "qlDuplicateNoLocalCopy": "Dieses Notizbuch befindet sich nicht auf diesem Gerät. Öffne es einmal, um es herunterzuladen, und dupliziere es dann.",
   "qlDeleteOrphanBody": "Auf diesem Gerät ist keine Kopie dieses Notizbuchs mehr vorhanden, daher kann es nicht wiederhergestellt werden. Es wird aus der Bibliothek entfernt.",
   "qlDeletedNoTrash": "Entfernt. Auf diesem Gerät gab es keine Kopie, daher landete nichts im Papierkorb.",
+  "qlDeleteNeedsCopy": "Dieses Notizbuch ist nicht auf diesem Gerät und konnte nicht heruntergeladen werden, um es im Papierkorb aufzubewahren. Es wurde nichts gelöscht: Versuche es erneut, wenn du online bist.",
   "qlOpenCorrupt": "Die Daten dieses Notizbuchs sind beschädigt und können nicht geöffnet werden.",
   "qlSearchNoResults": "Kein Notizbuch passt zu „{query}“.",
   "qcMouseSelectHint": "Die Maus wählt aus, solange ein Stift aktiv ist. Aktiviere das Zeichnen mit der Maus, um damit zu zeichnen.",

@@ -1456,7 +1456,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.libErrorGeneric(e.toString()))),
+        SnackBar(
+            content: Text(e is NoCopyForTrashException
+                ? l10n.qlDeleteNeedsCopy
+                : l10n.libErrorGeneric(e.toString()))),
       );
     }
   }

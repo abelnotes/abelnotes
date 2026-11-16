@@ -133,6 +133,9 @@ class FakeRemoteStore implements RemoteStore {
   }
 
   @override
+  void forgetCached(String remotePath) {}
+
+  @override
   Future<void> createDirectory(String remotePath) async {
     calls.add('mkdir $remotePath');
     directories.add(remotePath);

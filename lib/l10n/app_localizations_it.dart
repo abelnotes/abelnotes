@@ -2967,6 +2967,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'Rimosso. Su questo dispositivo non c\'era nessuna copia, quindi nulla è finito nel cestino.';
 
   @override
+  String get qlDeleteNeedsCopy =>
+      'Questo taccuino non è su questo dispositivo e non è stato possibile scaricarlo per metterlo nel cestino. Non è stato eliminato nulla: riprova quando sei connesso.';
+
+  @override
   String get qlOpenCorrupt =>
       'I dati di questo taccuino sono danneggiati e non si possono aprire.';
 

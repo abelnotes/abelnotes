@@ -838,6 +838,7 @@
   "qlDuplicateNoLocalCopy": "Ce carnet n'est pas sur cet appareil. Ouvrez-le une fois pour le télécharger, puis dupliquez-le.",
   "qlDeleteOrphanBody": "Il ne reste aucune copie de ce carnet sur cet appareil, il ne pourra donc pas être restauré. Il sera retiré de la bibliothèque.",
   "qlDeletedNoTrash": "Retiré. Il n'y avait aucune copie sur cet appareil, rien n'a donc été placé dans la corbeille.",
+  "qlDeleteNeedsCopy": "Ce carnet n'est pas sur cet appareil et n'a pas pu être téléchargé pour le garder dans la corbeille. Rien n'a été supprimé : réessayez une fois connecté.",
   "qlOpenCorrupt": "Les données de ce carnet sont endommagées et ne peuvent pas être ouvertes.",
   "qlSearchNoResults": "Aucun carnet ne correspond à « {query} ».",
   "qcMouseSelectHint": "La souris sélectionne tant qu'un stylo est actif. Activez le dessin à la souris pour dessiner avec.",

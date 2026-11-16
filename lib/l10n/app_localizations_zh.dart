@@ -2872,6 +2872,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get qlDeletedNoTrash => '已移除。这台设备上没有副本，因此没有任何内容进入回收站。';
 
   @override
+  String get qlDeleteNeedsCopy => '此笔记本不在这台设备上，也无法下载以放入回收站。未删除任何内容：请在联网后重试。';
+
+  @override
   String get qlOpenCorrupt => '此笔记本的数据已损坏，无法打开。';
 
   @override

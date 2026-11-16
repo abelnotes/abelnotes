@@ -310,6 +310,9 @@ class GoogleDriveStore implements RemoteStore {
               ifMatchVersion: ifMatchVersion, timeoutSeconds: timeoutSeconds);
 
   @override
+  void forgetCached(String remotePath) => _forget(remotePath);
+
+  @override
   Future<void> createDirectory(String remotePath) async {
     await _folderId(_asDir(remotePath), createMissing: true);
   }

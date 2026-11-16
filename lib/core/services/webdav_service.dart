@@ -1150,6 +1150,9 @@ class WebDavService implements RemoteStore {
 
   /// Crea una cartella remota.
   @override
+  void forgetCached(String remotePath) {}
+
+  @override
   Future<void> createDirectory(String remotePath) async {
     final request = http.Request('MKCOL', Uri.parse(_fullUrl(remotePath)));
     request.headers.addAll(_authHeaders);
