@@ -7351,8 +7351,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 _FloatingActionBtn(Icons.line_weight_rounded, AppLocalizations.of(context).csThickness,
                     () => _showSelectionWidthPicker(state)),
               if (state.clipboard != null)
+                // Same resolver as the menu: a newer system image/text wins.
                 _FloatingActionBtn(Icons.paste_rounded, AppLocalizations.of(context).csPaste, () {
-                  _pasteInternal(null);
+                  _pasteFromClipboard();
                 }),
               _FloatingActionBtn(Icons.delete_outline, AppLocalizations.of(context).csDelete, () {
                 ref.read(canvasProvider.notifier).deleteSelection();
