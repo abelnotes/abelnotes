@@ -735,7 +735,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         _toast(l10n.importCancelled);
         return;
       }
-      ref.read(notebookListProvider.notifier).refresh();
+      // Push it now: refresh() only pulls, the upload would wait for the retry.
+      ref.read(notebookListProvider.notifier).syncNow(showProgress: false);
       _toast(l10n.libImportSuccess(report.notebookTitle, report.pageCount));
       if (report.issues.isNotEmpty && mounted) {
         // ignore: use_build_context_synchronously
@@ -818,7 +819,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         _toast(l10n.importCancelled);
         return;
       }
-      ref.read(notebookListProvider.notifier).refresh();
+      ref.read(notebookListProvider.notifier).syncNow(showProgress: false);
       _toast(l10n.libImportSuccess(report.notebookTitle, report.pageCount));
       if (report.issues.isNotEmpty && mounted) {
         // ignore: use_build_context_synchronously
@@ -933,7 +934,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         _toast(l10n.importCancelled);
         return;
       }
-      ref.read(notebookListProvider.notifier).refresh();
+      ref.read(notebookListProvider.notifier).syncNow(showProgress: false);
       _toast(l10n.libImportSuccess(report.notebookTitle, report.pageCount));
       if (report.issues.isNotEmpty && mounted) {
         // ignore: use_build_context_synchronously
@@ -1179,7 +1180,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       if (!mounted) return true;
       // ignore: use_build_context_synchronously
       Navigator.of(ctx).pop(); // dismiss spinner
-      ref.read(notebookListProvider.notifier).refresh();
+      ref.read(notebookListProvider.notifier).syncNow(showProgress: false);
       if (announce) _toast(l10n.libImportSuccess(newTitle, pages.length));
       return true;
     } catch (e) {

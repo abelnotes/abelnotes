@@ -1453,8 +1453,8 @@ class NotebookListNotifier
     }
   }
 
-  /// Restores a notebook from the trash. Re-uploads it to the remote on the
-  /// next sync because it was deleted from the server.
+  /// Restores a notebook from the trash and re-uploads it straight away,
+  /// since the delete removed it from the server.
   Future<void> restoreFromTrash(String trashId) async {
     final fileService = _ref.read(fileServiceProvider);
     final meta = await fileService.restoreFromTrash(trashId);
@@ -1467,7 +1467,7 @@ class NotebookListNotifier
       _ref.read(syncServiceProvider)?.forgetNotebook(id);
       await PendingRootUploads.add(id);
     }
-    if (meta != null) await refresh();
+    if (meta != null) await syncNow(showProgress: false);
   }
 
   /// Lists notebooks in the trash.
