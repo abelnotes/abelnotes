@@ -1707,6 +1707,7 @@ class NotebookListNotifier
       Map<String, String> pageEtags,
       List<String> failedPageDeletes,
       List<String> failedAssetDeletes,
+      String? docVersion,
     }) res;
     try {
       res = await syncService.syncDelta(

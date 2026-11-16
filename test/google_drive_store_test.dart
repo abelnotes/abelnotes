@@ -408,20 +408,72 @@ void main() {
         contains(r"name = 'a\\b\'c.json'"));
   });
 
+  test('two concurrent uploads of a new file create it once', () async {
+    fake.reply({'files': [{'id': 'folder-1'}]}); // /AbelNotes/
+    fake.reply({'files': []}); // x.json not there yet
+    fake.reply({'id': 'file-1', 'md5Checksum': 'a'}); // the create
+    fake.reply({'id': 'file-1', 'md5Checksum': 'b'}); // the second write
+
+    final s = store();
+    await Future.wait([
+      s.uploadFile('/AbelNotes/x.json', Uint8List.fromList([1])),
+      s.uploadFile('/AbelNotes/x.json', Uint8List.fromList([2])),
+    ]);
+
+    // Two POSTs would leave two files named x.json, read at random later.
+    expect(fake.seen.where((r) => r.method == 'POST').length, 1);
+    expect(fake.seen.last.method, 'PATCH');
+  });
+
   group('conditional upload', () {
     final data = Uint8List.fromList([1, 2]);
 
-    test('writes over the version it was based on', () async {
+    test('writes over the version it was based on, atomically', () async {
       fake.reply({'files': [{'id': 'folder-1'}]});
       fake.reply({'files': [{'id': 'file-1'}]});
-      fake.reply({'id': 'file-1', 'md5Checksum': 'v1'}); // current version
-      fake.reply({'id': 'file-1', 'md5Checksum': 'v2'}); // the PATCH
+      fake.reply({'etag': '"e1"', 'md5Checksum': 'v1'}); // v2 metadata
+      fake.reply({'md5Checksum': 'v2'}); // the conditional PUT
 
       final v = await store().uploadFileConditional('/AbelNotes/folders.json',
           data, ifMatchVersion: 'v1');
 
       expect(v, 'v2');
-      expect(fake.seen.last.method, 'PATCH');
+      final put = fake.seen.last;
+      expect(put.method, 'PUT');
+      expect(put.url.path, '/upload/drive/v2/files/file-1');
+      // The check and the write are one request: a write landing between
+      // a separate check and write was erased without anyone noticing.
+      expect(put.headers['If-Match'], '"e1"');
+    });
+
+    test('a write that loses the race is a 412, not an overwrite', () async {
+      fake.reply({'files': [{'id': 'folder-1'}]});
+      fake.reply({'files': [{'id': 'file-1'}]});
+      fake.reply({'etag': '"e1"', 'md5Checksum': 'v1'});
+      fake.reply({'error': {'code': 412}}, status: 412); // someone wrote
+      fake.reply({'etag': '"e2"', 'md5Checksum': 'theirs'});
+
+      await expectLater(
+        store().uploadFileConditional('/AbelNotes/folders.json', data,
+            ifMatchVersion: 'v1'),
+        throwsA(isA<RemoteStoreException>()
+            .having((e) => e.statusCode, 'statusCode', 412)),
+      );
+    });
+
+    test('a metadata-only etag change retries the write', () async {
+      fake.reply({'files': [{'id': 'folder-1'}]});
+      fake.reply({'files': [{'id': 'file-1'}]});
+      fake.reply({'etag': '"e1"', 'md5Checksum': 'v1'});
+      fake.reply({'error': {'code': 412}}, status: 412);
+      fake.reply({'etag': '"e2"', 'md5Checksum': 'v1'}); // same content
+      fake.reply({'md5Checksum': 'v2'});
+
+      final v = await store().uploadFileConditional('/AbelNotes/folders.json',
+          data, ifMatchVersion: 'v1');
+
+      expect(v, 'v2');
+      expect(fake.seen.last.headers['If-Match'], '"e2"');
     });
 
     test('refuses with 412 and writes nothing when the version moved', () async {
@@ -435,7 +487,7 @@ void main() {
         throwsA(isA<RemoteStoreException>()
             .having((e) => e.statusCode, 'statusCode', 412)),
       );
-      expect(fake.seen.where((r) => r.method == 'PATCH' || r.method == 'POST'),
+      expect(fake.seen.where((r) => r.method != 'GET'),
           isEmpty);
     });
 

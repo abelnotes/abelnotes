@@ -41,6 +41,9 @@ abstract class DriveAuth {
 class GoogleDriveStore implements RemoteStore {
   static const _apiRoot = 'https://www.googleapis.com/drive/v3';
   static const _uploadRoot = 'https://www.googleapis.com/upload/drive/v3';
+  // Only for conditional page writes: v3 dropped If-Match.
+  static const _apiV2Root = 'https://www.googleapis.com/drive/v2';
+  static const _uploadV2Root = 'https://www.googleapis.com/upload/drive/v2';
   static const _folderMime = 'application/vnd.google-apps.folder';
 
   /// Fields worth asking for. Drive returns a minimal object otherwise, and
@@ -73,6 +76,10 @@ class GoogleDriveStore implements RemoteStore {
   /// Folder find-or-create runs in flight, keyed by dir path, so concurrent
   /// callers share one create instead of making twin folders.
   final Map<String, Future<String>> _folderInflight = {};
+
+  /// Last write per path. Two creates of one path in flight both found no
+  /// file, and Drive kept both under the same name.
+  final Map<String, Future<void>> _writeChain = {};
 
   int _inFlight = 0;
   final _waiting = <Completer<void>>[];
@@ -162,6 +169,26 @@ class GoogleDriveStore implements RemoteStore {
       {int? timeoutSeconds,
       bool criticalVerify = false,
       bool skipVerify = false}) async {
+    final prev = _writeChain[remotePath];
+    final done = Completer<void>();
+    _writeChain[remotePath] = done.future;
+    try {
+      if (prev != null) {
+        try {
+          await prev;
+        } catch (_) {}
+      }
+      return await _upload(remotePath, data, timeoutSeconds);
+    } finally {
+      done.complete();
+      if (identical(_writeChain[remotePath], done.future)) {
+        _writeChain.remove(remotePath);
+      }
+    }
+  }
+
+  Future<String?> _upload(
+      String remotePath, Uint8List data, int? timeoutSeconds) async {
     final parentPath = _parentOf(remotePath);
     final parent = await _folderId(parentPath, createMissing: true);
     if (parent == null) {
@@ -202,8 +229,14 @@ class GoogleDriveStore implements RemoteStore {
   @override
   Future<String?> uploadFileConditional(String remotePath, Uint8List data,
       {String? ifMatchVersion, bool ifAbsent = false, int? timeoutSeconds}) async {
-    // Drive has no If-Match for media updates: check just before the write.
-    // A write racing this check is repaired by the caller's next merge.
+    if (ifMatchVersion != null && data.length <= _multipartMaxBytes) {
+      final id = await _fileId(remotePath);
+      if (id != null) {
+        return _putIfMatch(remotePath, id, data, ifMatchVersion,
+            timeoutSeconds: timeoutSeconds);
+      }
+    }
+    // Check-then-write: only for files too big for a simple upload.
     String? current;
     try {
       current = (await _metadata(remotePath))?['md5Checksum'] as String?;
@@ -219,6 +252,52 @@ class GoogleDriveStore implements RemoteStore {
           'precondition failed: $remotePath changed', 412);
     }
     return uploadFile(remotePath, data, timeoutSeconds: timeoutSeconds);
+  }
+
+  /// Compare-and-swap on the content hash. v3 has no If-Match, so a
+  /// read-then-write let two devices both pass the check and the later one
+  /// erased the other's strokes; v2 still honours If-Match on its etag.
+  Future<String?> _putIfMatch(
+      String remotePath, String id, Uint8List data, String base,
+      {int? timeoutSeconds}) async {
+    // The etag also moves on metadata-only changes: retry those.
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final Map<String, dynamic> meta;
+      try {
+        final res = await _send(() => _request('GET',
+            '$_apiV2Root/files/$id?fields=etag,md5Checksum'));
+        meta = jsonDecode(res.body) as Map<String, dynamic>;
+      } on RemoteStoreException catch (e) {
+        if (e.statusCode != 404) rethrow;
+        _forget(remotePath);
+        throw RemoteStoreException('precondition failed: $remotePath gone', 412);
+      }
+      if (meta['md5Checksum'] != base) {
+        throw RemoteStoreException(
+            'precondition failed: $remotePath changed', 412);
+      }
+      try {
+        final res = await _send(
+          () => _request(
+            'PUT',
+            '$_uploadV2Root/files/$id?uploadType=media&fields=md5Checksum',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'If-Match': meta['etag'] as String,
+            },
+            body: data,
+          ),
+          timeoutSeconds: timeoutSeconds,
+        );
+        return (jsonDecode(res.body) as Map<String, dynamic>)['md5Checksum']
+            as String?;
+      } on RemoteStoreException catch (e) {
+        if (e.statusCode != 412) rethrow;
+      }
+    }
+    // Not 412: the engine reads "412 on an unchanged hash" as a server
+    // that ignores If-Match and would stop asking for it.
+    throw RemoteStoreException('$remotePath kept changing metadata', 503);
   }
 
   /// A Drive upload is all or nothing already.

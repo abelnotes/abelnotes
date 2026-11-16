@@ -20,7 +20,6 @@ import 'package:abelnotes/core/providers/remote_store_provider.dart'
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/sync_thrift.dart';
 import 'package:abelnotes/core/services/symbol_library_service.dart';
-import 'package:abelnotes/core/services/webdav_service.dart' show WebDavException;
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
         CanvasRenderEngine,
@@ -393,6 +392,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   /// Per-page WebDAV ETags from the last pull — used to detect which pages changed.
   Map<String, String> _lastPageEtags = {};
+
+  /// Server version of document.json that [_lastSyncedDocument] came from;
+  /// the push writes the page list only over it. Null = unknown, write as is.
+  String? _remoteDocVersion;
+
+  /// Version of the document a pull downloaded, adopted on accept.
+  String? _pendingDocVersion;
 
   /// Which notebook the ETag caches above belong to. Guards against cross-
   /// contamination when the user switches notebooks: notebook-A's ETag set
@@ -989,6 +995,39 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           : (lMod ?? rMod),
     );
   }
+
+  /// Every element of either side, local winning a same-id clash. Fallback
+  /// for when no base is known or [_mergePageElements] finds a conflict.
+  static PageData _unionPageElements({
+    required PageData local,
+    required PageData remote,
+  }) {
+    String idOf(ContentElement e) => e.map(unknown: (u) => u.id,
+        stroke: (s) => s.id,
+        text: (t) => t.id,
+        image: (i) => i.id,
+        shape: (s) => s.id,
+        math: (m) => m.id);
+    int zOf(ContentElement e) => e.map(unknown: (u) => u.zIndex,
+        stroke: (s) => s.zIndex,
+        text: (t) => t.zIndex,
+        image: (i) => i.zIndex,
+        shape: (s) => s.zIndex,
+        math: (m) => m.zIndex);
+    final byId = {
+      for (final e in remote.layers.content) idOf(e): e,
+      for (final e in local.layers.content) idOf(e): e,
+    };
+    final content = byId.values.toList()
+      ..sort((a, b) => zOf(a).compareTo(zOf(b)));
+    return local.copyWith(
+        layers: local.layers.copyWith(content: content));
+  }
+
+  @visibleForTesting
+  static PageData unionPageElementsForTest(
+          {required PageData local, required PageData remote}) =>
+      _unionPageElements(local: local, remote: remote);
 
   @visibleForTesting
   static PageData? mergePageElementsForTest(
@@ -1681,6 +1720,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _serverMovedStreak = 0;
     // Seed the 3-way-merge baselines from the just-loaded on-disk state.
     _lastSyncedDocument = repaired.document;
+    _remoteDocVersion = null;
+    _pendingDocVersion = null;
     _lastSyncedMetadata = metadata;
     _ghostEntryStrikes.clear();
     _consecutiveInconsistentPulls = 0;
@@ -9540,6 +9581,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       Map<String, String> pageEtags,
       List<String> failedPageDeletes,
       List<String> failedAssetDeletes,
+      String? docVersion,
     }) result;
     try {
       result = await syncService.syncDelta(
@@ -9561,12 +9603,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           for (final fn in dirtyPages.keys)
             if (_lastPageEtags[fn] != null) fn: _lastPageEtags[fn]!,
         },
+        documentBaseVersion: _remoteDocVersion,
       );
     } on RemotePagesChangedException catch (e) {
       // Ours went up for the others; keep their versions so the pull does
       // not fetch them back as foreign changes.
       _lastPageEtags.addAll(e.uploadedEtags);
-      unawaited(CrashLogger.append('[Sync] ${e.fileNames.length} pages '
+      // The page list moved: force the next pull to fetch and merge it even
+      // if metadata.json (written after it) hasn't moved yet.
+      if (e.fileNames.contains(AppConfig.documentFile)) _remoteMetaEtag = null;
+      unawaited(CrashLogger.append('[Sync] ${e.fileNames.length} files '
           'changed on the server under this upload: merging first'));
       throw _ServerMovedException();
     }
@@ -9585,6 +9631,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     await _persistPendingDeletes(updatedMeta.id);
 
     _remoteMetaEtag = result.metaEtag;
+    _remoteDocVersion = result.docVersion ?? _remoteDocVersion;
     // Clear corrupt-ETag dedup entries for any page we just uploaded:
     // the server now has fresh bytes (with verified size — see
     // WebDavService.uploadFile), so the OLD truncated ETag we cached as
@@ -10001,7 +10048,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         try {
           remoteState =
               await syncService.getRemoteChangeState(pullNotebookId);
-        } on WebDavException catch (e) {
+        } on RemoteStoreException catch (e) { // WebDAV and Drive alike
           if (e.statusCode == 404) {
             if (await _remoteNotebookGone(syncService)) {
               await _onRemoteNotebookGone();
@@ -10490,7 +10537,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // path fires, and apply any content changes so they propagate.
       try {
         final remoteMeta =
-            await syncService.downloadDeltaMeta(s.metadata.id);
+            await syncService.downloadDeltaMetaVersioned(s.metadata.id);
         if (state != null && state!.metadata.id == s.metadata.id) {
           // 3-way merge against the LIVE state (not the pull-start snapshot)
           // so a reorder / chapter-move / rename the user made during this
@@ -10558,6 +10605,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           // Baseline tracks SERVER TRUTH regardless of whether we adopted a
           // change, so the next merge has the correct common ancestor.
           _lastSyncedDocument = remoteMeta.document;
+          _remoteDocVersion = remoteMeta.docVersion;
           _lastSyncedMetadata = remoteMeta.metadata;
         }
       } catch (e) {
@@ -10621,7 +10669,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final updatedAssets = Map<String, Uint8List>.from(s.assetBytes);
     var anyPageChanged = false;
 
-    final metaFuture = syncService.downloadDeltaMeta(s.metadata.id);
+    final metaFuture = syncService
+        .downloadDeltaMetaVersioned(s.metadata.id)
+        .then((r) {
+      _pendingDocVersion = r.docVersion;
+      return (metadata: r.metadata, document: r.document);
+    });
 
     // ── Per-page download with retry + live progress counter ──
     //
@@ -11306,6 +11359,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         ...localOnlyEntries.map((e) => e.fileName),
       };
       final orphanPageIdToChapter = _chapterByPageId(remoteMeta.metadata);
+      // A page another device just added is an orphan here until its page
+      // list lands, and is in no chapter list yet: without a chapter it fell
+      // out of every chapter view. New pages go after the last one.
+      final remoteChapters = remoteMeta.metadata.chapters;
+      final orphanFallbackChapter = remoteMeta.document.pages.isNotEmpty
+          ? remoteMeta.document.pages.last.chapterId
+          : (remoteChapters.length == 1 ? remoteChapters.first.id : null);
       final orphanSynthEntries = <PageEntry>[];
       int orphanChRecovered = 0;
       int orphanChUnmapped = 0;
@@ -11323,7 +11383,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           orphanChRecovered++;
           continue;
         }
-        final ch = orphanPageIdToChapter[pid];
+        final ch = orphanPageIdToChapter[pid] ?? orphanFallbackChapter;
         if (ch != null) {
           orphanChRecovered++;
         } else {
@@ -11529,6 +11589,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // remote. Plus: keep truly local-only pages, drop remote-deleted ones.
     final mergedPages = <String, PageData>{};
     final newLastSynced = <String, PageData>{};
+    final pulledFileNames = {
+      for (final d in pending.changedPages) d.fileName,
+    };
     var anyAutoMerged = false;
     for (final entry in repaired.pages.entries) {
       final k = entry.key;
@@ -11544,29 +11607,32 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       }
       final live = s.pages[k];
       final lastSynced = _lastSyncedPages[k];
-      // Element-level auto-merge: both sides edited this page but the pull
-      // judged the edits disjoint. Re-run the merge with the LIVE local page
-      // (folds in any edits made during the pull window) against the RAW
-      // remote (entry.value). On success we adopt the union — no prompt; on
-      // failure (a same-element clash introduced by a mid-pull edit) we keep
-      // local and leave it dirty so the next pull can re-evaluate.
-      if (pending.autoMergeable.contains(k) &&
-          lastSynced != null &&
-          live != null) {
-        final reMerged = CanvasNotifier._mergePageElements(
-            base: lastSynced, local: live, remote: entry.value);
-        if (reMerged != null) {
-          mergedPages[k] = reMerged;
-          anyAutoMerged = true; // differs from remote → must re-upload
-        } else {
-          mergedPages[k] = live;
-        }
-        // Either way the result isn't the server's version, so DON'T advance
-        // the baseline for this page — let save() detect it as dirty.
-        continue;
-      }
+      // Server page newer than ours while local edits exist (the pull saw
+      // disjoint edits, or the user drew during the download): merge,
+      // never pick a side. Keeping only live dropped the other device's
+      // strokes at the next push, since the pull had already recorded the
+      // server's ETag. Pages not pulled this cycle carry local bytes here.
       final userTouchedDuringPull =
           live != null && !identical(live, lastSynced);
+      final pulledNow =
+          pending.autoMergeable.contains(k) || pulledFileNames.contains(k);
+      if (pulledNow &&
+          live != null &&
+          (pending.autoMergeable.contains(k) || userTouchedDuringPull)) {
+        // A same-element clash keeps both sides: an erased stroke may come
+        // back, but nothing drawn is lost.
+        final reMerged = (lastSynced == null
+                ? null
+                : CanvasNotifier._mergePageElements(
+                    base: lastSynced, local: live, remote: entry.value)) ??
+            CanvasNotifier._unionPageElements(local: live, remote: entry.value);
+        mergedPages[k] = reMerged;
+        // Base = the server page this merge contains. Dropping the base
+        // (the old code) made the next pull see "no local edits".
+        newLastSynced[k] = entry.value;
+        if (reMerged != entry.value) anyAutoMerged = true;
+        continue;
+      }
       if (userTouchedDuringPull) {
         mergedPages[k] = live;
         if (lastSynced != null) newLastSynced[k] = lastSynced;
@@ -11693,6 +11759,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // local's own unpushed contributions as "remote reverted them" and drop
     // them. save() advances these to the merged doc once the upload commits.
     _lastSyncedDocument = repaired.document;
+    _remoteDocVersion = _pendingDocVersion;
     _lastSyncedMetadata = pending.metadata;
 
     // If our local structural / metadata edits made the merged result differ

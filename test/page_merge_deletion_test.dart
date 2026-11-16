@@ -86,4 +86,29 @@ void main() {
     );
     expect(merged, isNull);
   });
+
+  test('two merges in a row keep both devices\' strokes', () {
+    // Base after the first merge is the server page that merge took in.
+    // Without a base the second pull saw "no local edits" and dropped ours.
+    final remote1 = page(['a', 'b1']);
+    final local = CanvasNotifier.mergePageElementsForTest(
+      base: page(['a']),
+      local: page(['a', 'm1']),
+      remote: remote1,
+    );
+    final merged = CanvasNotifier.mergePageElementsForTest(
+      base: remote1,
+      local: page([...idsOf(local), 'm2']),
+      remote: page(['a', 'b1', 'b2']),
+    );
+    expect(idsOf(merged), ['a', 'b1', 'b2', 'm1', 'm2']);
+  });
+
+  test('the clash fallback keeps every element of both sides', () {
+    final union = CanvasNotifier.unionPageElementsForTest(
+      local: page(['s1', 'mine']),
+      remote: page(['s1', 'theirs']),
+    );
+    expect(idsOf(union), ['mine', 's1', 'theirs']);
+  });
 }

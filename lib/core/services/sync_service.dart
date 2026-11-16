@@ -533,9 +533,13 @@ class SyncService {
     } on RemoteStoreException catch (e) {
       if (e.statusCode != 412) rethrow;
       String? now;
+      var absent = false;
       try {
         now = await _remote.getVersion(path);
-      } catch (_) {/* gone or unreachable: treat as moved */}
+        absent = now == null;
+      } on RemoteStoreException catch (e) {
+        absent = e.statusCode == 404;
+      } catch (_) {/* unreachable: treat as moved */}
       if (now != null && _sameVersion(now, base)) {
         _conditionalPagePuts = false;
         debugPrint('[Sync] Server ignores If-Match on $path; '
@@ -543,7 +547,46 @@ class SyncService {
         return _remote.uploadFileAtomic(path, bytes,
             timeoutSeconds: timeoutSeconds);
       }
+      // Gone while the page list still names it. A device deleting the page
+      // removes the file a few seconds before its new list lands; a file
+      // still missing after [lostPageGrace] is lost, and merging would never
+      // change that: every retry failed the same way, forever.
+      if (absent) {
+        final since = _absentSince.putIfAbsent(path, DateTime.now);
+        if (DateTime.now().difference(since) >= lostPageGrace &&
+            await _stillListed(path)) {
+          _absentSince.remove(path);
+          debugPrint('[Sync] $path lost on the server: restoring it');
+          return _remote.uploadFileAtomic(path, bytes,
+              timeoutSeconds: timeoutSeconds);
+        }
+      } else {
+        _absentSince.remove(path);
+      }
       throw const _PageMovedOnServer();
+    }
+  }
+
+  /// First time each page upload found its file gone, see [_putPageIfUnchanged].
+  final Map<String, DateTime> _absentSince = {};
+
+  @visibleForTesting
+  Duration lostPageGrace = const Duration(seconds: 15);
+
+  /// Whether the server's page list still names the page at [path].
+  /// Any doubt answers false, which leaves the merge to decide.
+  Future<bool> _stillListed(String path) async {
+    final i = path.lastIndexOf('/pages/');
+    if (i < 0) return false;
+    final fileName = path.substring(i + '/pages/'.length);
+    try {
+      final raw = await _remote
+          .downloadFile('${path.substring(0, i + 1)}${AppConfig.documentFile}');
+      final doc = DocumentStructure.fromJson(
+          jsonDecode(utf8.decode(raw)) as Map<String, dynamic>);
+      return doc.pages.any((e) => e.fileName == fileName);
+    } catch (_) {
+      return false;
     }
   }
 
@@ -580,6 +623,7 @@ class SyncService {
     Map<String, String> pageEtags,
     List<String> failedPageDeletes,
     List<String> failedAssetDeletes,
+    String? docVersion,
   })> syncDelta({
     required String notebookId,
     required NotebookMetadata metadata,
@@ -591,6 +635,7 @@ class SyncService {
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
     Map<String, String>? pageBaseVersions,
+    String? documentBaseVersion,
   }) async {
     try {
       return await _syncDeltaInner(
@@ -604,6 +649,7 @@ class SyncService {
         deletedPageFileNames: deletedPageFileNames,
         deletedAssetFileNames: deletedAssetFileNames,
         pageBaseVersions: pageBaseVersions,
+        documentBaseVersion: documentBaseVersion,
       );
     } catch (e) {
       // A 409/404 mid-upload usually means the delta folder vanished under
@@ -626,6 +672,7 @@ class SyncService {
     Map<String, String> pageEtags,
     List<String> failedPageDeletes,
     List<String> failedAssetDeletes,
+    String? docVersion,
   })> _syncDeltaInner({
     required String notebookId,
     required NotebookMetadata metadata,
@@ -637,6 +684,7 @@ class SyncService {
     List<String>? deletedPageFileNames,
     List<String>? deletedAssetFileNames,
     Map<String, String>? pageBaseVersions,
+    String? documentBaseVersion,
   }) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
@@ -874,8 +922,31 @@ class SyncService {
     final docBytes = Uint8List.fromList(
       utf8.encode(jsonEncode(document.toJson())),
     );
-    await _remote.uploadFile('${dir}document.json', docBytes,
-        timeoutSeconds: dt, criticalVerify: true);
+    // The page list lands only over the version this device last merged:
+    // a blind write dropped pages another device had just added.
+    final String? docVersion;
+    final docBase = _conditionalPagePuts ? documentBaseVersion : null;
+    if (docBase == null) {
+      docVersion = await _remote.uploadFile('${dir}document.json', docBytes,
+          timeoutSeconds: dt, criticalVerify: true);
+    } else {
+      try {
+        docVersion = await _putPageIfUnchanged(
+            '${dir}document.json', docBytes, docBase, dt);
+      } on _PageMovedOnServer {
+        final uploaded = <String, String>{};
+        for (final entry in pageUploads.entries) {
+          final etag = await entry.value;
+          if (etag != null && etag.isNotEmpty) {
+            uploaded[entry.key] = etag.replaceAll('"', '');
+          }
+        }
+        throw RemotePagesChangedException(
+          fileNames: const [AppConfig.documentFile],
+          uploadedEtags: uploaded,
+        );
+      }
+    }
 
     // ── Phase 2: Upload metadata.json LAST (commit marker) ──
     // CRITICAL: pages + document are ALREADY committed at this point.
@@ -923,6 +994,7 @@ class SyncService {
       pageEtags: pageEtags,
       failedPageDeletes: failedPageDeletes,
       failedAssetDeletes: failedAssetDeletes,
+      docVersion: docVersion?.replaceAll('"', ''),
     );
   }
 
@@ -1078,6 +1150,27 @@ class SyncService {
   /// when Nextcloud serves chunked (Content-Length absent) so the body
   /// gets validated even when the cheap header check has nothing to
   /// compare against.
+  /// [downloadDeltaMeta] plus the page list's server version, read first:
+  /// a newer document downloaded after it only costs one extra merge.
+  Future<
+      ({
+        NotebookMetadata metadata,
+        DocumentStructure document,
+        String? docVersion
+      })> downloadDeltaMetaVersioned(String notebookId) async {
+    String? version;
+    try {
+      version = await _remote
+          .getVersion('${_deltaDir(notebookId)}${AppConfig.documentFile}');
+    } catch (_) {}
+    final r = await downloadDeltaMeta(notebookId);
+    return (
+      metadata: r.metadata,
+      document: r.document,
+      docVersion: version?.replaceAll('"', ''),
+    );
+  }
+
   Future<({NotebookMetadata metadata, DocumentStructure document})>
       downloadDeltaMeta(String notebookId) async {
     final dir = _deltaDir(notebookId);

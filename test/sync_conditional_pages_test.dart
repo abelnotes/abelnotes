@@ -114,6 +114,106 @@ void main() {
     expect(store.calls.any((c) => c.endsWith('metadata.json')), isFalse);
   });
 
+  test('another device changed the page list: it is merged, not overwritten',
+      () async {
+    final store = FakeRemoteStore();
+    final sync = SyncService(store);
+    final first = await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: meta,
+      document: doc,
+      dirtyPages: {'a.json': _page('a', 1), 'b.json': _page('b', 1)},
+    );
+    expect(first.docVersion, isNotNull);
+    final docPath = store.files.keys.singleWhere((k) => k.endsWith('/document.json'));
+    final theirs = Uint8List.fromList([7]);
+    store.files[docPath] = theirs; // they added a page
+    store.bumpVersion(docPath);
+    store.calls.clear();
+
+    await expectLater(
+      sync.syncDelta(
+        notebookId: 'nb',
+        metadata: meta,
+        document: doc,
+        dirtyPages: const {},
+        documentBaseVersion: first.docVersion,
+      ),
+      throwsA(isA<RemotePagesChangedException>()
+          .having((e) => e.fileNames, 'fileNames', ['document.json'])),
+    );
+    expect(store.files[docPath], same(theirs), reason: 'their page stays listed');
+    expect(store.calls.any((c) => c.endsWith('metadata.json')), isFalse);
+  });
+
+  test('an unchanged page list goes up and reports its new version', () async {
+    final store = FakeRemoteStore();
+    final sync = SyncService(store);
+    final first = await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: meta,
+      document: doc,
+      dirtyPages: {'a.json': _page('a', 1)},
+    );
+    final second = await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: meta,
+      document: doc,
+      dirtyPages: const {},
+      documentBaseVersion: first.docVersion,
+    );
+    expect(second.docVersion, isNot(first.docVersion));
+  });
+
+  test('a page file lost on the server is restored, not retried forever',
+      () async {
+    final store = FakeRemoteStore();
+    final sync = SyncService(store)..lostPageGrace = Duration.zero;
+    final etags = await firstPush(store, sync);
+    final aPath = pagePath(store, 'a.json');
+    store.files.remove(aPath); // still listed in document.json
+
+    final r = await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: meta,
+      document: doc,
+      dirtyPages: {'a.json': _page('a', 2)},
+      pageBaseVersions: {'a.json': etags['a.json']!},
+    );
+
+    expect(store.files[aPath], isNotNull, reason: 'the only copy goes back');
+    expect(r.pageEtags.keys, ['a.json']);
+  });
+
+  test('a page another device deleted is not brought back', () async {
+    final store = FakeRemoteStore();
+    final sync = SyncService(store)..lostPageGrace = Duration.zero;
+    final etags = await firstPush(store, sync);
+    final aPath = pagePath(store, 'a.json');
+    store.files.remove(aPath);
+    // The other device's page list no longer names it.
+    await sync.syncDelta(
+      notebookId: 'nb',
+      metadata: meta,
+      document: const DocumentStructure(notebookId: 'nb', pages: [
+        PageEntry(pageId: 'b', pageNumber: 1, fileName: 'b.json'),
+      ]),
+      dirtyPages: const {},
+    );
+
+    await expectLater(
+      sync.syncDelta(
+        notebookId: 'nb',
+        metadata: meta,
+        document: doc,
+        dirtyPages: {'a.json': _page('a', 2)},
+        pageBaseVersions: {'a.json': etags['a.json']!},
+      ),
+      throwsA(isA<RemotePagesChangedException>()),
+    );
+    expect(store.files[aPath], isNull);
+  });
+
   test('a page deleted on the server is not resurrected by the push',
       () async {
     final store = FakeRemoteStore();
