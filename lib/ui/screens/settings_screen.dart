@@ -281,36 +281,39 @@ class _Rail extends StatelessWidget {
         color: Color.alphaBlend(p.ink0.withValues(alpha: 0.035), p.paper1),
         border: Border(right: BorderSide(color: p.paper3)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: HwButton(
-              leading: const HwIcon('chevron-left', size: 18),
-              label: l10n.setBackToLibrary,
-              onPressed: onClose,
-              color: p.accent,
+      // Scrolls: a phone in landscape is too short for every section.
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: HwButton(
+                leading: const HwIcon('chevron-left', size: 18),
+                label: l10n.setBackToLibrary,
+                onPressed: onClose,
+                color: p.accent,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Text(
-              l10n.setSettingsTitle,
-              style: HwType.title.copyWith(color: p.ink0, fontSize: 17),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                l10n.setSettingsTitle,
+                style: HwType.title.copyWith(color: p.ink0, fontSize: 17),
+              ),
             ),
-          ),
-          for (final item in items)
-            _RailItem(
-              id: item.$1,
-              label: item.$2,
-              icon: item.$3,
-              selected: section == item.$1,
-              onTap: () => onSelect(item.$1),
-            ),
-        ],
+            for (final item in items)
+              _RailItem(
+                id: item.$1,
+                label: item.$2,
+                icon: item.$3,
+                selected: section == item.$1,
+                onTap: () => onSelect(item.$1),
+              ),
+          ],
+        ),
       ),
     );
   }
