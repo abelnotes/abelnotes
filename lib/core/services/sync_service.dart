@@ -1596,6 +1596,20 @@ class SyncService {
     );
   }
 
+  /// Every part of a notebook package already on disk, e.g. one read for
+  /// display only.
+  LooseStoreContents parsePackage(Uint8List data) {
+    validateNcnoteArchive(data, context: 'parsePackage');
+    final result = _parseNcnoteArchive(data);
+    return (
+      metadata: result.metadata,
+      document: result.document,
+      pages: extractAllPages(data),
+      assets: extractAllAssets(data),
+      symbolLibraries: extractSymbolLibraries(data),
+    );
+  }
+
   /// Estrae tutti gli asset binari (immagini) da un archivio .ncnote.
   Map<String, Uint8List> extractAllAssets(Uint8List data) {
     final archive = ZipDecoder().decodeBytes(data);

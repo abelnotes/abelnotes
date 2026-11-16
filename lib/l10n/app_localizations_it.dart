@@ -390,6 +390,31 @@ class AppLocalizationsIt extends AppLocalizations {
       'Schermo intero, senza strumenti — ideale per mostrare le pagine';
 
   @override
+  String get csOpenBeside => 'Apri accanto';
+
+  @override
+  String get csOpenBesideSub => 'Consulta un altro taccuino mentre scrivi';
+
+  @override
+  String get csCloseBeside => 'Chiudi il taccuino accanto';
+
+  @override
+  String get refPickTitle => 'Taccuino da aprire accanto';
+
+  @override
+  String get refNoOthers => 'Non ci sono altri taccuini.';
+
+  @override
+  String get refLoadFailed =>
+      'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.';
+
+  @override
+  String get refZoomIn => 'Ingrandisci';
+
+  @override
+  String get refZoomOut => 'Riduci';
+
+  @override
   String get csRecognizeHandwriting => 'Riconosci calligrafia';
 
   @override

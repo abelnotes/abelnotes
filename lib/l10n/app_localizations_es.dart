@@ -389,6 +389,31 @@ class AppLocalizationsEs extends AppLocalizations {
       'Pantalla completa, sin herramientas — ideal para mostrar páginas';
 
   @override
+  String get csOpenBeside => 'Abrir al lado';
+
+  @override
+  String get csOpenBesideSub => 'Consulta otro cuaderno mientras escribes';
+
+  @override
+  String get csCloseBeside => 'Cerrar el cuaderno del lado';
+
+  @override
+  String get refPickTitle => 'Cuaderno para abrir al lado';
+
+  @override
+  String get refNoOthers => 'No hay otros cuadernos.';
+
+  @override
+  String get refLoadFailed =>
+      'No se pudo abrir este cuaderno. Si no está en este dispositivo, necesitas conexión.';
+
+  @override
+  String get refZoomIn => 'Ampliar';
+
+  @override
+  String get refZoomOut => 'Reducir';
+
+  @override
   String get csRecognizeHandwriting => 'Reconocer escritura';
 
   @override

@@ -388,6 +388,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Fullscreen, no tools — great for showing pages';
 
   @override
+  String get csOpenBeside => 'Open beside';
+
+  @override
+  String get csOpenBesideSub => 'Read another notebook while you write';
+
+  @override
+  String get csCloseBeside => 'Close the notebook beside';
+
+  @override
+  String get refPickTitle => 'Notebook to open beside';
+
+  @override
+  String get refNoOthers => 'There are no other notebooks.';
+
+  @override
+  String get refLoadFailed =>
+      'Couldn\'t open this notebook. If it isn\'t on this device, you need to be online.';
+
+  @override
+  String get refZoomIn => 'Zoom in';
+
+  @override
+  String get refZoomOut => 'Zoom out';
+
+  @override
   String get csRecognizeHandwriting => 'Recognize handwriting';
 
   @override

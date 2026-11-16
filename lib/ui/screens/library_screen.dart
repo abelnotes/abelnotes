@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:abelnotes/features/reference/reference_pane.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
@@ -871,7 +872,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     ref.read(notebookPreviewProvider.notifier).state =
         NotebookPreview(fileName: name, libraryCopyId: mine?.metadata.id);
     final choice = await Navigator.of(context).push<Object?>(
-        MaterialPageRoute(builder: (_) => const CanvasScreen()));
+        MaterialPageRoute(builder: (_) => const EditorWithReference()));
     if (choice is EditorExit) await choice.save;
     if (!mounted) return;
     ref.read(notebookPreviewProvider.notifier).state = null;

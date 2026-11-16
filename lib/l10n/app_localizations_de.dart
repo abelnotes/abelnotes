@@ -390,6 +390,32 @@ class AppLocalizationsDe extends AppLocalizations {
       'Vollbild, ohne Werkzeuge — ideal zum Zeigen von Seiten';
 
   @override
+  String get csOpenBeside => 'Daneben öffnen';
+
+  @override
+  String get csOpenBesideSub =>
+      'Ein anderes Notizbuch lesen, während du schreibst';
+
+  @override
+  String get csCloseBeside => 'Notizbuch daneben schließen';
+
+  @override
+  String get refPickTitle => 'Notizbuch, das daneben geöffnet wird';
+
+  @override
+  String get refNoOthers => 'Es gibt keine anderen Notizbücher.';
+
+  @override
+  String get refLoadFailed =>
+      'Dieses Notizbuch konnte nicht geöffnet werden. Wenn es nicht auf diesem Gerät ist, musst du online sein.';
+
+  @override
+  String get refZoomIn => 'Vergrößern';
+
+  @override
+  String get refZoomOut => 'Verkleinern';
+
+  @override
   String get csRecognizeHandwriting => 'Handschrift erkennen';
 
   @override

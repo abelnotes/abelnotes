@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:uuid/uuid.dart';
+import 'package:abelnotes/features/reference/reference_pane.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/platform/io.dart' as io;
 import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
@@ -9780,6 +9781,26 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   _shareNotebookLink(state);
                 },
               ),
+            if (!state.isScratch)
+              ref.read(referenceNotebookProvider) == null
+                  ? ListTile(
+                      leading: const Icon(Icons.vertical_split_outlined),
+                      title: Text(l10n.csOpenBeside),
+                      subtitle: Text(l10n.csOpenBesideSub),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        showReferencePicker(context, ref, state.metadata.id);
+                      },
+                    )
+                  : ListTile(
+                      leading: const Icon(Icons.vertical_split_outlined),
+                      title: Text(l10n.csCloseBeside),
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        ref.read(referenceNotebookProvider.notifier).state =
+                            null;
+                      },
+                    ),
             ListTile(
               leading: const Icon(Icons.attach_file_rounded),
               title: Text(l10n.csImportFile),

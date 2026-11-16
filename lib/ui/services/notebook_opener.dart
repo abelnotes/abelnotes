@@ -1,4 +1,5 @@
 import 'dart:async' show TimeoutException;
+import 'package:abelnotes/features/reference/reference_pane.dart';
 import 'package:abelnotes/core/platform/io.dart' show SocketException;
 
 import 'package:flutter/foundation.dart';
@@ -110,9 +111,9 @@ Future<void> openNotebookAndNavigate(
 }
 
 Route<Object?> _editorRoute(Rect? origin, NotebookEntry entry) => origin == null
-    ? MaterialPageRoute(builder: (_) => const CanvasScreen())
+    ? MaterialPageRoute(builder: (_) => const EditorWithReference())
     : HwOpenRoute(
-        builder: (_) => const CanvasScreen(),
+        builder: (_) => const EditorWithReference(),
         origin: origin,
         cover: NotebookCover(
           color: Color(entry.metadata.coverColor),

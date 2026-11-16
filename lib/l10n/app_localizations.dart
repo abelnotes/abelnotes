@@ -720,6 +720,54 @@ abstract class AppLocalizations {
   /// **'Schermo intero, senza strumenti — ideale per mostrare le pagine'**
   String get csPresentationModeSub;
 
+  /// No description provided for @csOpenBeside.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri accanto'**
+  String get csOpenBeside;
+
+  /// No description provided for @csOpenBesideSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Consulta un altro taccuino mentre scrivi'**
+  String get csOpenBesideSub;
+
+  /// No description provided for @csCloseBeside.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi il taccuino accanto'**
+  String get csCloseBeside;
+
+  /// No description provided for @refPickTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Taccuino da aprire accanto'**
+  String get refPickTitle;
+
+  /// No description provided for @refNoOthers.
+  ///
+  /// In it, this message translates to:
+  /// **'Non ci sono altri taccuini.'**
+  String get refNoOthers;
+
+  /// No description provided for @refLoadFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.'**
+  String get refLoadFailed;
+
+  /// No description provided for @refZoomIn.
+  ///
+  /// In it, this message translates to:
+  /// **'Ingrandisci'**
+  String get refZoomIn;
+
+  /// No description provided for @refZoomOut.
+  ///
+  /// In it, this message translates to:
+  /// **'Riduci'**
+  String get refZoomOut;
+
   /// No description provided for @csRecognizeHandwriting.
   ///
   /// In it, this message translates to:

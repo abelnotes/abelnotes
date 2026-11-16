@@ -391,6 +391,32 @@ class AppLocalizationsFr extends AppLocalizations {
       'Plein écran, sans outils — idéal pour montrer les pages';
 
   @override
+  String get csOpenBeside => 'Ouvrir à côté';
+
+  @override
+  String get csOpenBesideSub =>
+      'Consultez un autre carnet pendant que vous écrivez';
+
+  @override
+  String get csCloseBeside => 'Fermer le carnet à côté';
+
+  @override
+  String get refPickTitle => 'Carnet à ouvrir à côté';
+
+  @override
+  String get refNoOthers => 'Il n\'y a pas d\'autre carnet.';
+
+  @override
+  String get refLoadFailed =>
+      'Impossible d\'ouvrir ce carnet. S\'il n\'est pas sur cet appareil, une connexion est nécessaire.';
+
+  @override
+  String get refZoomIn => 'Agrandir';
+
+  @override
+  String get refZoomOut => 'Réduire';
+
+  @override
   String get csRecognizeHandwriting => 'Reconnaître l\'écriture';
 
   @override

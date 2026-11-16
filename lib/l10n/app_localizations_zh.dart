@@ -374,6 +374,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPresentationModeSub => '全屏、不显示工具 — 很适合展示页面';
 
   @override
+  String get csOpenBeside => '在旁边打开';
+
+  @override
+  String get csOpenBesideSub => '书写时查看另一本笔记本';
+
+  @override
+  String get csCloseBeside => '关闭旁边的笔记本';
+
+  @override
+  String get refPickTitle => '要在旁边打开的笔记本';
+
+  @override
+  String get refNoOthers => '没有其他笔记本。';
+
+  @override
+  String get refLoadFailed => '无法打开此笔记本。如果它不在这台设备上，需要联网。';
+
+  @override
+  String get refZoomIn => '放大';
+
+  @override
+  String get refZoomOut => '缩小';
+
+  @override
   String get csRecognizeHandwriting => '识别手写内容';
 
   @override

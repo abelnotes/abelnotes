@@ -389,6 +389,31 @@ class AppLocalizationsPt extends AppLocalizations {
       'Tela cheia, sem ferramentas — ótimo para mostrar páginas';
 
   @override
+  String get csOpenBeside => 'Abrir ao lado';
+
+  @override
+  String get csOpenBesideSub => 'Consulte outro caderno enquanto escreve';
+
+  @override
+  String get csCloseBeside => 'Fechar o caderno ao lado';
+
+  @override
+  String get refPickTitle => 'Caderno para abrir ao lado';
+
+  @override
+  String get refNoOthers => 'Não há outros cadernos.';
+
+  @override
+  String get refLoadFailed =>
+      'Não foi possível abrir este caderno. Se não estiver neste dispositivo, você precisa estar conectado.';
+
+  @override
+  String get refZoomIn => 'Ampliar';
+
+  @override
+  String get refZoomOut => 'Reduzir';
+
+  @override
   String get csRecognizeHandwriting => 'Reconhecer a escrita à mão';
 
   @override
