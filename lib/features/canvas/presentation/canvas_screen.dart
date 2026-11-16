@@ -77,6 +77,7 @@ import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.da
 import 'package:abelnotes/ui/editor/hw_editor_chrome.dart';
 import 'package:abelnotes/ui/primitives/hw_motion_widgets.dart';
 import 'package:abelnotes/ui/theme/hw_motion.dart';
+import 'package:abelnotes/ui/primitives/file_drop_zone.dart';
 import 'package:abelnotes/ui/primitives/sync_badge.dart';
 import 'package:abelnotes/ui/primitives/page_size_picker.dart';
 import 'package:abelnotes/ui/screens/library_screen.dart';
@@ -4887,6 +4888,37 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
   }
 
+  /// Images and PDFs dragged in from the file manager, placed where dropped.
+  Future<void> _onFilesDropped(List<String> paths, Offset local) async {
+    final state = ref.read(canvasProvider);
+    if (state == null) return;
+    const kinds = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'};
+    var pos = _toPageCoords(local, state, _lastCanvasSize);
+    var inserted = false;
+    for (final path in paths) {
+      final ext = path.toLowerCase().split('.').last;
+      if (!kinds.contains(ext)) continue;
+      final Uint8List bytes;
+      try {
+        bytes = await io.File(path).readAsBytes();
+      } catch (_) {
+        continue;
+      }
+      if (!mounted) return;
+      final name = path.split(RegExp(r'[\\/]')).last;
+      if (ext == 'pdf') {
+        await _insertPdf(bytes, name, pos);
+      } else {
+        _insertImage(bytes, name, pos);
+      }
+      inserted = true;
+      pos += const Offset(24, 24); // several files: fanned out, not stacked
+    }
+    if (!inserted && mounted) {
+      _toast(AppLocalizations.of(context).csDropUnsupported);
+    }
+  }
+
   Future<void> _pickAndInsertImage(Offset pagePos) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -5925,7 +5957,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         if (canvasState.currentTool == CanvasTool.pan) cursor = SystemMouseCursors.grab;
         if (canvasState.currentTool == CanvasTool.image) cursor = SystemMouseCursors.click;
 
-        return ValueListenableBuilder<MouseCursor?>(
+        return FileDropZone(
+          hint: AppLocalizations.of(context).csDropHint,
+          onDrop: _onFilesDropped,
+          child: ValueListenableBuilder<MouseCursor?>(
           valueListenable: _mouseHoverCursor,
           builder: (context, hoverCursor, child) => MouseRegion(
             onExit: (_) => _clearPenHover(),
@@ -6786,7 +6821,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 }),
             ],
           ),
-        );
+        ));
       },
     );
   }

@@ -99,6 +99,7 @@ dependencies:
   # minutes on Tailscale.
   image: ^4.1.0
   super_clipboard: ^0.9.1
+  super_drag_and_drop: ^0.9.1
   
   # Sharing (iOS share sheet for export)
   share_plus: ^12.0.2

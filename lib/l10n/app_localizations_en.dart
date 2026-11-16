@@ -388,6 +388,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'Fullscreen, no tools — great for showing pages';
 
   @override
+  String get libDropHint => 'Drop to import';
+
+  @override
+  String get libDropUnsupported =>
+      'These files can\'t be imported. Try PDFs, images, notebooks, OneNote, Notion or an Obsidian folder.';
+
+  @override
+  String get csDropHint => 'Drop to insert here';
+
+  @override
+  String get csDropUnsupported => 'Only images and PDFs can be inserted here.';
+
+  @override
   String get csOpenBeside => 'Open beside';
 
   @override

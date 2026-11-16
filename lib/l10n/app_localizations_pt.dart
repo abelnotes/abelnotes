@@ -389,6 +389,19 @@ class AppLocalizationsPt extends AppLocalizations {
       'Tela cheia, sem ferramentas — ótimo para mostrar páginas';
 
   @override
+  String get libDropHint => 'Solte para importar';
+
+  @override
+  String get libDropUnsupported =>
+      'Estes arquivos não podem ser importados. Tente PDFs, imagens, cadernos, OneNote, Notion ou uma pasta do Obsidian.';
+
+  @override
+  String get csDropHint => 'Solte para inserir aqui';
+
+  @override
+  String get csDropUnsupported => 'Aqui só é possível inserir imagens e PDFs.';
+
+  @override
   String get csOpenBeside => 'Abrir ao lado';
 
   @override

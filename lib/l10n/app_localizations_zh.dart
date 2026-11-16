@@ -374,6 +374,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPresentationModeSub => '全屏、不显示工具 — 很适合展示页面';
 
   @override
+  String get libDropHint => '松开以导入';
+
+  @override
+  String get libDropUnsupported =>
+      '无法导入这些文件。请尝试 PDF、图片、笔记本、OneNote、Notion 或 Obsidian 文件夹。';
+
+  @override
+  String get csDropHint => '松开以插入到此处';
+
+  @override
+  String get csDropUnsupported => '此处只能插入图片和 PDF。';
+
+  @override
   String get csOpenBeside => '在旁边打开';
 
   @override

@@ -51,6 +51,7 @@ import 'package:abelnotes/ui/theme/hw_icons.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
 import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
+import 'package:abelnotes/ui/primitives/file_drop_zone.dart';
 import 'package:abelnotes/ui/primitives/hw_button.dart';
 import 'package:abelnotes/ui/primitives/hw_glass.dart';
 import 'package:abelnotes/ui/primitives/hw_motion_widgets.dart';
@@ -277,7 +278,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         l10n.libAllNotebooks;
     return Scaffold(
       backgroundColor: p.paper1,
-      body: SafeArea(
+      body: FileDropZone(
+        hint: l10n.libDropHint,
+        onDrop: (paths, _) => _onFilesDropped(paths),
+        child: SafeArea(
         child: LayoutBuilder(builder: (context, c) {
           // Wide windows get a sidebar; phones keep the folder chip row.
           final wide = c.maxWidth >= 900;
@@ -403,6 +407,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
             Expanded(child: main),
           ]);
         }),
+      ),
       ),
     );
   }
@@ -546,7 +551,11 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   /// then open that notebook; the canvas inserts the files once loaded.
   Future<void> _importSharedFiles(SharedImport shared) async {
     ref.read(shareReceiverProvider.notifier).consume();
-    final paths = shared.files.map((f) => f.path).toList();
+    await _importFilePaths(shared.files.map((f) => f.path).toList());
+  }
+
+  /// PDFs or images, shared, opened with or dropped on the library.
+  Future<void> _importFilePaths(List<String> paths) async {
     final all = await _notebooksWhenLoaded();
     if (!mounted) return;
     final l10n = AppLocalizations.of(context);
@@ -599,6 +608,33 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     _openNotebook(entry);
   }
 
+  /// Files dropped on the library, each kind down its usual import path.
+  Future<void> _onFilesDropped(List<String> paths) async {
+    String ext(String p) => p.toLowerCase().split('.').last;
+    const media = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'};
+    final notebooks = paths
+        .where((p) => ext(p) == 'abelnote' || ext(p) == 'ncnote')
+        .toList();
+    final files = paths.where((p) => media.contains(ext(p))).toList();
+    final onenote = paths.where((p) => ext(p) == 'one' || ext(p) == 'onetoc2');
+    final zips = paths.where((p) => ext(p) == 'zip');
+    final folders = paths.where((p) => Directory(p).existsSync());
+    if (notebooks.isNotEmpty) {
+      await _openNcnotePath(notebooks.first);
+    } else if (files.isNotEmpty) {
+      await _importFilePaths(files);
+    } else if (onenote.isNotEmpty) {
+      await _importOneNote(onenote.first);
+    } else if (zips.isNotEmpty) {
+      await _importForeign(ImportSourceType.notionExport, dropped: zips.first);
+    } else if (folders.isNotEmpty) {
+      await _importForeign(ImportSourceType.obsidianVault,
+          dropped: folders.first);
+    } else if (mounted) {
+      _toast(AppLocalizations.of(context).libDropUnsupported);
+    }
+  }
+
   /// Entry point of the import flow: source chooser first, then the
   /// format-specific pipeline (.ncnote archive, Obsidian vault, Notion zip).
   Future<void> _importFlow() async {
@@ -619,14 +655,17 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
 
   /// OneNote import (desktop-only, via the Rust FFI bridge). Freeform pages
   /// become infinite-canvas pages, sections become chapters.
-  Future<void> _importOneNote() async {
+  Future<void> _importOneNote([String? dropped]) async {
     final l10n = AppLocalizations.of(context);
     final fileService = ref.read(fileServiceProvider);
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['one', 'onetoc2'],
-    );
-    final path = result?.files.firstOrNull?.path;
+    final path = dropped ??
+        (await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['one', 'onetoc2'],
+        ))
+            ?.files
+            .firstOrNull
+            ?.path;
     if (path == null) return;
     if (!mounted) return;
 
@@ -700,7 +739,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   /// Foreign-format import (Obsidian / Notion): pick the source, parse it to
   /// a draft, paginate and register. Cancellable at every stage; leaves no
   /// residue when cancelled before packaging.
-  Future<void> _importForeign(ImportSourceType type) async {
+  Future<void> _importForeign(ImportSourceType type, {String? dropped}) async {
     final l10n = AppLocalizations.of(context);
     final fileService = ref.read(fileServiceProvider);
 
@@ -708,8 +747,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     Uint8List? zipBytes;
     String zipName = '';
     if (type == ImportSourceType.obsidianVault) {
-      vaultPath = await FilePicker.platform.getDirectoryPath();
+      vaultPath = dropped ?? await FilePicker.platform.getDirectoryPath();
       if (vaultPath == null) return;
+    } else if (dropped != null) {
+      try {
+        zipBytes = await File(dropped).readAsBytes();
+      } catch (_) {
+        _toast(l10n.libImportCannotReadFile);
+        return;
+      }
+      zipName = dropped.split(RegExp(r'[\\/]')).last;
     } else {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,

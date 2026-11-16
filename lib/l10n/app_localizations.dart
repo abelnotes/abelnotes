@@ -720,6 +720,30 @@ abstract class AppLocalizations {
   /// **'Schermo intero, senza strumenti — ideale per mostrare le pagine'**
   String get csPresentationModeSub;
 
+  /// No description provided for @libDropHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Rilascia per importare'**
+  String get libDropHint;
+
+  /// No description provided for @libDropUnsupported.
+  ///
+  /// In it, this message translates to:
+  /// **'Questi file non si possono importare. Prova con PDF, immagini, taccuini, OneNote, Notion o una cartella Obsidian.'**
+  String get libDropUnsupported;
+
+  /// No description provided for @csDropHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Rilascia per inserire qui'**
+  String get csDropHint;
+
+  /// No description provided for @csDropUnsupported.
+  ///
+  /// In it, this message translates to:
+  /// **'Qui si possono inserire solo immagini e PDF.'**
+  String get csDropUnsupported;
+
   /// No description provided for @csOpenBeside.
   ///
   /// In it, this message translates to:

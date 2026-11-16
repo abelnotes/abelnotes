@@ -389,6 +389,20 @@ class AppLocalizationsEs extends AppLocalizations {
       'Pantalla completa, sin herramientas — ideal para mostrar páginas';
 
   @override
+  String get libDropHint => 'Suelta para importar';
+
+  @override
+  String get libDropUnsupported =>
+      'Estos archivos no se pueden importar. Prueba con PDF, imágenes, cuadernos, OneNote, Notion o una carpeta de Obsidian.';
+
+  @override
+  String get csDropHint => 'Suelta para insertar aquí';
+
+  @override
+  String get csDropUnsupported =>
+      'Aquí solo se pueden insertar imágenes y PDF.';
+
+  @override
   String get csOpenBeside => 'Abrir al lado';
 
   @override
