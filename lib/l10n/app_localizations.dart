@@ -4704,6 +4704,24 @@ abstract class AppLocalizations {
   /// **'Nota .sdocx (in Samsung Notes: Salva come file)'**
   String get importSourceSamsungHint;
 
+  /// No description provided for @libImportInviteTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai appunti in un\'altra app?'**
+  String get libImportInviteTitle;
+
+  /// No description provided for @libImportInviteBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Portali qui. Gli originali restano come sono.'**
+  String get libImportInviteBody;
+
+  /// No description provided for @libImportInviteLater.
+  ///
+  /// In it, this message translates to:
+  /// **'Non ora'**
+  String get libImportInviteLater;
+
   /// No description provided for @setOpenSourceLicenses.
   ///
   /// In it, this message translates to:

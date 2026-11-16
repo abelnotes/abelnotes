@@ -2779,6 +2779,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importSourceSamsungHint => '.sdocx 笔记（在 Samsung Notes 中：另存为文件）';
 
   @override
+  String get libImportInviteTitle => '在其他应用里有笔记？';
+
+  @override
+  String get libImportInviteBody => '导入到这里，原文件保持不变。';
+
+  @override
+  String get libImportInviteLater => '以后再说';
+
+  @override
   String get setOpenSourceLicenses => '开源许可';
 
   @override

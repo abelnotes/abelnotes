@@ -77,6 +77,90 @@ Future<ImportSourceType?> showImportSourceSheet(BuildContext context) {
   );
 }
 
+/// Empty-library card offering the other apps' importers in one tap.
+class ImportInvite extends StatelessWidget {
+  final ValueChanged<ImportSourceType> onPick;
+  final VoidCallback onDismiss;
+
+  const ImportInvite(
+      {super.key, required this.onPick, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = HwThemeScope.of(context);
+    final l10n = AppLocalizations.of(context);
+    Widget source(String icon, Color tint, String label, ImportSourceType t) =>
+        Material(
+          color: p.paper0,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => onPick(t),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 7, 12, 7),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: tint.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  alignment: Alignment.center,
+                  child: HwIcon(icon, size: 16, color: tint),
+                ),
+                const SizedBox(width: 8),
+                Text(label, style: TextStyle(fontSize: 13, color: p.ink0)),
+              ]),
+            ),
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+      decoration: BoxDecoration(
+        color: p.paper2,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Text(l10n.libImportInviteTitle,
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: p.ink0)),
+            ),
+            TextButton(
+              onPressed: onDismiss,
+              style: TextButton.styleFrom(foregroundColor: p.ink2),
+              child: Text(l10n.libImportInviteLater,
+                  style: const TextStyle(fontSize: 12)),
+            ),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(right: 8, bottom: 12),
+            child: Text(l10n.libImportInviteBody,
+                style: TextStyle(fontSize: 12, color: p.ink2, height: 1.4)),
+          ),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            if (OneNoteImporter.isSupported)
+              source('src-onenote', _oneNoteTint, l10n.importSourceOneNote,
+                  ImportSourceType.onenote),
+            source('src-samsung', _samsungNotesTint, l10n.importSourceSamsung,
+                ImportSourceType.samsungNotes),
+            source('src-notion', p.ink0, l10n.importSourceNotion,
+                ImportSourceType.notionExport),
+            source('src-obsidian', _obsidianTint, l10n.importSourceObsidian,
+                ImportSourceType.obsidianVault),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
 /// Hues each source is popularly associated with, used to tint the drawn
 /// fallback glyph. A colour is not a trademark on its own; the shapes in
 /// hw_icons.dart tinted with it are ours, not the vendors' marks.

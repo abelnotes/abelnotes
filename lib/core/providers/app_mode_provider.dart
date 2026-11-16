@@ -40,6 +40,31 @@ class LocalModeNotifier extends StateNotifier<bool> {
   }
 }
 
+/// Whether the user dismissed the empty library's "bring your notes" card.
+final importInviteDismissedProvider =
+    StateNotifierProvider<ImportInviteNotifier, bool>(
+        (ref) => ImportInviteNotifier());
+
+class ImportInviteNotifier extends StateNotifier<bool> {
+  // Hidden until prefs say otherwise, so it never flashes for a returning user.
+  ImportInviteNotifier() : super(true) {
+    _load();
+  }
+
+  static const _key = 'import_invite_dismissed';
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) state = prefs.getBool(_key) ?? false;
+  }
+
+  Future<void> dismiss() async {
+    state = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, true);
+  }
+}
+
 /// Whether the user dismissed the library's local-only reminder. Onboarding
 /// already asks once; this keeps the follow-up hint from nagging forever.
 final localOnlyNoticeDismissedProvider =

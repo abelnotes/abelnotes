@@ -2867,6 +2867,16 @@ class AppLocalizationsPt extends AppLocalizations {
       'Nota .sdocx (no Samsung Notes: Salvar como arquivo)';
 
   @override
+  String get libImportInviteTitle => 'Tem notas em outro app?';
+
+  @override
+  String get libImportInviteBody =>
+      'Traga-as para cá. Os originais ficam como estão.';
+
+  @override
+  String get libImportInviteLater => 'Agora não';
+
+  @override
   String get setOpenSourceLicenses => 'Licenças de código aberto';
 
   @override

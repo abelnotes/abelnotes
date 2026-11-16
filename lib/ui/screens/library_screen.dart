@@ -341,6 +341,17 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               onToggleFavorite: _toggleFavorite,
               movingFromId: tray != null && tray.isMove ? tray.sourceNotebookId : null,
               movingCount: tray?.count ?? 0,
+              // Only on a library with nothing in it yet, not an empty folder.
+              importInvite: entries.isEmpty &&
+                      _query.trim().isEmpty &&
+                      !ref.watch(importInviteDismissedProvider)
+                  ? ImportInvite(
+                      onPick: _importFrom,
+                      onDismiss: () => ref
+                          .read(importInviteDismissedProvider.notifier)
+                          .dismiss(),
+                    )
+                  : null,
             ),
             loading: () => Padding(
               padding: const EdgeInsets.only(top: _TopBar.height),
@@ -647,6 +658,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   Future<void> _importFlow() async {
     final type = await showImportSourceSheet(context);
     if (type == null || !mounted) return;
+    await _importFrom(type);
+  }
+
+  Future<void> _importFrom(ImportSourceType type) async {
     switch (type) {
       case ImportSourceType.ncnote:
         await _importNcnote();
@@ -2687,6 +2702,7 @@ class _Body extends StatelessWidget {
   /// Notebook a pending move comes from, tagged on its cover.
   final String? movingFromId;
   final int movingCount;
+  final Widget? importInvite;
 
   const _Body({
     required this.controller,
@@ -2703,6 +2719,7 @@ class _Body extends StatelessWidget {
     required this.onToggleFavorite,
     required this.movingFromId,
     required this.movingCount,
+    this.importInvite,
   });
 
   @override
@@ -2769,6 +2786,18 @@ class _Body extends StatelessWidget {
               child: Text(
                   AppLocalizations.of(context).qlSearchNoResults(searchQuery),
                   style: TextStyle(fontSize: 14, color: p.ink2)),
+            ),
+          ),
+        if (importInvite != null)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(hPad, 0, hPad, 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: importInvite),
+              ),
             ),
           ),
         if (gridView)
