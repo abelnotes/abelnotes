@@ -18,6 +18,8 @@ void main() {
   final moveIfHeaders = <String?>[];
   var counter = 0;
   var failPutsTo = '';
+  // Nextcloud answers 404, not 412, when the If header names a missing file.
+  var missingIfTarget404 = false;
 
   setUp(() async {
     store.clear();
@@ -25,6 +27,7 @@ void main() {
     moveIfHeaders.clear();
     counter = 0;
     failPutsTo = '';
+    missingIfTarget404 = false;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final body = await req.fold<List<int>>([], (a, b) => a..addAll(b));
@@ -49,7 +52,8 @@ void main() {
             final m = RegExp(r'^<([^>]+)> \(\["([^"]+)"\]\)$').firstMatch(cond)!;
             final cur = store[Uri.decodeFull(m.group(1)!)];
             if (cur == null || cur.etag != m.group(2)) {
-              req.response.statusCode = 412;
+              req.response.statusCode =
+                  cur == null && missingIfTarget404 ? 404 : 412;
               break;
             }
           }
@@ -161,5 +165,22 @@ void main() {
     expect(at('/p.json'), 'newer');
     expect(tmpLeft(), isFalse);
     expect(log.where((l) => l.startsWith('MOVE')), hasLength(1));
+  });
+
+  test('Nextcloud\'s 404 for a page gone from the server reads as moved',
+      () async {
+    final d = dav();
+    final v1 = await seed(d);
+    store.removeWhere((k, _) => k.endsWith('/p.json'));
+    missingIfTarget404 = true;
+
+    await expectLater(
+      d.uploadFileAtomic('/p.json', bytes('edit'), ifMatchVersion: v1),
+      throwsA(isA<RemoteStoreException>()
+          .having((e) => e.statusCode, 'statusCode', 412)),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(at('/p.json'), isNull, reason: 'a deleted page stays deleted');
+    expect(tmpLeft(), isFalse);
   });
 }

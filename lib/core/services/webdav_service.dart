@@ -943,14 +943,22 @@ class WebDavService implements RemoteStore {
       final response = await _client.send(request).timeout(Duration(
           seconds: timeoutSeconds ?? AppConfig.webdavTimeoutSeconds));
       _drainStream(response);
-      if (response.statusCode != 201 && response.statusCode != 204) {
-        if (response.statusCode == 412) {
+      var status = response.statusCode;
+      // Nextcloud answers 404, not 412, when the If header names a file
+      // that is gone; retrying that 404 kept a page stuck forever.
+      if (status == 404 &&
+          ifMatchVersion != null &&
+          _preconditionHeader &&
+          await _isAbsent(remotePath)) {
+        status = 412;
+      }
+      if (status != 201 && status != 204) {
+        if (status == 412) {
           _recordSuccess();
         } else {
-          _recordFailure('uploadFileAtomic', 'MOVE ${response.statusCode}');
+          _recordFailure('uploadFileAtomic', 'MOVE $status');
         }
-        throw WebDavException(
-            'MOVE failed: ${response.statusCode}', response.statusCode);
+        throw WebDavException('MOVE failed: $status', status);
       }
       _recordSuccess();
       // Nextcloud keeps the ETag across the rename and returns it.
@@ -958,6 +966,15 @@ class WebDavService implements RemoteStore {
     } catch (_) {
       unawaited(delete(tmp).catchError((Object _) {}));
       rethrow;
+    }
+  }
+
+  Future<bool> _isAbsent(String remotePath) async {
+    try {
+      await getVersion(remotePath);
+      return false;
+    } on WebDavException catch (e) {
+      return e.statusCode == 404;
     }
   }
 
