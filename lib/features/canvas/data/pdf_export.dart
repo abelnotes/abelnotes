@@ -41,6 +41,7 @@ class PdfVecPath extends PdfVecOp {
   final int cap; // StrokeCap.index, same order as PdfLineCap
   final int join; // StrokeJoin.index, same order as PdfLineJoin
   final bool multiply;
+  final bool darken;
 
   const PdfVecPath({
     required List<double> m,
@@ -50,6 +51,7 @@ class PdfVecPath extends PdfVecOp {
     this.cap = 0,
     this.join = 0,
     this.multiply = false,
+    this.darken = false,
   }) : super(m);
 }
 
@@ -173,7 +175,7 @@ bool hasFullPageBackground(PageData page) => _fullPageBackground(page) != null;
 
 /// Finds a locked image covering the whole page (what PDF import creates).
 /// Returns null for ordinary pages, partial images (older imports that were
-/// letterboxed) and pages whose annotations include a multiply highlighter,
+/// letterboxed) and pages whose annotations include a highlighter,
 /// which only composites correctly on a flat render.
 PdfBackgroundSplit? splitPdfBackground(PageData page) {
   final bg = _fullPageBackground(page);
@@ -353,11 +355,15 @@ void _drawOp(PdfGraphics g, PdfVecOp op, PdfImage Function(Uint8List) image,
   switch (op) {
     case PdfVecPath():
       final alpha = ((op.color >> 24) & 0xFF) / 255;
-      if (alpha < 1 || op.multiply) {
+      if (alpha < 1 || op.multiply || op.darken) {
         g.setGraphicState(PdfGraphicState(
             fillOpacity: alpha,
             strokeOpacity: alpha,
-            blendMode: op.multiply ? PdfBlendMode.multiply : null));
+            blendMode: op.multiply
+                ? PdfBlendMode.multiply
+                : op.darken
+                    ? PdfBlendMode.darken
+                    : null));
       }
       final c = op.cmds;
       for (var i = 0; i < c.length;) {

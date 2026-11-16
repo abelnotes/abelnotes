@@ -114,7 +114,9 @@ class VectorCanvas implements Canvas {
       throw const VectorUnsupported('paint effect');
     }
     final bm = p.blendMode;
-    if (bm != BlendMode.srcOver && bm != BlendMode.multiply) {
+    if (bm != BlendMode.srcOver &&
+        bm != BlendMode.multiply &&
+        bm != BlendMode.darken) {
       throw VectorUnsupported('blend $bm');
     }
     final stroke = forceStroke || p.style == PaintingStyle.stroke;
@@ -126,6 +128,7 @@ class VectorCanvas implements Canvas {
       cap: p.strokeCap.index,
       join: p.strokeJoin.index,
       multiply: bm == BlendMode.multiply,
+      darken: bm == BlendMode.darken,
     ));
   }
 

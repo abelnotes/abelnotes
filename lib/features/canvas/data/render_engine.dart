@@ -1591,6 +1591,11 @@ class CanvasRenderEngine extends CustomPainter {
     );
   }
 
+  /// Highlighter ink: the 35% tint premixed on white, drawn with darken so
+  /// crossing strokes of one colour read as a single mark (#37).
+  static Color highlighterInk(Color c) =>
+      Color.alphaBlend(c.withValues(alpha: 0.35), const Color(0xFFFFFFFF));
+
   void _paintStroke(Canvas canvas, StrokeData stroke) {
     if (stroke.points.isEmpty) return;
     // Single-point stroke = Apple Pencil quick tap. Render as a filled
@@ -1600,9 +1605,12 @@ class CanvasRenderEngine extends CustomPainter {
       final p = stroke.points.first;
       final color = Color(stroke.color);
       final paint = Paint()
-        ..color = color.withValues(
-            alpha: stroke.isHighlighter ? 0.35 : stroke.opacity)
+        ..color = stroke.isHighlighter
+            ? highlighterInk(color)
+            : color.withValues(alpha: stroke.opacity)
         ..style = PaintingStyle.fill
+        ..blendMode =
+            stroke.isHighlighter ? BlendMode.darken : BlendMode.srcOver
         ..isAntiAlias = true;
       // Match the per-tool width math: pen ~baseWidth, brush 1.5×, etc.
       // Bumped 0.55 → 0.75 so single-tap dots are actually visible
@@ -1627,14 +1635,14 @@ class CanvasRenderEngine extends CustomPainter {
     final color = Color(stroke.color);
 
     if (stroke.isHighlighter) {
-      // Highlighter: flat width, semi-transparent, multiply blend
+      // Highlighter: flat width, see [highlighterInk].
       final paint = Paint()
-        ..color = color.withValues(alpha: 0.35)
+        ..color = highlighterInk(color)
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..strokeWidth = stroke.baseWidth
-        ..blendMode = BlendMode.multiply
+        ..blendMode = BlendMode.darken
         ..isAntiAlias = true;
       final path = _newPath()..moveTo(stroke.points[0].x, stroke.points[0].y);
       for (int i = 1; i < stroke.points.length; i++) {
@@ -2190,20 +2198,17 @@ class CanvasRenderEngine extends CustomPainter {
   }
 
   void _paintShape(Canvas canvas, ShapeData shape) {
-    // A shape recognized while the highlighter was active must render
-    // with the same translucent multiply blend as highlighter ink (see
-    // the isHighlighter branch in _paintStroke below) — otherwise it
-    // paints as an opaque mark that covers whatever is underneath it.
+    // A highlighter shape uses highlighter ink, so it never covers the ink under it.
     final strokePaint = Paint()
       ..color = shape.isHighlighter
-          ? Color(shape.strokeColor).withValues(alpha: 0.35)
+          ? highlighterInk(Color(shape.strokeColor))
           : Color(shape.strokeColor)
       ..style = PaintingStyle.stroke
       ..strokeWidth = shape.strokeWidth
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true
-      ..blendMode = shape.isHighlighter ? BlendMode.multiply : BlendMode.srcOver;
+      ..blendMode = shape.isHighlighter ? BlendMode.darken : BlendMode.srcOver;
 
     Paint? fillPaint;
     if (shape.fillColor != null) {

@@ -99,8 +99,8 @@ void main() {
         expect(ops.whereType<PdfVecImage>(), isEmpty, reason: bg);
         expect(ops.whereType<PdfVecText>().map((o) => o.text), ['Hello'],
             reason: bg);
-        expect(ops.whereType<PdfVecPath>().where((o) => o.multiply),
-            isNotEmpty, reason: '$bg highlighter keeps multiply');
+        expect(ops.whereType<PdfVecPath>().where((o) => o.darken),
+            isNotEmpty, reason: '$bg highlighter keeps darken');
       }
     });
   });
