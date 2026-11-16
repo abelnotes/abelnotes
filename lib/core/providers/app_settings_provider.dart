@@ -71,7 +71,7 @@ class ToolDockConfig {
   Map<String, dynamic> toJson() => {'edge': edge, 'align': align};
 
   static ToolDockConfig fromJson(Map<String, dynamic> json) {
-    const valid = {'left', 'right', 'top', 'bottom'};
+    const valid = {'left', 'right', 'top', 'bottom', 'bar'};
     final e = json['edge'] as String?;
     return ToolDockConfig(
       edge: valid.contains(e) ? e! : 'bottom',
@@ -230,6 +230,16 @@ class AppSettings {
   /// independent even though they share this same lookup.
   List<PenPreset?> presetsFor(CanvasTool tool) =>
       toolPresets[tool.name] ?? const [null, null, null];
+
+  /// [presetsFor] with empty slots filled by [PenPreset.defaultsFor].
+  List<PenPreset> quickPensFor(CanvasTool tool) {
+    final saved = presetsFor(tool);
+    final defaults = PenPreset.defaultsFor(tool);
+    return [
+      for (var i = 0; i < 3; i++)
+        (i < saved.length ? saved[i] : null) ?? defaults[i],
+    ];
+  }
 
   AppSettings copyWith({
     Set<String>? favoriteNotebookIds,

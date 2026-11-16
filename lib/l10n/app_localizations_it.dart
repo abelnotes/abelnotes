@@ -390,43 +390,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Schermo intero, senza strumenti — ideale per mostrare le pagine';
 
   @override
-  String get libDropHint => 'Rilascia per importare';
-
-  @override
-  String get libDropUnsupported =>
-      'Questi file non si possono importare. Prova con PDF, immagini, taccuini, OneNote, Notion o una cartella Obsidian.';
-
-  @override
-  String get csDropHint => 'Rilascia per inserire qui';
-
-  @override
-  String get csDropUnsupported =>
-      'Qui si possono inserire solo immagini e PDF.';
-
-  @override
-  String get csOpenBeside => 'Apri accanto';
-
-  @override
-  String get csOpenBesideSub => 'Consulta un altro taccuino mentre scrivi';
-
-  @override
-  String get csCloseBeside => 'Chiudi il taccuino accanto';
-
-  @override
-  String get refPickTitle => 'Taccuino da aprire accanto';
-
-  @override
-  String get refNoOthers => 'Non ci sono altri taccuini.';
-
-  @override
-  String get refLoadFailed =>
-      'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.';
-
-  @override
-  String get refZoomIn => 'Ingrandisci';
-
-  @override
-  String get refZoomOut => 'Riduci';
+  String get csLaserSub => 'Indica senza lasciare segni';
 
   @override
   String get csRecognizeHandwriting => 'Riconosci calligrafia';
@@ -1072,12 +1036,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get libSearchHintNotebooks => 'Cerca taccuini…';
 
   @override
-  String get libImport => 'Importa';
-
-  @override
-  String get libImportTooltip => 'Importa un file .abelnote';
-
-  @override
   String get libSettingsTooltip => 'Impostazioni';
 
   @override
@@ -1128,9 +1086,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get libNewSketch => 'Nuovo schizzo';
-
-  @override
-  String get libInfiniteCanvas => 'Canvas infinito';
 
   @override
   String get libNew => 'Nuovo';
@@ -1944,10 +1899,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get onbSyncQuestion => 'Sincronizza i tuoi appunti';
 
   @override
-  String get onbSyncQuestionSub =>
-      'Scegli dove vivono i tuoi quaderni. Puoi cambiare in seguito.';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2096,9 +2047,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromeMore => 'Altro';
 
   @override
-  String get chromeMoreEllipsis => 'Altro…';
-
-  @override
   String get chromeToolPen => 'Penna · P';
 
   @override
@@ -2123,14 +2071,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromeDragToMoveBar => 'Trascina per spostare la barra';
 
   @override
-  String get chromeShapeGuessOn => 'Auto-forma · attivo';
-
-  @override
-  String get chromeShapeGuessOff => 'Auto-forma · spento';
-
-  @override
   String get chromeHoldForOptions =>
       'Tieni premuto o clic destro per le opzioni';
+
+  @override
+  String chromeQuickPen(int n) {
+    return 'Penna rapida $n';
+  }
+
+  @override
+  String get chromeAutoShape => 'Auto-forma';
 
   @override
   String get chromeLabelPen => 'Penna';
@@ -2161,12 +2111,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get chromeLabelPan => 'Mano';
-
-  @override
-  String get chromePresetsSection => 'Pre-impostazioni';
-
-  @override
-  String get chromePresetHint => 'Tieni premuto per salvare/cancellare';
 
   @override
   String get chromeColorSection => 'Colore';
@@ -2210,7 +2154,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromePresetOverwrite => 'Sovrascrivi con corrente';
 
   @override
-  String get chromePresetClearSlot => 'Svuota slot';
+  String get chromePresetReset => 'Ripristina predefinita';
 
   @override
   String get chromeNoPages => 'Nessuna pagina';
@@ -3918,4 +3862,43 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => 'In fondo al taccuino';
+
+  @override
+  String get csOpenBeside => 'Apri accanto';
+
+  @override
+  String get csOpenBesideSub => 'Consulta un altro taccuino mentre scrivi';
+
+  @override
+  String get csCloseBeside => 'Chiudi il taccuino accanto';
+
+  @override
+  String get refPickTitle => 'Taccuino da aprire accanto';
+
+  @override
+  String get refNoOthers => 'Non ci sono altri taccuini.';
+
+  @override
+  String get refLoadFailed =>
+      'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.';
+
+  @override
+  String get refZoomIn => 'Ingrandisci';
+
+  @override
+  String get refZoomOut => 'Riduci';
+
+  @override
+  String get libDropHint => 'Rilascia per importare';
+
+  @override
+  String get libDropUnsupported =>
+      'Questi file non si possono importare. Prova con PDF, immagini, taccuini, OneNote, Notion o una cartella Obsidian.';
+
+  @override
+  String get csDropHint => 'Rilascia per inserire qui';
+
+  @override
+  String get csDropUnsupported =>
+      'Qui si possono inserire solo immagini e PDF.';
 }

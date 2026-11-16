@@ -391,44 +391,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Plein écran, sans outils — idéal pour montrer les pages';
 
   @override
-  String get libDropHint => 'Déposez pour importer';
-
-  @override
-  String get libDropUnsupported =>
-      'Ces fichiers ne peuvent pas être importés. Essayez des PDF, des images, des carnets, OneNote, Notion ou un dossier Obsidian.';
-
-  @override
-  String get csDropHint => 'Déposez pour insérer ici';
-
-  @override
-  String get csDropUnsupported =>
-      'Seules les images et les PDF peuvent être insérés ici.';
-
-  @override
-  String get csOpenBeside => 'Ouvrir à côté';
-
-  @override
-  String get csOpenBesideSub =>
-      'Consultez un autre carnet pendant que vous écrivez';
-
-  @override
-  String get csCloseBeside => 'Fermer le carnet à côté';
-
-  @override
-  String get refPickTitle => 'Carnet à ouvrir à côté';
-
-  @override
-  String get refNoOthers => 'Il n\'y a pas d\'autre carnet.';
-
-  @override
-  String get refLoadFailed =>
-      'Impossible d\'ouvrir ce carnet. S\'il n\'est pas sur cet appareil, une connexion est nécessaire.';
-
-  @override
-  String get refZoomIn => 'Agrandir';
-
-  @override
-  String get refZoomOut => 'Réduire';
+  String get csLaserSub => 'Pointer sans laisser de trace';
 
   @override
   String get csRecognizeHandwriting => 'Reconnaître l\'écriture';
@@ -1075,12 +1038,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get libSearchHintNotebooks => 'Rechercher des carnets…';
 
   @override
-  String get libImport => 'Importer';
-
-  @override
-  String get libImportTooltip => 'Importer un fichier .abelnote';
-
-  @override
   String get libSettingsTooltip => 'Réglages';
 
   @override
@@ -1131,9 +1088,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libNewSketch => 'Nouveau croquis';
-
-  @override
-  String get libInfiniteCanvas => 'Toile infinie';
 
   @override
   String get libNew => 'Nouveau';
@@ -1951,10 +1905,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get onbSyncQuestion => 'Synchroniser vos notes';
 
   @override
-  String get onbSyncQuestionSub =>
-      'Choisissez où vivent vos carnets. Vous pourrez changer plus tard.';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2103,9 +2053,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromeMore => 'Plus';
 
   @override
-  String get chromeMoreEllipsis => 'Plus…';
-
-  @override
   String get chromeToolPen => 'Stylo · P';
 
   @override
@@ -2131,14 +2078,16 @@ class AppLocalizationsFr extends AppLocalizations {
       'Faites glisser pour déplacer la barre d\'outils';
 
   @override
-  String get chromeShapeGuessOn => 'Forme auto · activée';
-
-  @override
-  String get chromeShapeGuessOff => 'Forme auto · désactivée';
-
-  @override
   String get chromeHoldForOptions =>
       'Appui long ou clic droit pour les options';
+
+  @override
+  String chromeQuickPen(int n) {
+    return 'Stylo rapide $n';
+  }
+
+  @override
+  String get chromeAutoShape => 'Forme auto';
 
   @override
   String get chromeLabelPen => 'Stylo';
@@ -2169,12 +2118,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chromeLabelPan => 'Main';
-
-  @override
-  String get chromePresetsSection => 'Préréglages';
-
-  @override
-  String get chromePresetHint => 'Appui long pour enregistrer/effacer';
 
   @override
   String get chromeColorSection => 'Couleur';
@@ -2219,7 +2162,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromePresetOverwrite => 'Remplacer par l\'actuel';
 
   @override
-  String get chromePresetClearSlot => 'Vider l\'emplacement';
+  String get chromePresetReset => 'Rétablir par défaut';
 
   @override
   String get chromeNoPages => 'Aucune page';
@@ -3926,4 +3869,44 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => 'À la fin du carnet';
+
+  @override
+  String get csOpenBeside => 'Ouvrir à côté';
+
+  @override
+  String get csOpenBesideSub =>
+      'Consultez un autre carnet pendant que vous écrivez';
+
+  @override
+  String get csCloseBeside => 'Fermer le carnet à côté';
+
+  @override
+  String get refPickTitle => 'Carnet à ouvrir à côté';
+
+  @override
+  String get refNoOthers => 'Il n\'y a pas d\'autre carnet.';
+
+  @override
+  String get refLoadFailed =>
+      'Impossible d\'ouvrir ce carnet. S\'il n\'est pas sur cet appareil, une connexion est nécessaire.';
+
+  @override
+  String get refZoomIn => 'Agrandir';
+
+  @override
+  String get refZoomOut => 'Réduire';
+
+  @override
+  String get libDropHint => 'Déposez pour importer';
+
+  @override
+  String get libDropUnsupported =>
+      'Ces fichiers ne peuvent pas être importés. Essayez des PDF, des images, des carnets, OneNote, Notion ou un dossier Obsidian.';
+
+  @override
+  String get csDropHint => 'Déposez pour insérer ici';
+
+  @override
+  String get csDropUnsupported =>
+      'Seules les images et les PDF peuvent être insérés ici.';
 }

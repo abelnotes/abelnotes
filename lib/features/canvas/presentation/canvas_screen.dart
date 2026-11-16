@@ -293,6 +293,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   static const double _dockBottomInset = 110;
   static const double _dockSideInset = 16;
   static const double _dockPopupGap = 12;
+  /// Editor top bar height; a dock dropped on it docks inside it.
+  static const double _topBarHeight = 52;
+  /// Narrower than this the top bar has no room for the tools.
+  static const double _dockBarMinWidth = 720;
 
   // ── Arrow-key hold acceleration ────────────────────────────────
   // Tracks consecutive same-direction arrow presses so holding the
@@ -956,6 +960,14 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       projected.dx.clamp(0.0, area.width - _dockDragSize.width),
       projected.dy.clamp(0.0, area.height - _dockDragSize.height),
     ) + Offset(_dockDragSize.width / 2, _dockDragSize.height / 2);
+    // Dropped on the top bar: dock inside it, if the window is wide enough.
+    if (center.dy < _topBarHeight + 16 &&
+        MediaQuery.sizeOf(context).width >= _dockBarMinWidth) {
+      ref.read(appSettingsProvider.notifier).setToolDock('bar', 0.5);
+      setState(() => _dockDrag.value = null);
+      HapticFeedback.lightImpact();
+      return;
+    }
     // Snap to whichever of the four edges the dock's centre is nearest.
     final dLeft = center.dx;
     final dRight = area.width - center.dx;
@@ -1040,6 +1052,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         );
       case DockPosition.bottom:
       case DockPosition.floating:
+      case DockPosition.bar:
         return Positioned(
           left: _dockSideInset,
           right: _dockSideInset,
@@ -1097,6 +1110,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           right: _dockSideInset,
           top: _dockTopInset + thickness + _dockPopupGap,
           child: Align(alignment: Alignment(axis, 0), child: child),
+        );
+      case DockPosition.bar:
+        return Positioned(
+          left: _dockSideInset,
+          right: _dockSideInset,
+          top: _topBarHeight + _dockPopupGap,
+          child: Align(child: child),
         );
       case DockPosition.bottom:
       case DockPosition.floating:
@@ -2273,8 +2293,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       return KeyEventResult.handled;
     }
 
-    // Escape — deselect / cancel pending symbol / cancel pending paste
+    // Escape — close the tool popup, else deselect / cancel pending
+    // symbol / cancel pending paste
     if (event.logicalKey == LogicalKeyboardKey.escape) {
+      if (_popupOpen) {
+        setState(() => _popupOpen = false);
+        return KeyEventResult.handled;
+      }
       final state = ref.read(canvasProvider);
       if (state?.pendingSymbol != null) {
         ref.read(canvasProvider.notifier).clearPendingSymbol();
@@ -5489,7 +5514,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final activeColor = Color(canvasState.toolSettings.color);
     final appSettings = ref.watch(appSettingsProvider);
     final toolDock = appSettings.toolDock;
-    final dockPosition = _edgePosition(toolDock.edge);
+    final barFits = MediaQuery.sizeOf(context).width >= _dockBarMinWidth;
+    final dockPosition = toolDock.edge == 'bar'
+        ? (barFits ? DockPosition.bar : DockPosition.bottom)
+        : _edgePosition(toolDock.edge);
+    final dockInBar = dockPosition == DockPosition.bar;
 
     return PopScope(
       canPop: false,
@@ -5520,18 +5549,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             _dockArea = constraints.biggest;
             final dockTool =
                 _dockDisplayTool(canvasState, appSettings.mouseDraws);
-            final dockWidget = HwFloatingDock(
-              key: _dockKey,
+            final quickPenTool = _quickPenTool(canvasState.currentTool);
+            HwFloatingDock buildDock(Key? key, DockPosition position) =>
+                HwFloatingDock(
+              key: key,
               currentTool: dockTool,
               penDeviceTool: canvasState.currentTool,
               activeInkColor: activeColor,
               lastEraserMode: notifier.lastEraserMode,
-              shapeGuess: canvasState.toolSettings.shapeRecognition,
-              onShapeGuessChanged: (v) {
-                notifier.setToolSettings(
-                    canvasState.toolSettings.copyWith(shapeRecognition: v));
-              },
-              onShapeGuessSecondary: _showShapeGuessMenu,
+              quickPens: appSettings.quickPensFor(quickPenTool),
+              activeQuickPen: _activeQuickPen(canvasState,
+                  appSettings.quickPensFor(quickPenTool)),
+              onQuickPenTap: (slot) => _applyQuickPen(quickPenTool, slot),
+              onQuickPenSecondary: (slot, pos) =>
+                  _showQuickPenMenu(quickPenTool, slot, pos),
               onToolChanged: (t, kind) {
                 _noteDockTapDevice(kind);
                 _pickTool(t);
@@ -5552,17 +5583,28 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   ref.read(appSettingsProvider.notifier).setMouseDraws(true);
                   return;
                 }
+                // These tools have no options: their popup would be empty.
+                if (const {CanvasTool.lasso, CanvasTool.pan, CanvasTool.laser}
+                    .contains(canvasState.currentTool)) {
+                  return;
+                }
                 setState(() {
                   _popupOpen = !_popupOpen;
                   _popupAt = null;
                 });
               },
-              position: dockPosition,
+              position: position,
               dragging: _dockDragOffset != null,
               onDragStart: _onDockDragStart,
               onDragUpdate: _onDockDragUpdate,
               onDragEnd: _onDockDragEnd,
             );
+            final dockWidget = buildDock(_dockKey, dockPosition);
+            // While dragged out of the bar, the real dock stays mounted there
+            // (it owns the drag gesture) and this copy follows the pointer.
+            final dockGhost = dockInBar
+                ? IgnorePointer(child: buildDock(null, DockPosition.floating))
+                : null;
             return Stack(
               key: _stackKey,
               children: [
@@ -5614,11 +5656,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onPagesTap: () => _showPageManager(canvasState),
                     onAddPage: () =>
                         ref.read(canvasProvider.notifier).addPage(),
-                    onSymbolsTap: notifier.isPreview
-                        ? null
-                        : () => _showSymbolsDialog(
-                            _visibleCenterPagePos(canvasState)),
-                    onExportTap: () => _showExportSheet(),
+                    onImportFileTap: () => _pickAndInsertImage(
+                        _visibleCenterPagePos(canvasState)),
                     onMoreTap: () => _showMoreSheet(canvasState),
                     mouseDraws: mouseDraws,
                     // No mouse ever shows up on a touch-only phone/tablet —
@@ -5630,6 +5669,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                             .read(appSettingsProvider.notifier)
                             .setMouseDraws(!mouseDraws),
                     touchDraws: !_effectiveStylusOnly(),
+                    center: dockInBar && !_presentationMode && !notifier.isPreview
+                        ? Opacity(
+                            opacity: _dockDragOffset == null ? 1 : 0,
+                            child: dockWidget)
+                        : null,
                     onToggleTouchDraws: _isMobilePlatform
                         ? () => ref
                             .read(appSettingsProvider.notifier)
@@ -5640,9 +5684,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   ),
                   if (notifier.isPreview) _previewBar(),
                   Expanded(
-                    child: GestureDetector(
+                    // Any touch on the page (tap or stroke) closes the tool
+                    // popup so it never covers what the user is writing.
+                    child: Listener(
                       behavior: HitTestBehavior.translucent,
-                      onTap: () {
+                      onPointerDown: (_) {
                         if (_popupOpen) setState(() => _popupOpen = false);
                       },
                       child: _buildCanvas(canvasState, currentPage),
@@ -5699,8 +5745,15 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   valueListenable: _dockDrag,
                   child: dockWidget,
                   builder: (_, drag, dock) => drag != null
-                      ? Positioned(left: drag.dx, top: drag.dy, child: dock!)
-                      : _dockedPositioned(dockPosition, toolDock.align, dock!),
+                      ? Positioned(
+                          left: drag.dx,
+                          top: drag.dy,
+                          child: dockGhost ?? dock!)
+                      : dockInBar
+                          // Lives in the top bar (its `center`).
+                          ? const SizedBox.shrink()
+                          : _dockedPositioned(
+                              dockPosition, toolDock.align, dock!),
                 ),
               if (_presentationMode) ..._presentationOverlay(canvasState),
               // Tool option popup — anchored next to the dock wherever it
@@ -5716,7 +5769,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                   alignment: switch (dockPosition) {
                     DockPosition.left => Alignment.centerLeft,
                     DockPosition.right => Alignment.centerRight,
-                    DockPosition.top => Alignment.topCenter,
+                    DockPosition.top || DockPosition.bar =>
+                      Alignment.topCenter,
                     _ => Alignment.bottomCenter,
                   },
                   child:
@@ -5760,41 +5814,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                             ? CanvasTool.eraserStroke
                             : CanvasTool.eraserStandard);
                       },
-                      // Each ink tool keeps its own independent 3 slots —
-                      // presetsFor(currentTool) so pen/highlighter/etc.
-                      // never see (or delete) each other's presets.
-                      penPresets: ref
-                          .watch(appSettingsProvider)
-                          .presetsFor(canvasState.currentTool),
-                      onApplyPreset: (slot) {
-                        final preset = ref
-                            .read(appSettingsProvider)
-                            .presetsFor(canvasState.currentTool)[slot];
-                        if (preset == null) return;
-                        notifier.applyPenPreset(preset);
-                        // Dismiss the popup so the canvas is unobstructed
-                        // — picking a preset is a committed choice, the
-                        // user doesn't need to keep the panel open to
-                        // tweak further.
-                        if (_popupOpen) setState(() => _popupOpen = false);
-                      },
-                      onSavePreset: (slot) {
-                        final s = canvasState;
-                        ref.read(appSettingsProvider.notifier).savePenPreset(
-                              s.currentTool,
-                              slot,
-                              PenPreset(
-                                tool: s.currentTool,
-                                color: s.toolSettings.color,
-                                strokeWidth: s.toolSettings.strokeWidth,
-                                opacity: s.toolSettings.opacity,
-                              ),
-                            );
-                      },
-                      onClearPreset: (slot) {
-                        ref
-                            .read(appSettingsProvider.notifier)
-                            .clearPenPreset(canvasState.currentTool, slot);
+                      shapeGuess: canvasState.toolSettings.shapeRecognition,
+                      onShapeGuessChanged: (v) {
+                        notifier.setToolSettings(canvasState.toolSettings
+                            .copyWith(shapeRecognition: v));
                       },
                       onClose: () => setState(() => _popupOpen = false),
                     ),
@@ -7209,6 +7232,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   // ── Lasso selection rotation handle ──
 
+  /// The tool dock's rect in the canvas stack's coordinates, if laid out.
+  Rect? _dockRectInCanvas() {
+    final dock = _dockKey.currentContext?.findRenderObject() as RenderBox?;
+    final canvas = _canvasStackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (dock == null || canvas == null || !dock.attached || !canvas.attached) {
+      return null;
+    }
+    return canvas.globalToLocal(dock.localToGlobal(Offset.zero)) & dock.size;
+  }
+
   Widget _buildFloatingSelectionActions(CanvasState state, Size canvasSize) {
     // Starts loading module models, so the ⋯ menu can offer their actions.
     ref.read(selectionActionsProvider);
@@ -7231,11 +7264,24 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       height: sel.bounds.height * sel.scale,
     ).translate(sel.dragOffset.dx, sel.dragOffset.dy);
 
-    // Position below the selection
+    // Position below the selection, or above it when that would land on a
+    // horizontal tool dock (selection near the bottom of the screen).
+    const barH = 52.0;
     final screenBottom = _toScreenCoords(scaledBounds.bottomCenter, state, canvasSize);
+    var below = screenBottom.dy + 12;
+    final dock = _dockRectInCanvas();
+    if (dock != null &&
+        dock.width > dock.height &&
+        below + barH > dock.top &&
+        below < dock.bottom) {
+      // 48: clear of the rotation handle above the selection.
+      final above = _toScreenCoords(scaledBounds.topCenter, state, canvasSize).dy -
+          48 - barH;
+      below = above >= 0 ? above : dock.top - barH - 8;
+    }
 
     // Clamp to stay within view
-    final top = (screenBottom.dy + 12).clamp(0.0, canvasSize.height - 50);
+    final top = below.clamp(0.0, canvasSize.height - 50);
 
     return Positioned(
       left: 0,
@@ -9470,24 +9516,74 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   /// Right-click / long-press on a thumbnail in the bottom strip.
   /// Anchored at [pos] (global), shows quick actions on that page.
   /// Auto-shape options; the same switch as Settings → Fill shapes.
-  void _showShapeGuessMenu(Offset pos) async {
+  /// Ink tool the dock's quick pens belong to: the active one, or the pen
+  /// while a non-ink tool (eraser, lasso, ...) is held.
+  static CanvasTool _quickPenTool(CanvasTool current) => const {
+        CanvasTool.pen,
+        CanvasTool.ballpoint,
+        CanvasTool.brush,
+        CanvasTool.calligraphy,
+        CanvasTool.highlighter,
+      }.contains(current)
+          ? current
+          : CanvasTool.pen;
+
+  int? _activeQuickPen(CanvasState s, List<PenPreset> pens) {
+    if (_quickPenTool(s.currentTool) != s.currentTool) return null;
+    for (var i = 0; i < pens.length; i++) {
+      if (pens[i].color == s.toolSettings.color &&
+          (pens[i].strokeWidth - s.toolSettings.strokeWidth).abs() < 0.01) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  void _applyQuickPen(CanvasTool tool, int slot) {
+    final s = ref.read(canvasProvider);
+    if (s == null) return;
+    if (s.currentTool != tool) _pickTool(tool);
+    ref.read(canvasProvider.notifier).applyPenPreset(
+        ref.read(appSettingsProvider).quickPensFor(tool)[slot]);
+    if (_popupOpen) setState(() => _popupOpen = false);
+  }
+
+  void _showQuickPenMenu(CanvasTool tool, int slot, Offset pos) async {
     final l10n = AppLocalizations.of(context);
-    final fill = ref.read(appSettingsProvider).fillRecognizedShapes;
-    final picked = await showMenu<bool>(
+    // Saving needs the tool in hand: its live settings are what gets stored.
+    final canSave = ref.read(canvasProvider)?.currentTool == tool;
+    final picked = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx + 1, pos.dy + 1),
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       items: [
-        CheckedPopupMenuItem(
-          value: !fill,
-          checked: fill,
-          child: Text(l10n.setFillShapes),
-        ),
+        PopupMenuItem(
+            value: 'save',
+            enabled: canSave,
+            child: Text(l10n.chromePresetOverwrite)),
+        PopupMenuItem(value: 'reset', child: Text(l10n.chromePresetReset)),
       ],
     );
     if (picked == null || !mounted) return;
-    ref.read(appSettingsProvider.notifier).setFillRecognizedShapes(picked);
+    final settings = ref.read(appSettingsProvider.notifier);
+    if (picked == 'reset') {
+      settings.clearPenPreset(tool, slot);
+      return;
+    }
+    final s = ref.read(canvasProvider);
+    if (s == null || s.currentTool != tool) return;
+    final from = s.toolSettings;
+    settings.savePenPreset(
+      tool,
+      slot,
+      PenPreset(
+        tool: tool,
+        color: from.color,
+        strokeWidth: from.strokeWidth,
+        opacity: from.opacity,
+      ),
+    );
   }
 
   void _showPageStripContextMenu(int pageNumber, Offset pos) async {
@@ -9771,8 +9867,80 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   void _showMoreSheet(CanvasState state) {
     final l10n = AppLocalizations.of(context);
+    final notifier = ref.read(canvasProvider.notifier);
+    ListTile tile(Widget icon, String title, String? sub, VoidCallback run) =>
+        ListTile(
+          dense: true,
+          leading: icon,
+          title: Text(title),
+          subtitle: sub == null ? null : Text(sub),
+          onTap: () {
+            Navigator.of(context).pop();
+            run();
+          },
+        );
+    // Same breakpoint as the top bar, which hides its Import button there.
+    final compact = MediaQuery.of(context).size.width < 720;
+    // Groups: show, insert, page, notebook, device. Empty groups vanish.
+    final groups = <List<Widget>>[
+      [
+        if (!state.isScratch)
+          tile(const Icon(Icons.slideshow_outlined), l10n.csPresentationMode,
+              l10n.csPresentationModeSub, _enterPresentationMode),
+        tile(const HwIcon('laser', size: 22), l10n.chromeToolLaser,
+            l10n.csLaserSub, () => _pickTool(CanvasTool.laser)),
+        if (!state.isScratch)
+          ref.read(referenceNotebookProvider) == null
+              ? tile(const Icon(Icons.vertical_split_outlined),
+                  l10n.csOpenBeside, l10n.csOpenBesideSub,
+                  () => showReferencePicker(context, ref, state.metadata.id))
+              : tile(const Icon(Icons.vertical_split_outlined),
+                  l10n.csCloseBeside, null,
+                  () => ref.read(referenceNotebookProvider.notifier).state =
+                      null),
+      ],
+      [
+        if (compact)
+          tile(const Icon(Icons.attach_file_rounded), l10n.csImportFile,
+              l10n.csImageOrPdf,
+              () => _pickAndInsertImage(_visibleCenterPagePos(state))),
+        if (!notifier.isPreview)
+          tile(const HwIcon('symbol', size: 22), l10n.chromeSymbols, null,
+              () => _showSymbolsDialog(_visibleCenterPagePos(state))),
+      ],
+      [
+        tile(const Icon(Icons.dashboard_customize_outlined),
+            l10n.csChangePaperType,
+            _paperTypeLabel(l10n, state.currentPaperType),
+            () => _showPaperTypePicker(state)),
+      ],
+      [
+        if (_ocr.isSupported)
+          tile(const Icon(Icons.text_fields_rounded),
+              l10n.csRecognizeHandwriting, l10n.csRecognizeHandwritingSub,
+              () => _recognizeHandwriting(state)),
+        tile(const HwIcon('export', size: 22), l10n.chromeExport, null,
+            _showExportSheet),
+        if (!state.isScratch &&
+            ref.read(nextcloudShareServiceProvider) != null)
+          tile(const Icon(Icons.link_rounded), l10n.csShareLink,
+              l10n.csShareLinkSub, () => _shareNotebookLink(state)),
+      ],
+      [
+        if (PenMonitorService.isSupported)
+          tile(const Icon(Icons.cast_outlined), l10n.csPenToMonitor,
+              l10n.csPenToMonitorSubtitle, _showPenMonitorPicker),
+        if (state.isDirty)
+          tile(const Icon(Icons.save_outlined), l10n.csSaveNow, null, _save),
+      ],
+    ].where((g) => g.isNotEmpty).toList();
     showModalBottomSheet(
       context: context,
+      // Tall enough for every entry on a 720px window; scrolls below that.
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+          maxWidth: 640,
+          maxHeight: MediaQuery.of(context).size.height * 0.85),
       backgroundColor: HwThemeScope.of(context).paper0,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -9785,94 +9953,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             Text(l10n.csMore,
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            if (!state.isScratch)
-              ListTile(
-                leading: const Icon(Icons.slideshow_outlined),
-                title: Text(l10n.csPresentationMode),
-                subtitle: Text(l10n.csPresentationModeSub),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _enterPresentationMode();
-                },
-              ),
-            if (_ocr.isSupported)
-              ListTile(
-                leading: const Icon(Icons.text_fields_rounded),
-                title: Text(l10n.csRecognizeHandwriting),
-                subtitle: Text(l10n.csRecognizeHandwritingSub),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _recognizeHandwriting(state);
-                },
-              ),
-            if (!state.isScratch &&
-                ref.read(nextcloudShareServiceProvider) != null)
-              ListTile(
-                leading: const Icon(Icons.link_rounded),
-                title: Text(l10n.csShareLink),
-                subtitle: Text(l10n.csShareLinkSub),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _shareNotebookLink(state);
-                },
-              ),
-            if (!state.isScratch)
-              ref.read(referenceNotebookProvider) == null
-                  ? ListTile(
-                      leading: const Icon(Icons.vertical_split_outlined),
-                      title: Text(l10n.csOpenBeside),
-                      subtitle: Text(l10n.csOpenBesideSub),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        showReferencePicker(context, ref, state.metadata.id);
-                      },
-                    )
-                  : ListTile(
-                      leading: const Icon(Icons.vertical_split_outlined),
-                      title: Text(l10n.csCloseBeside),
-                      onTap: () {
-                        Navigator.of(ctx).pop();
-                        ref.read(referenceNotebookProvider.notifier).state =
-                            null;
-                      },
-                    ),
-            ListTile(
-              leading: const Icon(Icons.attach_file_rounded),
-              title: Text(l10n.csImportFile),
-              subtitle: Text(l10n.csImageOrPdf),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _pickAndInsertImage(_visibleCenterPagePos(state));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.dashboard_customize_outlined),
-              title: Text(l10n.csChangePaperType),
-              subtitle: Text(_paperTypeLabel(l10n, state.currentPaperType)),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _showPaperTypePicker(state);
-              },
-            ),
-            if (PenMonitorService.isSupported)
-              ListTile(
-                leading: const Icon(Icons.cast_outlined),
-                title: Text(l10n.csPenToMonitor),
-                subtitle: Text(l10n.csPenToMonitorSubtitle),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _showPenMonitorPicker();
-                },
-              ),
-            if (state.isDirty)
-              ListTile(
-                leading: const Icon(Icons.save_outlined),
-                title: Text(l10n.csSaveNow),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _save();
-                },
-              ),
+            for (var i = 0; i < groups.length; i++) ...[
+              if (i > 0) const Divider(height: 9, indent: 16, endIndent: 16),
+              ...groups[i],
+            ],
+            const SizedBox(height: 8),
           ],
         )),
       ),

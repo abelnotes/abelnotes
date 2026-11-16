@@ -388,42 +388,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Fullscreen, no tools — great for showing pages';
 
   @override
-  String get libDropHint => 'Drop to import';
-
-  @override
-  String get libDropUnsupported =>
-      'These files can\'t be imported. Try PDFs, images, notebooks, OneNote, Notion or an Obsidian folder.';
-
-  @override
-  String get csDropHint => 'Drop to insert here';
-
-  @override
-  String get csDropUnsupported => 'Only images and PDFs can be inserted here.';
-
-  @override
-  String get csOpenBeside => 'Open beside';
-
-  @override
-  String get csOpenBesideSub => 'Read another notebook while you write';
-
-  @override
-  String get csCloseBeside => 'Close the notebook beside';
-
-  @override
-  String get refPickTitle => 'Notebook to open beside';
-
-  @override
-  String get refNoOthers => 'There are no other notebooks.';
-
-  @override
-  String get refLoadFailed =>
-      'Couldn\'t open this notebook. If it isn\'t on this device, you need to be online.';
-
-  @override
-  String get refZoomIn => 'Zoom in';
-
-  @override
-  String get refZoomOut => 'Zoom out';
+  String get csLaserSub => 'Point at things without leaving a mark';
 
   @override
   String get csRecognizeHandwriting => 'Recognize handwriting';
@@ -1068,12 +1033,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get libSearchHintNotebooks => 'Search notebooks…';
 
   @override
-  String get libImport => 'Import';
-
-  @override
-  String get libImportTooltip => 'Import an .abelnote file';
-
-  @override
   String get libSettingsTooltip => 'Settings';
 
   @override
@@ -1124,9 +1083,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libNewSketch => 'New sketch';
-
-  @override
-  String get libInfiniteCanvas => 'Infinite canvas';
 
   @override
   String get libNew => 'New';
@@ -1936,10 +1892,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onbSyncQuestion => 'Sync your notes';
 
   @override
-  String get onbSyncQuestionSub =>
-      'Choose where your notebooks live. You can change this later.';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2088,9 +2040,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chromeMore => 'More';
 
   @override
-  String get chromeMoreEllipsis => 'More…';
-
-  @override
   String get chromeToolPen => 'Pen · P';
 
   @override
@@ -2115,13 +2064,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chromeDragToMoveBar => 'Drag to move the toolbar';
 
   @override
-  String get chromeShapeGuessOn => 'Auto-shape · on';
-
-  @override
-  String get chromeShapeGuessOff => 'Auto-shape · off';
-
-  @override
   String get chromeHoldForOptions => 'Hold or right-click for options';
+
+  @override
+  String chromeQuickPen(int n) {
+    return 'Quick pen $n';
+  }
+
+  @override
+  String get chromeAutoShape => 'Auto-shape';
 
   @override
   String get chromeLabelPen => 'Pen';
@@ -2152,12 +2103,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chromeLabelPan => 'Hand';
-
-  @override
-  String get chromePresetsSection => 'Presets';
-
-  @override
-  String get chromePresetHint => 'Long-press to save/clear';
 
   @override
   String get chromeColorSection => 'Color';
@@ -2201,7 +2146,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chromePresetOverwrite => 'Overwrite with current';
 
   @override
-  String get chromePresetClearSlot => 'Clear slot';
+  String get chromePresetReset => 'Reset to default';
 
   @override
   String get chromeNoPages => 'No pages';
@@ -3890,4 +3835,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => 'At the end of the notebook';
+
+  @override
+  String get csOpenBeside => 'Open beside';
+
+  @override
+  String get csOpenBesideSub => 'Read another notebook while you write';
+
+  @override
+  String get csCloseBeside => 'Close the notebook beside';
+
+  @override
+  String get refPickTitle => 'Notebook to open beside';
+
+  @override
+  String get refNoOthers => 'There are no other notebooks.';
+
+  @override
+  String get refLoadFailed =>
+      'Couldn\'t open this notebook. If it isn\'t on this device, you need to be online.';
+
+  @override
+  String get refZoomIn => 'Zoom in';
+
+  @override
+  String get refZoomOut => 'Zoom out';
+
+  @override
+  String get libDropHint => 'Drop to import';
+
+  @override
+  String get libDropUnsupported =>
+      'These files can\'t be imported. Try PDFs, images, notebooks, OneNote, Notion or an Obsidian folder.';
+
+  @override
+  String get csDropHint => 'Drop to insert here';
+
+  @override
+  String get csDropUnsupported => 'Only images and PDFs can be inserted here.';
 }

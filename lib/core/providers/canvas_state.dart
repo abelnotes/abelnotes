@@ -159,6 +159,23 @@ class PenPreset {
     this.opacity = 1.0,
   });
 
+  /// Slot contents until the user saves their own: the dock always shows 3.
+  static List<PenPreset> defaultsFor(CanvasTool tool) =>
+      tool == CanvasTool.highlighter
+          ? const [
+              PenPreset(tool: CanvasTool.highlighter, color: 0xFFFFEB3B,
+                  strokeWidth: 12, opacity: 0.35),
+              PenPreset(tool: CanvasTool.highlighter, color: 0xFF8BC34A,
+                  strokeWidth: 12, opacity: 0.35),
+              PenPreset(tool: CanvasTool.highlighter, color: 0xFFF06292,
+                  strokeWidth: 12, opacity: 0.35),
+            ]
+          : [
+              for (final c in const [0xFF000000, 0xFF1565C0, 0xFFC62828])
+                PenPreset(tool: tool, color: c,
+                    strokeWidth: AppConfig.defaultStrokeWidth),
+            ];
+
   Map<String, dynamic> toJson() => {
         'tool': tool.name,
         'color': color,

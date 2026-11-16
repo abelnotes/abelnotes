@@ -29,8 +29,8 @@ class HwEditorTopBar extends StatelessWidget {
   final VoidCallback? onRedo;
   final VoidCallback? onPagesTap;
   final VoidCallback? onAddPage;
-  final VoidCallback? onSymbolsTap;
-  final VoidCallback? onExportTap;
+  /// Import an image or PDF onto the page (export lives in More).
+  final VoidCallback? onImportFileTap;
   final VoidCallback? onMoreTap;
   /// Mouse mode: true = mouse draws like a pen; false = mouse selects.
   /// Desktop/web only — mutually exclusive with [onToggleTouchDraws] below.
@@ -45,6 +45,8 @@ class HwEditorTopBar extends StatelessWidget {
   /// Show the page-count indicator + "all pages" button. False for the
   /// infinite scratch canvas, which has no A4 pages to navigate.
   final bool showPages;
+  /// Tools docked into the bar ([DockPosition.bar]), shown in its middle.
+  final Widget? center;
 
   const HwEditorTopBar({
     super.key,
@@ -61,14 +63,14 @@ class HwEditorTopBar extends StatelessWidget {
     this.onRedo,
     this.onPagesTap,
     this.onAddPage,
-    this.onSymbolsTap,
-    this.onExportTap,
+    this.onImportFileTap,
     this.onMoreTap,
     this.showPages = true,
     this.mouseDraws = false,
     this.onToggleMouseMode,
     this.touchDraws = false,
     this.onToggleTouchDraws,
+    this.center,
   });
 
   @override
@@ -84,6 +86,8 @@ class HwEditorTopBar extends StatelessWidget {
         MediaQuery.of(context).size.shortestSide >= 600;
     return LayoutBuilder(builder: (ctx, c) {
       final isCompact = c.maxWidth < 720;
+      // Docked tools take the room: back becomes an icon.
+      final iconBack = isCompact || center != null;
       final leftPad = (isCompact ? 6.0 : 12.0) + (isIPad ? 28.0 : 0.0);
       return Container(
         height: 52,
@@ -96,7 +100,7 @@ class HwEditorTopBar extends StatelessWidget {
         child: Row(
           children: [
             // Back button — icon-only on compact to save space.
-            if (isCompact)
+            if (iconBack)
               HwButton.icon(
                 icon: const HwIcon('chevron-left', size: 18),
                 tooltip: l10n.chromeBackToLibraryTooltip,
@@ -129,14 +133,27 @@ class HwEditorTopBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                notebookTitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: HwType.headline.copyWith(color: p.ink0),
+            if (center != null)
+              // Capped, not flexible: leftover flex space would sit unused
+              // at the end of the row instead of going to the tools.
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: c.maxWidth * 0.18),
+                child: Text(
+                  notebookTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: HwType.headline.copyWith(color: p.ink0),
+                ),
+              )
+            else
+              Flexible(
+                child: Text(
+                  notebookTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: HwType.headline.copyWith(color: p.ink0),
+                ),
               ),
-            ),
             const SizedBox(width: 6),
             SyncBadge(state: syncState),
             // Reserve constant space for the "Non salvato" pill so the
@@ -157,7 +174,11 @@ class HwEditorTopBar extends StatelessWidget {
                 ),
               ),
             ],
-            const Spacer(),
+            // Title yields to the docked tools, never the other way round.
+            if (center != null)
+              Expanded(child: Center(child: center!))
+            else
+              const Spacer(),
             // Mouse mode toggle: draw like a pen vs select. Tinted accent when
             // the mouse draws, so the current mode is always visible.
             if (onToggleMouseMode != null)
@@ -228,88 +249,28 @@ class HwEditorTopBar extends StatelessWidget {
               const HwDivider(),
               const SizedBox(width: 4),
               HwButton.icon(
-                  icon: const HwIcon('symbol', size: 16),
-                  tooltip: l10n.chromeSymbols,
-                  onPressed: onSymbolsTap),
-              HwButton.icon(
-                  icon: const HwIcon('export', size: 16),
-                  tooltip: l10n.chromeExport,
-                  onPressed: onExportTap),
+                  icon: const HwIcon('image', size: 16),
+                  tooltip: l10n.csImportFile,
+                  onPressed: onImportFileTap),
             ],
             HwButton.icon(
               icon: const HwIcon('more', size: 16),
               tooltip: l10n.chromeMore,
-              onPressed: isCompact
-                  ? () => _showCompactOverflow(
-                        ctx,
-                        onSymbolsTap: onSymbolsTap,
-                        onExportTap: onExportTap,
-                        onMoreTap: onMoreTap,
-                      )
-                  : onMoreTap,
+              // Compact: the More sheet itself lists Export first.
+              onPressed: onMoreTap,
             ),
           ],
         ),
       );
     });
   }
-
-  /// Compact-mode overflow: bundles symbols + export + the original
-  /// "more" menu in a single popup so phone-width devices don't need
-  /// to fit 7 buttons in the top bar.
-  void _showCompactOverflow(
-    BuildContext context, {
-    VoidCallback? onSymbolsTap,
-    VoidCallback? onExportTap,
-    VoidCallback? onMoreTap,
-  }) async {
-    final p = HwThemeScope.of(context);
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: p.paper0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const HwIcon('symbol', size: 18),
-              title: Text(AppLocalizations.of(ctx).chromeSymbols),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                onSymbolsTap?.call();
-              },
-            ),
-            ListTile(
-              leading: const HwIcon('export', size: 18),
-              title: Text(AppLocalizations.of(ctx).chromeExport),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                onExportTap?.call();
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const HwIcon('more', size: 18),
-              title: Text(AppLocalizations.of(ctx).chromeMoreEllipsis),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                onMoreTap?.call();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
-enum DockPosition { floating, left, right, top, bottom }
+/// [bar]: the tools sit inside the editor's top bar, nothing over the page.
+enum DockPosition { floating, left, right, top, bottom, bar }
 
-/// Floating tool dock — circular pill with all tools + shape-guess toggle.
+/// Floating tool dock: tools plus three quick pens (colour + width) for
+/// the active ink tool.
 /// Tap a tool to select; tap again (or popOpen=true) opens the tool popup.
 class HwFloatingDock extends StatelessWidget {
   /// Tool the buttons render as active. On desktop this can be the
@@ -328,10 +289,13 @@ class HwFloatingDock extends StatelessWidget {
   final void Function(PointerDeviceKind kind) onActiveTap;
   final Color activeInkColor;
   final DockPosition position;
-  final bool shapeGuess;
-  final ValueChanged<bool> onShapeGuessChanged;
-  /// Long press or right click on the auto-shape button: its options menu.
-  final void Function(Offset globalPosition)? onShapeGuessSecondary;
+  /// Three quick pens of the ink tool the dots apply to.
+  final List<PenPreset> quickPens;
+  /// Slot matching the current colour + width, if any.
+  final int? activeQuickPen;
+  final void Function(int slot) onQuickPenTap;
+  /// Long press or right click on a quick pen: save / reset menu.
+  final void Function(int slot, Offset globalPosition) onQuickPenSecondary;
   /// Last eraser sub-mode the user picked (per-stroke vs per-area). The
   /// dock's eraser button activates THIS instead of always defaulting
   /// to `eraserStroke`, so going pen → eraser → pen → eraser keeps the
@@ -356,9 +320,10 @@ class HwFloatingDock extends StatelessWidget {
     required this.onToolChanged,
     required this.onActiveTap,
     required this.activeInkColor,
-    required this.shapeGuess,
-    required this.onShapeGuessChanged,
-    this.onShapeGuessSecondary,
+    required this.quickPens,
+    this.activeQuickPen,
+    required this.onQuickPenTap,
+    required this.onQuickPenSecondary,
     this.lastEraserMode = CanvasTool.eraserStroke,
     this.position = DockPosition.floating,
     this.onDragStart,
@@ -367,17 +332,19 @@ class HwFloatingDock extends StatelessWidget {
     this.dragging = false,
   });
 
-  /// Natural (unshrunk) geometry. Nine 40px buttons plus the rules add up
-  /// to ~400px along the bar — wider than the usable width of a 360dp
-  /// phone — so [metricsFor] scales the whole pill down to fit instead of
-  /// letting the Flex overflow its edge.
+  /// Natural (unshrunk) geometry. Seven 40px buttons, three 34px quick-pen
+  /// slots and the rules add up to ~400px along the bar, wider than the
+  /// usable width of a 360dp phone, so [metricsFor] scales the whole pill
+  /// down to fit instead of letting the Flex overflow its edge.
   static const double _btnBase = 40;
+  static const double _dotSlotBase = 34;
+  static const int _dotCount = 3;
   static const double _iconBase = 18;
   static const double _padBase = 6;
   static const double _ruleBase = 20;
   static const double _rulePadBase = 4;
   static const double _borderBase = 1;
-  static const int _btnCount = 8;
+  static const int _btnCount = 6;
   /// Buttons stop shrinking here; narrower than that the bar scrolls.
   static const double _minScale = 0.8;
 
@@ -385,12 +352,13 @@ class HwFloatingDock extends StatelessWidget {
   /// main axis. Also used by the editor to place the tool popup next to
   /// the bar, which needs the bar's real thickness.
   static DockMetrics metricsFor(double avail, {bool hasGrip = true}) {
-    final gaps = hasGrip ? 3 : 2;
+    final gaps = hasGrip ? 2 : 1;
     // The 1px separator rules and the pill's 1px border keep their size;
     // only the rest scales.
     final fixed = _borderBase * 2 + gaps;
     final scalable = _padBase * 2 +
         _btnBase * (_btnCount + (hasGrip ? 1 : 0)) +
+        _dotSlotBase * _dotCount +
         _rulePadBase * 2 * gaps;
     var scale = 1.0;
     if (avail.isFinite && avail > 0 && fixed + scalable > avail) {
@@ -421,6 +389,8 @@ class HwFloatingDock extends StatelessWidget {
           _toolBtn(context, CanvasTool.pen, 'pen', l10n.chromeToolPen, m),
           _toolBtn(context, CanvasTool.highlighter, 'highlighter',
               l10n.chromeToolHighlighter, m),
+          for (var i = 0; i < _dotCount && i < quickPens.length; i++)
+            _quickPenBtn(context, i, m),
           _gap(isVert, context, m),
           // Eraser button restores whichever sub-mode (per-stroke or
           // per-area) the user picked last. `lastEraserMode` is the
@@ -432,10 +402,7 @@ class HwFloatingDock extends StatelessWidget {
           _toolBtn(context, lastEraserMode, 'eraser', l10n.chromeToolEraser, m),
           _toolBtn(context, CanvasTool.lasso, 'lasso', l10n.chromeToolLasso, m),
           _toolBtn(context, CanvasTool.text, 'text', l10n.chromeToolText, m),
-          _toolBtn(context, CanvasTool.laser, 'laser', l10n.chromeToolLaser, m),
           _toolBtn(context, CanvasTool.pan, 'hand', l10n.chromeToolPan, m),
-          _gap(isVert, context, m),
-          _shapeGuessBtn(context, m),
         ],
       );
       // The active-tool pill slides between buttons instead of cutting.
@@ -454,7 +421,19 @@ class HwFloatingDock extends StatelessWidget {
           ),
         flex,
       ]);
+      if (position == DockPosition.bar) {
+        // Inside the top bar: flat, no pill of its own.
+        return m.extent > avail
+            ? SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: bar,
+              )
+            : bar;
+      }
       return HwGlass(
+        // Dark glass over a white page turns grey: keep the dock dark there.
+        strong: p.brightness == Brightness.dark,
         borderRadius: BorderRadius.circular(m.btn / 2 + m.pad + 1),
         padding: EdgeInsets.all(m.pad),
         // Too narrow even at the smallest button size (small phone, or a
@@ -476,17 +455,21 @@ class HwFloatingDock extends StatelessWidget {
   double? _indicatorOffset(DockMetrics m, bool hasGrip) {
     final gap = m.rulePad * 2 + 1;
     var off = hasGrip ? m.btn + gap : 0.0;
-    final order = <List<CanvasTool>>[
+    final order = <List<CanvasTool>?>[
       [CanvasTool.pen],
       [CanvasTool.highlighter],
+      null, // quick pens
       [],
       [CanvasTool.eraserStroke, CanvasTool.eraserStandard],
       [CanvasTool.lasso],
       [CanvasTool.text],
-      [CanvasTool.laser],
       [CanvasTool.pan],
     ];
     for (final slot in order) {
+      if (slot == null) {
+        off += m.dotSlot * _dotCount;
+        continue;
+      }
       if (slot.isEmpty) {
         off += gap;
         continue;
@@ -627,46 +610,62 @@ class HwFloatingDock extends StatelessWidget {
     );
   }
 
-  Widget _shapeGuessBtn(BuildContext context, DockMetrics m) {
+  /// A quick pen is drawn as a short ink sample in its real colour and
+  /// width, not a flat colour dot: fine and thick pens read apart.
+  Widget _quickPenBtn(BuildContext context, int slot, DockMetrics m) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
-    final label =
-        shapeGuess ? l10n.chromeShapeGuessOn : l10n.chromeShapeGuessOff;
+    final pen = quickPens[slot];
+    final active = activeQuickPen == slot;
+    final isVert =
+        position == DockPosition.left || position == DockPosition.right;
+    final isHl = pen.tool == CanvasTool.highlighter;
+    final sampleW = (isHl ? 7.0 : pen.strokeWidth.clamp(1.2, 6.0) * 1.3) *
+        m.scale;
     return Semantics(
       button: true,
-      label: label,
+      selected: active,
+      label: l10n.chromeQuickPen(slot + 1),
       child: Tooltip(
-        message: onShapeGuessSecondary == null
-            ? label
-            : '$label\n${l10n.chromeHoldForOptions}',
-        waitDuration: const Duration(milliseconds: 400),
-        // A long press opens the options, so touch never shows the tooltip.
-        triggerMode: onShapeGuessSecondary == null
-            ? null
-            : TooltipTriggerMode.manual,
+        message: l10n.chromeHoldForOptions,
+        waitDuration: const Duration(milliseconds: 600),
+        triggerMode: TooltipTriggerMode.manual,
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => onShapeGuessChanged(!shapeGuess),
-            onSecondaryTapDown: onShapeGuessSecondary == null
-                ? null
-                : (d) => onShapeGuessSecondary!(d.globalPosition),
-            onLongPressStart: onShapeGuessSecondary == null
-                ? null
-                : (d) => onShapeGuessSecondary!(d.globalPosition),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              width: m.btn,
-              height: m.btn,
-              decoration: BoxDecoration(
-                color: shapeGuess ? p.accentSoft : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
+            onTap: () => onQuickPenTap(slot),
+            onSecondaryTapDown: (d) =>
+                onQuickPenSecondary(slot, d.globalPosition),
+            onLongPressStart: (d) =>
+                onQuickPenSecondary(slot, d.globalPosition),
+            child: SizedBox(
+              width: isVert ? m.btn : m.dotSlot,
+              height: isVert ? m.dotSlot : m.btn,
               child: Center(
-                child: HwIcon('shape-guess',
-                    size: m.icon,
-                    color: shapeGuess ? p.accentDeep : p.ink1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeOut,
+                  width: isVert ? m.btn - 6 * m.scale : m.dotSlot - 4 * m.scale,
+                  height: isVert ? m.dotSlot - 4 * m.scale : m.btn - 6 * m.scale,
+                  decoration: BoxDecoration(
+                    color: active ? p.accentSoft : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10 * m.scale),
+                  ),
+                  child: CustomPaint(
+                    painter: _InkSamplePainter(
+                      color: Color(pen.color),
+                      width: sampleW,
+                      isHighlighter: isHl,
+                      vertical: isVert,
+                      // Black ink on a dark dock (or white on a light one).
+                      // Never under a highlighter: its wash would show it through.
+                      halo: !isHl && _lowContrast(Color(pen.color), p.paper0)
+                          ? p.ink2
+                          : null,
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -674,6 +673,66 @@ class HwFloatingDock extends StatelessWidget {
       ),
     );
   }
+}
+
+/// WCAG contrast below 1.6: the sample would vanish into the dock.
+bool _lowContrast(Color a, Color b) {
+  final la = a.computeLuminance(), lb = b.computeLuminance();
+  final hi = math.max(la, lb), lo = math.min(la, lb);
+  return (hi + 0.05) / (lo + 0.05) < 1.6;
+}
+
+/// Short S-curve of ink used by the dock's quick pens.
+class _InkSamplePainter extends CustomPainter {
+  final Color color;
+  final double width;
+  final bool isHighlighter;
+  final bool vertical;
+  /// Outline drawn under the ink when it is too close to the background.
+  final Color? halo;
+  _InkSamplePainter({
+    required this.color,
+    required this.width,
+    required this.isHighlighter,
+    required this.vertical,
+    this.halo,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (vertical) {
+      canvas.translate(size.width, 0);
+      canvas.rotate(math.pi / 2);
+      size = Size(size.height, size.width);
+    }
+    final w = size.width, h = size.height;
+    final paint = Paint()
+      ..color = isHighlighter ? color.withValues(alpha: 0.55) : color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeCap = isHighlighter ? StrokeCap.butt : StrokeCap.round;
+    final path = Path()
+      ..moveTo(w * 0.22, h * 0.62)
+      ..cubicTo(w * 0.40, h * 0.20, w * 0.60, h * 0.80, w * 0.78, h * 0.38);
+    if (halo != null) {
+      canvas.drawPath(
+          path,
+          Paint()
+            ..color = halo!
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = width + 2.5
+            ..strokeCap = paint.strokeCap);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_InkSamplePainter old) =>
+      old.color != color ||
+      old.width != width ||
+      old.isHighlighter != isHighlighter ||
+      old.vertical != vertical ||
+      old.halo != halo;
 }
 
 /// Sizes for one rendering of [HwFloatingDock]. Everything derives from a
@@ -685,6 +744,7 @@ class DockMetrics {
   const DockMetrics._(this.scale, this.extent);
 
   double get btn => HwFloatingDock._btnBase * scale;
+  double get dotSlot => HwFloatingDock._dotSlotBase * scale;
   double get icon => HwFloatingDock._iconBase * scale;
   double get pad => HwFloatingDock._padBase * scale;
   double get rule => HwFloatingDock._ruleBase * scale;
@@ -714,16 +774,9 @@ class HwToolPopup extends StatelessWidget {
   final bool? eraserPerStroke;
   final ValueChanged<bool>? onEraserPerStrokeChanged;
   final VoidCallback onClose;
-  /// 3-slot pen-preset rail. `null` slot = empty (tap to save current,
-  /// shows "+" placeholder). `onApplyPreset` activates the preset's
-  /// tool+settings via CanvasNotifier.applyPenPreset; `onSavePreset`
-  /// writes the active tool's current (color, width, opacity) into
-  /// the slot. Only shown for pen-class tools — eraser/lasso/etc.
-  /// don't have presets.
-  final List<PenPreset?>? penPresets;
-  final void Function(int slot)? onApplyPreset;
-  final void Function(int slot)? onSavePreset;
-  final void Function(int slot)? onClearPreset;
+  /// Auto-shape switch, shown for ink tools when [onShapeGuessChanged] is set.
+  final bool shapeGuess;
+  final ValueChanged<bool>? onShapeGuessChanged;
 
   const HwToolPopup({
     super.key,
@@ -741,18 +794,12 @@ class HwToolPopup extends StatelessWidget {
     this.onEraserDiameterChanged,
     this.eraserPerStroke,
     this.onEraserPerStrokeChanged,
-    this.penPresets,
-    this.onApplyPreset,
-    this.onSavePreset,
-    this.onClearPreset,
+    this.shapeGuess = false,
+    this.onShapeGuessChanged,
   });
 
-  bool get _showPresets =>
-      penPresets != null &&
-      (tool == CanvasTool.pen ||
-          tool == CanvasTool.ballpoint ||
-          tool == CanvasTool.brush ||
-          tool == CanvasTool.highlighter);
+  bool get _showShapeGuess =>
+      onShapeGuessChanged != null && HwFloatingDock._inkTools.contains(tool);
 
   bool get _showColor => !{
         CanvasTool.eraserStandard,
@@ -836,24 +883,6 @@ class HwToolPopup extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (_showPresets) ...[
-            _section(l10n.chromePresetsSection, p),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                for (int i = 0; i < 3; i++) ...[
-                  Expanded(child: _presetSlot(i, p, context)),
-                  if (i < 2) const SizedBox(width: 6),
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              l10n.chromePresetHint,
-              style: TextStyle(fontSize: 10, color: p.ink3),
-            ),
-            const SizedBox(height: 14),
-          ],
           if (_showColor) ...[
             _section(l10n.chromeColorSection, p),
             const SizedBox(height: 6),
@@ -944,6 +973,33 @@ class HwToolPopup extends StatelessWidget {
             ),
             const SizedBox(height: 10),
           ],
+          if (_showShapeGuess)
+            // Same row pattern as the stroke preview above it.
+            Container(
+              padding: const EdgeInsets.only(top: 6),
+              decoration: BoxDecoration(
+                border: Border(top: BorderSide(color: p.paper2)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(l10n.chromeAutoShape,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: p.ink2)),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: FittedBox(
+                      child: Switch(
+                        value: shapeGuess,
+                        onChanged: onShapeGuessChanged,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_isEraser) ...[
             _section(l10n.chromeModeSection, p),
             const SizedBox(height: 6),
@@ -1142,94 +1198,6 @@ class HwToolPopup extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// One of the 3 OneNote-style preset slots in the popup rail. Empty
-  /// → "+" placeholder, tap = save current; long-press = no-op.
-  /// Filled → shows a coloured pen-tip with thickness ring, tap =
-  /// activate, long-press = menu to overwrite/clear.
-  Widget _presetSlot(int slot, HwPalette p, BuildContext context) {
-    final preset = (penPresets != null && slot < penPresets!.length)
-        ? penPresets![slot]
-        : null;
-    final isActive = preset != null &&
-        preset.tool == tool &&
-        preset.color == color.toARGB32() &&
-        (preset.strokeWidth - thickness).abs() < 0.01;
-    final body = Container(
-      height: 42,
-      decoration: BoxDecoration(
-        color: isActive ? p.accentSoft : p.paper2,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-            color: isActive ? p.accent : p.paper3,
-            width: isActive ? 1.5 : 1),
-      ),
-      child: Center(
-        child: preset == null
-            ? Icon(Icons.add_rounded, size: 18, color: p.ink3)
-            : _presetGlyph(preset, p),
-      ),
-    );
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          if (preset == null) {
-            onSavePreset?.call(slot); // save current tool as preset
-          } else {
-            onApplyPreset?.call(slot);
-          }
-        },
-        onLongPress: preset == null
-            ? null
-            : () => _showPresetMenu(context, slot, p),
-        child: body,
-      ),
-    );
-  }
-
-  Widget _presetGlyph(PenPreset preset, HwPalette p) {
-    final tip = Color(preset.color).withValues(alpha: preset.opacity);
-    // Visual: a horizontal stroke that scales with the preset's width.
-    final w = preset.strokeWidth.clamp(0.5, 14.0);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 22,
-          height: w,
-          decoration: BoxDecoration(
-            color: tip,
-            borderRadius: BorderRadius.circular(w / 2),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showPresetMenu(BuildContext context, int slot, HwPalette p) async {
-    final box = context.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    final pos = RelativeRect.fromRect(
-      Rect.fromPoints(
-        box.localToGlobal(Offset.zero, ancestor: overlay),
-        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-      ),
-      Offset.zero & overlay.size,
-    );
-    final l10n = AppLocalizations.of(context);
-    final action = await showMenu<String>(
-      context: context,
-      position: pos,
-      items: [
-        PopupMenuItem(value: 'save', child: Text(l10n.chromePresetOverwrite)),
-        PopupMenuItem(value: 'clear', child: Text(l10n.chromePresetClearSlot)),
-      ],
-    );
-    if (action == 'save') onSavePreset?.call(slot);
-    if (action == 'clear') onClearPreset?.call(slot);
   }
 }
 

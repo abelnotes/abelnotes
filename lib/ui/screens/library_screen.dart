@@ -289,7 +289,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
             SliverToBoxAdapter(
               child: _LargeTitle(
                 title: folderName,
-                subtitle: l10n.libItemsCount(notebooks.length),
+                // Same total as the sidebar: sketches count too.
+                subtitle: l10n.libItemsCount(filtered.length),
                 scroll: _scroll,
                 hPad: wide ? 32 : 16,
               ),
@@ -334,7 +335,6 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               favoriteIds: settings.favoriteNotebookIds,
               onOpen: _openNotebook,
               onCreate: _createNotebook,
-              onCreateSketch: _createSketch,
               onLongPress: _showNotebookMenu,
               onToggleFavorite: _toggleFavorite,
               movingFromId: tray != null && tray.isMove ? tray.sourceNotebookId : null,
@@ -381,6 +381,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                     onSortTap: _showSortSheet,
                     onSettingsTap: _openSettings,
                     onImportTap: _importFlow,
+                    onNewNotebook: _createNotebook,
+                    onNewSketch: _createSketch,
                     sortLabel: settings.sortMode.labelOf(l10n),
                   )),
                 ),
@@ -2270,6 +2272,8 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onSortTap;
   final VoidCallback onSettingsTap;
   final VoidCallback onImportTap;
+  final VoidCallback onNewNotebook;
+  final VoidCallback onNewSketch;
   final String sortLabel;
 
   const _TopBar({
@@ -2283,8 +2287,43 @@ class _TopBar extends StatelessWidget {
     required this.onSortTap,
     required this.onSettingsTap,
     required this.onImportTap,
+    required this.onNewNotebook,
+    required this.onNewSketch,
     required this.sortLabel,
   });
+
+  /// The one place to create things: notebook, sketch, or import a file.
+  Future<void> _newMenu(BuildContext anchor) async {
+    final l10n = AppLocalizations.of(anchor);
+    final box = anchor.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(anchor).context.findRenderObject() as RenderBox?;
+    if (box == null || overlay == null) return;
+    final rect = box.localToGlobal(Offset.zero, ancestor: overlay) & box.size;
+    PopupMenuItem<VoidCallback> item(String icon, String label, VoidCallback run) =>
+        PopupMenuItem(
+          value: run,
+          child: Row(children: [
+            HwIcon(icon, size: 16),
+            const SizedBox(width: 12),
+            Text(label),
+          ]),
+        );
+    final run = await showMenu<VoidCallback>(
+      context: anchor,
+      position: RelativeRect.fromRect(
+          Rect.fromLTWH(rect.left, rect.bottom + 4, rect.width, 0),
+          Offset.zero & overlay.size),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      items: [
+        item('pages', l10n.libNewNotebook, onNewNotebook),
+        item('pen', l10n.libNewSketch, onNewSketch),
+        const PopupMenuDivider(),
+        item('export', l10n.libImportNcnoteMenu, onImportTap),
+      ],
+    );
+    run?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2345,18 +2384,15 @@ class _TopBar extends StatelessWidget {
                 label: sortLabel,
                 onPressed: onSortTap,
               ),
-            if (iconOnly)
-              HwButton.icon(
-                  icon: const HwIcon('export', size: 16),
-                  tooltip: l10n.libImportTooltip,
-                  onPressed: onImportTap)
-            else
-              HwButton(
-                leading: const HwIcon('export', size: 16),
-                label: l10n.libImport,
-                tooltip: l10n.libImportTooltip,
-                onPressed: onImportTap,
+            const SizedBox(width: 6),
+            Builder(
+              builder: (b) => HwButton(
+                leading: const HwIcon('plus', size: 16),
+                label: l10n.libNew,
+                style: HwButtonStyle.primary,
+                onPressed: () => _newMenu(b),
               ),
+            ),
             if (!wide)
               HwButton.icon(
                   icon: const HwIcon('settings', size: 16),
@@ -2364,6 +2400,15 @@ class _TopBar extends StatelessWidget {
                   onPressed: onSettingsTap),
           ],
           if (isCompact) ...[
+            const SizedBox(width: 6),
+            Builder(
+              builder: (b) => HwButton.icon(
+                icon: const HwIcon('plus', size: 16),
+                tooltip: l10n.libNew,
+                style: HwButtonStyle.primary,
+                onPressed: () => _newMenu(b),
+              ),
+            ),
             const SizedBox(width: 4),
             HwButton.icon(
               icon: const HwIcon('more', size: 18),
@@ -2453,14 +2498,6 @@ class _TopBar extends StatelessWidget {
               },
             ),
             const Divider(),
-            ListTile(
-              leading: const HwIcon('export', size: 18),
-              title: Text(l10n.libImportNcnoteMenu),
-              onTap: () {
-                Navigator.of(ctx).pop();
-                onImportTap();
-              },
-            ),
             ListTile(
               leading: const HwIcon('settings', size: 18),
               title: Text(l10n.libSettingsTooltip),
@@ -2554,7 +2591,6 @@ class _Body extends StatelessWidget {
   final Set<String> favoriteIds;
   final void Function(NotebookEntry entry, {Rect? origin}) onOpen;
   final VoidCallback onCreate;
-  final VoidCallback onCreateSketch;
   final ValueChanged<NotebookEntry> onLongPress;
   final ValueChanged<NotebookEntry> onToggleFavorite;
 
@@ -2573,7 +2609,6 @@ class _Body extends StatelessWidget {
     required this.favoriteIds,
     required this.onOpen,
     required this.onCreate,
-    required this.onCreateSketch,
     required this.onLongPress,
     required this.onToggleFavorite,
     required this.movingFromId,
@@ -2602,7 +2637,6 @@ class _Body extends StatelessWidget {
             child: _SketchSection(
               hPad: hPad,
               sketches: sketches,
-              onCreateSketch: onCreateSketch,
               onOpen: onOpen,
               onLongPress: onLongPress,
             ),
@@ -2632,17 +2666,6 @@ class _Body extends StatelessWidget {
                                 .copyWith(color: p.ink0, fontSize: 17)),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Flexible so a narrow phone shortens the button's label
-                // rather than pushing the whole header off the screen.
-                Flexible(
-                  child: HwButton(
-                    leading: const HwIcon('plus', size: 16),
-                    label: AppLocalizations.of(context).libNewNotebook,
-                    style: HwButtonStyle.primary,
-                    onPressed: onCreate,
                   ),
                 ),
               ],
@@ -2710,8 +2733,10 @@ class _Body extends StatelessWidget {
       ),
       delegate: SliverChildBuilderDelegate(
         (ctx, i) {
-          if (i == 0) return _NewTile(onTap: onCreate);
-          final e = entries[i - 1];
+          // The dashed tile is the empty state only; the header button
+          // creates notebooks once there are some.
+          if (entries.isEmpty) return _NewTile(onTap: onCreate);
+          final e = entries[i];
           final tile = _CoverTile(
             entry: e,
             favorite: favoriteIds.contains(e.metadata.id),
@@ -2729,7 +2754,7 @@ class _Body extends StatelessWidget {
             ),
           ]);
         },
-        childCount: entries.length + 1,
+        childCount: entries.isEmpty ? 1 : entries.length,
       ),
     );
   }
@@ -2739,13 +2764,11 @@ class _Body extends StatelessWidget {
 class _SketchSection extends StatefulWidget {
   final double hPad;
   final List<NotebookEntry> sketches;
-  final VoidCallback onCreateSketch;
   final void Function(NotebookEntry entry, {Rect? origin}) onOpen;
   final ValueChanged<NotebookEntry> onLongPress;
   const _SketchSection({
     required this.hPad,
     required this.sketches,
-    required this.onCreateSketch,
     required this.onOpen,
     required this.onLongPress,
   });
@@ -2815,6 +2838,8 @@ class _SketchSectionState extends State<_SketchSection> {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
     final sketches = widget.sketches;
+    // No sketches: no section. New sketch lives in the top bar's New menu.
+    if (sketches.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.fromLTRB(widget.hPad, 14, widget.hPad, 4),
       child: LayoutBuilder(builder: (context, c) {
@@ -2864,24 +2889,6 @@ class _SketchSectionState extends State<_SketchSection> {
                   ),
                   const SizedBox(width: 8),
                 ],
-                if (compact)
-                  HwButton.icon(
-                    icon: const HwIcon('plus', size: 16),
-                    tooltip: l10n.libNewSketch,
-                    style: HwButtonStyle.primary,
-                    onPressed: widget.onCreateSketch,
-                  )
-                else
-                  // Flexible so a narrow window shortens the button's label
-                  // rather than pushing the whole header off the screen.
-                  Flexible(
-                    child: HwButton(
-                      leading: const HwIcon('plus', size: 16),
-                      label: l10n.libNewSketch,
-                      style: HwButtonStyle.primary,
-                      onPressed: widget.onCreateSketch,
-                    ),
-                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -2889,11 +2896,7 @@ class _SketchSectionState extends State<_SketchSection> {
               duration: const Duration(milliseconds: 280),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topLeft,
-              child: sketches.isEmpty
-                  ? SizedBox(
-                      height: _tileH,
-                      child: _SketchEmptyTile(onTap: widget.onCreateSketch))
-                  : _expanded
+              child: _expanded
                       ? Wrap(
                           spacing: _gap,
                           runSpacing: _gap,
@@ -3107,44 +3110,6 @@ class _SketchTile extends StatelessWidget {
   }
 }
 
-class _SketchEmptyTile extends StatelessWidget {
-  final VoidCallback onTap;
-  const _SketchEmptyTile({required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    final p = HwThemeScope.of(context);
-    return SizedBox(
-      width: 220,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: DottedBorderBox(
-            color: p.paperEdge,
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  HwIcon('plus', size: 22, color: p.ink2),
-                  const SizedBox(height: 6),
-                  Text(AppLocalizations.of(context).libInfiniteCanvas,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: p.ink2,
-                          fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Tiny dot-grid preview painted on a sketch tile — echoes the infinite
-/// dotted canvas the tile opens into.
 class _SketchDotsPainter extends CustomPainter {
   final Color color;
   _SketchDotsPainter(this.color);
@@ -3626,26 +3591,34 @@ class _LocalOnlyNotice extends ConsumerWidget {
         padding:
             EdgeInsets.symmetric(horizontal: compact ? 16 : 32, vertical: 10),
         child: compact
-            // Narrow: the buttons cannot share the row with the body text
-            // without squeezing both, so they drop below it.
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    HwIcon('cloud-off', size: 14, color: p.ink3),
-                    const SizedBox(width: 8),
-                    Expanded(child: text),
-                  ]),
-                  const SizedBox(height: 8),
-                  // Wrap, not Row: at 320 px with large text the two
-                  // buttons don't fit side by side and a Row overflows.
-                  Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 4,
-                      runSpacing: 4,
-                      children: [connect, dismiss]),
-                ],
-              )
+            // Narrow: one slim row, title only; the footer already says
+            // "This device only" and the body would fill a quarter screen.
+            ? Row(children: [
+                HwIcon('cloud-off', size: 14, color: p.ink3),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(l10n.libLocalOnlyTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: p.ink0)),
+                ),
+                TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const LoginScreen())),
+                    style: TextButton.styleFrom(foregroundColor: p.accent),
+                    child: Text(l10n.setConnect)),
+                IconButton(
+                    tooltip: l10n.rcbDismiss,
+                    visualDensity: VisualDensity.compact,
+                    icon: HwIcon('x', size: 14, color: p.ink2),
+                    onPressed: () => ref
+                        .read(localOnlyNoticeDismissedProvider.notifier)
+                        .dismiss()),
+              ])
             : Row(children: [
                 HwIcon('cloud-off', size: 14, color: p.ink3),
                 const SizedBox(width: 8),
@@ -4092,6 +4065,7 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
   String _paper = 'lined';
   Size _pageSize = pageSizePresetSize(PageSizePreset.a4);
   bool _showError = false;
+  bool _patternsOpen = false;
 
   @override
   void dispose() {
@@ -4113,116 +4087,157 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
+    Widget label(String t) => Text(t,
+        style: TextStyle(
+            fontSize: 11,
+            color: p.ink2,
+            letterSpacing: 0.6,
+            fontWeight: FontWeight.w600));
+    final texture = coverTextureFor(_paper);
     return AlertDialog(
       backgroundColor: p.paper0,
       title: Text(l10n.libNewNotebook),
       content: SizedBox(
-        width: 420,
+        width: 460,
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: _titleCtrl,
-                autofocus: true,
-                onChanged: (_) {
-                  if (_showError) setState(() => _showError = false);
-                },
-                onEditingComplete: _submit,
-                decoration: InputDecoration(
-                  labelText: l10n.libNotebookTitleLabel,
-                  errorText: _showError ? l10n.qlNameRequired : null,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(l10n.libCoverLabel,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: p.ink2,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w600)),
+              // The notebook as it will sit in the library, live. The top
+              // gap keeps the field's floating label inside the scroll view.
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: HwTheme.covers
-                    .map((c) => GestureDetector(
-                          onTap: () => setState(() => _color = c),
-                          child: Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: c,
-                              borderRadius: BorderRadius.circular(6),
-                              border: _color == c
-                                  ? Border.all(color: p.ink0, width: 2)
-                                  : null,
-                            ),
-                          ),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 20),
-              Text(l10n.libCoverPattern,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: p.ink2,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final st in CoverStyle.values)
-                    Tooltip(
-                      message: _coverStyleName(l10n, st),
-                      child: Semantics(
-                        button: true,
-                        selected: st == _style,
-                        label: _coverStyleName(l10n, st),
-                        child: GestureDetector(
-                          onTap: () => setState(() => _style = st),
-                          child: _CoverStyleSwatch(
-                            color: _color,
-                            style: st,
-                            texture: coverTextureFor(_paper),
-                            selected: st == _style,
+                  NotebookCover(
+                    color: _color,
+                    title: _titleCtrl.text.trim(),
+                    texture: texture,
+                    style: _style,
+                    width: 96,
+                    height: 128,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: _titleCtrl,
+                          autofocus: true,
+                          onChanged: (_) => setState(() => _showError = false),
+                          onEditingComplete: _submit,
+                          decoration: InputDecoration(
+                            labelText: l10n.libNotebookTitleLabel,
+                            errorText:
+                                _showError ? l10n.qlNameRequired : null,
+                            border: const OutlineInputBorder(),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        label(l10n.libCoverLabel),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final c in HwTheme.covers)
+                              GestureDetector(
+                                onTap: () => setState(() => _color = c),
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: c,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: _color == c
+                                        ? Border.all(color: p.ink0, width: 2)
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
                     ),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
-              Text(l10n.libPaperLabel,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color: p.ink2,
-                      letterSpacing: 0.6,
-                      fontWeight: FontWeight.w600)),
+              label(l10n.libPaperLabel),
               const SizedBox(height: 8),
               Wrap(
-                spacing: 6,
+                spacing: 10,
+                runSpacing: 8,
                 children: [
-                  _paperChip(l10n.libPaperBlank, 'blank'),
-                  _paperChip(l10n.libPaperLined, 'lined'),
-                  _paperChip(l10n.libPaperGrid, 'grid'),
-                  _paperChip(l10n.libPaperDotted, 'dotted'),
+                  _paperSwatch(l10n.libPaperBlank, 'blank'),
+                  _paperSwatch(l10n.libPaperLined, 'lined'),
+                  _paperSwatch(l10n.libPaperGrid, 'grid'),
+                  _paperSwatch(l10n.libPaperDotted, 'dotted'),
                 ],
               ),
               const SizedBox(height: 20),
               PageSizePicker(
-                label: Text(l10n.pageSizeLabel,
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: p.ink2,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w600)),
+                label: label(l10n.pageSizeLabel),
                 size: _pageSize,
                 onChanged: (size) => setState(() => _pageSize = size),
+              ),
+              const SizedBox(height: 16),
+              // Pattern folds away: the preview above already shows it.
+              InkWell(
+                borderRadius: BorderRadius.circular(6),
+                onTap: () => setState(() => _patternsOpen = !_patternsOpen),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(child: label(l10n.libCoverPattern)),
+                      Text(_coverStyleName(l10n, _style),
+                          style: TextStyle(fontSize: 12, color: p.ink2)),
+                      Icon(
+                          _patternsOpen
+                              ? Icons.expand_less_rounded
+                              : Icons.expand_more_rounded,
+                          size: 20,
+                          color: p.ink2),
+                    ],
+                  ),
+                ),
+              ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topLeft,
+                child: !_patternsOpen
+                    ? const SizedBox(width: double.infinity)
+                    : Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final st in CoverStyle.values)
+                              Tooltip(
+                                message: _coverStyleName(l10n, st),
+                                child: Semantics(
+                                  button: true,
+                                  selected: st == _style,
+                                  label: _coverStyleName(l10n, st),
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _style = st),
+                                    child: _CoverStyleSwatch(
+                                      color: _color,
+                                      style: st,
+                                      texture: texture,
+                                      selected: st == _style,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
               ),
             ],
           ),
@@ -4241,23 +4256,80 @@ class _NewNotebookDialogState extends State<_NewNotebookDialog> {
     );
   }
 
-  Widget _paperChip(String label, String type) {
+  /// A small page showing the paper itself, labelled underneath.
+  Widget _paperSwatch(String label, String type) {
     final p = HwThemeScope.of(context);
     final selected = _paper == type;
-    return GestureDetector(
-      onTap: () => setState(() => _paper = type),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? p.ink0 : p.paper2,
-          borderRadius: BorderRadius.circular(6),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        onTap: () => setState(() => _paper = type),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: 48,
+              height: 62,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                    color: selected ? p.accent : p.paper3,
+                    width: selected ? 2 : 1),
+              ),
+              child: CustomPaint(painter: _PaperMiniPainter(type)),
+            ),
+            const SizedBox(height: 4),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: selected ? p.ink0 : p.ink2,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400)),
+          ],
         ),
-        child: Text(label,
-            style: TextStyle(
-                color: selected ? p.paper0 : p.ink0, fontSize: 13)),
       ),
     );
   }
+}
+
+/// Lines, grid or dots at a miniature scale, for the paper swatches.
+class _PaperMiniPainter extends CustomPainter {
+  final String type;
+  _PaperMiniPainter(this.type);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const step = 7.0;
+    final ink = Paint()
+      ..color = const Color(0xFF9FB3C8)
+      ..strokeWidth = 0.8;
+    switch (type) {
+      case 'lined':
+        for (var y = step * 1.5; y < size.height - 3; y += step) {
+          canvas.drawLine(Offset(4, y), Offset(size.width - 4, y), ink);
+        }
+      case 'grid':
+        for (var y = step; y < size.height; y += step) {
+          canvas.drawLine(Offset(0, y), Offset(size.width, y), ink);
+        }
+        for (var x = step; x < size.width; x += step) {
+          canvas.drawLine(Offset(x, 0), Offset(x, size.height), ink);
+        }
+      case 'dotted':
+        final dot = Paint()..color = const Color(0xFF8DA2B8);
+        for (var y = step; y < size.height; y += step) {
+          for (var x = step; x < size.width; x += step) {
+            canvas.drawCircle(Offset(x, y), 0.9, dot);
+          }
+        }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PaperMiniPainter old) => old.type != type;
 }
 
 /// Single-line name prompt with inline validation; Enter confirms.

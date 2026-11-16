@@ -389,43 +389,7 @@ class AppLocalizationsEs extends AppLocalizations {
       'Pantalla completa, sin herramientas — ideal para mostrar páginas';
 
   @override
-  String get libDropHint => 'Suelta para importar';
-
-  @override
-  String get libDropUnsupported =>
-      'Estos archivos no se pueden importar. Prueba con PDF, imágenes, cuadernos, OneNote, Notion o una carpeta de Obsidian.';
-
-  @override
-  String get csDropHint => 'Suelta para insertar aquí';
-
-  @override
-  String get csDropUnsupported =>
-      'Aquí solo se pueden insertar imágenes y PDF.';
-
-  @override
-  String get csOpenBeside => 'Abrir al lado';
-
-  @override
-  String get csOpenBesideSub => 'Consulta otro cuaderno mientras escribes';
-
-  @override
-  String get csCloseBeside => 'Cerrar el cuaderno del lado';
-
-  @override
-  String get refPickTitle => 'Cuaderno para abrir al lado';
-
-  @override
-  String get refNoOthers => 'No hay otros cuadernos.';
-
-  @override
-  String get refLoadFailed =>
-      'No se pudo abrir este cuaderno. Si no está en este dispositivo, necesitas conexión.';
-
-  @override
-  String get refZoomIn => 'Ampliar';
-
-  @override
-  String get refZoomOut => 'Reducir';
+  String get csLaserSub => 'Señala sin dejar marca';
 
   @override
   String get csRecognizeHandwriting => 'Reconocer escritura';
@@ -1072,12 +1036,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get libSearchHintNotebooks => 'Buscar cuadernos…';
 
   @override
-  String get libImport => 'Importar';
-
-  @override
-  String get libImportTooltip => 'Importar un archivo .abelnote';
-
-  @override
   String get libSettingsTooltip => 'Ajustes';
 
   @override
@@ -1128,9 +1086,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get libNewSketch => 'Nuevo boceto';
-
-  @override
-  String get libInfiniteCanvas => 'Lienzo infinito';
 
   @override
   String get libNew => 'Nuevo';
@@ -1943,10 +1898,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get onbSyncQuestion => 'Sincroniza tus apuntes';
 
   @override
-  String get onbSyncQuestionSub =>
-      'Elige dónde viven tus cuadernos. Puedes cambiarlo más adelante.';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2095,9 +2046,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chromeMore => 'Más';
 
   @override
-  String get chromeMoreEllipsis => 'Más…';
-
-  @override
   String get chromeToolPen => 'Pluma · P';
 
   @override
@@ -2122,14 +2070,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chromeDragToMoveBar => 'Arrastra para mover la barra';
 
   @override
-  String get chromeShapeGuessOn => 'Autoforma · activado';
-
-  @override
-  String get chromeShapeGuessOff => 'Autoforma · desactivado';
-
-  @override
   String get chromeHoldForOptions =>
       'Mantén pulsado o haz clic derecho para ver las opciones';
+
+  @override
+  String chromeQuickPen(int n) {
+    return 'Bolígrafo rápido $n';
+  }
+
+  @override
+  String get chromeAutoShape => 'Autoforma';
 
   @override
   String get chromeLabelPen => 'Pluma';
@@ -2160,12 +2110,6 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chromeLabelPan => 'Mano';
-
-  @override
-  String get chromePresetsSection => 'Preajustes';
-
-  @override
-  String get chromePresetHint => 'Mantén pulsado para guardar/borrar';
 
   @override
   String get chromeColorSection => 'Color';
@@ -2209,7 +2153,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get chromePresetOverwrite => 'Sobrescribir con el actual';
 
   @override
-  String get chromePresetClearSlot => 'Vaciar ranura';
+  String get chromePresetReset => 'Restablecer valor predeterminado';
 
   @override
   String get chromeNoPages => 'Sin páginas';
@@ -3913,4 +3857,43 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => 'Al final del cuaderno';
+
+  @override
+  String get csOpenBeside => 'Abrir al lado';
+
+  @override
+  String get csOpenBesideSub => 'Consulta otro cuaderno mientras escribes';
+
+  @override
+  String get csCloseBeside => 'Cerrar el cuaderno del lado';
+
+  @override
+  String get refPickTitle => 'Cuaderno para abrir al lado';
+
+  @override
+  String get refNoOthers => 'No hay otros cuadernos.';
+
+  @override
+  String get refLoadFailed =>
+      'No se pudo abrir este cuaderno. Si no está en este dispositivo, necesitas conexión.';
+
+  @override
+  String get refZoomIn => 'Ampliar';
+
+  @override
+  String get refZoomOut => 'Reducir';
+
+  @override
+  String get libDropHint => 'Suelta para importar';
+
+  @override
+  String get libDropUnsupported =>
+      'Estos archivos no se pueden importar. Prueba con PDF, imágenes, cuadernos, OneNote, Notion o una carpeta de Obsidian.';
+
+  @override
+  String get csDropHint => 'Suelta para insertar aquí';
+
+  @override
+  String get csDropUnsupported =>
+      'Aquí solo se pueden insertar imágenes y PDF.';
 }

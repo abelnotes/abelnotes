@@ -126,8 +126,15 @@ class HwPressable extends StatefulWidget {
 
 class _HwPressableState extends State<HwPressable>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-      AnimationController.unbounded(vsync: this, value: 1);
+  // Not lazy: a lazy one was first created in dispose() when build never
+  // read it, which asserts (ticker from a deactivated element).
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController.unbounded(vsync: this, value: 1);
+  }
 
   @override
   void dispose() {

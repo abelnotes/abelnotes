@@ -73,17 +73,7 @@ class OnboardingScreen extends ConsumerWidget {
                       color: p.ink0,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    l10n.onbSyncQuestionSub,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: HwTheme.fontSans,
-                      fontSize: 13,
-                      height: 1.4,
-                      color: p.ink2,
-                    ),
-                  ),
+                  // No sub-line: the intro above already says it can change.
                   const SizedBox(height: 16),
 
                   // ── The two answers, side by side and equal ──

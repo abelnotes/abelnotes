@@ -720,77 +720,11 @@ abstract class AppLocalizations {
   /// **'Schermo intero, senza strumenti — ideale per mostrare le pagine'**
   String get csPresentationModeSub;
 
-  /// No description provided for @libDropHint.
+  /// No description provided for @csLaserSub.
   ///
   /// In it, this message translates to:
-  /// **'Rilascia per importare'**
-  String get libDropHint;
-
-  /// No description provided for @libDropUnsupported.
-  ///
-  /// In it, this message translates to:
-  /// **'Questi file non si possono importare. Prova con PDF, immagini, taccuini, OneNote, Notion o una cartella Obsidian.'**
-  String get libDropUnsupported;
-
-  /// No description provided for @csDropHint.
-  ///
-  /// In it, this message translates to:
-  /// **'Rilascia per inserire qui'**
-  String get csDropHint;
-
-  /// No description provided for @csDropUnsupported.
-  ///
-  /// In it, this message translates to:
-  /// **'Qui si possono inserire solo immagini e PDF.'**
-  String get csDropUnsupported;
-
-  /// No description provided for @csOpenBeside.
-  ///
-  /// In it, this message translates to:
-  /// **'Apri accanto'**
-  String get csOpenBeside;
-
-  /// No description provided for @csOpenBesideSub.
-  ///
-  /// In it, this message translates to:
-  /// **'Consulta un altro taccuino mentre scrivi'**
-  String get csOpenBesideSub;
-
-  /// No description provided for @csCloseBeside.
-  ///
-  /// In it, this message translates to:
-  /// **'Chiudi il taccuino accanto'**
-  String get csCloseBeside;
-
-  /// No description provided for @refPickTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Taccuino da aprire accanto'**
-  String get refPickTitle;
-
-  /// No description provided for @refNoOthers.
-  ///
-  /// In it, this message translates to:
-  /// **'Non ci sono altri taccuini.'**
-  String get refNoOthers;
-
-  /// No description provided for @refLoadFailed.
-  ///
-  /// In it, this message translates to:
-  /// **'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.'**
-  String get refLoadFailed;
-
-  /// No description provided for @refZoomIn.
-  ///
-  /// In it, this message translates to:
-  /// **'Ingrandisci'**
-  String get refZoomIn;
-
-  /// No description provided for @refZoomOut.
-  ///
-  /// In it, this message translates to:
-  /// **'Riduci'**
-  String get refZoomOut;
+  /// **'Indica senza lasciare segni'**
+  String get csLaserSub;
 
   /// No description provided for @csRecognizeHandwriting.
   ///
@@ -1806,18 +1740,6 @@ abstract class AppLocalizations {
   /// **'Cerca taccuini…'**
   String get libSearchHintNotebooks;
 
-  /// No description provided for @libImport.
-  ///
-  /// In it, this message translates to:
-  /// **'Importa'**
-  String get libImport;
-
-  /// No description provided for @libImportTooltip.
-  ///
-  /// In it, this message translates to:
-  /// **'Importa un file .abelnote'**
-  String get libImportTooltip;
-
   /// No description provided for @libSettingsTooltip.
   ///
   /// In it, this message translates to:
@@ -1901,12 +1823,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Nuovo schizzo'**
   String get libNewSketch;
-
-  /// No description provided for @libInfiniteCanvas.
-  ///
-  /// In it, this message translates to:
-  /// **'Canvas infinito'**
-  String get libInfiniteCanvas;
 
   /// No description provided for @libNew.
   ///
@@ -3186,12 +3102,6 @@ abstract class AppLocalizations {
   /// **'Sincronizza i tuoi appunti'**
   String get onbSyncQuestion;
 
-  /// No description provided for @onbSyncQuestionSub.
-  ///
-  /// In it, this message translates to:
-  /// **'Scegli dove vivono i tuoi quaderni. Puoi cambiare in seguito.'**
-  String get onbSyncQuestionSub;
-
   /// No description provided for @onbDriveShort.
   ///
   /// In it, this message translates to:
@@ -3456,12 +3366,6 @@ abstract class AppLocalizations {
   /// **'Altro'**
   String get chromeMore;
 
-  /// No description provided for @chromeMoreEllipsis.
-  ///
-  /// In it, this message translates to:
-  /// **'Altro…'**
-  String get chromeMoreEllipsis;
-
   /// No description provided for @chromeToolPen.
   ///
   /// In it, this message translates to:
@@ -3510,23 +3414,23 @@ abstract class AppLocalizations {
   /// **'Trascina per spostare la barra'**
   String get chromeDragToMoveBar;
 
-  /// No description provided for @chromeShapeGuessOn.
-  ///
-  /// In it, this message translates to:
-  /// **'Auto-forma · attivo'**
-  String get chromeShapeGuessOn;
-
-  /// No description provided for @chromeShapeGuessOff.
-  ///
-  /// In it, this message translates to:
-  /// **'Auto-forma · spento'**
-  String get chromeShapeGuessOff;
-
   /// No description provided for @chromeHoldForOptions.
   ///
   /// In it, this message translates to:
   /// **'Tieni premuto o clic destro per le opzioni'**
   String get chromeHoldForOptions;
+
+  /// No description provided for @chromeQuickPen.
+  ///
+  /// In it, this message translates to:
+  /// **'Penna rapida {n}'**
+  String chromeQuickPen(int n);
+
+  /// No description provided for @chromeAutoShape.
+  ///
+  /// In it, this message translates to:
+  /// **'Auto-forma'**
+  String get chromeAutoShape;
 
   /// No description provided for @chromeLabelPen.
   ///
@@ -3587,18 +3491,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Mano'**
   String get chromeLabelPan;
-
-  /// No description provided for @chromePresetsSection.
-  ///
-  /// In it, this message translates to:
-  /// **'Pre-impostazioni'**
-  String get chromePresetsSection;
-
-  /// No description provided for @chromePresetHint.
-  ///
-  /// In it, this message translates to:
-  /// **'Tieni premuto per salvare/cancellare'**
-  String get chromePresetHint;
 
   /// No description provided for @chromeColorSection.
   ///
@@ -3678,11 +3570,11 @@ abstract class AppLocalizations {
   /// **'Sovrascrivi con corrente'**
   String get chromePresetOverwrite;
 
-  /// No description provided for @chromePresetClearSlot.
+  /// No description provided for @chromePresetReset.
   ///
   /// In it, this message translates to:
-  /// **'Svuota slot'**
-  String get chromePresetClearSlot;
+  /// **'Ripristina predefinita'**
+  String get chromePresetReset;
 
   /// No description provided for @chromeNoPages.
   ///
@@ -6083,6 +5975,78 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'In fondo al taccuino'**
   String get shareImportAtEnd;
+
+  /// No description provided for @csOpenBeside.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri accanto'**
+  String get csOpenBeside;
+
+  /// No description provided for @csOpenBesideSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Consulta un altro taccuino mentre scrivi'**
+  String get csOpenBesideSub;
+
+  /// No description provided for @csCloseBeside.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi il taccuino accanto'**
+  String get csCloseBeside;
+
+  /// No description provided for @refPickTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Taccuino da aprire accanto'**
+  String get refPickTitle;
+
+  /// No description provided for @refNoOthers.
+  ///
+  /// In it, this message translates to:
+  /// **'Non ci sono altri taccuini.'**
+  String get refNoOthers;
+
+  /// No description provided for @refLoadFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Impossibile aprire questo taccuino. Se non è su questo dispositivo serve la connessione.'**
+  String get refLoadFailed;
+
+  /// No description provided for @refZoomIn.
+  ///
+  /// In it, this message translates to:
+  /// **'Ingrandisci'**
+  String get refZoomIn;
+
+  /// No description provided for @refZoomOut.
+  ///
+  /// In it, this message translates to:
+  /// **'Riduci'**
+  String get refZoomOut;
+
+  /// No description provided for @libDropHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Rilascia per importare'**
+  String get libDropHint;
+
+  /// No description provided for @libDropUnsupported.
+  ///
+  /// In it, this message translates to:
+  /// **'Questi file non si possono importare. Prova con PDF, immagini, taccuini, OneNote, Notion o una cartella Obsidian.'**
+  String get libDropUnsupported;
+
+  /// No description provided for @csDropHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Rilascia per inserire qui'**
+  String get csDropHint;
+
+  /// No description provided for @csDropUnsupported.
+  ///
+  /// In it, this message translates to:
+  /// **'Qui si possono inserire solo immagini e PDF.'**
+  String get csDropUnsupported;
 }
 
 class _AppLocalizationsDelegate

@@ -374,41 +374,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPresentationModeSub => '全屏、不显示工具 — 很适合展示页面';
 
   @override
-  String get libDropHint => '松开以导入';
-
-  @override
-  String get libDropUnsupported =>
-      '无法导入这些文件。请尝试 PDF、图片、笔记本、OneNote、Notion 或 Obsidian 文件夹。';
-
-  @override
-  String get csDropHint => '松开以插入到此处';
-
-  @override
-  String get csDropUnsupported => '此处只能插入图片和 PDF。';
-
-  @override
-  String get csOpenBeside => '在旁边打开';
-
-  @override
-  String get csOpenBesideSub => '书写时查看另一本笔记本';
-
-  @override
-  String get csCloseBeside => '关闭旁边的笔记本';
-
-  @override
-  String get refPickTitle => '要在旁边打开的笔记本';
-
-  @override
-  String get refNoOthers => '没有其他笔记本。';
-
-  @override
-  String get refLoadFailed => '无法打开此笔记本。如果它不在这台设备上，需要联网。';
-
-  @override
-  String get refZoomIn => '放大';
-
-  @override
-  String get refZoomOut => '缩小';
+  String get csLaserSub => '指示内容，不留痕迹';
 
   @override
   String get csRecognizeHandwriting => '识别手写内容';
@@ -1043,12 +1009,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get libSearchHintNotebooks => '搜索笔记本…';
 
   @override
-  String get libImport => '导入';
-
-  @override
-  String get libImportTooltip => '导入 .abelnote 文件';
-
-  @override
   String get libSettingsTooltip => '设置';
 
   @override
@@ -1099,9 +1059,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get libNewSketch => '新建速写';
-
-  @override
-  String get libInfiniteCanvas => '无限画布';
 
   @override
   String get libNew => '新建';
@@ -1877,9 +1834,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get onbSyncQuestion => '同步你的笔记';
 
   @override
-  String get onbSyncQuestionSub => '选择你的笔记本存放在哪里。之后可以更改。';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2020,9 +1974,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeMore => '更多';
 
   @override
-  String get chromeMoreEllipsis => '更多…';
-
-  @override
   String get chromeToolPen => '钢笔 · P';
 
   @override
@@ -2047,13 +1998,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeDragToMoveBar => '拖动可移动工具栏';
 
   @override
-  String get chromeShapeGuessOn => '自动识别形状 · 开';
-
-  @override
-  String get chromeShapeGuessOff => '自动识别形状 · 关';
-
-  @override
   String get chromeHoldForOptions => '长按或右键单击查看选项';
+
+  @override
+  String chromeQuickPen(int n) {
+    return '快捷笔 $n';
+  }
+
+  @override
+  String get chromeAutoShape => '自动识别形状';
 
   @override
   String get chromeLabelPen => '钢笔';
@@ -2084,12 +2037,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chromeLabelPan => '抓手';
-
-  @override
-  String get chromePresetsSection => '预设';
-
-  @override
-  String get chromePresetHint => '长按可保存/清除';
 
   @override
   String get chromeColorSection => '颜色';
@@ -2133,7 +2080,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromePresetOverwrite => '用当前设置覆盖';
 
   @override
-  String get chromePresetClearSlot => '清除此位置';
+  String get chromePresetReset => '恢复默认';
 
   @override
   String get chromeNoPages => '没有页面';
@@ -3751,4 +3698,41 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => '笔记本末尾';
+
+  @override
+  String get csOpenBeside => '在旁边打开';
+
+  @override
+  String get csOpenBesideSub => '书写时查看另一本笔记本';
+
+  @override
+  String get csCloseBeside => '关闭旁边的笔记本';
+
+  @override
+  String get refPickTitle => '要在旁边打开的笔记本';
+
+  @override
+  String get refNoOthers => '没有其他笔记本。';
+
+  @override
+  String get refLoadFailed => '无法打开此笔记本。如果它不在这台设备上，需要联网。';
+
+  @override
+  String get refZoomIn => '放大';
+
+  @override
+  String get refZoomOut => '缩小';
+
+  @override
+  String get libDropHint => '松开以导入';
+
+  @override
+  String get libDropUnsupported =>
+      '无法导入这些文件。请尝试 PDF、图片、笔记本、OneNote、Notion 或 Obsidian 文件夹。';
+
+  @override
+  String get csDropHint => '松开以插入到此处';
+
+  @override
+  String get csDropUnsupported => '此处只能插入图片和 PDF。';
 }

@@ -390,44 +390,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Vollbild, ohne Werkzeuge — ideal zum Zeigen von Seiten';
 
   @override
-  String get libDropHint => 'Zum Importieren loslassen';
-
-  @override
-  String get libDropUnsupported =>
-      'Diese Dateien können nicht importiert werden. Versuche PDFs, Bilder, Notizbücher, OneNote, Notion oder einen Obsidian-Ordner.';
-
-  @override
-  String get csDropHint => 'Zum Einfügen hier loslassen';
-
-  @override
-  String get csDropUnsupported =>
-      'Hier können nur Bilder und PDFs eingefügt werden.';
-
-  @override
-  String get csOpenBeside => 'Daneben öffnen';
-
-  @override
-  String get csOpenBesideSub =>
-      'Ein anderes Notizbuch lesen, während du schreibst';
-
-  @override
-  String get csCloseBeside => 'Notizbuch daneben schließen';
-
-  @override
-  String get refPickTitle => 'Notizbuch, das daneben geöffnet wird';
-
-  @override
-  String get refNoOthers => 'Es gibt keine anderen Notizbücher.';
-
-  @override
-  String get refLoadFailed =>
-      'Dieses Notizbuch konnte nicht geöffnet werden. Wenn es nicht auf diesem Gerät ist, musst du online sein.';
-
-  @override
-  String get refZoomIn => 'Vergrößern';
-
-  @override
-  String get refZoomOut => 'Verkleinern';
+  String get csLaserSub => 'Zeigen, ohne Spuren zu hinterlassen';
 
   @override
   String get csRecognizeHandwriting => 'Handschrift erkennen';
@@ -1075,12 +1038,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get libSearchHintNotebooks => 'Notizbücher suchen…';
 
   @override
-  String get libImport => 'Importieren';
-
-  @override
-  String get libImportTooltip => 'Eine .abelnote-Datei importieren';
-
-  @override
   String get libSettingsTooltip => 'Einstellungen';
 
   @override
@@ -1131,9 +1088,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get libNewSketch => 'Neue Skizze';
-
-  @override
-  String get libInfiniteCanvas => 'Unendliche Fläche';
 
   @override
   String get libNew => 'Neu';
@@ -1953,10 +1907,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get onbSyncQuestion => 'Notizen synchronisieren';
 
   @override
-  String get onbSyncQuestionSub =>
-      'Wähle, wo deine Notizbücher liegen. Das lässt sich später ändern.';
-
-  @override
   String get onbDriveShort => 'Google Drive';
 
   @override
@@ -2105,9 +2055,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chromeMore => 'Mehr';
 
   @override
-  String get chromeMoreEllipsis => 'Mehr…';
-
-  @override
   String get chromeToolPen => 'Stift · P';
 
   @override
@@ -2133,14 +2080,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ziehen, um die Werkzeugleiste zu verschieben';
 
   @override
-  String get chromeShapeGuessOn => 'Auto-Form · an';
-
-  @override
-  String get chromeShapeGuessOff => 'Auto-Form · aus';
-
-  @override
   String get chromeHoldForOptions =>
       'Gedrückt halten oder Rechtsklick für Optionen';
+
+  @override
+  String chromeQuickPen(int n) {
+    return 'Schnellstift $n';
+  }
+
+  @override
+  String get chromeAutoShape => 'Auto-Form';
 
   @override
   String get chromeLabelPen => 'Stift';
@@ -2171,12 +2120,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chromeLabelPan => 'Hand';
-
-  @override
-  String get chromePresetsSection => 'Voreinstellungen';
-
-  @override
-  String get chromePresetHint => 'Lang drücken zum Speichern/Löschen';
 
   @override
   String get chromeColorSection => 'Farbe';
@@ -2220,7 +2163,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chromePresetOverwrite => 'Mit aktueller überschreiben';
 
   @override
-  String get chromePresetClearSlot => 'Platz leeren';
+  String get chromePresetReset => 'Auf Standard zurücksetzen';
 
   @override
   String get chromeNoPages => 'Keine Seiten';
@@ -3925,4 +3868,44 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get shareImportAtEnd => 'Am Ende des Notizbuchs';
+
+  @override
+  String get csOpenBeside => 'Daneben öffnen';
+
+  @override
+  String get csOpenBesideSub =>
+      'Ein anderes Notizbuch lesen, während du schreibst';
+
+  @override
+  String get csCloseBeside => 'Notizbuch daneben schließen';
+
+  @override
+  String get refPickTitle => 'Notizbuch, das daneben geöffnet wird';
+
+  @override
+  String get refNoOthers => 'Es gibt keine anderen Notizbücher.';
+
+  @override
+  String get refLoadFailed =>
+      'Dieses Notizbuch konnte nicht geöffnet werden. Wenn es nicht auf diesem Gerät ist, musst du online sein.';
+
+  @override
+  String get refZoomIn => 'Vergrößern';
+
+  @override
+  String get refZoomOut => 'Verkleinern';
+
+  @override
+  String get libDropHint => 'Zum Importieren loslassen';
+
+  @override
+  String get libDropUnsupported =>
+      'Diese Dateien können nicht importiert werden. Versuche PDFs, Bilder, Notizbücher, OneNote, Notion oder einen Obsidian-Ordner.';
+
+  @override
+  String get csDropHint => 'Zum Einfügen hier loslassen';
+
+  @override
+  String get csDropUnsupported =>
+      'Hier können nur Bilder und PDFs eingefügt werden.';
 }

@@ -71,6 +71,9 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final hasModules = ref.watch(moduleCatalogProvider).isNotEmpty;
+    // Advanced holds sync recovery tools only: nothing to show locally.
+    final hasAdvanced = ref.watch(remoteStoreProvider) != null;
+    if (!hasAdvanced && _section == 'advanced') _section = 'general';
     return Scaffold(
       backgroundColor: p.paper1,
       body: SafeArea(
@@ -81,6 +84,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
                   ? _PhoneMenu(
                       section: _section,
                       hasModules: hasModules,
+                      hasAdvanced: hasAdvanced,
                       onSelect: (s) => setState(() {
                         _section = s;
                         _phoneMenuOpen = false;
@@ -98,6 +102,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
                 _Rail(
                   section: _section,
                   hasModules: hasModules,
+                  hasAdvanced: hasAdvanced,
                   onSelect: (s) => setState(() => _section = s),
                   onClose: () => Navigator.of(context).pop(),
                 ),
@@ -122,7 +127,7 @@ class _SettingsScreenV2State extends ConsumerState<SettingsScreenV2> {
 /// Section list + label + icon, shared between the desktop rail and the
 /// phone menu so both stay in sync.
 List<(String, String, String)> _sectionItems(AppLocalizations l10n,
-        {required bool hasModules}) =>
+        {required bool hasModules, required bool hasAdvanced}) =>
     [
       ('general', l10n.setSectionGeneral, 'settings'),
       ('input', l10n.setSectionInput, 'pen'),
@@ -130,18 +135,20 @@ List<(String, String, String)> _sectionItems(AppLocalizations l10n,
       ('sync', l10n.setSectionSync, 'cloud'),
       ('storage', l10n.setSectionStorage, 'pages'),
       ('shortcuts', l10n.setSectionShortcuts, 'keyboard'),
-      ('advanced', l10n.setSectionAdvanced, 'arrow'),
+      if (hasAdvanced) ('advanced', l10n.setSectionAdvanced, 'arrow'),
       ('about', l10n.setSectionAbout, 'help'),
     ];
 
 class _PhoneMenu extends StatelessWidget {
   final String section;
   final bool hasModules;
+  final bool hasAdvanced;
   final ValueChanged<String> onSelect;
   final VoidCallback onClose;
   const _PhoneMenu({
     required this.section,
     required this.hasModules,
+    required this.hasAdvanced,
     required this.onSelect,
     required this.onClose,
   });
@@ -169,7 +176,8 @@ class _PhoneMenu extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             children: [
-              for (final item in _sectionItems(l10n, hasModules: hasModules))
+              for (final item in _sectionItems(l10n,
+                  hasModules: hasModules, hasAdvanced: hasAdvanced))
                 _PhoneMenuItem(
                   label: item.$2,
                   icon: item.$3,
@@ -260,11 +268,13 @@ class _PhoneSectionView extends StatelessWidget {
 class _Rail extends StatelessWidget {
   final String section;
   final bool hasModules;
+  final bool hasAdvanced;
   final ValueChanged<String> onSelect;
   final VoidCallback onClose;
   const _Rail({
     required this.section,
     required this.hasModules,
+    required this.hasAdvanced,
     required this.onSelect,
     required this.onClose,
   });
@@ -273,7 +283,8 @@ class _Rail extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = HwThemeScope.of(context);
     final l10n = AppLocalizations.of(context);
-    final items = _sectionItems(l10n, hasModules: hasModules);
+    final items = _sectionItems(l10n,
+                  hasModules: hasModules, hasAdvanced: hasAdvanced);
     return Container(
       width: 248,
       decoration: BoxDecoration(
