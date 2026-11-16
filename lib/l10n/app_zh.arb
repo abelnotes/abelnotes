@@ -794,6 +794,8 @@
   "importReportClose": "关闭",
   "importSourceOneNote": "OneNote 文件",
   "importSourceOneNoteHint": ".one 分区或 .onetoc2 笔记本",
+  "importSourceSamsung": "Samsung Notes 文件",
+  "importSourceSamsungHint": ".sdocx 笔记（在 Samsung Notes 中：另存为文件）",
   "setOpenSourceLicenses": "开源许可",
   "setOpenSourceLicensesSub": "随应用一起分发的第三方组件",
   "csBackToContent": "返回内容",

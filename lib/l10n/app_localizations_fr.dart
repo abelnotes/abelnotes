@@ -2870,6 +2870,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get importSourceOneNoteHint => 'Section .one ou carnet .onetoc2';
 
   @override
+  String get importSourceSamsung => 'Fichier Samsung Notes';
+
+  @override
+  String get importSourceSamsungHint =>
+      'Note .sdocx (dans Samsung Notes : Enregistrer en tant que fichier)';
+
+  @override
   String get setOpenSourceLicenses => 'Licences open source';
 
   @override

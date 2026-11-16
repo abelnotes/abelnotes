@@ -813,6 +813,8 @@
   "importReportClose": "Cerrar",
   "importSourceOneNote": "Archivo OneNote",
   "importSourceOneNoteHint": "Sección .one o cuaderno .onetoc2",
+  "importSourceSamsung": "Archivo de Samsung Notes",
+  "importSourceSamsungHint": "Nota .sdocx (en Samsung Notes: Guardar como archivo)",
   "setOpenSourceLicenses": "Licencias open source",
   "setOpenSourceLicensesSub": "Componentes de terceros incluidos en la app",
   "csBackToContent": "Volver al contenido",

@@ -487,6 +487,13 @@ class _HwIconPainter extends CustomPainter {
         p('M6.5 7h5');
         p('M6.5 10.5h5');
         break;
+      // Samsung Notes file: a page with a handwritten line on it.
+      case 'src-samsung':
+        canvas.drawRRect(
+            RRect.fromLTRBR(4, 3, 16, 17, const Radius.circular(1.5)), stroke);
+        p('M6.5 11c1-2 2-2 2.5 0s1.5 2 2.5 0 1.8-1.8 2.2 0');
+        p('M6.5 6.5h7');
+        break;
 
       default:
         circle(10, 10, 6);

@@ -227,4 +227,11 @@ class ImportReport {
 }
 
 /// Source types the detector can recognise.
-enum ImportSourceType { ncnote, obsidianVault, notionExport, goodnotes, onenote }
+enum ImportSourceType {
+  ncnote,
+  obsidianVault,
+  notionExport,
+  goodnotes,
+  onenote,
+  samsungNotes,
+}

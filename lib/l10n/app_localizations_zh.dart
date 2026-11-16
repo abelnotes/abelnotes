@@ -2773,6 +2773,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get importSourceOneNoteHint => '.one 分区或 .onetoc2 笔记本';
 
   @override
+  String get importSourceSamsung => 'Samsung Notes 文件';
+
+  @override
+  String get importSourceSamsungHint => '.sdocx 笔记（在 Samsung Notes 中：另存为文件）';
+
+  @override
   String get setOpenSourceLicenses => '开源许可';
 
   @override

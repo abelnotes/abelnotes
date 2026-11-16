@@ -2866,6 +2866,13 @@ class AppLocalizationsDe extends AppLocalizations {
       '.one-Abschnitt oder .onetoc2-Notizbuch';
 
   @override
+  String get importSourceSamsung => 'Samsung Notes-Datei';
+
+  @override
+  String get importSourceSamsungHint =>
+      '.sdocx-Notiz (in Samsung Notes: Als Datei speichern)';
+
+  @override
   String get setOpenSourceLicenses => 'Open-Source-Lizenzen';
 
   @override

@@ -2862,6 +2862,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get importSourceOneNoteHint => 'Sezione .one o taccuino .onetoc2';
 
   @override
+  String get importSourceSamsung => 'File Samsung Notes';
+
+  @override
+  String get importSourceSamsungHint =>
+      'Nota .sdocx (in Samsung Notes: Salva come file)';
+
+  @override
   String get setOpenSourceLicenses => 'Licenze open source';
 
   @override

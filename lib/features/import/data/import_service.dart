@@ -121,6 +121,9 @@ class ImportService {
     final pageEntries = <PageEntry>[];
     final pages = <String, PageData>{};
     var pageNumber = 1;
+    final paged = parsed.pageWidth != null && parsed.pageHeight != null;
+    final w = parsed.pageWidth ?? AppConfig.scratchPageSize;
+    final h = parsed.pageHeight ?? AppConfig.scratchPageSize;
 
     for (final ch in parsed.chapters) {
       final chapterId = uuid.v4();
@@ -133,19 +136,19 @@ class ImportService {
           pageId: pageId,
           pageNumber: pageNumber,
           fileName: fileName,
-          width: AppConfig.scratchPageSize,
-          height: AppConfig.scratchPageSize,
+          width: w,
+          height: h,
           chapterId: chapterId,
           lastModified: now,
         ));
         pages[fileName] = PageData(
           pageId: pageId,
           pageNumber: pageNumber,
-          width: AppConfig.scratchPageSize,
-          height: AppConfig.scratchPageSize,
+          width: w,
+          height: h,
           layers: RenderingLayers(
             // Same background native scratch notebooks are created with.
-            background: const BackgroundLayer(type: 'dotted'),
+            background: BackgroundLayer(type: paged ? 'blank' : 'dotted'),
             content: draft.elements,
           ),
           assetReferences: draft.assetRefs.toList(),
@@ -171,7 +174,7 @@ class ImportService {
       title: resolvedTitle,
       createdAt: now,
       modifiedAt: now,
-      paperType: AppConfig.infinitePaperType,
+      paperType: paged ? 'blank' : AppConfig.infinitePaperType,
       pageCount: pages.length,
       chapters: chapters,
     );

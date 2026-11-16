@@ -67,6 +67,7 @@ Most handwriting apps are walled gardens: your notes live on someone else's clou
 
 **Import**
 - Import from **OneNote**
+- Import from **Samsung Notes** (.sdocx: handwriting, typed text and pictures; text positions approximate)
 - Import from **Obsidian** and **Notion** (Markdown-based vaults/exports) *(implemented, not yet tested against real exports)*
 
 **Sharing**

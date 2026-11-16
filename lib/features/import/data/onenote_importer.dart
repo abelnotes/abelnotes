@@ -24,11 +24,17 @@ class OneNoteParsed {
   final Map<String, Uint8List> assets;
   final List<ImportIssue> issues;
 
+  /// Fixed page size in points (Samsung Notes); null = infinite pages.
+  final double? pageWidth;
+  final double? pageHeight;
+
   const OneNoteParsed({
     required this.title,
     required this.chapters,
     required this.assets,
     required this.issues,
+    this.pageWidth,
+    this.pageHeight,
   });
 }
 

@@ -63,6 +63,13 @@ Future<ImportSourceType?> showImportSourceSheet(BuildContext context) {
               subtitle: l10n.importSourceOneNoteHint,
               onTap: () => Navigator.of(ctx).pop(ImportSourceType.onenote),
             ),
+          _SourceTile(
+            icon: 'src-samsung',
+            tint: _samsungNotesTint,
+            title: l10n.importSourceSamsung,
+            subtitle: l10n.importSourceSamsungHint,
+            onTap: () => Navigator.of(ctx).pop(ImportSourceType.samsungNotes),
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -81,6 +88,7 @@ Future<ImportSourceType?> showImportSourceSheet(BuildContext context) {
 /// the two sync marks already ship under. The glyph then stops being drawn.
 const _obsidianTint = Color(0xFF7C5CD6);
 const _oneNoteTint = Color(0xFF7719AA);
+const _samsungNotesTint = Color(0xFFE8603C);
 
 /// One import source: the format's real mark when we ship one, otherwise a
 /// tinted glyph, so the rows read as distinct formats instead of four grey

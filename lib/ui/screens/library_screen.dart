@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, compute, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +32,7 @@ import 'package:abelnotes/features/import/data/import_service.dart';
 import 'package:abelnotes/features/import/data/notion_importer.dart';
 import 'package:abelnotes/features/import/data/obsidian_importer.dart';
 import 'package:abelnotes/features/import/data/onenote_importer.dart';
+import 'package:abelnotes/features/import/data/samsung_notes_importer.dart';
 import 'package:abelnotes/features/import/presentation/import_messages.dart';
 import 'package:abelnotes/features/import/presentation/import_progress_dialog.dart';
 import 'package:abelnotes/features/import/presentation/import_report_dialog.dart';
@@ -619,6 +621,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         .toList();
     final files = paths.where((p) => media.contains(ext(p))).toList();
     final onenote = paths.where((p) => ext(p) == 'one' || ext(p) == 'onetoc2');
+    final samsung = paths.where((p) => ext(p) == 'sdocx');
     final zips = paths.where((p) => ext(p) == 'zip');
     final folders = paths.where((p) => Directory(p).existsSync());
     if (notebooks.isNotEmpty) {
@@ -627,6 +630,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       await _importFilePaths(files);
     } else if (onenote.isNotEmpty) {
       await _importOneNote(onenote.first);
+    } else if (samsung.isNotEmpty) {
+      await _importSamsungNotes(samsung.first);
     } else if (zips.isNotEmpty) {
       await _importForeign(ImportSourceType.notionExport, dropped: zips.first);
     } else if (folders.isNotEmpty) {
@@ -650,6 +655,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         await _importForeign(type);
       case ImportSourceType.onenote:
         await _importOneNote();
+      case ImportSourceType.samsungNotes:
+        await _importSamsungNotes();
       case ImportSourceType.goodnotes:
         break; // not reachable from the sheet yet
     }
@@ -725,6 +732,89 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       Navigator.of(ctx).pop();
       debugPrint('[Import] OneNote import failed: $e');
       _toast(_oneNoteErrorMessage(l10n, e));
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  /// Samsung Notes (.sdocx): pure Dart, so it works on every platform.
+  /// Pages stay pages (A4), the note becomes one chapter.
+  Future<void> _importSamsungNotes([String? dropped]) async {
+    final l10n = AppLocalizations.of(context);
+    final fileService = ref.read(fileServiceProvider);
+    Uint8List? bytes;
+    String name;
+    if (dropped != null) {
+      try {
+        bytes = await File(dropped).readAsBytes();
+      } catch (_) {
+        _toast(l10n.libImportCannotReadFile);
+        return;
+      }
+      name = dropped.split(RegExp(r'[\\/]')).last;
+    } else {
+      // Android/iOS pickers filter by MIME type and know none for .sdocx.
+      final mobile = !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS);
+      final picked = (await FilePicker.platform.pickFiles(
+        type: mobile ? FileType.any : FileType.custom,
+        allowedExtensions: mobile ? null : ['sdocx'],
+        withData: true,
+      ))
+          ?.files
+          .firstOrNull;
+      if (picked == null) return;
+      bytes = picked.bytes;
+      name = picked.name;
+      if (bytes == null) {
+        _toast(l10n.libImportCannotReadFile);
+        return;
+      }
+    }
+    if (!mounted) return;
+    final stem = name.toLowerCase().endsWith('.sdocx')
+        ? name.substring(0, name.length - 6)
+        : name;
+
+    final controller = ImportRunController();
+    showImportProgressDialog(context, controller);
+    final ctx = context;
+    try {
+      final parsed = await compute(parseSamsungNotes, (bytes, stem));
+      final existingTitles =
+          (ref.read(notebookListProvider).valueOrNull ?? const [])
+              .map((e) => e.metadata.title.toLowerCase())
+              .toSet();
+      var title = parsed.title;
+      if (existingTitles.contains(title.toLowerCase())) {
+        title = l10n.libImportedTitleSuffix(title);
+      }
+      final report = await ImportService(fileService).importOneNote(
+        parsed,
+        resolvedTitle: title,
+        onProgress: controller.update,
+        isCancelled: () => controller.cancelled,
+      );
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      Navigator.of(ctx).pop();
+      if (report == null) {
+        _toast(l10n.importCancelled);
+        return;
+      }
+      ref.read(notebookListProvider.notifier).refresh();
+      _toast(l10n.libImportSuccess(report.notebookTitle, report.pageCount));
+      if (report.issues.isNotEmpty && mounted) {
+        // ignore: use_build_context_synchronously
+        await showImportReportDialog(ctx, report);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
+      Navigator.of(ctx).pop();
+      debugPrint('[Import] Samsung Notes import failed: $e');
+      _toast(importErrorText(l10n, e));
     } finally {
       controller.dispose();
     }

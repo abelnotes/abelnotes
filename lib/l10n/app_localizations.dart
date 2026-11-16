@@ -4692,6 +4692,18 @@ abstract class AppLocalizations {
   /// **'Sezione .one o taccuino .onetoc2'**
   String get importSourceOneNoteHint;
 
+  /// No description provided for @importSourceSamsung.
+  ///
+  /// In it, this message translates to:
+  /// **'File Samsung Notes'**
+  String get importSourceSamsung;
+
+  /// No description provided for @importSourceSamsungHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Nota .sdocx (in Samsung Notes: Salva come file)'**
+  String get importSourceSamsungHint;
+
   /// No description provided for @setOpenSourceLicenses.
   ///
   /// In it, this message translates to:
