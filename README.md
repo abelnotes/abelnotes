@@ -18,67 +18,88 @@ Cross-platform, self-hostable, open source. Your notes sync to a place *you* con
 ---
 
 <div align="center">
-<img src="assets/screenshots/hero.gif" width="760" alt="Pasting a LaTeX formula, moving it, highlighting it and pointing at it with a pen arrow">
+<img src="assets/screenshots/hero.gif" width="760" alt="Writing a formula by hand, circling it with the lasso and converting it to typeset LaTeX">
 </div>
 
 ---
 
-## Why another note-taking app?
+## What makes it different
 
-Most handwriting apps are walled gardens: your notes live on someone else's cloud, in a format you don't control, on the platforms they decide to support. AbelNotes takes the opposite bet.
+**1. It reads your math and your circuits.**
+Lasso a handwritten formula and it becomes editable LaTeX. Lasso a hand-drawn circuit, or pick a photo of one, and it comes back with clean symbols and straight wires. Both run on your device, nothing is uploaded *(Beta, free while in testing)*.
 
-- **Your data, your account.** Sync over WebDAV to your own Nextcloud (or ownCloud), or to your own Google Drive. Nothing passes through a cloud we run.
-- **Built for STEM.** Real LaTeX rendering, PDF annotation with selectable text, on-device circuit and formula recognition, and paper types that actually matter for technical work, like Cornell, isometric and music staff.
-- **Actually cross-platform.** Not "mobile-first, desktop-someday." Windows, Linux, Android and the web are first-class today, with real per-platform work under the hood.
-- **Open source, AGPL-3.0.** You can read exactly how your notes are handled. Build it yourself for free, or grab a store build to support development.
+**2. Your notes, your server, every device.**
+Sync through your own Nextcloud or any WebDAV server, or your own Google Drive. Never through a cloud we run. Windows, Linux, Android and the web today, offline-first, with real merging when two devices edit the same page.
+
+**3. Bring your notes with you.**
+Import OneNote sections, Samsung Notes files, Notion exports, Obsidian vaults and PDFs. On a fresh install the library offers it in one tap.
+
+**4. Draw it once, reuse it everywhere.**
+Freehand lines, circles and arrows straighten into clean shapes, and anything you draw can be saved as a symbol and dropped onto any page.
+
+**5. A sketchbook and a bookshelf in one app.**
+Infinite canvases for thinking, paged notebooks with chapters for keeping things in order, side by side in the same library.
+
+And it is **open source (AGPL-3.0)**: read exactly how your notes are handled, build it yourself for free, or grab a store build to support development.
 
 ---
 
 ## Features
 
-**Drawing**
-- Multiple pen types (pen, ballpoint, brush, calligraphy) with pressure-driven variable stroke width
-- Highlighter, lasso select, shapes with geometric snapping/recognition
-- Palm rejection and stylus-only mode
-- Laser pointer for presenting (not saved to the page)
-- Two canvas modes: infinite "Scratch" surface and paged notebooks
+**Math and circuits**
+- **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and pick Convert to LaTeX in its ⋯ menu. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
+- **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
+- **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
+- Both recognisers are part of the open-source code (AGPL-3.0): building from source, and the Flatpak, AUR and GitHub builds, always include every feature
 
 <div align="center">
-<img src="assets/screenshots/shapes.gif" width="680" alt="Freehand shapes snapping to clean geometry, then saving a hand-drawn resistor as a reusable symbol and placing it twice">
+<img src="assets/screenshots/circuits.gif" width="760" alt="Drawing a circuit by hand and turning it into clean symbols and straight wires, then undoing and redoing">
 </div>
 
-**For technical work**
-- **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
-- **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
-- **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and pick Convert to LaTeX in its ⋯ menu. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
-- Both recognisers are part of the open-source code (AGPL-3.0): building from source, and the Flatpak, AUR and GitHub builds, always include every feature
-- **PDF import** with rasterized pages *and* selectable embedded text; annotate on top with the normal drawing tools
-- **8 paper types**, including Cornell, isometric and music staff, switchable after you've started writing
-- Symbol library: save anything you drew as a reusable symbol
-
-**Sync & offline**
+**Sync and offline**
 - **Local-first**: everything works offline; changes sync when you reconnect
 - **Two backends, your pick**: your own WebDAV/Nextcloud server, or your own Google Drive, one at a time, switchable
+- **Real conflict handling**: element-level 3-way merge, so two devices writing on the same page keep each other's strokes, with a resolution screen when edits genuinely diverge
+- **Delta sync**: only changed pages and assets are uploaded, not the whole notebook
 - **Per-notebook opt-out**: any notebook can be kept on this device only, never uploaded, while the rest keep syncing
 - **Per-device opt-out**: a notebook can be taken off one device without leaving the account; opening it downloads it again
-- **Delta sync**: only changed pages/assets are uploaded, not the whole notebook
-- **Real conflict handling**: element-level 3-way merge, with a dedicated resolution screen when edits genuinely diverge, instead of a silent last-write-wins
+- Deleted notebooks go to the trash on every device and can be restored from any of them
 - Connection pooling tuned for real self-hosted setups (including flaky Tailscale links)
 
 **Import**
-- Import from **OneNote**
-- Import from **Samsung Notes** (.sdocx: handwriting, typed text and pictures; text positions approximate)
-- Import from **Obsidian** and **Notion** (Markdown-based vaults/exports) *(implemented, not yet tested against real exports)*
+- **OneNote** sections and notebooks (desktop)
+- **Samsung Notes** files (.sdocx): handwriting with its colours, typed text and pictures (text positions approximate)
+- **Notion** exports and **Obsidian** vaults (Markdown) *(implemented, not yet tested against real exports)*
+- **PDF** with rasterized pages *and* selectable embedded text, annotated with the normal tools
+- Drop files on the library (desktop) or open them with AbelNotes (Android)
+
+**Drawing**
+- Multiple pen types (pen, ballpoint, brush, calligraphy) with pressure-driven variable stroke width, plus quick pens in the dock
+- Shape recognition: freehand lines, circles, rectangles and arrows snap to clean geometry
+- **Symbol library**: save anything you drew as a reusable symbol
+- Highlighter whose overlapping strokes read as one mark, lasso select, palm rejection and stylus-only mode
+- Laser pointer for presenting (not saved to the page)
+
+<div align="center">
+<img src="assets/screenshots/shapes.gif" width="680" alt="Freehand shapes snapping to clean geometry, then saving a hand-drawn resistor as a reusable symbol, placing it twice and wiring it">
+</div>
+
+**Notebooks and canvases**
+- Infinite "Sketch" canvases and paged notebooks with chapters, in one library with folders and favourites
+- **8 paper types**, including Cornell, isometric and music staff, switchable after you've started writing
+- Open another notebook beside the one you are editing (desktop)
+- The tool dock can float, stick to an edge or sit inside the top bar
 
 **Sharing**
 - Read-only public links via a PDF snapshot (Nextcloud OCS Share API), with real revocation
+- Export to PDF with real vector ink and selectable text
 
 ---
 
 ## PDF import
 
 <div align="center">
-<img src="assets/screenshots/pdf.gif" width="760" alt="Selecting and copying the text of an imported PDF slide, then highlighting and annotating it with the pen">
+<img src="assets/screenshots/pdf.gif" width="760" alt="Selecting and copying the text of an imported PDF slide, highlighting it and annotating both slides with the pen">
 </div>
 
 ---
