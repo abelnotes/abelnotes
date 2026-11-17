@@ -54,7 +54,8 @@ class _FileDropZoneState extends State<FileDropZone> {
       );
       if (progress == null) continue; // not a file: the callback never runs
       final uri = await done.future;
-      if (uri != null && uri.isScheme('file')) paths.add(uri.toFilePath());
+      final path = uri == null ? null : dropUriPath(uri);
+      if (path != null) paths.add(path);
     }
     if (paths.isNotEmpty) widget.onDrop(paths, e.position.local);
   }
@@ -109,5 +110,18 @@ class _FileDropZoneState extends State<FileDropZone> {
         ],
       ),
     );
+  }
+}
+
+/// Local path of a dropped file URI, or null when it is not a usable file.
+/// Some senders put a host in it (file://host/path), which toFilePath()
+/// rejects on Linux and macOS: the host is dropped and the path kept.
+@visibleForTesting
+String? dropUriPath(Uri uri) {
+  if (!uri.isScheme('file')) return null;
+  try {
+    return (uri.host.isEmpty ? uri : uri.replace(host: '')).toFilePath();
+  } catch (_) {
+    return null;
   }
 }
