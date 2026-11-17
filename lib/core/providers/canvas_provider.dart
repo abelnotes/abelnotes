@@ -2815,6 +2815,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     try { await _localWriteTail; } catch (_) {}
   }
 
+  /// Refreshes the library thumbnail from the first page, off the pen's
+  /// path; failures are swallowed (tiles fall back to their placeholder).
+  void _refreshThumbnail(CanvasState s, String notebookId) {
+    _queueThumbnail(() async {
+      try {
+        // Rendering records a full page paint on the UI isolate: never
+        // while the pen is down.
+        await _waitForQuietPointer();
+        final thumbs = _ref.read(thumbnailServiceProvider);
+        final first = s.document.pages.isNotEmpty ? s.document.pages.first : null;
+        final page = first == null ? null : s.pages[first.fileName];
+        if (page == null) return;
+        // Raw asset bytes too: images the canvas has not decoded yet would
+        // otherwise render as blank rectangles.
+        await thumbs.renderAndCache(notebookId, page,
+            imageCache: s.imageCache, assetBytes: s.assetBytes);
+      } catch (e) {
+        debugPrint('[Canvas] Thumbnail cache failed: $e');
+      }
+    });
+  }
+
   Timer? _thumbTimer;
   Future<void> Function()? _thumbJob;
 
@@ -8922,6 +8944,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // for minutes, and a crash meanwhile lost every edit made since.
     final local = _persistLocal();
     if (_discardRequested) return;
+    // With no sync the local write is the whole save, and the remote path
+    // below (which refreshes the library thumbnail) never runs.
+    if (_ref.read(syncServiceProvider) == null) {
+      _refreshThumbnail(state!, state!.metadata.id);
+    }
     if (!state!.isDirty && !hasPendingDeletes) {
       await local;
       return;
@@ -9157,36 +9184,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     //    upload; the ETag persist below waits for it.
     final localSaveFuture = _persistLocal();
 
-    // Fire-and-forget: refresh thumbnail for the library card. Uses the
-    // first page of the document — failures are swallowed (cards fall
-    // back to the gradient placeholder).
-    _queueThumbnail(() async {
-      try {
-        // Rendering the cover thumbnail records a full page paint on the
-        // UI isolate — never do it while the pen is down.
-        await _waitForQuietPointer();
-        final thumbs = _ref.read(thumbnailServiceProvider);
-        final firstPageEntry = s.document.pages.isNotEmpty
-            ? s.document.pages.first
-            : null;
-        if (firstPageEntry == null) return;
-        final firstPage = s.pages[firstPageEntry.fileName];
-        if (firstPage == null) return;
-        await thumbs.renderAndCache(
-          updatedMeta.id,
-          firstPage,
-          imageCache: s.imageCache,
-          // Pass the raw asset bytes too — if the canvas hasn't finished
-          // decoding every image yet (e.g. save() fires right after open
-          // on a notebook with many images), the thumbnail would render
-          // blank rectangles where the images should be without this
-          // fallback decode path.
-          assetBytes: s.assetBytes,
-        );
-      } catch (e) {
-        debugPrint('[Canvas] Thumbnail cache failed: $e');
-      }
-    });
+    _refreshThumbnail(s, updatedMeta.id);
 
     // Hand the lock to a background task that waits for the remote sync
     // to finish (or fail), then releases the lock.

@@ -3188,10 +3188,7 @@ class _SketchTile extends StatelessWidget {
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: CustomPaint(
-                      painter: _SketchDotsPainter(p.paperEdge),
-                      child: const SizedBox.expand(),
-                    ),
+                    child: _SketchPreview(entry: entry, dots: p.paperEdge),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3226,6 +3223,69 @@ class _SketchTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The sketch's own ink (its saved thumbnail, framed on the content), or
+/// the dotted placeholder while there is none.
+class _SketchPreview extends ConsumerStatefulWidget {
+  final NotebookEntry entry;
+  final Color dots;
+  const _SketchPreview({required this.entry, required this.dots});
+
+  @override
+  ConsumerState<_SketchPreview> createState() => _SketchPreviewState();
+}
+
+class _SketchPreviewState extends ConsumerState<_SketchPreview> {
+  Uint8List? _png;
+  DateTime? _loadedFor;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(_SketchPreview old) {
+    super.didUpdateWidget(old);
+    if (widget.entry.metadata.modifiedAt != _loadedFor) _load();
+  }
+
+  Future<void> _load() async {
+    if (kIsWeb) return;
+    final at = widget.entry.metadata.modifiedAt;
+    _loadedFor = at;
+    final thumbs = ref.read(thumbnailServiceProvider);
+    try {
+      if (!await thumbs.hasThumbnail(widget.entry.metadata.id)) return;
+      final bytes =
+          await File(thumbs.thumbnailPath(widget.entry.metadata.id)).readAsBytes();
+      // Older sketch thumbnails framed the whole sheet (portrait, ink a
+      // speck): keep the dots until the next save writes a landscape one.
+      if (bytes.length < 24) return;
+      final d = ByteData.sublistView(bytes);
+      if (d.getUint32(16) <= d.getUint32(20)) return;
+      if (mounted && _loadedFor == at) setState(() => _png = bytes);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final png = _png;
+    if (png == null) {
+      return CustomPaint(
+        painter: _SketchDotsPainter(widget.dots),
+        child: const SizedBox.expand(),
+      );
+    }
+    return SizedBox.expand(
+      child: Image.memory(png,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium),
     );
   }
 }

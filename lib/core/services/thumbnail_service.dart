@@ -81,8 +81,13 @@ class ThumbnailService {
     if (last != null && identical(last.$1, page) && last.$2 == imageCache.length) {
       return thumbnailPath(notebookId);
     }
+    // Sketch tiles are landscape; notebook pages keep the A4 shape.
+    final sketch = page.width >= AppConfig.scratchPageSize;
     final png = await renderPng(page,
-        imageCache: imageCache, assetBytes: assetBytes);
+        imageCache: imageCache,
+        assetBytes: assetBytes,
+        width: sketch ? thumbHeight : thumbWidth,
+        height: sketch ? thumbWidth : thumbHeight);
     if (png == null) return null;
     try {
       final file = File(thumbnailPath(notebookId));
@@ -93,6 +98,52 @@ class ThumbnailService {
       debugPrint('[ThumbnailService] Write failed for $notebookId: $e');
       return null;
     }
+  }
+
+  /// The part of a sketch its tile shows: the tile's [aspect], at most
+  /// [maxWidth] units wide so handwriting stays recognisable, anchored at the
+  /// top-left of the content (where writing starts); small content is
+  /// centred whole.
+  static Rect sketchFrame(Rect content, double aspect,
+      {double maxWidth = 900}) {
+    final c = content.inflate(30);
+    final w = math.min(math.max(c.width, c.height * aspect), maxWidth);
+    final h = w / aspect;
+    final left = c.width <= w ? c.center.dx - w / 2 : c.left;
+    final top = c.height <= h ? c.center.dy - h / 2 : c.top;
+    return Rect.fromLTWH(left, top, w, h);
+  }
+
+  /// Bounds of everything drawn on [page], or null when it is empty.
+  static Rect? contentBounds(PageData page) {
+    Rect? acc;
+    void add(Rect r) => acc = acc == null ? r : acc!.expandToInclude(r);
+    for (final el in page.layers.content) {
+      el.map(
+        unknown: (_) {},
+        stroke: (s) {
+          final pts = s.data.points;
+          if (pts.isEmpty) return;
+          var l = pts.first.x, t = pts.first.y, r = l, b = t;
+          for (final q in pts) {
+            l = math.min(l, q.x);
+            r = math.max(r, q.x);
+            t = math.min(t, q.y);
+            b = math.max(b, q.y);
+          }
+          add(Rect.fromLTRB(l, t, r, b).inflate(s.data.baseWidth));
+        },
+        shape: (s) => add(Rect.fromPoints(
+            Offset(s.data.x1, s.data.y1), Offset(s.data.x2, s.data.y2))),
+        text: (t) => add(
+            Rect.fromLTWH(t.data.x, t.data.y, t.data.width, t.data.height)),
+        math: (m) => add(
+            Rect.fromLTWH(m.data.x, m.data.y, m.data.width, m.data.height)),
+        image: (i) => add(
+            Rect.fromLTWH(i.data.x, i.data.y, i.data.width, i.data.height)),
+      );
+    }
+    return acc;
   }
 
   /// Renders [page] to PNG bytes at [width] x [height] pixels, or null on
@@ -147,7 +198,28 @@ class ThumbnailService {
         Paint()..color = const Color(0xFFFFFFFF),
       );
 
-      if (recorded != null) {
+      // A sketch is a 6000-unit sheet: framing all of it shrinks the ink to
+      // a dot, so frame the start of what is drawn instead.
+      final content = page.width >= AppConfig.scratchPageSize
+          ? contentBounds(page)
+          : null;
+      final crop =
+          content == null ? null : sketchFrame(content, width / height);
+      if (crop != null) {
+        final fit = math.min(width / crop.width, height / crop.height);
+        canvas
+          ..save()
+          ..translate((width - crop.width * fit) / 2 - crop.left * fit,
+              (height - crop.height * fit) / 2 - crop.top * fit)
+          ..scale(fit);
+        if (recorded != null) {
+          canvas.drawPicture(recorded);
+        } else {
+          CanvasRenderEngine(pageData: page, imageCache: combinedCache)
+              .paintPage(canvas, Size(page.width, page.height), 1, Offset.zero);
+        }
+        canvas.restore();
+      } else if (recorded != null) {
         // Same placement as the engine's fit-to-size paint at zoom 1.
         final fit = math.min(width / page.width, height / page.height);
         canvas

@@ -200,21 +200,7 @@ class NotebookCover extends StatelessWidget {
                 left: 24,
                 right: 18,
                 bottom: 18,
-                child: Text(
-                  title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xF2FFFFFF),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.2,
-                    height: 1.2,
-                    shadows: [
-                      Shadow(color: Color(0x66000000), offset: Offset(0, 1), blurRadius: 4),
-                    ],
-                  ),
-                ),
+                child: _CoverTitle(title),
               ),
               // Favorite star
               if (favorite)
@@ -424,4 +410,46 @@ class _TexturePainter extends CustomPainter {
   @override
   bool shouldRepaint(_TexturePainter old) =>
       old.texture != texture || old.alpha != alpha;
+}
+
+/// Cover title: shrinks (down to 11) until its longest word fits, so a
+/// long single word never breaks mid-word on a narrow phone cover.
+class _CoverTitle extends StatelessWidget {
+  final String title;
+  const _CoverTitle(this.title);
+
+  static const _style = TextStyle(
+    color: Color(0xF2FFFFFF),
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -0.2,
+    height: 1.2,
+    shadows: [
+      Shadow(color: Color(0x66000000), offset: Offset(0, 1), blurRadius: 4),
+    ],
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      // Measure with the inherited font, the one the Text below renders in.
+      final base = DefaultTextStyle.of(context).style.merge(_style);
+      var style = base;
+      final words = title.split(RegExp(r'\s+'));
+      final longest = words.fold<double>(0, (w, word) {
+        final tp = TextPainter(
+          text: TextSpan(text: word, style: base),
+          textDirection: TextDirection.ltr,
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        return tp.width > w ? tp.width : w;
+      });
+      if (c.maxWidth.isFinite && longest > c.maxWidth) {
+        style = base.copyWith(
+            fontSize: (15 * c.maxWidth / longest).clamp(11, 15).toDouble());
+      }
+      return Text(title,
+          maxLines: 2, overflow: TextOverflow.ellipsis, style: style);
+    });
+  }
 }
