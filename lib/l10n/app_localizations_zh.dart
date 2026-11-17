@@ -3750,4 +3750,351 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get csDropUnsupported => '此处只能插入图片和 PDF。';
+
+  @override
+  String get donScreenTitle => '待捐赠的样本';
+
+  @override
+  String get donScreenIntro =>
+      '如果某个样本与你写的内容不符，点按它进行修正或丢弃。在你点按“发送”之前，任何内容都不会离开这个浏览器：AbelNotes 应用从不发送手写，只有这个页面会。';
+
+  @override
+  String get donPrivacy => '隐私政策';
+
+  @override
+  String get donSentHeader => '你的捐赠';
+
+  @override
+  String donAcceptedTotal(int count) {
+    return '已接受的样本：$count';
+  }
+
+  @override
+  String get donKeepCode => '请保存回执码：没有它，就无法查找、查询或删除一次捐赠。';
+
+  @override
+  String donConsentGiven(String date) {
+    return '已于 $date 同意。';
+  }
+
+  @override
+  String donConsentGivenRepublish(String date) {
+    return '已于 $date 同意，包括发布到数据集。';
+  }
+
+  @override
+  String get donWithdraw => '撤回';
+
+  @override
+  String donWithdrawn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已撤回同意，并删除了 $count 份捐赠。',
+      zero: '已撤回同意。',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String donWithdrawFailed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已撤回同意，但有 $count 份捐赠暂时无法删除。请用其“删除”按钮重试。',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donWithdrawTitle => '撤回同意？';
+
+  @override
+  String get donWithdrawBody =>
+      '此处列出的每份捐赠都会从存储和今后的训练中删除。已用它们训练好的模型保持不变。下次发送前会再次征求你的同意。';
+
+  @override
+  String donQueueSummary(int toReview, int reviewed) {
+    return '待检查：$toReview · 已检查：$reviewed';
+  }
+
+  @override
+  String donSendCount(int count) {
+    return '发送（$count）';
+  }
+
+  @override
+  String donSent(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '已发送 $count 个样本',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donDeleteTitle => '删除这次捐赠？';
+
+  @override
+  String get donDeleteBody => '其中的样本会从存档和今后的训练中移除。已用它们训练好的模型保持不变。';
+
+  @override
+  String get donDelete => '删除';
+
+  @override
+  String get donDeleted => '捐赠已删除';
+
+  @override
+  String donParts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个元件',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donReviewed => '已检查';
+
+  @override
+  String get donToReviewShort => '待检查';
+
+  @override
+  String donStatusAccepted(int count) {
+    return '已接受 $count 个';
+  }
+
+  @override
+  String get donStatusRejected => '未被接受';
+
+  @override
+  String get donStatusInReview => '审核中';
+
+  @override
+  String donSamples(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 个样本',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donCopyCode => '复制回执码';
+
+  @override
+  String get donCodeCopied => '回执码已复制';
+
+  @override
+  String get donErrOffline => '无法连接服务器，请稍后再试。';
+
+  @override
+  String get donErrBusy => '当前发送过多，请一分钟后再试。';
+
+  @override
+  String get donErrFull => '今日上限已满，请明天再试。';
+
+  @override
+  String get donErrRefused => '服务器拒绝了这些样本。';
+
+  @override
+  String get donErrNotFound => '找不到该捐赠。';
+
+  @override
+  String get donErrServer => '服务器出错，请稍后再试。';
+
+  @override
+  String get donConsentTitle => '发送之前';
+
+  @override
+  String get donConsentWhat =>
+      '发送的内容：每个样本的笔迹（位置、相对时间和压力）及其内容（电路元件或公式）。不包含账户、姓名或设备标识，也不包含你笔记中的任何内容。';
+
+  @override
+  String get donConsentWhy =>
+      'AbelNotes 用它们来训练和评估设备端识别，让它学会像你这样的手写。除非你勾选最后一个选项，它们不会公开。请不要书写签名、姓名或任何其他能识别出你或他人的内容。';
+
+  @override
+  String get donConsentReceipt =>
+      '每次发送都会生成一个回执码，保存在这个浏览器里：凭它你可以随时删除这次捐赠。在此撤回同意会删除列出的所有捐赠。';
+
+  @override
+  String get donConsentController => '谁对这些数据负责、保存多久以及你有哪些权利：请参阅隐私政策。';
+
+  @override
+  String get donConsentTrain => '我同意 AbelNotes 使用这些样本训练其识别模型。';
+
+  @override
+  String get donConsentAge => '我已年满 16 岁，并达到所在地区可自行同意的年龄（印度为 18 岁）。';
+
+  @override
+  String get donConsentRepublish => 'AbelNotes 也可以将它们发布到数据集中（可选）。';
+
+  @override
+  String get donConsentRepublishNote => '数据集一旦发布，他人已制作的副本无法收回：撤回同意只会停止今后的发布。';
+
+  @override
+  String get donReviewTitle => '检查样本';
+
+  @override
+  String get donReset => '还原';
+
+  @override
+  String get donNoParts => '已没有元件。请丢弃该样本，或拖出一个框来添加元件。';
+
+  @override
+  String get donReviewHint => '点按元件可修正或移除它。在漏识别的元件周围拖出一个框即可添加。双指缩放或滚动滚轮可放大。';
+
+  @override
+  String get donDiscard => '丢弃';
+
+  @override
+  String get donMarkReviewed => '正确';
+
+  @override
+  String get donPickSymbol => '这是什么元件？';
+
+  @override
+  String get donRemovePart => '移除此元件';
+
+  @override
+  String get donFitView => '适应视图';
+
+  @override
+  String get symResistor => '电阻';
+
+  @override
+  String get symCapacitor => '电容';
+
+  @override
+  String get symCapacitorPolarized => '极性电容';
+
+  @override
+  String get symInductor => '电感';
+
+  @override
+  String get symDiode => '二极管';
+
+  @override
+  String get symVoltageDc => '直流电压源';
+
+  @override
+  String get symVoltageAc => '交流电压源';
+
+  @override
+  String get symBattery => '电池';
+
+  @override
+  String get symCurrentSource => '电流源';
+
+  @override
+  String get symBjt => '双极型晶体管';
+
+  @override
+  String get symFet => '场效应管';
+
+  @override
+  String get symOpamp => '运算放大器';
+
+  @override
+  String get symIc => '集成电路';
+
+  @override
+  String get symTransformer => '变压器';
+
+  @override
+  String get symSwitch => '开关';
+
+  @override
+  String get symGnd => '接地';
+
+  @override
+  String get symVss => '电源（VCC/VSS）';
+
+  @override
+  String get symJunction => '节点';
+
+  @override
+  String get symCrossover => '交叉不相连';
+
+  @override
+  String get symTerminal => '端子';
+
+  @override
+  String get symArrow => '箭头';
+
+  @override
+  String get symText => '文字';
+
+  @override
+  String get donEmptyGuided => '还没有样本。写几个公式或符号，它们就会出现在这里。';
+
+  @override
+  String get donFormulaHintGuided => '这个公式是你按提示写的。如果你写的是别的内容，请修改 LaTeX 或丢弃该样本。';
+
+  @override
+  String get donLatexLabel => 'LaTeX';
+
+  @override
+  String get donLatexEmpty => '缺少 LaTeX';
+
+  @override
+  String get donLatexTooLong => '太长：最多 1000 个字符';
+
+  @override
+  String get donLatexNotAscii => '只能使用基本字符：请用 LaTeX 命令代替带重音的字母或符号';
+
+  @override
+  String get donLatexInvalid => '不是有效的 LaTeX：请检查花括号和命令';
+
+  @override
+  String get donGuidedTitle => '为 AbelNotes 书写';
+
+  @override
+  String get donGuidedIntro =>
+      '照着你看到的内容书写，就像在笔记里一样，帮助 AbelNotes 的识别学会像你这样的手写。AbelNotes 应用从不发送你的手写：捐赠只来自这个页面。在你检查并点按“发送”之前，样本只保存在这个浏览器里。';
+
+  @override
+  String get donGuidedFormulas => '公式';
+
+  @override
+  String get donGuidedCircuits => '电路符号';
+
+  @override
+  String get donGuidedWriteFormula => '写出这个公式';
+
+  @override
+  String get donGuidedDrawSymbol => '只画这个符号，两端引线短一些';
+
+  @override
+  String get donGuidedWriteText => '写出这个标注';
+
+  @override
+  String get donGuidedPadHint => '用笔、手指或鼠标在这里书写';
+
+  @override
+  String get donGuidedUndo => '撤销笔画';
+
+  @override
+  String get donGuidedClear => '清除';
+
+  @override
+  String get donGuidedSkip => '跳过';
+
+  @override
+  String get donGuidedNext => '下一个';
+
+  @override
+  String donGuidedReview(int count) {
+    return '检查并发送（$count）';
+  }
+
+  @override
+  String get donGuidedFull => '队列已满：请先发送或丢弃一些样本。';
+
+  @override
+  String get donGuidedTabTitle => '参与贡献 · AbelNotes';
 }

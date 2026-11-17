@@ -2377,3 +2377,15 @@ void _snapRuns(List<List<Pt>?> wires, List<Pt> fixed, double delta) {
     }
   }
 }
+
+/// Two-terminal parts [symbolDrawing] can draw.
+const Set<String> kDrawnTwoTerminal = {
+  'resistor', 'capacitor', 'voltage.battery', 'diode', 'switch', 'inductor', 'voltage.dc', 'voltage.ac',
+  'current_source',
+};
+
+/// [cls] as the tidy-up draws it, left to right over 1.4 [rl]; null for a
+/// part not in [kDrawnTwoTerminal]. Used to show a symbol on its own.
+List<OutStroke>? symbolDrawing(String cls, double rl) => kDrawnTwoTerminal.contains(cls)
+    ? _symbol(cls, const Pt(0, 0), Pt(1.4 * rl, 0), rl, arrow: const Pt(1, 0))
+    : null;

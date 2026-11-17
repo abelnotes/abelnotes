@@ -3926,4 +3926,375 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get csDropUnsupported =>
       'Seules les images et les PDF peuvent être insérés ici.';
+
+  @override
+  String get donScreenTitle => 'Échantillons à donner';
+
+  @override
+  String get donScreenIntro =>
+      'Touchez un échantillon pour le corriger ou l\'écarter s\'il ne correspond pas à ce que vous avez écrit. Rien ne quitte ce navigateur avant que vous appuyiez sur Envoyer : les applications AbelNotes n\'envoient jamais d\'écriture, seule cette page le fait.';
+
+  @override
+  String get donPrivacy => 'Politique de confidentialité';
+
+  @override
+  String get donSentHeader => 'Vos dons';
+
+  @override
+  String donAcceptedTotal(int count) {
+    return 'Échantillons acceptés : $count';
+  }
+
+  @override
+  String get donKeepCode =>
+      'Conservez vos codes de reçu : sans eux, un don ne peut être ni retrouvé, ni vérifié, ni supprimé.';
+
+  @override
+  String donConsentGiven(String date) {
+    return 'Consentement donné le $date.';
+  }
+
+  @override
+  String donConsentGivenRepublish(String date) {
+    return 'Consentement donné le $date, y compris pour la publication dans un jeu de données.';
+  }
+
+  @override
+  String get donWithdraw => 'Retirer';
+
+  @override
+  String donWithdrawn(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Consentement retiré et $count dons supprimés.',
+      one: 'Consentement retiré et 1 don supprimé.',
+      zero: 'Consentement retiré.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String donWithdrawFailed(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Consentement retiré, mais $count dons n\'ont pas encore pu être supprimés. Réessayez avec leurs boutons Supprimer.',
+      one:
+          'Consentement retiré, mais 1 don n\'a pas encore pu être supprimé. Réessayez avec son bouton Supprimer.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donWithdrawTitle => 'Retirer le consentement ?';
+
+  @override
+  String get donWithdrawBody =>
+      'Chaque don listé ici est supprimé du stockage et des prochains entraînements. Un modèle déjà entraîné avec eux reste tel quel. Votre consentement vous sera redemandé avant le prochain envoi.';
+
+  @override
+  String donQueueSummary(int toReview, int reviewed) {
+    return 'À vérifier : $toReview · Vérifiés : $reviewed';
+  }
+
+  @override
+  String donSendCount(int count) {
+    return 'Envoyer ($count)';
+  }
+
+  @override
+  String donSent(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count échantillons envoyés',
+      one: '1 échantillon envoyé',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donDeleteTitle => 'Supprimer ce don ?';
+
+  @override
+  String get donDeleteBody =>
+      'Ses échantillons sont retirés de l\'archive et des prochains entraînements. Un modèle déjà entraîné avec eux reste tel quel.';
+
+  @override
+  String get donDelete => 'Supprimer';
+
+  @override
+  String get donDeleted => 'Don supprimé';
+
+  @override
+  String donParts(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count composants',
+      one: '1 composant',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donReviewed => 'Vérifié';
+
+  @override
+  String get donToReviewShort => 'À vérifier';
+
+  @override
+  String donStatusAccepted(int count) {
+    return '$count acceptés';
+  }
+
+  @override
+  String get donStatusRejected => 'non accepté';
+
+  @override
+  String get donStatusInReview => 'en cours de vérification';
+
+  @override
+  String donSamples(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count échantillons',
+      one: '1 échantillon',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get donCopyCode => 'Copier le code';
+
+  @override
+  String get donCodeCopied => 'Code copié';
+
+  @override
+  String get donErrOffline => 'Serveur injoignable. Réessayez plus tard.';
+
+  @override
+  String get donErrBusy =>
+      'Trop d\'envois en ce moment. Réessayez dans une minute.';
+
+  @override
+  String get donErrFull => 'La limite du jour est atteinte. Réessayez demain.';
+
+  @override
+  String get donErrRefused => 'Le serveur a refusé les échantillons.';
+
+  @override
+  String get donErrNotFound => 'Don introuvable.';
+
+  @override
+  String get donErrServer => 'Erreur du serveur. Réessayez plus tard.';
+
+  @override
+  String get donConsentTitle => 'Avant l\'envoi';
+
+  @override
+  String get donConsentWhat =>
+      'Ce qui est envoyé : les tracés de chaque échantillon (positions, temps relatifs et pression) et ce qu\'il représente (les composants du circuit ou la formule). Aucun compte, nom ou identifiant d\'appareil, et rien de vos notes.';
+
+  @override
+  String get donConsentWhy =>
+      'AbelNotes les utilise pour entraîner et évaluer sa reconnaissance sur l\'appareil, afin qu\'elle apprenne une écriture comme la vôtre. Ils ne sont rendus publics que si vous cochez la dernière case. N\'écrivez ni signature, ni nom, ni rien d\'autre qui vous identifie, vous ou d\'autres personnes.';
+
+  @override
+  String get donConsentReceipt =>
+      'Chaque envoi donne un code de reçu, enregistré dans ce navigateur : avec lui, vous pouvez supprimer le don à tout moment. Retirer votre consentement ici supprime tous les dons listés.';
+
+  @override
+  String get donConsentController =>
+      'Qui est responsable de ces données, combien de temps elles sont conservées et quels sont vos droits : voir la politique de confidentialité.';
+
+  @override
+  String get donConsentTrain =>
+      'J\'accepte qu\'AbelNotes utilise ces échantillons pour entraîner ses modèles de reconnaissance.';
+
+  @override
+  String get donConsentAge =>
+      'J\'ai au moins 16 ans et l\'âge de consentir là où je vis (18 ans en Inde).';
+
+  @override
+  String get donConsentRepublish =>
+      'AbelNotes peut aussi les publier dans un jeu de données (facultatif).';
+
+  @override
+  String get donConsentRepublishNote =>
+      'Une fois un jeu de données publié, les copies faites par d\'autres ne peuvent pas être rappelées : le retrait n\'arrête que les publications futures.';
+
+  @override
+  String get donReviewTitle => 'Vérifier l\'échantillon';
+
+  @override
+  String get donReset => 'Rétablir';
+
+  @override
+  String get donNoParts =>
+      'Plus aucun composant. Écartez l\'échantillon, ou ajoutez un composant en traçant un cadre.';
+
+  @override
+  String get donReviewHint =>
+      'Touchez un composant pour le corriger ou le retirer. Tracez un cadre autour d\'un composant manquant pour l\'ajouter. Pincez ou faites défiler pour zoomer.';
+
+  @override
+  String get donDiscard => 'Écarter';
+
+  @override
+  String get donMarkReviewed => 'C\'est juste';
+
+  @override
+  String get donPickSymbol => 'Quel composant est-ce ?';
+
+  @override
+  String get donRemovePart => 'Retirer ce composant';
+
+  @override
+  String get donFitView => 'Ajuster à la vue';
+
+  @override
+  String get symResistor => 'Résistance';
+
+  @override
+  String get symCapacitor => 'Condensateur';
+
+  @override
+  String get symCapacitorPolarized => 'Condensateur polarisé';
+
+  @override
+  String get symInductor => 'Bobine';
+
+  @override
+  String get symDiode => 'Diode';
+
+  @override
+  String get symVoltageDc => 'Source de tension continue';
+
+  @override
+  String get symVoltageAc => 'Source de tension alternative';
+
+  @override
+  String get symBattery => 'Pile';
+
+  @override
+  String get symCurrentSource => 'Source de courant';
+
+  @override
+  String get symBjt => 'Transistor bipolaire';
+
+  @override
+  String get symFet => 'Transistor à effet de champ';
+
+  @override
+  String get symOpamp => 'Amplificateur opérationnel';
+
+  @override
+  String get symIc => 'Circuit intégré';
+
+  @override
+  String get symTransformer => 'Transformateur';
+
+  @override
+  String get symSwitch => 'Interrupteur';
+
+  @override
+  String get symGnd => 'Masse';
+
+  @override
+  String get symVss => 'Alimentation (VCC/VSS)';
+
+  @override
+  String get symJunction => 'Nœud';
+
+  @override
+  String get symCrossover => 'Croisement sans connexion';
+
+  @override
+  String get symTerminal => 'Borne';
+
+  @override
+  String get symArrow => 'Flèche';
+
+  @override
+  String get symText => 'Texte';
+
+  @override
+  String get donEmptyGuided =>
+      'Aucun échantillon pour l\'instant. Écrivez quelques formules ou symboles et ils apparaîtront ici.';
+
+  @override
+  String get donFormulaHintGuided =>
+      'Vous avez écrit cette formule à partir d\'une consigne. Si vous avez écrit autre chose, corrigez le LaTeX ou écartez l\'échantillon.';
+
+  @override
+  String get donLatexLabel => 'LaTeX';
+
+  @override
+  String get donLatexEmpty => 'LaTeX manquant';
+
+  @override
+  String get donLatexTooLong => 'Trop long : 1000 caractères au maximum';
+
+  @override
+  String get donLatexNotAscii =>
+      'Caractères simples uniquement : utilisez des commandes LaTeX au lieu de lettres accentuées ou de symboles';
+
+  @override
+  String get donLatexInvalid =>
+      'LaTeX non valide : vérifiez les accolades et les commandes';
+
+  @override
+  String get donGuidedTitle => 'Écrire pour AbelNotes';
+
+  @override
+  String get donGuidedIntro =>
+      'Écrivez ce que vous voyez, comme dans vos notes, pour que la reconnaissance d\'AbelNotes apprenne une écriture comme la vôtre. Les applications AbelNotes n\'envoient jamais votre écriture : les dons partent uniquement de cette page. Les échantillons restent dans ce navigateur jusqu\'à ce que vous les vérifiiez et appuyiez sur Envoyer.';
+
+  @override
+  String get donGuidedFormulas => 'Formules';
+
+  @override
+  String get donGuidedCircuits => 'Symboles de circuit';
+
+  @override
+  String get donGuidedWriteFormula => 'Écrivez cette formule';
+
+  @override
+  String get donGuidedDrawSymbol =>
+      'Dessinez seulement le symbole, avec des fils courts';
+
+  @override
+  String get donGuidedWriteText => 'Écrivez cette étiquette';
+
+  @override
+  String get donGuidedPadHint =>
+      'Écrivez ici avec un stylet, le doigt ou la souris';
+
+  @override
+  String get donGuidedUndo => 'Annuler le trait';
+
+  @override
+  String get donGuidedClear => 'Effacer';
+
+  @override
+  String get donGuidedSkip => 'Passer';
+
+  @override
+  String get donGuidedNext => 'Suivant';
+
+  @override
+  String donGuidedReview(int count) {
+    return 'Vérifier et envoyer ($count)';
+  }
+
+  @override
+  String get donGuidedFull =>
+      'La file est pleine : envoyez ou écartez d\'abord quelques échantillons.';
+
+  @override
+  String get donGuidedTabTitle => 'Contribuer · AbelNotes';
 }

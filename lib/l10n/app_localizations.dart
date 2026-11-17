@@ -6077,6 +6077,588 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Qui si possono inserire solo immagini e PDF.'**
   String get csDropUnsupported;
+
+  /// No description provided for @donScreenTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Campioni da donare'**
+  String get donScreenTitle;
+
+  /// No description provided for @donScreenIntro.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca un campione per correggerlo o scartarlo se non corrisponde a quello che hai scritto. Niente lascia questo browser finché non premi Invia: le app AbelNotes non inviano mai la scrittura, solo questa pagina.'**
+  String get donScreenIntro;
+
+  /// No description provided for @donPrivacy.
+  ///
+  /// In it, this message translates to:
+  /// **'Informativa sulla privacy'**
+  String get donPrivacy;
+
+  /// No description provided for @donSentHeader.
+  ///
+  /// In it, this message translates to:
+  /// **'Le tue donazioni'**
+  String get donSentHeader;
+
+  /// No description provided for @donAcceptedTotal.
+  ///
+  /// In it, this message translates to:
+  /// **'Campioni accettati: {count}'**
+  String donAcceptedTotal(int count);
+
+  /// No description provided for @donKeepCode.
+  ///
+  /// In it, this message translates to:
+  /// **'Conserva i codici di ricevuta: senza, una donazione non si può trovare, controllare né cancellare.'**
+  String get donKeepCode;
+
+  /// No description provided for @donConsentGiven.
+  ///
+  /// In it, this message translates to:
+  /// **'Consenso dato il {date}.'**
+  String donConsentGiven(String date);
+
+  /// No description provided for @donConsentGivenRepublish.
+  ///
+  /// In it, this message translates to:
+  /// **'Consenso dato il {date}, anche alla pubblicazione in un dataset.'**
+  String donConsentGivenRepublish(String date);
+
+  /// No description provided for @donWithdraw.
+  ///
+  /// In it, this message translates to:
+  /// **'Revoca'**
+  String get donWithdraw;
+
+  /// No description provided for @donWithdrawn.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, =0{Consenso revocato.} one{Consenso revocato e 1 donazione cancellata.} other{Consenso revocato e {count} donazioni cancellate.}}'**
+  String donWithdrawn(int count);
+
+  /// No description provided for @donWithdrawFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{Consenso revocato, ma 1 donazione non è ancora stata cancellata. Riprova con il suo pulsante Cancella.} other{Consenso revocato, ma {count} donazioni non sono ancora state cancellate. Riprova con i loro pulsanti Cancella.}}'**
+  String donWithdrawFailed(int count);
+
+  /// No description provided for @donWithdrawTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Revocare il consenso?'**
+  String get donWithdrawTitle;
+
+  /// No description provided for @donWithdrawBody.
+  ///
+  /// In it, this message translates to:
+  /// **'Ogni donazione elencata qui viene cancellata dall\'archivio e dai prossimi addestramenti. Un modello già addestrato con esse resta com\'è. Prima del prossimo invio il consenso ti verrà chiesto di nuovo.'**
+  String get donWithdrawBody;
+
+  /// No description provided for @donQueueSummary.
+  ///
+  /// In it, this message translates to:
+  /// **'Da controllare: {toReview} · Controllati: {reviewed}'**
+  String donQueueSummary(int toReview, int reviewed);
+
+  /// No description provided for @donSendCount.
+  ///
+  /// In it, this message translates to:
+  /// **'Invia ({count})'**
+  String donSendCount(int count);
+
+  /// No description provided for @donSent.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{1 campione inviato} other{{count} campioni inviati}}'**
+  String donSent(int count);
+
+  /// No description provided for @donDeleteTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancellare questa donazione?'**
+  String get donDeleteTitle;
+
+  /// No description provided for @donDeleteBody.
+  ///
+  /// In it, this message translates to:
+  /// **'I suoi campioni vengono tolti dall\'archivio e dai prossimi addestramenti. Un modello già addestrato con essi resta com\'è.'**
+  String get donDeleteBody;
+
+  /// No description provided for @donDelete.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancella'**
+  String get donDelete;
+
+  /// No description provided for @donDeleted.
+  ///
+  /// In it, this message translates to:
+  /// **'Donazione cancellata'**
+  String get donDeleted;
+
+  /// No description provided for @donParts.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{1 componente} other{{count} componenti}}'**
+  String donParts(int count);
+
+  /// No description provided for @donReviewed.
+  ///
+  /// In it, this message translates to:
+  /// **'Controllato'**
+  String get donReviewed;
+
+  /// No description provided for @donToReviewShort.
+  ///
+  /// In it, this message translates to:
+  /// **'Da controllare'**
+  String get donToReviewShort;
+
+  /// No description provided for @donStatusAccepted.
+  ///
+  /// In it, this message translates to:
+  /// **'{count} accettati'**
+  String donStatusAccepted(int count);
+
+  /// No description provided for @donStatusRejected.
+  ///
+  /// In it, this message translates to:
+  /// **'non accettata'**
+  String get donStatusRejected;
+
+  /// No description provided for @donStatusInReview.
+  ///
+  /// In it, this message translates to:
+  /// **'in revisione'**
+  String get donStatusInReview;
+
+  /// No description provided for @donSamples.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{1 campione} other{{count} campioni}}'**
+  String donSamples(int count);
+
+  /// No description provided for @donCopyCode.
+  ///
+  /// In it, this message translates to:
+  /// **'Copia codice'**
+  String get donCopyCode;
+
+  /// No description provided for @donCodeCopied.
+  ///
+  /// In it, this message translates to:
+  /// **'Codice copiato'**
+  String get donCodeCopied;
+
+  /// No description provided for @donErrOffline.
+  ///
+  /// In it, this message translates to:
+  /// **'Server non raggiungibile. Riprova più tardi.'**
+  String get donErrOffline;
+
+  /// No description provided for @donErrBusy.
+  ///
+  /// In it, this message translates to:
+  /// **'Troppi invii in questo momento. Riprova tra un minuto.'**
+  String get donErrBusy;
+
+  /// No description provided for @donErrFull.
+  ///
+  /// In it, this message translates to:
+  /// **'Limite di oggi raggiunto. Riprova domani.'**
+  String get donErrFull;
+
+  /// No description provided for @donErrRefused.
+  ///
+  /// In it, this message translates to:
+  /// **'Il server ha rifiutato i campioni.'**
+  String get donErrRefused;
+
+  /// No description provided for @donErrNotFound.
+  ///
+  /// In it, this message translates to:
+  /// **'Donazione non trovata.'**
+  String get donErrNotFound;
+
+  /// No description provided for @donErrServer.
+  ///
+  /// In it, this message translates to:
+  /// **'Errore del server. Riprova più tardi.'**
+  String get donErrServer;
+
+  /// No description provided for @donConsentTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Prima di inviare'**
+  String get donConsentTitle;
+
+  /// No description provided for @donConsentWhat.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa viene inviato: i tratti di penna di ogni campione (posizioni, tempi relativi e pressione) e cosa rappresenta (i componenti del circuito o la formula). Nessun account, nome o identificativo del dispositivo, e niente dai tuoi appunti.'**
+  String get donConsentWhat;
+
+  /// No description provided for @donConsentWhy.
+  ///
+  /// In it, this message translates to:
+  /// **'AbelNotes li usa per addestrare e valutare il riconoscimento sul dispositivo, perché impari una scrittura come la tua. Non vengono resi pubblici se non spunti l\'ultima casella. Non scrivere firme, nomi o altro che identifichi te o altre persone.'**
+  String get donConsentWhy;
+
+  /// No description provided for @donConsentReceipt.
+  ///
+  /// In it, this message translates to:
+  /// **'Ogni invio dà un codice di ricevuta, salvato in questo browser: con quel codice puoi cancellare la donazione quando vuoi. Revocare il consenso qui cancella tutte le donazioni elencate.'**
+  String get donConsentReceipt;
+
+  /// No description provided for @donConsentController.
+  ///
+  /// In it, this message translates to:
+  /// **'Chi è responsabile di questi dati, per quanto tempo sono conservati e quali sono i tuoi diritti: vedi l\'informativa sulla privacy.'**
+  String get donConsentController;
+
+  /// No description provided for @donConsentTrain.
+  ///
+  /// In it, this message translates to:
+  /// **'Acconsento che AbelNotes usi questi campioni per addestrare i suoi modelli di riconoscimento.'**
+  String get donConsentTrain;
+
+  /// No description provided for @donConsentAge.
+  ///
+  /// In it, this message translates to:
+  /// **'Ho almeno 16 anni e l\'età per dare il consenso nel mio paese (18 in India).'**
+  String get donConsentAge;
+
+  /// No description provided for @donConsentRepublish.
+  ///
+  /// In it, this message translates to:
+  /// **'AbelNotes può anche pubblicarli in un dataset (facoltativo).'**
+  String get donConsentRepublish;
+
+  /// No description provided for @donConsentRepublishNote.
+  ///
+  /// In it, this message translates to:
+  /// **'Una volta pubblicato un dataset, le copie fatte da altri non si possono ritirare: la revoca ferma solo le pubblicazioni future.'**
+  String get donConsentRepublishNote;
+
+  /// No description provided for @donReviewTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Controlla il campione'**
+  String get donReviewTitle;
+
+  /// No description provided for @donReset.
+  ///
+  /// In it, this message translates to:
+  /// **'Ripristina'**
+  String get donReset;
+
+  /// No description provided for @donNoParts.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun componente rimasto. Scarta il campione, o aggiungi un componente trascinando un riquadro.'**
+  String get donNoParts;
+
+  /// No description provided for @donReviewHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Tocca un componente per correggerlo o toglierlo. Trascina un riquadro attorno a un componente mancante per aggiungerlo. Pizzica o usa la rotella per ingrandire.'**
+  String get donReviewHint;
+
+  /// No description provided for @donDiscard.
+  ///
+  /// In it, this message translates to:
+  /// **'Scarta'**
+  String get donDiscard;
+
+  /// No description provided for @donMarkReviewed.
+  ///
+  /// In it, this message translates to:
+  /// **'È corretto'**
+  String get donMarkReviewed;
+
+  /// No description provided for @donPickSymbol.
+  ///
+  /// In it, this message translates to:
+  /// **'Che componente è?'**
+  String get donPickSymbol;
+
+  /// No description provided for @donRemovePart.
+  ///
+  /// In it, this message translates to:
+  /// **'Togli questo componente'**
+  String get donRemovePart;
+
+  /// No description provided for @donFitView.
+  ///
+  /// In it, this message translates to:
+  /// **'Adatta alla vista'**
+  String get donFitView;
+
+  /// No description provided for @symResistor.
+  ///
+  /// In it, this message translates to:
+  /// **'Resistore'**
+  String get symResistor;
+
+  /// No description provided for @symCapacitor.
+  ///
+  /// In it, this message translates to:
+  /// **'Condensatore'**
+  String get symCapacitor;
+
+  /// No description provided for @symCapacitorPolarized.
+  ///
+  /// In it, this message translates to:
+  /// **'Condensatore polarizzato'**
+  String get symCapacitorPolarized;
+
+  /// No description provided for @symInductor.
+  ///
+  /// In it, this message translates to:
+  /// **'Induttore'**
+  String get symInductor;
+
+  /// No description provided for @symDiode.
+  ///
+  /// In it, this message translates to:
+  /// **'Diodo'**
+  String get symDiode;
+
+  /// No description provided for @symVoltageDc.
+  ///
+  /// In it, this message translates to:
+  /// **'Generatore di tensione continua'**
+  String get symVoltageDc;
+
+  /// No description provided for @symVoltageAc.
+  ///
+  /// In it, this message translates to:
+  /// **'Generatore di tensione alternata'**
+  String get symVoltageAc;
+
+  /// No description provided for @symBattery.
+  ///
+  /// In it, this message translates to:
+  /// **'Batteria'**
+  String get symBattery;
+
+  /// No description provided for @symCurrentSource.
+  ///
+  /// In it, this message translates to:
+  /// **'Generatore di corrente'**
+  String get symCurrentSource;
+
+  /// No description provided for @symBjt.
+  ///
+  /// In it, this message translates to:
+  /// **'Transistor BJT'**
+  String get symBjt;
+
+  /// No description provided for @symFet.
+  ///
+  /// In it, this message translates to:
+  /// **'Transistor FET'**
+  String get symFet;
+
+  /// No description provided for @symOpamp.
+  ///
+  /// In it, this message translates to:
+  /// **'Amplificatore operazionale'**
+  String get symOpamp;
+
+  /// No description provided for @symIc.
+  ///
+  /// In it, this message translates to:
+  /// **'Circuito integrato'**
+  String get symIc;
+
+  /// No description provided for @symTransformer.
+  ///
+  /// In it, this message translates to:
+  /// **'Trasformatore'**
+  String get symTransformer;
+
+  /// No description provided for @symSwitch.
+  ///
+  /// In it, this message translates to:
+  /// **'Interruttore'**
+  String get symSwitch;
+
+  /// No description provided for @symGnd.
+  ///
+  /// In it, this message translates to:
+  /// **'Massa'**
+  String get symGnd;
+
+  /// No description provided for @symVss.
+  ///
+  /// In it, this message translates to:
+  /// **'Alimentazione (VCC/VSS)'**
+  String get symVss;
+
+  /// No description provided for @symJunction.
+  ///
+  /// In it, this message translates to:
+  /// **'Nodo'**
+  String get symJunction;
+
+  /// No description provided for @symCrossover.
+  ///
+  /// In it, this message translates to:
+  /// **'Incrocio senza contatto'**
+  String get symCrossover;
+
+  /// No description provided for @symTerminal.
+  ///
+  /// In it, this message translates to:
+  /// **'Terminale'**
+  String get symTerminal;
+
+  /// No description provided for @symArrow.
+  ///
+  /// In it, this message translates to:
+  /// **'Freccia'**
+  String get symArrow;
+
+  /// No description provided for @symText.
+  ///
+  /// In it, this message translates to:
+  /// **'Testo'**
+  String get symText;
+
+  /// No description provided for @donEmptyGuided.
+  ///
+  /// In it, this message translates to:
+  /// **'Ancora nessun campione. Scrivi qualche formula o simbolo e li ritrovi qui.'**
+  String get donEmptyGuided;
+
+  /// No description provided for @donFormulaHintGuided.
+  ///
+  /// In it, this message translates to:
+  /// **'Hai scritto questa formula su richiesta. Se hai scritto altro, correggi il LaTeX o scarta il campione.'**
+  String get donFormulaHintGuided;
+
+  /// No description provided for @donLatexLabel.
+  ///
+  /// In it, this message translates to:
+  /// **'LaTeX'**
+  String get donLatexLabel;
+
+  /// No description provided for @donLatexEmpty.
+  ///
+  /// In it, this message translates to:
+  /// **'Manca il LaTeX'**
+  String get donLatexEmpty;
+
+  /// No description provided for @donLatexTooLong.
+  ///
+  /// In it, this message translates to:
+  /// **'Troppo lungo: al massimo 1000 caratteri'**
+  String get donLatexTooLong;
+
+  /// No description provided for @donLatexNotAscii.
+  ///
+  /// In it, this message translates to:
+  /// **'Solo caratteri semplici: al posto di lettere accentate o simboli usa i comandi LaTeX'**
+  String get donLatexNotAscii;
+
+  /// No description provided for @donLatexInvalid.
+  ///
+  /// In it, this message translates to:
+  /// **'Non è LaTeX valido: controlla le parentesi graffe e i comandi'**
+  String get donLatexInvalid;
+
+  /// No description provided for @donGuidedTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi per AbelNotes'**
+  String get donGuidedTitle;
+
+  /// No description provided for @donGuidedIntro.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi quello che vedi, come lo scriveresti nei tuoi appunti, per aiutare il riconoscimento di AbelNotes a imparare una scrittura come la tua. Le app AbelNotes non inviano mai la tua scrittura: le donazioni partono solo da questa pagina. I campioni restano in questo browser finché non li controlli e premi Invia.'**
+  String get donGuidedIntro;
+
+  /// No description provided for @donGuidedFormulas.
+  ///
+  /// In it, this message translates to:
+  /// **'Formule'**
+  String get donGuidedFormulas;
+
+  /// No description provided for @donGuidedCircuits.
+  ///
+  /// In it, this message translates to:
+  /// **'Simboli di circuito'**
+  String get donGuidedCircuits;
+
+  /// No description provided for @donGuidedWriteFormula.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi questa formula'**
+  String get donGuidedWriteFormula;
+
+  /// No description provided for @donGuidedDrawSymbol.
+  ///
+  /// In it, this message translates to:
+  /// **'Disegna solo il simbolo, con fili corti'**
+  String get donGuidedDrawSymbol;
+
+  /// No description provided for @donGuidedWriteText.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi questa etichetta'**
+  String get donGuidedWriteText;
+
+  /// No description provided for @donGuidedPadHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi qui con la penna, il dito o il mouse'**
+  String get donGuidedPadHint;
+
+  /// No description provided for @donGuidedUndo.
+  ///
+  /// In it, this message translates to:
+  /// **'Annulla tratto'**
+  String get donGuidedUndo;
+
+  /// No description provided for @donGuidedClear.
+  ///
+  /// In it, this message translates to:
+  /// **'Cancella tutto'**
+  String get donGuidedClear;
+
+  /// No description provided for @donGuidedSkip.
+  ///
+  /// In it, this message translates to:
+  /// **'Salta'**
+  String get donGuidedSkip;
+
+  /// No description provided for @donGuidedNext.
+  ///
+  /// In it, this message translates to:
+  /// **'Avanti'**
+  String get donGuidedNext;
+
+  /// No description provided for @donGuidedReview.
+  ///
+  /// In it, this message translates to:
+  /// **'Rivedi e invia ({count})'**
+  String donGuidedReview(int count);
+
+  /// No description provided for @donGuidedFull.
+  ///
+  /// In it, this message translates to:
+  /// **'La coda è piena: invia o scarta qualche campione prima.'**
+  String get donGuidedFull;
+
+  /// No description provided for @donGuidedTabTitle.
+  ///
+  /// In it, this message translates to:
+  /// **'Contribuisci · AbelNotes'**
+  String get donGuidedTabTitle;
 }
 
 class _AppLocalizationsDelegate
