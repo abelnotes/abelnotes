@@ -2718,6 +2718,24 @@ abstract class AppLocalizations {
   /// **'Log copiato negli appunti.'**
   String get setCopyLogDone;
 
+  /// No description provided for @setContribute.
+  ///
+  /// In it, this message translates to:
+  /// **'Aiuta a migliorare il riconoscimento'**
+  String get setContribute;
+
+  /// No description provided for @setContributeSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Scrivi qualche formula e simbolo di circuito su contribute.abelnotes.app. L\'app non invia mai i tuoi appunti: i campioni partono solo da quella pagina, quando decidi tu di inviarli.'**
+  String get setContributeSub;
+
+  /// No description provided for @setContributeOpen.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri pagina'**
+  String get setContributeOpen;
+
   /// No description provided for @onbTagline.
   ///
   /// In it, this message translates to:

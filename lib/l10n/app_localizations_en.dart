@@ -1640,6 +1640,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setCopyLogDone => 'Log copied to clipboard.';
 
   @override
+  String get setContribute => 'Help improve recognition';
+
+  @override
+  String get setContributeSub =>
+      'Write a few formulas and circuit symbols on contribute.abelnotes.app. The app never sends your notes: samples leave only from that page, when you choose to send them.';
+
+  @override
+  String get setContributeOpen => 'Open page';
+
+  @override
   String get onbTagline =>
       'Handwritten notes and freehand drawing, synced to YOUR server. Choose how to start: you can change it later.';
 

@@ -1647,6 +1647,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get setCopyLogDone => 'Registro copiado al portapapeles.';
 
   @override
+  String get setContribute => 'Ayuda a mejorar el reconocimiento';
+
+  @override
+  String get setContributeSub =>
+      'Escribe algunas fórmulas y símbolos de circuito en contribute.abelnotes.app. La app nunca envía tus notas: las muestras salen solo de esa página, cuando tú decides enviarlas.';
+
+  @override
+  String get setContributeOpen => 'Abrir página';
+
+  @override
   String get onbTagline =>
       'Notas y dibujo a mano alzada, sincronizados en TU servidor. Elige cómo empezar: puedes cambiarlo más adelante.';
 

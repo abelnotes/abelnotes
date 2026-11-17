@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
@@ -770,10 +771,22 @@ class _ModulesSection extends ConsumerWidget {
                     .read(appSettingsProvider.notifier)
                     .setModuleEnabled(e.module.manifest.id, v)),
           ),
+        const SizedBox(height: 16),
+        // Only a link: the app itself never sends handwriting.
+        _Row(
+            title: l10n.setContribute,
+            sub: l10n.setContributeSub,
+            control: HwButton(
+                label: l10n.setContributeOpen,
+                style: HwButtonStyle.solid,
+                onPressed: () => launchUrl(_contributeUrl,
+                    mode: LaunchMode.externalApplication))),
       ],
     );
   }
 }
+
+final _contributeUrl = Uri.parse('https://contribute.abelnotes.app');
 
 /// The mark for one sync backend, with its state as a dot rather than as the
 /// colour of the mark itself.

@@ -1600,6 +1600,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setCopyLogDone => '日志已复制到剪贴板。';
 
   @override
+  String get setContribute => '帮助改进识别';
+
+  @override
+  String get setContributeSub =>
+      '在 contribute.abelnotes.app 上写几个公式和电路符号。应用从不发送你的笔记：样本只会在你决定发送时从该页面发出。';
+
+  @override
+  String get setContributeOpen => '打开页面';
+
+  @override
   String get onbTagline => '手写笔记和自由绘图，同步到你自己的服务器。选择怎么开始，之后随时可以改。';
 
   @override

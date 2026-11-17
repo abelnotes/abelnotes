@@ -1649,6 +1649,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setCopyLogDone => 'Protokoll in die Zwischenablage kopiert.';
 
   @override
+  String get setContribute => 'Hilf, die Erkennung zu verbessern';
+
+  @override
+  String get setContributeSub =>
+      'Schreib ein paar Formeln und Schaltzeichen auf contribute.abelnotes.app. Die App sendet deine Notizen nie: Proben verlassen nur diese Seite, und nur wenn du sie absendest.';
+
+  @override
+  String get setContributeOpen => 'Seite öffnen';
+
+  @override
   String get onbTagline =>
       'Handschriftliche Notizen und freies Zeichnen, synchronisiert auf DEINEM Server. Wähle, wie du starten willst. Du kannst es später jederzeit ändern.';
 

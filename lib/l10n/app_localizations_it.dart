@@ -1646,6 +1646,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get setCopyLogDone => 'Log copiato negli appunti.';
 
   @override
+  String get setContribute => 'Aiuta a migliorare il riconoscimento';
+
+  @override
+  String get setContributeSub =>
+      'Scrivi qualche formula e simbolo di circuito su contribute.abelnotes.app. L\'app non invia mai i tuoi appunti: i campioni partono solo da quella pagina, quando decidi tu di inviarli.';
+
+  @override
+  String get setContributeOpen => 'Apri pagina';
+
+  @override
   String get onbTagline =>
       'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.';
 

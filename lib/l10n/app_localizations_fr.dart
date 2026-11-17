@@ -1649,6 +1649,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get setCopyLogDone => 'Journal copié dans le presse-papiers.';
 
   @override
+  String get setContribute => 'Aidez à améliorer la reconnaissance';
+
+  @override
+  String get setContributeSub =>
+      'Écrivez quelques formules et symboles de circuit sur contribute.abelnotes.app. L\'application n\'envoie jamais vos notes : les échantillons partent uniquement de cette page, quand vous choisissez de les envoyer.';
+
+  @override
+  String get setContributeOpen => 'Ouvrir la page';
+
+  @override
   String get onbTagline =>
       'Notes manuscrites et dessin à main levée, synchronisés sur VOTRE serveur. Choisissez comment commencer : vous pourrez changer plus tard.';
 
