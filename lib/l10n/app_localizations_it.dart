@@ -387,7 +387,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Schermo intero, senza strumenti — ideale per mostrare le pagine';
+      'Schermo intero senza strumenti, ideale per mostrare le pagine';
 
   @override
   String get csLaserSub => 'Indica senza lasciare segni';
@@ -1609,7 +1609,7 @@ class AppLocalizationsIt extends AppLocalizations {
       other: '$count pagine',
       one: '$count pagina',
     );
-    return '\"$title\" ricaricato — $_temp0.';
+    return '\"$title\" ricaricato: $_temp0.';
   }
 
   @override
@@ -1647,14 +1647,14 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare — puoi cambiare in seguito.';
+      'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.';
 
   @override
   String get onbTryNowTitle => 'Prova subito';
 
   @override
   String get onbTryNowSubtitle =>
-      'Inizia a scrivere ora. I taccuini restano su questo dispositivo — nessun account, nessun server.';
+      'Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.';
 
   @override
   String get onbConnectNextcloudTitle => 'Connetti il tuo Nextcloud';
@@ -1822,7 +1822,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi — puoi farlo quando vuoi.';
+      'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi. Puoi farlo quando vuoi.';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1990,7 +1990,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'URL WebDAV completo, percorso incluso — es. Synology https://nas:5006/home, Seafile https://server/seafdav. La condivisione link non è disponibile su WebDAV generico.';
+      'URL WebDAV completo, percorso incluso (es. Synology https://nas:5006/home, Seafile https://server/seafdav). La condivisione link non è disponibile su WebDAV generico.';
 
   @override
   String get logConnectButton => 'Connetti';
@@ -2006,19 +2006,19 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Mouse: disegna — tocca per usarlo come selezione';
+      'Il mouse disegna. Tocca per usarlo come selezione';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Mouse: selezione — tocca per disegnare col mouse';
+      'Il mouse seleziona. Tocca per disegnare col mouse';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Dito: disegna — tocca per usarlo per navigare';
+      'Il dito disegna. Tocca per usarlo per navigare';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Dito: naviga — tocca per disegnare col dito';
+      'Il dito naviga. Tocca per disegnare col dito';
 
   @override
   String get chromeUndo => 'Annulla';
@@ -2167,7 +2167,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Pagina precedente $number — tocca per tornare indietro';
+    return 'Pagina precedente $number. Tocca per tornare indietro';
   }
 
   @override
@@ -2227,16 +2227,15 @@ class AppLocalizationsIt extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count pagine tagliate — aprire il taccuino di destinazione per incollare.',
-      one:
-          '1 pagina tagliata — aprire il taccuino di destinazione per incollare.',
+          '$count pagine tagliate. Apri il taccuino di destinazione per incollare.',
+      one: '1 pagina tagliata. Apri il taccuino di destinazione per incollare.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count pagine tagliate ($skipped non ancora caricate, saltate) — aprire il taccuino di destinazione per incollare.';
+    return '$count pagine tagliate ($skipped non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.';
   }
 
   @override
@@ -2379,7 +2378,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Asset corrotto sul server (troncato) — ri-importa il PDF originale per recuperare';
+      'Asset corrotto sul server (troncato). Ri-importa il PDF originale per recuperare';
 
   @override
   String get pmLoadingImageTooltip => 'Caricamento immagine dal server…';
@@ -2496,7 +2495,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Conflitto — Pagina $pageNumber';
+    return 'Conflitto: pagina $pageNumber';
   }
 
   @override
@@ -2558,7 +2557,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'Pag. $pageNumber — $chapterName';
+    return 'Pag. $pageNumber · $chapterName';
   }
 
   @override

@@ -120,7 +120,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get csLocalSaveFailed =>
-      'Can\'t save on this device. Retrying on its own — don\'t close the app.';
+      'Can\'t save on this device. Retrying on its own. Don\'t close the app.';
 
   @override
   String get csLocalSaveFailedNoSpace =>
@@ -385,7 +385,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Fullscreen, no tools — great for showing pages';
+      'Fullscreen with no tools, great for showing pages';
 
   @override
   String get csLaserSub => 'Point at things without leaving a mark';
@@ -893,14 +893,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libImportCorruptedFile =>
-      'This file isn\'t a valid AbelNotes notebook — it may be incomplete or damaged.';
+      'This file isn\'t a valid AbelNotes notebook. It may be incomplete or damaged.';
 
   @override
   String get libExport => 'Export';
 
   @override
   String get libImportOneNoteUnreadable =>
-      'AbelNotes can\'t read this OneNote file — it may use a format the importer doesn\'t support yet, or be damaged.';
+      'AbelNotes can\'t read this OneNote file. It may use a format the importer doesn\'t support yet, or be damaged.';
 
   @override
   String libErrorImport(String error) {
@@ -999,7 +999,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libDeleteFolderBody =>
-      'Notebooks inside it aren\'t deleted — they stay in the library with no folder.';
+      'Notebooks inside it aren\'t deleted. They stay in the library with no folder.';
 
   @override
   String get libDelete => 'Delete';
@@ -1604,7 +1604,7 @@ class AppLocalizationsEn extends AppLocalizations {
       other: '$count pages',
       one: '$count page',
     );
-    return '\"$title\" reloaded — $_temp0.';
+    return '\"$title\" reloaded: $_temp0.';
   }
 
   @override
@@ -1641,14 +1641,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Handwritten notes and freehand drawing, synced to YOUR server. Choose how to start — you can change later.';
+      'Handwritten notes and freehand drawing, synced to YOUR server. Choose how to start: you can change it later.';
 
   @override
   String get onbTryNowTitle => 'Try it now';
 
   @override
   String get onbTryNowSubtitle =>
-      'Start writing now. Notebooks stay on this device — no account, no server.';
+      'Start writing now. Notebooks stay on this device: no account, no server.';
 
   @override
   String get onbConnectNextcloudTitle => 'Connect your Nextcloud';
@@ -1710,7 +1710,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setDriveDisconnectBody =>
-      'Notebooks already in your Drive stay there — this app only stops syncing to them. Notebooks on this device are untouched.';
+      'Notebooks already in your Drive stay there. This app only stops syncing to them. Notebooks on this device are untouched.';
 
   @override
   String get setDriveDisconnectConfirm => 'Disconnect';
@@ -1815,7 +1815,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      'Your notebooks stay on this device. Connect your server or Google Drive to have them everywhere — you can do it whenever you like.';
+      'Your notebooks stay on this device. Connect your server or Google Drive to have them everywhere. You can do it whenever you like.';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1983,7 +1983,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'Full WebDAV URL, path included — e.g. Synology https://nas:5006/home, Seafile https://server/seafdav. Link sharing is unavailable on generic WebDAV.';
+      'Full WebDAV URL, path included (e.g. Synology https://nas:5006/home, Seafile https://server/seafdav). Link sharing is unavailable on generic WebDAV.';
 
   @override
   String get logConnectButton => 'Connect';
@@ -1999,19 +1999,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Mouse: draws — tap to use it for selection';
+      'Mouse draws. Tap to use it for selection';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Mouse: selection — tap to draw with the mouse';
+      'Mouse selects. Tap to draw with the mouse';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Finger: draws — tap to use it for panning';
+      'Finger draws. Tap to use it for panning';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Finger: pans — tap to draw with your finger';
+      'Finger pans. Tap to draw with your finger';
 
   @override
   String get chromeUndo => 'Undo';
@@ -2159,7 +2159,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Previous page $number — tap to go back';
+    return 'Previous page $number. Tap to go back';
   }
 
   @override
@@ -2217,15 +2217,15 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count pages cut — open the destination notebook to paste.',
-      one: '1 page cut — open the destination notebook to paste.',
+      other: '$count pages cut. Open the destination notebook to paste.',
+      one: '1 page cut. Open the destination notebook to paste.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count pages cut ($skipped not yet loaded, skipped) — open the destination notebook to paste.';
+    return '$count pages cut ($skipped not yet loaded, skipped). Open the destination notebook to paste.';
   }
 
   @override
@@ -2362,7 +2362,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Asset corrupted on the server (truncated) — re-import the original PDF to recover';
+      'Asset corrupted on the server (truncated). Re-import the original PDF to recover';
 
   @override
   String get pmLoadingImageTooltip => 'Loading image from the server…';
@@ -2479,7 +2479,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Conflict — Page $pageNumber';
+    return 'Conflict: page $pageNumber';
   }
 
   @override
@@ -2541,7 +2541,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'Pg. $pageNumber — $chapterName';
+    return 'Pg. $pageNumber · $chapterName';
   }
 
   @override

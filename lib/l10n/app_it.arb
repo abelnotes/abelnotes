@@ -298,7 +298,7 @@
   "@csMore": {},
   "csPresentationMode": "Modalità presentazione",
   "@csPresentationMode": {},
-  "csPresentationModeSub": "Schermo intero, senza strumenti — ideale per mostrare le pagine",
+  "csPresentationModeSub": "Schermo intero senza strumenti, ideale per mostrare le pagine",
   "@csPresentationModeSub": {},
   "csLaserSub": "Indica senza lasciare segni",
   "@csLaserSub": {},
@@ -1331,7 +1331,7 @@
   },
   "setNotConnectedWebdav": "Non connesso a un server WebDAV.",
   "@setNotConnectedWebdav": {},
-  "setReloadDone": "\"{title}\" ricaricato — {count, plural, one{{count} pagina} other{{count} pagine}}.",
+  "setReloadDone": "\"{title}\" ricaricato: {count, plural, one{{count} pagina} other{{count} pagine}}.",
   "@setReloadDone": {
     "placeholders": {
       "title": {
@@ -1375,11 +1375,11 @@
   "@setReportProblemEmpty": {},
   "setCopyLogDone": "Log copiato negli appunti.",
   "@setCopyLogDone": {},
-  "onbTagline": "Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare — puoi cambiare in seguito.",
+  "onbTagline": "Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.",
   "@onbTagline": {},
   "onbTryNowTitle": "Prova subito",
   "@onbTryNowTitle": {},
-  "onbTryNowSubtitle": "Inizia a scrivere ora. I taccuini restano su questo dispositivo — nessun account, nessun server.",
+  "onbTryNowSubtitle": "Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.",
   "@onbTryNowSubtitle": {},
   "onbConnectNextcloudTitle": "Connetti il tuo Nextcloud",
   "@onbConnectNextcloudTitle": {},
@@ -1490,7 +1490,7 @@
   "@libStorageFullBodyServer": {},
   "libLocalOnlyTitle": "Solo su questo dispositivo",
   "@libLocalOnlyTitle": {},
-  "libLocalOnlyBody": "I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi — puoi farlo quando vuoi.",
+  "libLocalOnlyBody": "I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi. Puoi farlo quando vuoi.",
   "@libLocalOnlyBody": {},
   "libLocalOnlyBodyWeb": "I tuoi quaderni restano in questo browser. Esporta quelli che vuoi tenere, o collega Google Drive per averli ovunque. Safari può cancellare i dati dei siti non usati da qualche giorno, a meno che tu non aggiunga l'app alla schermata Home.",
   "@libLocalOnlyBodyWeb": {},
@@ -1602,7 +1602,7 @@
   "@logServerUrlHintWebdav": {},
   "logWebdavExperimental": "I backend WebDAV generici (Synology, Seafile, rclone…) sono sperimentali: solo Nextcloud è testato a fondo. Tieni un backup dei tuoi quaderni.",
   "@logWebdavExperimental": {},
-  "logWebdavUrlHint": "URL WebDAV completo, percorso incluso — es. Synology https://nas:5006/home, Seafile https://server/seafdav. La condivisione link non è disponibile su WebDAV generico.",
+  "logWebdavUrlHint": "URL WebDAV completo, percorso incluso (es. Synology https://nas:5006/home, Seafile https://server/seafdav). La condivisione link non è disponibile su WebDAV generico.",
   "@logWebdavUrlHint": {},
   "logConnectButton": "Connetti",
   "@logConnectButton": {},
@@ -1612,13 +1612,13 @@
   "@chromeLibrary": {},
   "chromeUnsaved": "Non salvato",
   "@chromeUnsaved": {},
-  "chromeMouseDrawsTooltip": "Mouse: disegna — tocca per usarlo come selezione",
+  "chromeMouseDrawsTooltip": "Il mouse disegna. Tocca per usarlo come selezione",
   "@chromeMouseDrawsTooltip": {},
-  "chromeMouseSelectsTooltip": "Mouse: selezione — tocca per disegnare col mouse",
+  "chromeMouseSelectsTooltip": "Il mouse seleziona. Tocca per disegnare col mouse",
   "@chromeMouseSelectsTooltip": {},
-  "chromeTouchDrawsTooltip": "Dito: disegna — tocca per usarlo per navigare",
+  "chromeTouchDrawsTooltip": "Il dito disegna. Tocca per usarlo per navigare",
   "@chromeTouchDrawsTooltip": {},
-  "chromeTouchPansTooltip": "Dito: naviga — tocca per disegnare col dito",
+  "chromeTouchPansTooltip": "Il dito naviga. Tocca per disegnare col dito",
   "@chromeTouchPansTooltip": {},
   "chromeUndo": "Annulla",
   "@chromeUndo": {},
@@ -1727,7 +1727,7 @@
   "@chromeHidePageBar": {},
   "chromeShowPageBar": "Mostra la barra delle pagine",
   "@chromeShowPageBar": {},
-  "chromePrevPageTooltip": "Pagina precedente {number} — tocca per tornare indietro",
+  "chromePrevPageTooltip": "Pagina precedente {number}. Tocca per tornare indietro",
   "@chromePrevPageTooltip": {
     "placeholders": {
       "number": {
@@ -1786,7 +1786,7 @@
   "@pmCancel": {},
   "pmDelete": "Elimina",
   "@pmDelete": {},
-  "pmPagesCut": "{count, plural, one{1 pagina tagliata — aprire il taccuino di destinazione per incollare.} other{{count} pagine tagliate — aprire il taccuino di destinazione per incollare.}}",
+  "pmPagesCut": "{count, plural, one{1 pagina tagliata. Apri il taccuino di destinazione per incollare.} other{{count} pagine tagliate. Apri il taccuino di destinazione per incollare.}}",
   "@pmPagesCut": {
     "placeholders": {
       "count": {
@@ -1794,7 +1794,7 @@
       }
     }
   },
-  "pmPagesCutSkipped": "{count} pagine tagliate ({skipped} non ancora caricate, saltate) — aprire il taccuino di destinazione per incollare.",
+  "pmPagesCutSkipped": "{count} pagine tagliate ({skipped} non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.",
   "@pmPagesCutSkipped": {
     "placeholders": {
       "count": {
@@ -1937,7 +1937,7 @@
       }
     }
   },
-  "pmCorruptAssetTooltip": "Asset corrotto sul server (troncato) — ri-importa il PDF originale per recuperare",
+  "pmCorruptAssetTooltip": "Asset corrotto sul server (troncato). Ri-importa il PDF originale per recuperare",
   "@pmCorruptAssetTooltip": {},
   "pmLoadingImageTooltip": "Caricamento immagine dal server…",
   "@pmLoadingImageTooltip": {},
@@ -2019,7 +2019,7 @@
       }
     }
   },
-  "confTitleConflictPage": "Conflitto — Pagina {pageNumber}",
+  "confTitleConflictPage": "Conflitto: pagina {pageNumber}",
   "@confTitleConflictPage": {
     "placeholders": {
       "pageNumber": {
@@ -2087,7 +2087,7 @@
       }
     }
   },
-  "confJumpItemPageWithChapter": "Pag. {pageNumber} — {chapterName}",
+  "confJumpItemPageWithChapter": "Pag. {pageNumber} · {chapterName}",
   "@confJumpItemPageWithChapter": {
     "placeholders": {
       "pageNumber": {

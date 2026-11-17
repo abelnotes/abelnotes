@@ -121,7 +121,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get csLocalSaveFailed =>
-      'Impossible d\'enregistrer sur cet appareil. Nouvel essai automatique — ne fermez pas l\'app.';
+      'Impossible d\'enregistrer sur cet appareil. Nouvel essai automatique. Ne fermez pas l\'app.';
 
   @override
   String get csLocalSaveFailedNoSpace =>
@@ -388,7 +388,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Plein écran, sans outils — idéal pour montrer les pages';
+      'Plein écran sans outils, idéal pour montrer les pages';
 
   @override
   String get csLaserSub => 'Pointer sans laisser de trace';
@@ -898,14 +898,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libImportCorruptedFile =>
-      'Ce fichier n\'est pas un carnet AbelNotes valide — il est peut-être incomplet ou endommagé.';
+      'Ce fichier n\'est pas un carnet AbelNotes valide. Il est peut-être incomplet ou endommagé.';
 
   @override
   String get libExport => 'Exporter';
 
   @override
   String get libImportOneNoteUnreadable =>
-      'AbelNotes ne parvient pas à lire ce fichier OneNote — il utilise peut-être un format pas encore pris en charge, ou il est endommagé.';
+      'AbelNotes ne parvient pas à lire ce fichier OneNote. Il utilise peut-être un format pas encore pris en charge, ou il est endommagé.';
 
   @override
   String libErrorImport(String error) {
@@ -1004,7 +1004,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libDeleteFolderBody =>
-      'Les carnets qu\'il contient ne sont pas supprimés — ils restent dans la bibliothèque sans dossier.';
+      'Les carnets qu\'il contient ne sont pas supprimés. Ils restent dans la bibliothèque sans dossier.';
 
   @override
   String get libDelete => 'Supprimer';
@@ -1611,7 +1611,7 @@ class AppLocalizationsFr extends AppLocalizations {
       other: '$count pages',
       one: '$count page',
     );
-    return '« $title » rechargé — $_temp0.';
+    return '« $title » rechargé : $_temp0.';
   }
 
   @override
@@ -1650,14 +1650,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Notes manuscrites et dessin à main levée, synchronisés sur VOTRE serveur. Choisissez comment commencer — vous pourrez changer plus tard.';
+      'Notes manuscrites et dessin à main levée, synchronisés sur VOTRE serveur. Choisissez comment commencer : vous pourrez changer plus tard.';
 
   @override
   String get onbTryNowTitle => 'Essayer tout de suite';
 
   @override
   String get onbTryNowSubtitle =>
-      'Commencez à écrire maintenant. Les carnets restent sur cet appareil — pas de compte, pas de serveur.';
+      'Commencez à écrire maintenant. Les carnets restent sur cet appareil : pas de compte, pas de serveur.';
 
   @override
   String get onbConnectNextcloudTitle => 'Connecter votre Nextcloud';
@@ -1720,7 +1720,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get setDriveDisconnectBody =>
-      'Les carnets déjà présents dans votre Drive y restent — l\'application cesse simplement de les synchroniser. Les carnets sur cet appareil ne sont pas touchés.';
+      'Les carnets déjà présents dans votre Drive y restent. L\'application cesse simplement de les synchroniser. Les carnets sur cet appareil ne sont pas touchés.';
 
   @override
   String get setDriveDisconnectConfirm => 'Déconnecter';
@@ -1826,7 +1826,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      'Vos carnets restent sur cet appareil. Connectez votre serveur ou Google Drive pour les retrouver partout — vous pouvez le faire à tout moment.';
+      'Vos carnets restent sur cet appareil. Connectez votre serveur ou Google Drive pour les retrouver partout. Vous pouvez le faire à tout moment.';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1996,7 +1996,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'URL WebDAV complète, chemin inclus — par ex. Synology https://nas:5006/home, Seafile https://serveur/seafdav. Le partage par lien n\'est pas disponible en WebDAV générique.';
+      'URL WebDAV complète, chemin inclus (par ex. Synology https://nas:5006/home, Seafile https://serveur/seafdav). Le partage par lien n\'est pas disponible en WebDAV générique.';
 
   @override
   String get logConnectButton => 'Connecter';
@@ -2012,19 +2012,19 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Souris : dessine — touchez pour l\'utiliser pour la sélection';
+      'La souris dessine. Touchez pour l\'utiliser pour la sélection';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Souris : sélection — touchez pour dessiner à la souris';
+      'La souris sélectionne. Touchez pour dessiner à la souris';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Doigt : dessine — touchez pour l\'utiliser pour naviguer';
+      'Le doigt dessine. Touchez pour l\'utiliser pour naviguer';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Doigt : navigue — touchez pour dessiner au doigt';
+      'Le doigt navigue. Touchez pour dessiner au doigt';
 
   @override
   String get chromeUndo => 'Annuler';
@@ -2175,7 +2175,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Page précédente $number — touchez pour revenir';
+    return 'Page précédente $number. Touchez pour revenir';
   }
 
   @override
@@ -2234,15 +2234,15 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count pages coupées — ouvrez le carnet de destination pour coller.',
-      one: '1 page coupée — ouvrez le carnet de destination pour coller.',
+          '$count pages coupées. Ouvrez le carnet de destination pour coller.',
+      one: '1 page coupée. Ouvrez le carnet de destination pour coller.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count pages coupées ($skipped pas encore chargées, ignorées) — ouvrez le carnet de destination pour coller.';
+    return '$count pages coupées ($skipped pas encore chargées, ignorées). Ouvrez le carnet de destination pour coller.';
   }
 
   @override
@@ -2385,7 +2385,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Média corrompu sur le serveur (tronqué) — réimportez le PDF d\'origine pour le récupérer';
+      'Média corrompu sur le serveur (tronqué). Réimportez le PDF d\'origine pour le récupérer';
 
   @override
   String get pmLoadingImageTooltip =>
@@ -2503,7 +2503,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Conflit — Page $pageNumber';
+    return 'Conflit : page $pageNumber';
   }
 
   @override
@@ -2565,7 +2565,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'P. $pageNumber — $chapterName';
+    return 'P. $pageNumber · $chapterName';
   }
 
   @override

@@ -386,7 +386,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Pantalla completa, sin herramientas — ideal para mostrar páginas';
+      'Pantalla completa sin herramientas, ideal para mostrar páginas';
 
   @override
   String get csLaserSub => 'Señala sin dejar marca';
@@ -1610,7 +1610,7 @@ class AppLocalizationsEs extends AppLocalizations {
       other: '$count páginas',
       one: '$count página',
     );
-    return '\"$title\" recargado — $_temp0.';
+    return '\"$title\" recargado: $_temp0.';
   }
 
   @override
@@ -1648,14 +1648,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Notas y dibujo a mano alzada, sincronizados en TU servidor. Elige cómo empezar — puedes cambiarlo más adelante.';
+      'Notas y dibujo a mano alzada, sincronizados en TU servidor. Elige cómo empezar: puedes cambiarlo más adelante.';
 
   @override
   String get onbTryNowTitle => 'Pruébalo ahora';
 
   @override
   String get onbTryNowSubtitle =>
-      'Empieza a escribir ya. Los cuadernos permanecen en este dispositivo — sin cuenta, sin servidor.';
+      'Empieza a escribir ya. Los cuadernos permanecen en este dispositivo: sin cuenta, sin servidor.';
 
   @override
   String get onbConnectNextcloudTitle => 'Conecta tu Nextcloud';
@@ -1989,7 +1989,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'URL WebDAV completa, ruta incluida — p. ej. Synology https://nas:5006/home, Seafile https://servidor/seafdav. Compartir enlaces no está disponible en WebDAV genérico.';
+      'URL WebDAV completa, ruta incluida (p. ej. Synology https://nas:5006/home, Seafile https://servidor/seafdav). Compartir enlaces no está disponible en WebDAV genérico.';
 
   @override
   String get logConnectButton => 'Conectar';
@@ -2005,19 +2005,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Ratón: dibuja — toca para usarlo como selección';
+      'El ratón dibuja. Toca para usarlo como selección';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Ratón: selección — toca para dibujar con el ratón';
+      'El ratón selecciona. Toca para dibujar con el ratón';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Dedo: dibuja — toca para usarlo para desplazar';
+      'El dedo dibuja. Toca para usarlo para desplazar';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Dedo: desplaza — toca para dibujar con el dedo';
+      'El dedo desplaza. Toca para dibujar con el dedo';
 
   @override
   String get chromeUndo => 'Deshacer';
@@ -2166,7 +2166,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Página anterior $number — toca para volver';
+    return 'Página anterior $number. Toca para volver';
   }
 
   @override
@@ -2224,16 +2224,15 @@ class AppLocalizationsEs extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other:
-          '$count páginas cortadas — abre el cuaderno de destino para pegar.',
-      one: '1 página cortada — abre el cuaderno de destino para pegar.',
+      other: '$count páginas cortadas. Abre el cuaderno de destino para pegar.',
+      one: '1 página cortada. Abre el cuaderno de destino para pegar.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count páginas cortadas ($skipped aún no cargadas, omitidas) — abre el cuaderno de destino para pegar.';
+    return '$count páginas cortadas ($skipped aún no cargadas, omitidas). Abre el cuaderno de destino para pegar.';
   }
 
   @override
@@ -2376,7 +2375,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Recurso dañado en el servidor (truncado) — vuelve a importar el PDF original para recuperarlo';
+      'Recurso dañado en el servidor (truncado). Vuelve a importar el PDF original para recuperarlo';
 
   @override
   String get pmLoadingImageTooltip => 'Cargando imagen del servidor…';
@@ -2493,7 +2492,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Conflicto — Página $pageNumber';
+    return 'Conflicto: página $pageNumber';
   }
 
   @override
@@ -2555,7 +2554,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'Pág. $pageNumber — $chapterName';
+    return 'Pág. $pageNumber · $chapterName';
   }
 
   @override

@@ -120,7 +120,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get csLocalSaveFailed =>
-      'Não foi possível salvar neste dispositivo. Tentando de novo automaticamente — não feche o app.';
+      'Não foi possível salvar neste dispositivo. Tentando de novo automaticamente. Não feche o app.';
 
   @override
   String get csLocalSaveFailedNoSpace =>
@@ -386,7 +386,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Tela cheia, sem ferramentas — ótimo para mostrar páginas';
+      'Tela cheia sem ferramentas, ótimo para mostrar páginas';
 
   @override
   String get csLaserSub => 'Aponta sem deixar marcas';
@@ -894,14 +894,14 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get libImportCorruptedFile =>
-      'Este arquivo não é um caderno válido do AbelNotes — pode estar incompleto ou danificado.';
+      'Este arquivo não é um caderno válido do AbelNotes. Pode estar incompleto ou danificado.';
 
   @override
   String get libExport => 'Exportar';
 
   @override
   String get libImportOneNoteUnreadable =>
-      'O AbelNotes não consegue ler este arquivo do OneNote — ele pode usar um formato que o importador ainda não suporta, ou estar danificado.';
+      'O AbelNotes não consegue ler este arquivo do OneNote. Ele pode usar um formato que o importador ainda não suporta, ou estar danificado.';
 
   @override
   String libErrorImport(String error) {
@@ -1000,7 +1000,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get libDeleteFolderBody =>
-      'Os cadernos dentro dela não são excluídos — ficam na biblioteca, sem pasta.';
+      'Os cadernos dentro dela não são excluídos. Ficam na biblioteca, sem pasta.';
 
   @override
   String get libDelete => 'Excluir';
@@ -1607,7 +1607,7 @@ class AppLocalizationsPt extends AppLocalizations {
       other: '$count páginas',
       one: '$count página',
     );
-    return '\"$title\" recarregado — $_temp0.';
+    return '\"$title\" recarregado: $_temp0.';
   }
 
   @override
@@ -1645,14 +1645,14 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Notas à mão e desenho livre, sincronizados com o SEU servidor. Escolha como começar — pode mudar depois.';
+      'Notas à mão e desenho livre, sincronizados com o SEU servidor. Escolha como começar: pode mudar depois.';
 
   @override
   String get onbTryNowTitle => 'Experimente agora';
 
   @override
   String get onbTryNowSubtitle =>
-      'Comece a escrever já. Os cadernos ficam neste dispositivo — sem conta, sem servidor.';
+      'Comece a escrever já. Os cadernos ficam neste dispositivo: sem conta, sem servidor.';
 
   @override
   String get onbConnectNextcloudTitle => 'Conecte o seu Nextcloud';
@@ -1715,7 +1715,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get setDriveDisconnectBody =>
-      'Os cadernos que já estão no seu Drive continuam lá — este app só para de sincronizar com eles. Os cadernos neste dispositivo não são afetados.';
+      'Os cadernos que já estão no seu Drive continuam lá. Este app só para de sincronizar com eles. Os cadernos neste dispositivo não são afetados.';
 
   @override
   String get setDriveDisconnectConfirm => 'Desconectar';
@@ -1821,7 +1821,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      'Seus cadernos ficam neste dispositivo. Conecte o seu servidor ou o Google Drive para tê-los em todos os lugares — pode fazer isso quando quiser.';
+      'Seus cadernos ficam neste dispositivo. Conecte o seu servidor ou o Google Drive para tê-los em todos os lugares. Pode fazer isso quando quiser.';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1990,7 +1990,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'URL WebDAV completa, com o caminho — ex.: Synology https://nas:5006/home, Seafile https://servidor/seafdav. O compartilhamento por link não está disponível no WebDAV genérico.';
+      'URL WebDAV completa, com o caminho (ex.: Synology https://nas:5006/home, Seafile https://servidor/seafdav). O compartilhamento por link não está disponível no WebDAV genérico.';
 
   @override
   String get logConnectButton => 'Conectar';
@@ -2006,19 +2006,19 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Mouse: desenha — toque para usá-lo na seleção';
+      'O mouse desenha. Toque para usá-lo na seleção';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Mouse: seleção — toque para desenhar com o mouse';
+      'O mouse seleciona. Toque para desenhar com o mouse';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Dedo: desenha — toque para usá-lo para arrastar a tela';
+      'O dedo desenha. Toque para usá-lo para arrastar a tela';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Dedo: arrasta a tela — toque para desenhar com o dedo';
+      'O dedo arrasta a tela. Toque para desenhar com o dedo';
 
   @override
   String get chromeUndo => 'Desfazer';
@@ -2167,7 +2167,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Página anterior $number — toque para voltar';
+    return 'Página anterior $number. Toque para voltar';
   }
 
   @override
@@ -2225,16 +2225,15 @@ class AppLocalizationsPt extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other:
-          '$count páginas recortadas — abra o caderno de destino para colar.',
-      one: '1 página recortada — abra o caderno de destino para colar.',
+      other: '$count páginas recortadas. Abra o caderno de destino para colar.',
+      one: '1 página recortada. Abra o caderno de destino para colar.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count páginas recortadas ($skipped ainda não carregadas, ignoradas) — abra o caderno de destino para colar.';
+    return '$count páginas recortadas ($skipped ainda não carregadas, ignoradas). Abra o caderno de destino para colar.';
   }
 
   @override
@@ -2377,7 +2376,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Recurso corrompido no servidor (truncado) — importe o PDF original de novo para recuperar';
+      'Recurso corrompido no servidor (truncado). Importe o PDF original de novo para recuperar';
 
   @override
   String get pmLoadingImageTooltip => 'Carregando a imagem do servidor…';
@@ -2494,7 +2493,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Conflito — Página $pageNumber';
+    return 'Conflito: página $pageNumber';
   }
 
   @override
@@ -2556,7 +2555,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'Pág. $pageNumber — $chapterName';
+    return 'Pág. $pageNumber · $chapterName';
   }
 
   @override

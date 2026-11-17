@@ -68,7 +68,7 @@ import 'app_localizations_zh.dart';
 /// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -91,11 +91,11 @@ abstract class AppLocalizations {
   /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -105,7 +105,7 @@ abstract class AppLocalizations {
     Locale('fr'),
     Locale('it'),
     Locale('pt'),
-    Locale('zh')
+    Locale('zh'),
   ];
 
   /// No description provided for @csPdfTextCopied.
@@ -717,7 +717,7 @@ abstract class AppLocalizations {
   /// No description provided for @csPresentationModeSub.
   ///
   /// In it, this message translates to:
-  /// **'Schermo intero, senza strumenti — ideale per mostrare le pagine'**
+  /// **'Schermo intero senza strumenti, ideale per mostrare le pagine'**
   String get csPresentationModeSub;
 
   /// No description provided for @csLaserSub.
@@ -2661,7 +2661,7 @@ abstract class AppLocalizations {
   /// No description provided for @setReloadDone.
   ///
   /// In it, this message translates to:
-  /// **'\"{title}\" ricaricato — {count, plural, one{{count} pagina} other{{count} pagine}}.'**
+  /// **'\"{title}\" ricaricato: {count, plural, one{{count} pagina} other{{count} pagine}}.'**
   String setReloadDone(String title, int count);
 
   /// No description provided for @setReloadFailed.
@@ -2721,7 +2721,7 @@ abstract class AppLocalizations {
   /// No description provided for @onbTagline.
   ///
   /// In it, this message translates to:
-  /// **'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare — puoi cambiare in seguito.'**
+  /// **'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.'**
   String get onbTagline;
 
   /// No description provided for @onbTryNowTitle.
@@ -2733,7 +2733,7 @@ abstract class AppLocalizations {
   /// No description provided for @onbTryNowSubtitle.
   ///
   /// In it, this message translates to:
-  /// **'Inizia a scrivere ora. I taccuini restano su questo dispositivo — nessun account, nessun server.'**
+  /// **'Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.'**
   String get onbTryNowSubtitle;
 
   /// No description provided for @onbConnectNextcloudTitle.
@@ -2967,7 +2967,7 @@ abstract class AppLocalizations {
   /// No description provided for @libLocalOnlyBody.
   ///
   /// In it, this message translates to:
-  /// **'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi — puoi farlo quando vuoi.'**
+  /// **'I tuoi taccuini restano su questo dispositivo. Collega il tuo server o Google Drive per averli su tutti i dispositivi. Puoi farlo quando vuoi.'**
   String get libLocalOnlyBody;
 
   /// No description provided for @libLocalOnlyBodyWeb.
@@ -3267,7 +3267,7 @@ abstract class AppLocalizations {
   /// No description provided for @logWebdavUrlHint.
   ///
   /// In it, this message translates to:
-  /// **'URL WebDAV completo, percorso incluso — es. Synology https://nas:5006/home, Seafile https://server/seafdav. La condivisione link non è disponibile su WebDAV generico.'**
+  /// **'URL WebDAV completo, percorso incluso (es. Synology https://nas:5006/home, Seafile https://server/seafdav). La condivisione link non è disponibile su WebDAV generico.'**
   String get logWebdavUrlHint;
 
   /// No description provided for @logConnectButton.
@@ -3297,25 +3297,25 @@ abstract class AppLocalizations {
   /// No description provided for @chromeMouseDrawsTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Mouse: disegna — tocca per usarlo come selezione'**
+  /// **'Il mouse disegna. Tocca per usarlo come selezione'**
   String get chromeMouseDrawsTooltip;
 
   /// No description provided for @chromeMouseSelectsTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Mouse: selezione — tocca per disegnare col mouse'**
+  /// **'Il mouse seleziona. Tocca per disegnare col mouse'**
   String get chromeMouseSelectsTooltip;
 
   /// No description provided for @chromeTouchDrawsTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Dito: disegna — tocca per usarlo per navigare'**
+  /// **'Il dito disegna. Tocca per usarlo per navigare'**
   String get chromeTouchDrawsTooltip;
 
   /// No description provided for @chromeTouchPansTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Dito: naviga — tocca per disegnare col dito'**
+  /// **'Il dito naviga. Tocca per disegnare col dito'**
   String get chromeTouchPansTooltip;
 
   /// No description provided for @chromeUndo.
@@ -3597,7 +3597,7 @@ abstract class AppLocalizations {
   /// No description provided for @chromePrevPageTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Pagina precedente {number} — tocca per tornare indietro'**
+  /// **'Pagina precedente {number}. Tocca per tornare indietro'**
   String chromePrevPageTooltip(int number);
 
   /// No description provided for @chromePageOfChapterTooltip.
@@ -3675,13 +3675,13 @@ abstract class AppLocalizations {
   /// No description provided for @pmPagesCut.
   ///
   /// In it, this message translates to:
-  /// **'{count, plural, one{1 pagina tagliata — aprire il taccuino di destinazione per incollare.} other{{count} pagine tagliate — aprire il taccuino di destinazione per incollare.}}'**
+  /// **'{count, plural, one{1 pagina tagliata. Apri il taccuino di destinazione per incollare.} other{{count} pagine tagliate. Apri il taccuino di destinazione per incollare.}}'**
   String pmPagesCut(int count);
 
   /// No description provided for @pmPagesCutSkipped.
   ///
   /// In it, this message translates to:
-  /// **'{count} pagine tagliate ({skipped} non ancora caricate, saltate) — aprire il taccuino di destinazione per incollare.'**
+  /// **'{count} pagine tagliate ({skipped} non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.'**
   String pmPagesCutSkipped(int count, int skipped);
 
   /// No description provided for @pmSelectedCount.
@@ -3903,7 +3903,7 @@ abstract class AppLocalizations {
   /// No description provided for @pmCorruptAssetTooltip.
   ///
   /// In it, this message translates to:
-  /// **'Asset corrotto sul server (troncato) — ri-importa il PDF originale per recuperare'**
+  /// **'Asset corrotto sul server (troncato). Ri-importa il PDF originale per recuperare'**
   String get pmCorruptAssetTooltip;
 
   /// No description provided for @pmLoadingImageTooltip.
@@ -4131,7 +4131,7 @@ abstract class AppLocalizations {
   /// No description provided for @confTitleConflictPage.
   ///
   /// In it, this message translates to:
-  /// **'Conflitto — Pagina {pageNumber}'**
+  /// **'Conflitto: pagina {pageNumber}'**
   String confTitleConflictPage(int pageNumber);
 
   /// No description provided for @confDeletionExplainer.
@@ -4209,7 +4209,7 @@ abstract class AppLocalizations {
   /// No description provided for @confJumpItemPageWithChapter.
   ///
   /// In it, this message translates to:
-  /// **'Pag. {pageNumber} — {chapterName}'**
+  /// **'Pag. {pageNumber} · {chapterName}'**
   String confJumpItemPageWithChapter(int pageNumber, String chapterName);
 
   /// No description provided for @confDismissDialogTitle.
@@ -6672,14 +6672,14 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) => <String>[
-        'de',
-        'en',
-        'es',
-        'fr',
-        'it',
-        'pt',
-        'zh'
-      ].contains(locale.languageCode);
+    'de',
+    'en',
+    'es',
+    'fr',
+    'it',
+    'pt',
+    'zh',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -6705,8 +6705,9 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.',
+  );
 }

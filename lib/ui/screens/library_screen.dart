@@ -1196,7 +1196,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           ? l10n.libImportCorruptedFile
           : l10n.libErrorImport(e.toString());
       // Named, so in a batch it's clear which file it was.
-      _toast('$name — $msg');
+      _toast('$name: $msg');
       return false;
     }
   }

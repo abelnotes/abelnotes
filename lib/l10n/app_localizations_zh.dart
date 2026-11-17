@@ -371,7 +371,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPresentationMode => '演示模式';
 
   @override
-  String get csPresentationModeSub => '全屏、不显示工具 — 很适合展示页面';
+  String get csPresentationModeSub => '全屏、不显示工具，很适合展示页面';
 
   @override
   String get csLaserSub => '指示内容，不留痕迹';
@@ -871,14 +871,14 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get libImportCorruptedFile => '这个文件不是有效的 AbelNotes 笔记本 — 它可能不完整或已损坏。';
+  String get libImportCorruptedFile => '这个文件不是有效的 AbelNotes 笔记本。它可能不完整或已损坏。';
 
   @override
   String get libExport => '导出';
 
   @override
   String get libImportOneNoteUnreadable =>
-      'AbelNotes 无法读取这个 OneNote 文件 — 它可能使用了导入器尚不支持的格式，或者已损坏。';
+      'AbelNotes 无法读取这个 OneNote 文件。它可能使用了导入器尚不支持的格式，或者已损坏。';
 
   @override
   String libErrorImport(String error) {
@@ -976,7 +976,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get libDeleteFolderBody => '里面的笔记本不会被删除 — 它们会留在库中，只是不属于任何文件夹。';
+  String get libDeleteFolderBody => '里面的笔记本不会被删除，它们会留在库中，只是不属于任何文件夹。';
 
   @override
   String get libDelete => '删除';
@@ -1565,7 +1565,7 @@ class AppLocalizationsZh extends AppLocalizations {
       other: '$count 页',
       one: '$count 页',
     );
-    return '“$title”已重新加载 — $_temp0。';
+    return '“$title”已重新加载：$_temp0。';
   }
 
   @override
@@ -1600,13 +1600,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setCopyLogDone => '日志已复制到剪贴板。';
 
   @override
-  String get onbTagline => '手写笔记和自由绘图，同步到你自己的服务器。选择怎么开始 — 之后随时可以改。';
+  String get onbTagline => '手写笔记和自由绘图，同步到你自己的服务器。选择怎么开始，之后随时可以改。';
 
   @override
   String get onbTryNowTitle => '立即试用';
 
   @override
-  String get onbTryNowSubtitle => '现在就开始写。笔记本只留在这台设备上 — 不用账号，也不用服务器。';
+  String get onbTryNowSubtitle => '现在就开始写。笔记本只留在这台设备上，不用账号，也不用服务器。';
 
   @override
   String get onbConnectNextcloudTitle => '连接你的 Nextcloud';
@@ -1662,7 +1662,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get setDriveDisconnectBody =>
-      '已经在你 Drive 里的笔记本会留在那里 — 这个应用只是不再往里面同步。这台设备上的笔记本不受影响。';
+      '已经在你 Drive 里的笔记本会留在那里，这个应用只是不再往里面同步。这台设备上的笔记本不受影响。';
 
   @override
   String get setDriveDisconnectConfirm => '断开连接';
@@ -1761,7 +1761,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      '你的笔记本只留在这台设备上。连接你的服务器或 Google Drive，就能在任何地方使用 — 随时都可以连。';
+      '你的笔记本只留在这台设备上。连接你的服务器或 Google Drive，就能在任何地方使用。随时都可以连。';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1921,7 +1921,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      '完整的 WebDAV 网址，含路径 — 例如 Synology https://nas:5006/home、Seafile https://server/seafdav。通用 WebDAV 不支持链接分享。';
+      '完整的 WebDAV 网址，含路径（例如 Synology https://nas:5006/home、Seafile https://server/seafdav）。通用 WebDAV 不支持链接分享。';
 
   @override
   String get logConnectButton => '连接';
@@ -1936,16 +1936,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeUnsaved => '未保存';
 
   @override
-  String get chromeMouseDrawsTooltip => '鼠标：绘图 — 点一下改为用于选择';
+  String get chromeMouseDrawsTooltip => '鼠标：绘图。点一下改为用于选择';
 
   @override
-  String get chromeMouseSelectsTooltip => '鼠标：选择 — 点一下改为用鼠标绘图';
+  String get chromeMouseSelectsTooltip => '鼠标：选择。点一下改为用鼠标绘图';
 
   @override
-  String get chromeTouchDrawsTooltip => '手指：绘图 — 点一下改为用于平移';
+  String get chromeTouchDrawsTooltip => '手指：绘图。点一下改为用于平移';
 
   @override
-  String get chromeTouchPansTooltip => '手指：平移 — 点一下改为用手指绘图';
+  String get chromeTouchPansTooltip => '手指：平移。点一下改为用手指绘图';
 
   @override
   String get chromeUndo => '撤销';
@@ -2093,7 +2093,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return '上一页 第 $number 页 — 点一下返回';
+    return '上一页 第 $number 页，点一下返回';
   }
 
   @override
@@ -2151,15 +2151,15 @@ class AppLocalizationsZh extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '已剪切 $count 页 — 打开目标笔记本即可粘贴。',
-      one: '已剪切 1 页 — 打开目标笔记本即可粘贴。',
+      other: '已剪切 $count 页，打开目标笔记本即可粘贴。',
+      one: '已剪切 1 页，打开目标笔记本即可粘贴。',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '已剪切 $count 页（$skipped 页尚未加载，已跳过）— 打开目标笔记本即可粘贴。';
+    return '已剪切 $count 页（$skipped 页尚未加载，已跳过），打开目标笔记本即可粘贴。';
   }
 
   @override
@@ -2295,7 +2295,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get pmCorruptAssetTooltip => '服务器上的资源已损坏（被截断）— 重新导入原始 PDF 即可恢复';
+  String get pmCorruptAssetTooltip => '服务器上的资源已损坏（被截断），重新导入原始 PDF 即可恢复';
 
   @override
   String get pmLoadingImageTooltip => '正在从服务器加载图片…';
@@ -2412,7 +2412,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return '冲突 — 第 $pageNumber 页';
+    return '冲突：第 $pageNumber 页';
   }
 
   @override
@@ -2473,7 +2473,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return '第 $pageNumber 页 — $chapterName';
+    return '第 $pageNumber 页 · $chapterName';
   }
 
   @override

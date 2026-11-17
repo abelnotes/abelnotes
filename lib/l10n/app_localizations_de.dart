@@ -387,7 +387,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get csPresentationModeSub =>
-      'Vollbild, ohne Werkzeuge — ideal zum Zeigen von Seiten';
+      'Vollbild ohne Werkzeuge, ideal zum Zeigen von Seiten';
 
   @override
   String get csLaserSub => 'Zeigen, ohne Spuren zu hinterlassen';
@@ -898,14 +898,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get libImportCorruptedFile =>
-      'Diese Datei ist kein gültiges AbelNotes-Notizbuch — sie ist möglicherweise unvollständig oder beschädigt.';
+      'Diese Datei ist kein gültiges AbelNotes-Notizbuch. Sie ist möglicherweise unvollständig oder beschädigt.';
 
   @override
   String get libExport => 'Exportieren';
 
   @override
   String get libImportOneNoteUnreadable =>
-      'AbelNotes kann diese OneNote-Datei nicht lesen — sie verwendet möglicherweise ein noch nicht unterstütztes Format oder ist beschädigt.';
+      'AbelNotes kann diese OneNote-Datei nicht lesen. Sie verwendet möglicherweise ein noch nicht unterstütztes Format oder ist beschädigt.';
 
   @override
   String libErrorImport(String error) {
@@ -1004,7 +1004,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get libDeleteFolderBody =>
-      'Die enthaltenen Notizbücher werden nicht gelöscht — sie bleiben ohne Ordner in der Bibliothek.';
+      'Die enthaltenen Notizbücher werden nicht gelöscht. Sie bleiben ohne Ordner in der Bibliothek.';
 
   @override
   String get libDelete => 'Löschen';
@@ -1612,7 +1612,7 @@ class AppLocalizationsDe extends AppLocalizations {
       other: '$count Seiten',
       one: '$count Seite',
     );
-    return '„$title“ neu geladen — $_temp0.';
+    return '„$title“ neu geladen: $_temp0.';
   }
 
   @override
@@ -1650,14 +1650,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get onbTagline =>
-      'Handschriftliche Notizen und freies Zeichnen, synchronisiert auf DEINEM Server. Wähle, wie du starten willst — änderbar ist es später jederzeit.';
+      'Handschriftliche Notizen und freies Zeichnen, synchronisiert auf DEINEM Server. Wähle, wie du starten willst. Du kannst es später jederzeit ändern.';
 
   @override
   String get onbTryNowTitle => 'Gleich ausprobieren';
 
   @override
   String get onbTryNowSubtitle =>
-      'Fang sofort an zu schreiben. Die Notizbücher bleiben auf diesem Gerät — kein Konto, kein Server.';
+      'Fang sofort an zu schreiben. Die Notizbücher bleiben auf diesem Gerät: kein Konto, kein Server.';
 
   @override
   String get onbConnectNextcloudTitle => 'Deine Nextcloud verbinden';
@@ -1719,7 +1719,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setDriveDisconnectBody =>
-      'Notizbücher, die bereits in deinem Drive liegen, bleiben dort — die App hört nur auf, sie zu synchronisieren. Die Notizbücher auf diesem Gerät bleiben unberührt.';
+      'Notizbücher, die bereits in deinem Drive liegen, bleiben dort. Die App hört nur auf, sie zu synchronisieren. Die Notizbücher auf diesem Gerät bleiben unberührt.';
 
   @override
   String get setDriveDisconnectConfirm => 'Trennen';
@@ -1826,7 +1826,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get libLocalOnlyBody =>
-      'Deine Notizbücher bleiben auf diesem Gerät. Verbinde deinen Server oder Google Drive, um sie überall zu haben — du kannst das jederzeit tun.';
+      'Deine Notizbücher bleiben auf diesem Gerät. Verbinde deinen Server oder Google Drive, um sie überall zu haben. Du kannst das jederzeit tun.';
 
   @override
   String get libLocalOnlyBodyWeb =>
@@ -1998,7 +1998,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get logWebdavUrlHint =>
-      'Vollständige WebDAV-URL samt Pfad — z. B. Synology https://nas:5006/home, Seafile https://server/seafdav. Das Teilen per Link ist bei generischem WebDAV nicht verfügbar.';
+      'Vollständige WebDAV-URL samt Pfad (z. B. Synology https://nas:5006/home, Seafile https://server/seafdav). Das Teilen per Link ist bei generischem WebDAV nicht verfügbar.';
 
   @override
   String get logConnectButton => 'Verbinden';
@@ -2014,19 +2014,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chromeMouseDrawsTooltip =>
-      'Maus: zeichnet — tippen, um sie zum Auswählen zu verwenden';
+      'Maus zeichnet. Tippen, um sie zum Auswählen zu verwenden';
 
   @override
   String get chromeMouseSelectsTooltip =>
-      'Maus: Auswahl — tippen, um mit der Maus zu zeichnen';
+      'Maus wählt aus. Tippen, um mit der Maus zu zeichnen';
 
   @override
   String get chromeTouchDrawsTooltip =>
-      'Finger: zeichnet — tippen, um damit zu navigieren';
+      'Finger zeichnet. Tippen, um damit zu navigieren';
 
   @override
   String get chromeTouchPansTooltip =>
-      'Finger: navigiert — tippen, um mit dem Finger zu zeichnen';
+      'Finger navigiert. Tippen, um mit dem Finger zu zeichnen';
 
   @override
   String get chromeUndo => 'Rückgängig';
@@ -2176,7 +2176,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String chromePrevPageTooltip(int number) {
-    return 'Vorherige Seite $number — tippen, um zurückzugehen';
+    return 'Vorherige Seite $number. Tippen, um zurückzugehen';
   }
 
   @override
@@ -2236,15 +2236,15 @@ class AppLocalizationsDe extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count Seiten ausgeschnitten — öffne das Zielnotizbuch zum Einfügen.',
-      one: '1 Seite ausgeschnitten — öffne das Zielnotizbuch zum Einfügen.',
+          '$count Seiten ausgeschnitten. Öffne das Zielnotizbuch zum Einfügen.',
+      one: '1 Seite ausgeschnitten. Öffne das Zielnotizbuch zum Einfügen.',
     );
     return '$_temp0';
   }
 
   @override
   String pmPagesCutSkipped(int count, int skipped) {
-    return '$count Seiten ausgeschnitten ($skipped noch nicht geladen, übersprungen) — öffne das Zielnotizbuch zum Einfügen.';
+    return '$count Seiten ausgeschnitten ($skipped noch nicht geladen, übersprungen). Öffne das Zielnotizbuch zum Einfügen.';
   }
 
   @override
@@ -2381,7 +2381,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get pmCorruptAssetTooltip =>
-      'Medium auf dem Server beschädigt (abgeschnitten) — importiere das ursprüngliche PDF erneut, um es wiederherzustellen';
+      'Medium auf dem Server beschädigt (abgeschnitten). Importiere das ursprüngliche PDF erneut, um es wiederherzustellen';
 
   @override
   String get pmLoadingImageTooltip => 'Bild wird vom Server geladen…';
@@ -2498,7 +2498,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String confTitleConflictPage(int pageNumber) {
-    return 'Konflikt — Seite $pageNumber';
+    return 'Konflikt: Seite $pageNumber';
   }
 
   @override
@@ -2560,7 +2560,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String confJumpItemPageWithChapter(int pageNumber, String chapterName) {
-    return 'S. $pageNumber — $chapterName';
+    return 'S. $pageNumber · $chapterName';
   }
 
   @override
