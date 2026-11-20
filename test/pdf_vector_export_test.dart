@@ -160,6 +160,23 @@ void main() {
         throwsA(isA<VectorUnsupported>()));
   });
 
+  testWidgets('Japanese typed text keeps its render and search layer',
+      (tester) async {
+    await tester.runAsync(() async {
+      const text = ContentElement.text(
+          id: 't',
+          zIndex: 1,
+          data: TextData(
+              x: 50, y: 100, width: 200, height: 40, content: '日本語のノート'));
+      final ops = await _vector(_page([text], bg: 'blank'));
+      expect(ops.whereType<PdfVecImage>(), hasLength(1));
+      expect(ops.whereType<PdfVecSearchText>().single.text, '日本語のノート');
+      final bytes = await buildPdfDocument(
+          [PdfExportPage(width: 595, height: 842, vector: ops)]);
+      expect(String.fromCharCodes(bytes), contains('/NotoSansJP-Regular'));
+    });
+  });
+
   testWidgets('vector PDF of a handwritten page is smaller than raster',
       (tester) async {
     await tester.runAsync(() async {

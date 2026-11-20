@@ -1,10 +1,12 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 /// One invisible text run placed over the page, in page-logical points
@@ -90,6 +92,21 @@ class PdfVecText extends PdfVecOp {
     this.mono = false,
     this.bold = false,
     this.italic = false,
+  }) : super(m);
+}
+
+/// A searchable line behind a rasterised text element, in canvas coordinates.
+class PdfVecSearchText extends PdfVecOp {
+  final String text;
+  final double x, y, size, width;
+
+  const PdfVecSearchText({
+    required List<double> m,
+    required this.text,
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.width,
   }) : super(m);
 }
 
@@ -302,23 +319,37 @@ PdfImage _embed(PdfDocument doc, Uint8List bytes, {bool? opaque}) {
   return PdfImage.fromImage(doc, image: rgb);
 }
 
-/// Builds the PDF: every page keeps its own size, its raster (a re-encoded
-/// JPEG for scan-like pages), and an invisible text layer so the exported
-/// file stays searchable and selectable. Top-level for [compute].
+/// Load the embedded font before handing the PDF writer to a background isolate.
 Future<Uint8List> buildPdfDocument(List<PdfExportPage> pages) async {
+  final needsJapaneseFont = pages.any((page) =>
+      page.runs.any((run) => containsCjkText(run.text)) ||
+      (page.vector?.any((op) => op is PdfVecSearchText) ?? false));
+  final font = needsJapaneseFont ? await rootBundle.load(japaneseFontAsset) : null;
+  return compute(_writePdfDocument, (pages: pages, japaneseFont: font));
+}
+
+Future<Uint8List> _writePdfDocument(
+    ({List<PdfExportPage> pages, ByteData? japaneseFont}) input) async {
   final doc = PdfDocument();
   final font = PdfFont.helvetica(doc);
+  final fontData = input.japaneseFont;
+  final japaneseFont = fontData == null ? null : PdfTtfFont(doc, fontData);
   final images = Map<Uint8List, PdfImage>.identity(); // one XObject per asset
   final fonts = <int, PdfFont>{0: font}; // the rest made on first use
-  for (final p in pages) {
+  for (final p in input.pages) {
     final page = PdfPage(doc, pageFormat: PdfPageFormat(p.width, p.height));
     final g = page.getGraphics();
     if (p.vector != null) {
       g.saveContext();
       g.setTransform(_affine([1, 0, 0, -1, 0, p.height])); // y down, like the canvas
       for (final op in p.vector!) {
-        _drawOp(g, op, (b) => images[b] ??= _embed(doc, b),
-            (i) => fonts[i] ??= _standardFont(doc, i));
+        _drawOp(
+          g,
+          op,
+          (b) => images[b] ??= _embed(doc, b),
+          (i) => fonts[i] ??= _standardFont(doc, i),
+          japaneseFont,
+        );
       }
       g.restoreContext();
     }
@@ -331,25 +362,47 @@ Future<Uint8List> buildPdfDocument(List<PdfExportPage> pages) async {
           p.height);
     }
     for (final r in p.runs) {
-      final text = pdfSafeText(r.text);
-      if (text.trim().isEmpty || r.width <= 0 || r.height <= 0) continue;
+      if (r.height <= 0) continue;
       final size = (r.height * 0.8).clamp(1.0, 200.0);
-      final natural = font.stringMetrics(text).width * size;
-      if (natural <= 0) continue;
-      final scale = (r.width / natural).clamp(0.05, 20.0);
       final baseline = p.height - (r.y + r.height * 0.8);
-      g.drawString(font, size, text, r.x, baseline,
-          scale: scale, mode: PdfTextRenderingMode.invisible);
+      _drawSearchText(g, r.text, r.x, baseline, size, r.width, font, japaneseFont);
     }
   }
   return Uint8List.fromList(await doc.save());
 }
 
+void _drawSearchText(PdfGraphics g, String text, double x, double baseline,
+    double size, double width, PdfFont standardFont, PdfTtfFont? japaneseFont) {
+  if (width <= 0) return;
+  final font = japaneseFont != null && containsCjkText(text)
+      ? japaneseFont
+      : standardFont;
+  // The PDF package's ToUnicode map encodes only BMP characters correctly.
+  final encoded = font == japaneseFont
+      ? String.fromCharCodes(
+          text.runes
+              .map((r) => r == 0x09 || r == 0x0A ? 0x20 : r)
+              .where((r) => r <= 0xFFFF && font.isRuneSupported(r)),
+        )
+      : pdfSafeText(text);
+  if (encoded.trim().isEmpty) return;
+  final natural = font.stringMetrics(encoded).width * size;
+  if (natural <= 0) return;
+  g.drawString(font, size, encoded, x, baseline,
+      scale: (width / natural).clamp(0.05, 20.0),
+      mode: PdfTextRenderingMode.invisible);
+}
+
 Matrix4 _affine(List<double> m) => Matrix4(
     m[0], m[1], 0, 0, m[2], m[3], 0, 0, 0, 0, 1, 0, m[4], m[5], 0, 1);
 
-void _drawOp(PdfGraphics g, PdfVecOp op, PdfImage Function(Uint8List) image,
-    PdfFont Function(int) font) {
+void _drawOp(
+  PdfGraphics g,
+  PdfVecOp op,
+  PdfImage Function(Uint8List) image,
+  PdfFont Function(int) font,
+  PdfTtfFont? japaneseFont,
+) {
   g.saveContext();
   g.setTransform(_affine(op.m));
   switch (op) {
@@ -402,6 +455,9 @@ void _drawOp(PdfGraphics g, PdfVecOp op, PdfImage Function(Uint8List) image,
       g.drawString(font(_fontIndex(op.mono, op.bold, op.italic)), op.size,
           op.text, 0, 0,
           scale: op.hscale);
+    case PdfVecSearchText():
+      g.setTransform(_affine([1, 0, 0, -1, op.x, op.y]));
+      _drawSearchText(g, op.text, 0, 0, op.size, op.width, font(0), japaneseFont);
     case PdfVecImage():
       if (op.alpha < 1) {
         g.setGraphicState(

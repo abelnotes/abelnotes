@@ -2838,6 +2838,12 @@ class CanvasRenderEngine extends CustomPainter {
     _staticPictureCache.clearAll();
   }
 
+  static set japaneseTypography(bool value) {
+    if (value == preferJapaneseTypography) return;
+    preferJapaneseTypography = value;
+    fontsChanged();
+  }
+
   /// [_widthStyleCounter] when this painter was built.
   final int _widthStyle = _widthStyleCounter;
   static List<ContentElement>? _cachedSourceContent;

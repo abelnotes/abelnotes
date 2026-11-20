@@ -2891,6 +2891,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setLanguagePortuguese => 'Português';
 
   @override
+  String get setLanguageJapanese => '日本語';
+
+  @override
   String get setLanguageChinese => '中文';
 
   @override

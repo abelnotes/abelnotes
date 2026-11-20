@@ -41,6 +41,7 @@ import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/features/canvas/data/zoom_snapshot.dart';
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/features/canvas/data/pdf_export.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/features/canvas/data/pdf_vector_canvas.dart';
 import 'package:abelnotes/features/canvas/data/pdf_import_support.dart';
 import 'package:abelnotes/features/canvas/data/pdf_text_extractor.dart';
@@ -8732,7 +8733,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
     try {
 
-      final pdfBytes = await compute(buildPdfDocument, pagePayload);
+      final pdfBytes = await buildPdfDocument(pagePayload);
       final fileName = _exportFilename(state, selection.scope, 'pdf');
       await _saveOrShare(fileName, pdfBytes, 'application/pdf');
 
@@ -8766,7 +8767,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       if (exported != null) payload.add(exported);
     }
     if (payload.isEmpty) return null;
-    return compute(buildPdfDocument, payload);
+    return buildPdfDocument(payload);
   }
 
   /// Uploads a PDF render of the notebook to the user's Nextcloud and shows
@@ -8936,6 +8937,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   Future<Uint8List?> _renderChapterSeparatorPng(
       String chapterTitle, double pageWidth, double pageHeight, double scale) async {
     try {
+      final japanese = Localizations.localeOf(context).languageCode == 'ja';
       final renderW = (pageWidth * scale).round();
       final renderH = (pageHeight * scale).round();
       final recorder = ui.PictureRecorder();
@@ -8960,6 +8962,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             fontSize: 18 * scale,
             fontWeight: FontWeight.w600,
             letterSpacing: 4 * scale,
+            fontFamilyFallback: japanese ? japaneseFontFallback : null,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -8981,6 +8984,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
             fontWeight: FontWeight.w700,
             letterSpacing: -0.5,
             height: 1.15,
+            fontFamilyFallback: japanese || containsKana(chapterTitle)
+                ? japaneseFontFallback
+                : null,
           ),
         ),
         textDirection: TextDirection.ltr,

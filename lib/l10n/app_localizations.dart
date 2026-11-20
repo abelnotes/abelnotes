@@ -10,6 +10,7 @@ import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
 import 'app_localizations_it.dart';
+import 'app_localizations_ja.dart';
 import 'app_localizations_pt.dart';
 import 'app_localizations_zh.dart';
 
@@ -104,6 +105,7 @@ abstract class AppLocalizations {
     Locale('es'),
     Locale('fr'),
     Locale('it'),
+    Locale('ja'),
     Locale('pt'),
     Locale('zh')
   ];
@@ -4776,6 +4778,12 @@ abstract class AppLocalizations {
   /// **'Português'**
   String get setLanguagePortuguese;
 
+  /// No description provided for @setLanguageJapanese.
+  ///
+  /// In it, this message translates to:
+  /// **'日本語'**
+  String get setLanguageJapanese;
+
   /// No description provided for @setLanguageChinese.
   ///
   /// In it, this message translates to:
@@ -6695,6 +6703,7 @@ class _AppLocalizationsDelegate
         'es',
         'fr',
         'it',
+        'ja',
         'pt',
         'zh'
       ].contains(locale.languageCode);
@@ -6716,6 +6725,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsFr();
     case 'it':
       return AppLocalizationsIt();
+    case 'ja':
+      return AppLocalizationsJa();
     case 'pt':
       return AppLocalizationsPt();
     case 'zh':

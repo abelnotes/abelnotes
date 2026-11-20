@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:ui';
 
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/features/canvas/data/pdf_export.dart';
 import 'package:abelnotes/features/canvas/data/text_paragraph_factory.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
@@ -224,12 +225,16 @@ class VectorCanvas implements Canvas {
   }
 
   /// A text element as real, selectable PDF text, placed per line and
-  /// style run where the laid-out [paragraph] put it. Text the standard
-  /// fonts can't encode is drawn as an image instead.
+  /// style run where the laid-out [paragraph] put it. CJK text keeps its
+  /// rendered appearance and gains an invisible search layer.
   void drawText(TextData t, Paragraph paragraph, Offset offset) {
     final runs = textRuns(t).toList();
     final content = runs.map((r) => r.text).join();
-    if (!pdfCanEncode(content)) return drawParagraph(paragraph, offset);
+    final raster = !pdfCanEncode(content);
+    if (raster) {
+      drawParagraph(paragraph, offset);
+      if (!containsCjkText(content)) return;
+    }
     final lines = paragraph.computeLineMetrics();
     var start = 0;
     for (final r in runs) {
@@ -258,7 +263,7 @@ class VectorCanvas implements Canvas {
           j++;
         }
         _textPiece(paragraph, content, i, j, offset.dx,
-            offset.dy + lines[ln].baseline, style);
+            offset.dy + lines[ln].baseline, style, raster: raster);
         i = j;
       }
       start = end;
@@ -273,7 +278,7 @@ class VectorCanvas implements Canvas {
       double dx,
       double baseline,
       ({double size, int color, bool mono, bool bold, bool italic,
-          bool underline, bool strike}) st) {
+          bool underline, bool strike}) st, {required bool raster}) {
     while (to > from && content.codeUnitAt(to - 1) == 0x20) {
       to--; // a wrapped line's trailing space sits past the line end
     }
@@ -282,10 +287,22 @@ class VectorCanvas implements Canvas {
     if (boxes.isEmpty) return;
     final left = boxes.map((b) => b.left).reduce(math.min);
     final right = boxes.map((b) => b.right).reduce(math.max);
-    final text = pdfSafeText(content.substring(from, to));
+    final contentPiece = content.substring(from, to);
+    final x = dx + left, w = right - left;
+    if (raster) {
+      _ops.add(PdfVecSearchText(
+        m: List.of(_m),
+        text: contentPiece,
+        x: x,
+        y: baseline,
+        size: st.size,
+        width: w,
+      ));
+      return;
+    }
+    final text = pdfSafeText(contentPiece);
     final natural = pdfTextWidth(text, st.size,
         mono: st.mono, bold: st.bold, italic: st.italic);
-    final x = dx + left, w = right - left;
     _ops.add(PdfVecText(
       m: List.of(_m),
       text: text,
