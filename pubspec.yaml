@@ -151,6 +151,7 @@ flutter:
     - assets/models/math_ink.ablm
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
+    - assets/fonts/NotoSansJP-OFL.txt
     # Apache-2.0 text for the bundled Roboto, registered in LicenseRegistry.
     - assets/fonts/Roboto-LICENSE.txt
 
@@ -167,6 +168,9 @@ flutter:
           weight: 600
         - asset: assets/fonts/InstrumentSans-Bold.ttf
           weight: 700
+    - family: NotoSansJP
+      fonts:
+        - asset: assets/fonts/NotoSansJP-Regular.ttf
     # The web engine's default fallback; bundled so it isn't fetched from
     # fonts.gstatic.com on every launch.
     - family: Roboto

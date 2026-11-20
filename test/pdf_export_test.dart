@@ -43,6 +43,8 @@ ContentElement ink({bool hl = false}) => ContentElement.stroke(
     data: StrokeData(points: const [], isHighlighter: hl));
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('split finds the full-page locked image, ignores partial ones', () {
     expect(splitPdfBackground(page([bg()]))!.overlayPage, isNull);
     final withInk = splitPdfBackground(page([bg(), ink()]))!;
@@ -93,10 +95,23 @@ void main() {
         flatPng: png(40, 30),
         runs: const [
           PdfExportRun(text: 'hello searchable world', x: 20, y: 20, width: 200, height: 14),
+          PdfExportRun(text: '日本語のノート ABC 123', x: 20, y: 40, width: 145, height: 16),
         ],
       ),
-      PdfExportPage(width: 200, height: 500, baseImage: png(20, 50)),
+      PdfExportPage(
+        width: 200,
+        height: 500,
+        baseImage: png(20, 50),
+        vector: const [
+          PdfVecSearchText(
+            m: [1, 0, 0, 1, 0, 0],
+            text: '数式を記録する',
+            x: 20, y: 55, size: 14, width: 105,
+          ),
+        ],
+      ),
     ]);
+    expect(String.fromCharCodes(bytes), contains('/NotoSansJP-Regular'));
     if (Process.runSync('which', ['pdftotext']).exitCode != 0) return;
     final f = File('${Directory.systemTemp.path}/abel_export_test.pdf')
       ..writeAsBytesSync(bytes);
@@ -107,5 +122,7 @@ void main() {
     expect(info, contains('Page    2 size:  200 x 500 pts'));
     final txt = Process.runSync('pdftotext', [f.path, '-']).stdout as String;
     expect(txt, contains('hello searchable world'));
+    expect(txt, contains('日本語のノート ABC 123'));
+    expect(txt, contains('数式を記録する'));
   });
 }

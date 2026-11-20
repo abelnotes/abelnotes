@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 /// Shared builder for the ui.Paragraph that represents a [TextData] element.
@@ -19,11 +20,15 @@ final RegExp urlInTextPattern = RegExp(
   caseSensitive: false,
 );
 
+// Set from the resolved app locale so canvas painting and import pagination
+// make the same font choice, even when the operating system uses another locale.
+bool preferJapaneseTypography = false;
+
 /// Resolve the effective ui.TextStyle for one rich span (or the legacy
 /// whole-element run when [span] is null). [asLink] layers the blue
 /// underline link affordance on top.
 ui.TextStyle textStyleFor(TextData t, TextSpanData? span,
-    {bool asLink = false}) {
+    {bool asLink = false, bool japanese = false}) {
   final bold = (span?.bold ?? false) || t.bold;
   final italic = (span?.italic ?? false) || t.italic;
   final underline = (span?.underline ?? false) || asLink;
@@ -44,6 +49,7 @@ ui.TextStyle textStyleFor(TextData t, TextSpanData? span,
     color: color,
     fontSize: span?.fontSize ?? t.fontSize,
     fontFamily: span?.fontFamily ?? t.fontFamily,
+    fontFamilyFallback: japanese ? japaneseFontFallback : null,
     fontWeight: bold ? FontWeight.bold : FontWeight.normal,
     fontStyle: italic ? FontStyle.italic : FontStyle.normal,
     decoration: deco,
@@ -78,7 +84,11 @@ Iterable<({String text, TextSpanData? span, bool asLink})> textRuns(
 /// Build (and lay out) the paragraph for [textData]. [width] overrides the
 /// layout width; defaults to the element's own box width.
 ui.Paragraph buildTextParagraph(TextData textData, {double? width}) {
+  final japanese = preferJapaneseTypography ||
+      containsKana(textData.content) ||
+      textData.spans.any((span) => containsKana(span.text));
   final paragraphStyle = ui.ParagraphStyle(
+    locale: japanese ? const Locale('ja') : null,
     textAlign: textData.alignment == 'center'
         ? TextAlign.center
         : textData.alignment == 'right'
@@ -90,13 +100,18 @@ ui.Paragraph buildTextParagraph(TextData textData, {double? width}) {
   for (final r in textRuns(textData)) {
     any = true;
     builder
-      ..pushStyle(textStyleFor(textData, r.span, asLink: r.asLink))
+      ..pushStyle(textStyleFor(
+        textData,
+        r.span,
+        asLink: r.asLink,
+        japanese: japanese,
+      ))
       ..addText(r.text)
       ..pop();
   }
   if (!any) {
     builder
-      ..pushStyle(textStyleFor(textData, null))
+      ..pushStyle(textStyleFor(textData, null, japanese: japanese))
       ..addText('');
   }
   return builder.build()

@@ -12,6 +12,7 @@ import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/ui/editor/hw_editor_chrome.dart' show showHwColorPicker;
@@ -247,6 +248,13 @@ class RichTextEditingController extends TextEditingController {
     required bool withComposing,
   }) {
     final t = text;
+    if (Localizations.maybeLocaleOf(context)?.languageCode == 'ja' ||
+        containsKana(t)) {
+      style = (style ?? const TextStyle()).copyWith(
+        fontFamilyFallback: japaneseFontFallback,
+        locale: const Locale('ja'),
+      );
+    }
     if (t.isEmpty) return TextSpan(style: style);
     if (charStyles.length != t.length) {
       // Defensive resync — never let the field render desynced.
