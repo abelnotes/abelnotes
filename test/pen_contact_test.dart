@@ -7,17 +7,19 @@ import 'package:abelnotes/features/canvas/presentation/pen_contact.dart';
 
 /// Raw stylus packets as an embedder sends them, through Flutter's own
 /// converter, so the test sees the `buttons` the canvas really gets.
-List<PointerEvent> _deliver(List<(ui.PointerChange, int)> packets) =>
-    PointerEventConverter.expand([
-      for (final (change, buttons) in packets)
-        ui.PointerData(
-          change: change,
-          kind: ui.PointerDeviceKind.stylus,
-          buttons: buttons,
-          physicalX: 100,
-          physicalY: 100,
-        ),
-    ], (_) => 1.0).toList();
+List<PointerEvent> _deliver(
+  List<(ui.PointerChange, int)> packets, {
+  ui.PointerDeviceKind kind = ui.PointerDeviceKind.stylus,
+}) => PointerEventConverter.expand([
+  for (final (change, buttons) in packets)
+    ui.PointerData(
+      change: change,
+      kind: kind,
+      buttons: buttons,
+      physicalX: 100,
+      physicalY: 100,
+    ),
+], (_) => 1.0).toList();
 
 void main() {
   group('Android (#18)', () {
@@ -31,8 +33,9 @@ void main() {
       (ui.PointerChange.move, kPrimaryStylusButton),
       (ui.PointerChange.up, 0),
     ]);
-    final contact =
-        events.where((e) => e is PointerDownEvent || e is PointerMoveEvent);
+    final contact = events.where(
+      (e) => e is PointerDownEvent || e is PointerMoveEvent,
+    );
 
     test('Flutter leaves the contact bit out while the button is held', () {
       expect(contact, hasLength(2));
@@ -74,6 +77,43 @@ void main() {
     test('only the packet with the contact bit touches', () {
       expect(touches, [false, false, true, false]);
     });
+  });
+
+  test('web pen eraser makes contact with button bit 5 alone', () {
+    const eraser = 0x20;
+    final events = _deliver([
+      (ui.PointerChange.add, 0),
+      (ui.PointerChange.down, eraser),
+      (ui.PointerChange.move, eraser),
+      (ui.PointerChange.up, 0),
+    ]);
+    final gesture = events.where(
+      (e) =>
+          e is PointerDownEvent || e is PointerMoveEvent || e is PointerUpEvent,
+    );
+    expect(gesture.map((e) => isPenEraser(e, web: true)), [true, true, false]);
+    expect(
+      gesture.map(
+        (e) => penTipTouches(e.buttons, downMayPrecedeContact: true, web: true),
+      ),
+      [true, true, false],
+    );
+    expect(isPenEraser(gesture.first, web: false), isFalse);
+    expect(
+      isPenEraser(
+        const PointerDownEvent(kind: PointerDeviceKind.mouse, buttons: eraser),
+        web: true,
+      ),
+      isFalse,
+    );
+  });
+
+  test('native inverted stylus still activates the eraser', () {
+    final down = _deliver(
+      [(ui.PointerChange.add, 0), (ui.PointerChange.down, 0)],
+      kind: ui.PointerDeviceKind.invertedStylus,
+    ).whereType<PointerDownEvent>().single;
+    expect(isPenEraser(down, web: false), isTrue);
   });
 
   test('plain pen contact touches everywhere', () {
