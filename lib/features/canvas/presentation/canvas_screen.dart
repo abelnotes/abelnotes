@@ -2865,7 +2865,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       return false;
     }
     return event is PointerHoverEvent ||
-        (event is PointerMoveEvent && (event.buttons & kPrimaryButton) == 0);
+        (event is PointerMoveEvent &&
+            !penTipTouches(event.buttons, downMayPrecedeContact: true));
   }
 
   void _updatePenHover(PointerEvent event, CanvasState? state) {
@@ -2875,9 +2876,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       _clearPenHover();
       return;
     }
-    final inverted = event.kind == PointerDeviceKind.invertedStylus;
-    final upper = inverted || (event.buttons & kSecondaryStylusButton) != 0;
-    final lower = !inverted && (event.buttons & kPrimaryStylusButton) != 0;
+    final upper =
+        isPenEraser(event) || (event.buttons & kSecondaryStylusButton) != 0;
+    final lower = !upper && (event.buttons & kPrimaryStylusButton) != 0;
     final tool = state?.currentTool;
     final _PenHoverHint? hint = upper
         ? _PenHoverHint.eraser
@@ -3243,12 +3244,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     //   - Apple Pencil 2: no buttons, only double-tap (ignored
     //     here; covered separately).
     //
-    // We accept BOTH paths: invertedStylus kind for the upper
-    // override, and the bit-mask test for the lower. Bitmask (not
-    // strict equality) is required because contact + barrel report
-    // the OR — `0x03` or `0x05` — never the raw barrel bit alone.
+    // Flutter Web reports the eraser end as a pen with the eraser button
+    // bit set. Both eraser-end signals use the upper-barrel override.
     //
-    //   - upper barrel (or invertedStylus kind) → eraser
+    //   - upper barrel or eraser end → eraser
     //   - lower barrel (`kPrimaryStylusButton` bit) → lasso
     //
     // Pending modal states (pendingSymbol / selectedElement /
@@ -3256,11 +3255,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // modal instead of switching tool.
     if (event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus) {
-      final invertedKind = event.kind == PointerDeviceKind.invertedStylus;
       final hasUpper =
-          invertedKind || (event.buttons & kSecondaryStylusButton) != 0;
-      final hasLower = !invertedKind &&
-          (event.buttons & kPrimaryStylusButton) != 0;
+          isPenEraser(event) || (event.buttons & kSecondaryStylusButton) != 0;
+      final hasLower = !hasUpper && (event.buttons & kPrimaryStylusButton) != 0;
       if (hasUpper || hasLower) {
         // Escape pending modal states first (any button).
         if (state.pendingSymbol != null) {
@@ -3642,7 +3639,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       if (_barrelAwaitingContact) return;
     } else if (isPen &&
         contact &&
-        (event.buttons & (kPrimaryStylusButton | kSecondaryStylusButton)) != 0) {
+        ((event.buttons & (kPrimaryStylusButton | kSecondaryStylusButton)) != 0 ||
+            (kIsWeb && isPenEraser(event)))) {
       // Barrel pressed after the tip landed: finish what the tip was doing,
       // then switch as if the barrel had been held from the start.
       _onPointerUp(PointerUpEvent(
@@ -4240,6 +4238,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
     // Restore barrel button state
     if (_barrelButtonOverride) {
+      final live = ref.read(canvasProvider);
+      if (live != null && _isEraserTool(live.currentTool)) {
+        ref.read(canvasProvider.notifier).endStroke();
+      }
       _barrelButtonOverride = false;
       _barrelAwaitingContact = false;
       _clearPenHover();
