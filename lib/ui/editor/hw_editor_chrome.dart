@@ -28,6 +28,9 @@ class HwEditorTopBar extends StatelessWidget {
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
   final VoidCallback? onPagesTap;
+  /// Null at the first / last page, which disables the arrow.
+  final VoidCallback? onPrevPage;
+  final VoidCallback? onNextPage;
   final VoidCallback? onAddPage;
   /// Import an image or PDF onto the page (export lives in More).
   final VoidCallback? onImportFileTap;
@@ -62,6 +65,8 @@ class HwEditorTopBar extends StatelessWidget {
     this.onUndo,
     this.onRedo,
     this.onPagesTap,
+    this.onPrevPage,
+    this.onNextPage,
     this.onAddPage,
     this.onImportFileTap,
     this.onMoreTap,
@@ -225,7 +230,12 @@ class HwEditorTopBar extends StatelessWidget {
                   tooltip: l10n.chromeAllPages,
                   onPressed: onPagesTap,
                 )
-              else
+              else ...[
+                HwButton.icon(
+                  icon: const HwIcon('chevron-left', size: 16),
+                  tooltip: l10n.chromePrevPage,
+                  onPressed: onPrevPage,
+                ),
                 HwButton(
                   leading: const HwIcon('pages', size: 16),
                   label: l10n.chromePageIndicator(
@@ -236,6 +246,12 @@ class HwEditorTopBar extends StatelessWidget {
                   onPressed: onPagesTap,
                   tooltip: l10n.chromeAllPages,
                 ),
+                HwButton.icon(
+                  icon: const HwIcon('chevron-right', size: 16),
+                  tooltip: l10n.chromeNextPage,
+                  onPressed: onNextPage,
+                ),
+              ],
             if (onAddPage != null)
               HwButton.icon(
                 icon: const HwIcon('plus', size: 16),
