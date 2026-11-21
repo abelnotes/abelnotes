@@ -380,6 +380,13 @@ void _drawSearchText(PdfGraphics g, String text, double x, double baseline,
   final font = japaneseFont != null && containsCjkText(text)
       ? japaneseFont
       : standardFont;
+  // Chinese text the Japanese font only partly covers would search as
+  // garbage: leave it as the image alone.
+  if (font == japaneseFont &&
+      !containsKana(text) &&
+      text.runes.any((r) => r > 0x20 && !japaneseFont!.isRuneSupported(r))) {
+    return;
+  }
   // The PDF package's ToUnicode map encodes only BMP characters correctly.
   final encoded = font == japaneseFont
       ? String.fromCharCodes(

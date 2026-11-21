@@ -125,4 +125,20 @@ void main() {
     expect(txt, contains('日本語のノート ABC 123'));
     expect(txt, contains('数式を記録する'));
   });
+
+  test('Chinese the Japanese font only partly covers gets no garbled layer',
+      () async {
+    final bytes = await buildPdfDocument([
+      const PdfExportPage(width: 300, height: 200, runs: [
+        PdfExportRun(text: '我们这个电路图', x: 20, y: 20, width: 200, height: 16),
+        PdfExportRun(text: '日本語のノート', x: 20, y: 60, width: 200, height: 16),
+      ]),
+    ]);
+    if (Process.runSync('which', ['pdftotext']).exitCode != 0) return;
+    final f = File('${Directory.systemTemp.path}/abel_export_zh_test.pdf')
+      ..writeAsBytesSync(bytes);
+    final txt = Process.runSync('pdftotext', [f.path, '-']).stdout as String;
+    expect(txt, contains('日本語のノート'));
+    expect(txt, isNot(contains('我个')));
+  });
 }
