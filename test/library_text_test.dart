@@ -31,7 +31,7 @@ void main() {
             .where((k) => !k.startsWith('@'))
             .toSet();
     final it = keys('it');
-    for (final l in ['en', 'de', 'es', 'fr', 'pt', 'zh']) {
+    for (final l in ['en', 'de', 'es', 'fr', 'pt', 'ja', 'zh']) {
       expect(keys(l), it, reason: l);
     }
   });

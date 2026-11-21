@@ -564,7 +564,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String csExportError(String error) {
-    return 'エクスポート エラー：$error';
+    return 'エクスポートエラー：$error';
   }
 
   @override
@@ -578,12 +578,12 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
       one: '$countページ',
     );
-    return 'PDF ($_temp0) を生成中…';
+    return 'PDF（$_temp0）を生成中…';
   }
 
   @override
   String csPdfExportError(String error) {
-    return 'PDF エクスポート エラー：$error';
+    return 'PDFエクスポートエラー：$error';
   }
 
   @override
@@ -660,7 +660,7 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$countページがエクスポートされます ($start ～ $end)',
+      other: '$countページがエクスポートされます ($start–$end)',
       one: '$countページがエクスポートされます ($start–$end)',
     );
     return '$_temp0';
@@ -674,7 +674,7 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
       one: '$countページ',
     );
-    return '$title ($_temp0)';
+    return '$title（$_temp0）';
   }
 
   @override
@@ -698,7 +698,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get csExportAsPdf => 'PDFとしてエクスポート';
 
   @override
-  String get csExportAsPng => 'PNG としてエクスポート';
+  String get csExportAsPng => 'PNGとしてエクスポート';
 
   @override
   String get csExportAsNcnote => '.abelnote形式でエクスポート';
@@ -716,7 +716,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String csNcnoteExportError(String error) {
-    return '.abelnote エクスポート エラー：$error';
+    return '.abelnote エクスポートエラー：$error';
   }
 
   @override
@@ -811,7 +811,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String csPdfEstimatedPages(int count) {
-    return 'PDF には約 $countページがあります。';
+    return 'PDFには約$countページがあります。';
   }
 
   @override
@@ -1678,7 +1678,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get setSyncOneBackendNote =>
-      'ノートブックは一度に 1 つの場所 (自分のサーバーまたは Google Drive) に同期されます。';
+      'ノートブックは一度に1つの場所（自分のサーバーまたはGoogle Drive）に同期されます。';
 
   @override
   String get setSyncSwitchTitle => '同期先をGoogle Driveに切り替えますか？';
@@ -1920,7 +1920,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get logPasswordRequired => 'パスワードが必要です';
 
   @override
-  String get logAppPasswordHint => '推奨：Nextcloud 設定から生成されたアプリ パスワード。';
+  String get logAppPasswordHint => '推奨：Nextcloud 設定から生成されたアプリパスワード。';
 
   @override
   String get logServerTypeNextcloud => 'Nextcloud / ownCloud';
@@ -1933,7 +1933,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get logWebdavExperimental =>
-      '汎用 WebDAV バックエンド (Synology、Seafile、rclone など) は実験的なものであり、完全にテストされているのは Nextcloud のみです。ノートブックのバックアップを保管してください。';
+      '汎用 WebDAV バックエンド（Synology、Seafile、rcloneなど）は実験的なものであり、完全にテストされているのは Nextcloud のみです。ノートブックのバックアップを保管してください。';
 
   @override
   String get logWebdavUrlHint =>
@@ -2669,7 +2669,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get nbNoLocalCopyOffline =>
-      'このノートブックのローカル コピーはなく、ダウンロードするためのサーバーに接続されていません。';
+      'このノートブックのローカルコピーはなく、ダウンロードするためのサーバーに接続されていません。';
 
   @override
   String nbOpenFailed(String error) {
@@ -2739,7 +2739,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get importSourceNotion => 'Notionのエクスポート';
 
   @override
-  String get importSourceNotionHint => '.zip ファイル (Markdown および CSV)';
+  String get importSourceNotionHint => '.zip ファイル（Markdown および CSV）';
 
   @override
   String get importPhaseScanning => '取り込むファイルを確認中…';
@@ -2784,7 +2784,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get importSourceSamsung => 'Samsung Notesファイル';
 
   @override
-  String get importSourceSamsungHint => '.sdocx メモ (Samsung Notes：ファイルとして保存)';
+  String get importSourceSamsungHint => '.sdocx メモ（Samsung Notes：ファイルとして保存）';
 
   @override
   String get libImportInviteTitle => 'ほかのアプリにノートがありますか？';
@@ -2866,7 +2866,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String qlDuplicateTitle(String title) {
-    return '$title (コピー)';
+    return '$title（コピー）';
   }
 
   @override
@@ -2919,7 +2919,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String qiIssueAttachmentUnsupported(String arg) {
-    return 'サポートされていない添付ファイル (画像のみ)：$arg';
+    return 'サポートされていない添付ファイル（画像のみ）：$arg';
   }
 
   @override
@@ -2929,7 +2929,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String qiIssueEmbedUnsupported(String arg) {
-    return '埋め込みファイルはインポートされていません (画像とメモのみ)：$arg';
+    return '埋め込みファイルはインポートされていません（画像とメモのみ）：$arg';
   }
 
   @override
@@ -2939,7 +2939,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String qiIssueNoteEmbedSkipped(String arg) {
-    return '埋め込まれたメモが展開されていません (循環またはネストが深すぎる)：$arg';
+    return '埋め込まれたメモが展開されていません（循環またはネストが深すぎる）：$arg';
   }
 
   @override
@@ -2963,7 +2963,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String qiIssueZipTotalTooLarge(int count) {
-    return 'アーカイブ コンテンツが $count MB を超えているため、残りのファイルはスキップされました';
+    return 'アーカイブコンテンツが $count MB を超えているため、残りのファイルはスキップされました';
   }
 
   @override
@@ -2971,8 +2971,8 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '隠しフォルダ内の $count メモがスキップされました',
-      one: '隠しフォルダ内の 1 つのメモがスキップされました',
+      other: '隠しフォルダ内の$count件のメモがスキップされました',
+      one: '隠しフォルダ内の1件のメモがスキップされました',
     );
     return '$_temp0';
   }
@@ -3062,7 +3062,7 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'PDF には $countページがあります。',
+      other: 'PDFには$countページがあります。',
       one: 'PDFは1ページあります。',
     );
     return '$_temp0';
@@ -3264,12 +3264,12 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
       one: '1ページ',
     );
-    return '$_temp0 を貼り付け';
+    return '$_temp0を貼り付け';
   }
 
   @override
   String pgtPasteCountShort(int count) {
-    return '$count を貼り付け';
+    return '$countを貼り付け';
   }
 
   @override
@@ -3313,7 +3313,7 @@ class AppLocalizationsJa extends AppLocalizations {
       count,
       locale: localeName,
       other: '$countページ · 移動中',
-      one: '1ページ・移動中',
+      one: '1ページ · 移動中',
     );
     return '$_temp0';
   }
@@ -3440,7 +3440,7 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
       one: '1ページ',
     );
-    return '$_temp0 を移動するノートブックを選択してください。カバーをタップするか、その…メニューを使用します。';
+    return '$_temp0を移動するノートブックを選択してください。カバーをタップするか、その…メニューを使用します。';
   }
 
   @override
@@ -3451,7 +3451,7 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
       one: '1ページ',
     );
-    return '$_temp0 を貼り付けるノートブックを選択してください。カバーをタップするか、その…メニューを使用します。';
+    return '$_temp0を貼り付けるノートブックを選択してください。カバーをタップするか、その…メニューを使用します。';
   }
 
   @override
@@ -3541,8 +3541,8 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '移動がキャンセルされました。 $countページは $notebook に残ります。',
-      one: '移動がキャンセルされました。 $notebook に 1ページが残ります。',
+      other: '移動がキャンセルされました。$countページは$notebookに残ります。',
+      one: '移動がキャンセルされました。$notebookに1ページが残ります。',
     );
     return '$_temp0';
   }
@@ -3590,7 +3590,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get pgtToastNothing =>
-      'これらのページはまだ準備ができていません (まだ読み込み中です)。しばらくしてからもう一度試してください。';
+      'これらのページはまだ準備ができていません（まだ読み込み中です）。しばらくしてからもう一度試してください。';
 
   @override
   String get pgtToastTrayNotSaved => 'この端末にトレイを保存できませんでした。アプリを閉じると失われます。';
@@ -3617,8 +3617,8 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '中断された移動によって残された $countページの移動が完了しました。',
-      one: '中断した移動で残った 1ページの移動が完了しました。',
+      other: '中断された移動によって残された$countページの移動が完了しました。',
+      one: '中断した移動で残った1ページの移動が完了しました。',
     );
     return '$_temp0';
   }
@@ -3869,8 +3869,8 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count サンプルを送信しました',
-      one: '1 サンプルを送信しました',
+      other: '$countサンプルを送信しました',
+      one: '1サンプルを送信しました',
     );
     return '$_temp0';
   }
@@ -3920,7 +3920,7 @@ class AppLocalizationsJa extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count サンプル',
+      other: '$countサンプル',
       one: '1サンプル',
     );
     return '$_temp0';
@@ -3967,7 +3967,7 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get donConsentController =>
-      'このデータの責任者、データの保管期間、およびあなたの権利：プライバシー ポリシーをご覧ください。';
+      'このデータの責任者、データの保管期間、およびあなたの権利：プライバシーポリシーをご覧ください。';
 
   @override
   String get donConsentTrain => 'AbelNotesが、これらのサンプルを認識モデルの学習に使用することに同意します。';
