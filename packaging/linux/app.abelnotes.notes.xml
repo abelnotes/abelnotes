@@ -9,6 +9,7 @@
     <comment xml:lang="fr">Carnet AbelNotes</comment>
     <comment xml:lang="es">Cuaderno de AbelNotes</comment>
     <comment xml:lang="pt">Caderno do AbelNotes</comment>
+    <comment xml:lang="ja">AbelNotes ノートブック</comment>
     <comment xml:lang="zh">AbelNotes 笔记本</comment>
     <sub-class-of type="application/zip"/>
     <icon name="app.abelnotes.notes"/>
