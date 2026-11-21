@@ -2841,6 +2841,17 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     if (mounted) setState(() {});
   }
 
+  Locale? _locale;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Typed text follows the app locale (Japanese forms): redraw on a switch.
+    final locale = Localizations.localeOf(context);
+    if (_locale != null && locale != _locale) CanvasRenderEngine.fontsChanged();
+    _locale = locale;
+  }
+
   bool get _isMobilePlatform => kIsWeb
       ? isWebTouchDevice
       : (defaultTargetPlatform == TargetPlatform.iOS ||
