@@ -8,6 +8,7 @@
 //  run-length-encoded into TextSpanData runs for the .ncnote model.
 // ═══════════════════════════════════════════════════════════════
 
+import 'dart:async';
 import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
@@ -250,6 +251,7 @@ class RichTextEditingController extends TextEditingController {
     final t = text;
     if (Localizations.maybeLocaleOf(context)?.languageCode == 'ja' ||
         containsKana(t)) {
+      unawaited(ensureJapaneseFont());
       style = (style ?? const TextStyle()).copyWith(
         fontFamilyFallback: japaneseFontFallback,
         locale: const Locale('ja'),

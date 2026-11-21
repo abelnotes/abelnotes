@@ -8938,6 +8938,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       String chapterTitle, double pageWidth, double pageHeight, double scale) async {
     try {
       final japanese = Localizations.localeOf(context).languageCode == 'ja';
+      final eyebrowText = AppLocalizations.of(context).csChapterSeparatorEyebrow;
+      if (japanese || containsKana(chapterTitle)) await ensureJapaneseFont();
       final renderW = (pageWidth * scale).round();
       final renderH = (pageHeight * scale).round();
       final recorder = ui.PictureRecorder();
@@ -8956,7 +8958,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
       // "CAPITOLO" eyebrow
       final eyebrow = TextPainter(
         text: TextSpan(
-          text: AppLocalizations.of(context).csChapterSeparatorEyebrow,
+          text: eyebrowText,
           style: TextStyle(
             color: const Color(0xFF6B6358),
             fontSize: 18 * scale,

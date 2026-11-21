@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -87,6 +88,7 @@ ui.Paragraph buildTextParagraph(TextData textData, {double? width}) {
   final japanese = preferJapaneseTypography ||
       containsKana(textData.content) ||
       textData.spans.any((span) => containsKana(span.text));
+  if (japanese) unawaited(ensureJapaneseFont());
   final paragraphStyle = ui.ParagraphStyle(
     locale: japanese ? const Locale('ja') : null,
     textAlign: textData.alignment == 'center'

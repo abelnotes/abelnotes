@@ -26,7 +26,21 @@ License (`assets/fonts/InstrumentSans-OFL.txt`, registered in
 every Linux distro instead of falling back to whatever the system has.
 
 Noto Sans JP is bundled under OFL-1.1 for Japanese labels, notes and PDF
-text. It is available during offline use.
+text, so kanji take their Japanese forms and PDFs stay searchable. It is
+5.8 MB, so it is an asset but not a font family in `pubspec.yaml`: the web
+engine downloads every declared family before the first frame, which cost
+every web user 5.6 MB at startup. `ensureJapaneseFont()`
+(`lib/core/config/japanese_font.dart`) registers it with `FontLoader` the
+first time it is needed: a Japanese UI, text with kana, a Japanese chapter
+cover. Text laid out before it arrives repaints on the system-fonts notice;
+if it can't be read, text keeps the system fonts. On the web it is fetched
+from the app's own origin on first need, kept out of the service worker's
+precache and cached by the worker on that first fetch, keyed by its hash, so
+it works offline afterwards and survives app updates.
+
+PDF export reads the same bytes for its search layer. Chinese text the font
+only partly covers gets no search layer rather than one with missing
+characters.
 
 Roboto Regular (Apache-2.0, `assets/fonts/Roboto-LICENSE.txt`) is bundled
 only because the web engine uses it as the global fallback and would

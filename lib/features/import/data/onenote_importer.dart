@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/features/canvas/data/text_paragraph_factory.dart';
 import 'package:abelnotes/features/import/data/import_models.dart';
 import 'package:abelnotes/features/import/data/onenote_ffi.dart'
@@ -115,6 +116,8 @@ class OneNoteImporter {
     String Function(int n)? sectionLabel,
     String? pageLabel,
   }) async {
+    // Measure Japanese text with the font it will be painted with.
+    if (preferJapaneseTypography || _hasKana(tree)) await ensureJapaneseFont();
     final issues = <ImportIssue>[];
     final assets = <String, Uint8List>{};
     final assetKeyByHash = <String, String>{};
@@ -557,3 +560,10 @@ class OneNoteImporter {
   double _d(Object? value, {double fallback = 0}) =>
       (value as num?)?.toDouble() ?? fallback;
 }
+
+bool _hasKana(Object? node) => switch (node) {
+      String s => containsKana(s),
+      Map m => m.values.any(_hasKana),
+      List l => l.any(_hasKana),
+      _ => false,
+    };

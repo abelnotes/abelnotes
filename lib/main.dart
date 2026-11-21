@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/core/platform/io.dart';
 
 import 'package:flutter/foundation.dart';
@@ -170,6 +171,7 @@ class AbelNotesApp extends ConsumerWidget {
       builder: (context, child) {
         final japanese = Localizations.localeOf(context).languageCode == 'ja';
         CanvasRenderEngine.japaneseTypography = japanese;
+        if (japanese) unawaited(ensureJapaneseFont());
         // Re-inject the scope inside Navigator routes so dialogs & pushed
         // pages can also read the palette.
         final content = HwThemeScope(

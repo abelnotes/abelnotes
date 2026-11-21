@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
@@ -319,12 +318,16 @@ PdfImage _embed(PdfDocument doc, Uint8List bytes, {bool? opaque}) {
   return PdfImage.fromImage(doc, image: rgb);
 }
 
-/// Load the embedded font before handing the PDF writer to a background isolate.
+/// Builds the PDF: every page keeps its own size, its raster (a re-encoded
+/// JPEG for scan-like pages), and an invisible text layer so the exported
+/// file stays searchable and selectable. The Japanese font is read here, on
+/// the root isolate, and only when CJK text needs it; without it CJK text
+/// just gets no search layer.
 Future<Uint8List> buildPdfDocument(List<PdfExportPage> pages) async {
   final needsJapaneseFont = pages.any((page) =>
       page.runs.any((run) => containsCjkText(run.text)) ||
       (page.vector?.any((op) => op is PdfVecSearchText) ?? false));
-  final font = needsJapaneseFont ? await rootBundle.load(japaneseFontAsset) : null;
+  final font = needsJapaneseFont ? await loadJapaneseFontBytes() : null;
   return compute(_writePdfDocument, (pages: pages, japaneseFont: font));
 }
 
