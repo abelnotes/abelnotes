@@ -53,6 +53,10 @@ import 'package:abelnotes/ui/theme/hw_icons.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
 import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
+import 'package:abelnotes/ui/screens/library_search_results.dart';
+import 'package:abelnotes/core/services/search_service.dart';
+import 'package:abelnotes/features/search/search_indexer.dart';
+import 'package:abelnotes/features/search/notebook_find_bar.dart' show pendingFindProvider;
 import 'package:abelnotes/ui/primitives/file_drop_zone.dart';
 import 'package:abelnotes/ui/primitives/hw_button.dart';
 import 'package:abelnotes/ui/primitives/hw_glass.dart';
@@ -74,6 +78,12 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   final _searchCtrl = TextEditingController();
   final _scroll = ScrollController();
   String _query = '';
+
+  /// Matches inside notebooks for [_query], from the search index.
+  List<SearchHit> _hits = const [];
+  Timer? _searchTimer;
+  int _searchSeq = 0;
+  late final SearchIndexer _indexer;
   Timer? _bgSyncTimer;
   String? _selectedFolderId;
 
@@ -87,6 +97,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _indexer = ref.read(searchIndexerProvider)..start();
+    _indexer.revision.addListener(_runSearch);
+    _indexer.status.addListener(_onIndexStatus);
     // fireImmediately: a file that launched the app is already waiting.
     ref.listenManual<SharedImport?>(shareReceiverProvider, (_, next) {
       if (next != null && next.files.isNotEmpty) _importSharedFiles(next);
@@ -229,6 +242,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     WidgetsBinding.instance.removeObserver(this);
     _bgSyncTimer?.cancel();
     _bgSyncTimer = null;
+    _searchTimer?.cancel();
+    _indexer.revision.removeListener(_runSearch);
+    _indexer.status.removeListener(_onIndexStatus);
     _searchCtrl.dispose();
     _scroll.dispose();
     super.dispose();
@@ -262,6 +278,15 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     final entries = asyncList.valueOrNull ?? const <NotebookEntry>[];
     final filtered =
         _filterAndSort(entries, settings, _query, _selectedFolderId);
+    // Matches inside notebooks, within the folder being viewed.
+    final searchHits = _query.trim().length < 2
+        ? const <SearchHit>[]
+        : [
+            for (final h in _hits)
+              if (_selectedFolderId == null ||
+                  settings.notebookFolderId[h.notebookId] == _selectedFolderId)
+                h
+          ];
     // Free-sketch notebooks (infinite canvas) live in their own home
     // section; keep them out of the A4 "taccuini" grid.
     final sketches = filtered
@@ -292,7 +317,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               child: _LargeTitle(
                 title: folderName,
                 // Same total as the sidebar: sketches count too.
-                subtitle: l10n.libItemsCount(filtered.length),
+                subtitle: searchHits.isEmpty
+                    ? l10n.libItemsCount(filtered.length)
+                    : '${l10n.libItemsCount(filtered.length)} · '
+                        '${l10n.srchHitsCount(searchHits.length)}',
                 scroll: _scroll,
                 hPad: wide ? 32 : 16,
               ),
@@ -334,6 +362,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
               sketches: sketches,
               gridView: settings.libraryGridView,
               searchQuery: _query.trim(),
+              hits: searchHits,
+              indexing: _indexer.status.value.busy,
+              allNotebooks: {for (final n in entries) n.metadata.id: n},
+              onOpenHit: _openHit,
               favoriteIds: settings.favoriteNotebookIds,
               onOpen: _openNotebook,
               onCreate: _createNotebook,
@@ -386,7 +418,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                     title: folderName,
                     wide: wide,
                     searchController: _searchCtrl,
-                    onSearchChanged: (v) => setState(() => _query = v),
+                    onSearchChanged: _onSearchChanged,
                     gridView: settings.libraryGridView,
                     onViewToggle: ref
                         .read(appSettingsProvider.notifier)
@@ -425,6 +457,48 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       ),
       ),
     );
+  }
+
+  void _onSearchChanged(String v) {
+    setState(() => _query = v);
+    _searchTimer?.cancel();
+    _searchTimer = Timer(const Duration(milliseconds: 200), _runSearch);
+  }
+
+  void _onIndexStatus() {
+    if (mounted && _query.trim().length >= 2) setState(() {});
+  }
+
+  Future<void> _runSearch() async {
+    final q = _query.trim();
+    final seq = ++_searchSeq;
+    if (q.length < 2) {
+      if (_hits.isNotEmpty && mounted) setState(() => _hits = const []);
+      return;
+    }
+    try {
+      final hits = await ref
+          .read(searchServiceProvider)
+          .search(q, limit: 200, titles: false);
+      if (mounted && seq == _searchSeq) setState(() => _hits = hits);
+    } catch (e) {
+      debugPrint('[Library] search failed: $e');
+    }
+  }
+
+  Future<void> _openHit(SearchHit h) async {
+    final entry = (ref.read(notebookListProvider).valueOrNull ?? const [])
+        .where((n) => n.metadata.id == h.notebookId)
+        .firstOrNull;
+    if (entry == null) return;
+    final inPage = h.kind == SearchHitKind.text ||
+        h.kind == SearchHitKind.math ||
+        h.kind == SearchHitKind.pdf ||
+        h.kind == SearchHitKind.ink;
+    ref.read(pendingFindProvider.notifier).state =
+        inPage ? (notebookId: h.notebookId, query: _query.trim()) : null;
+    await _openNotebook(entry,
+        startAt: (pageIndex: h.pageIndex, chapterId: h.chapterId));
   }
 
   Future<void> _createFolder() async {
@@ -515,10 +589,12 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
     return c != 0 ? c : a.compareTo(b);
   }
 
-  Future<void> _openNotebook(NotebookEntry entry, {Rect? origin}) async {
+  Future<void> _openNotebook(NotebookEntry entry,
+      {Rect? origin, ({int pageIndex, String? chapterId})? startAt}) async {
     ref.read(appSettingsProvider.notifier).markOpened(entry.metadata.id);
     try {
-      await openNotebookAndNavigate(context, ref, entry, origin: origin);
+      await openNotebookAndNavigate(context, ref, entry,
+          origin: origin, startAt: startAt);
       if (!mounted) return;
       // The 5-minute tick skips while a notebook is open, so a session spent
       // in the editor would otherwise never retry pending uploads.
@@ -2694,6 +2770,10 @@ class _Body extends StatelessWidget {
   final List<NotebookEntry> sketches;
   final bool gridView;
   final String searchQuery;
+  final List<SearchHit> hits;
+  final bool indexing;
+  final Map<String, NotebookEntry> allNotebooks;
+  final ValueChanged<SearchHit> onOpenHit;
   final Set<String> favoriteIds;
   final void Function(NotebookEntry entry, {Rect? origin}) onOpen;
   final VoidCallback onCreate;
@@ -2713,6 +2793,10 @@ class _Body extends StatelessWidget {
     required this.sketches,
     required this.gridView,
     required this.searchQuery,
+    required this.hits,
+    required this.indexing,
+    required this.allNotebooks,
+    required this.onOpenHit,
     required this.favoriteIds,
     required this.onOpen,
     required this.onCreate,
@@ -2732,6 +2816,14 @@ class _Body extends StatelessWidget {
             _scrollView(context, box.maxWidth - 2 * hPad));
   }
 
+  /// A search that matches no notebook title: only the matches inside notes
+  /// are worth showing, not an empty shelf.
+  bool get notebooksHidden =>
+      searchQuery.length >= 2 &&
+      entries.isEmpty &&
+      sketches.isEmpty &&
+      (hits.isNotEmpty || indexing);
+
   Widget _scrollView(BuildContext context, double gridWidth) {
     final p = HwThemeScope.of(context);
     return CustomScrollView(
@@ -2750,42 +2842,50 @@ class _Body extends StatelessWidget {
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                // Both groups yield on a narrow phone: the heading and its
-                // count together are wider than a 412dp row once text scales.
-                Flexible(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Flexible(
-                        child: Text(
-                            AppLocalizations.of(context).libYourNotebooks,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: HwType.title
-                                .copyWith(color: p.ink0, fontSize: 17)),
-                      ),
-                    ],
+        if (!notebooksHidden)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 18),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  // Both groups yield on a narrow phone: the heading and its
+                  // count together are wider than a 412dp row once text scales.
+                  Flexible(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Flexible(
+                          child: Text(
+                              AppLocalizations.of(context).libYourNotebooks,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: HwType.title
+                                  .copyWith(color: p.ink0, fontSize: 17)),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        if (searchQuery.isNotEmpty && entries.isEmpty && sketches.isEmpty)
+        if (searchQuery.isNotEmpty &&
+            entries.isEmpty &&
+            sketches.isEmpty &&
+            hits.isEmpty &&
+            !indexing)
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
               child: Text(
-                  AppLocalizations.of(context).qlSearchNoResults(searchQuery),
+                  searchQuery.length >= 2
+                      ? AppLocalizations.of(context).srchNoMatch(searchQuery)
+                      : AppLocalizations.of(context)
+                          .qlSearchNoResults(searchQuery),
                   style: TextStyle(fontSize: 14, color: p.ink2)),
             ),
           ),
@@ -2801,7 +2901,9 @@ class _Body extends StatelessWidget {
               ),
             ),
           ),
-        if (gridView)
+        if (notebooksHidden)
+          const SliverToBoxAdapter(child: SizedBox.shrink())
+        else if (gridView)
           SliverPadding(
             padding: EdgeInsets.symmetric(horizontal: hPad),
             sliver: _grid(context, gridWidth),
@@ -2817,6 +2919,17 @@ class _Body extends StatelessWidget {
                 onTap: () => onOpen(entries[i]),
                 onLongPress: () => onLongPress(entries[i]),
               ),
+            ),
+          ),
+        if (searchQuery.length >= 2 && (hits.isNotEmpty || indexing))
+          SliverToBoxAdapter(
+            child: LibrarySearchResults(
+              hits: hits,
+              indexing: indexing,
+              hPad: hPad - 8,
+              topGap: notebooksHidden ? 4 : 28,
+              notebooks: allNotebooks,
+              onOpen: onOpenHit,
             ),
           ),
         SliverToBoxAdapter(child: SizedBox(height: movingCount > 0 ? 190 : 80)),

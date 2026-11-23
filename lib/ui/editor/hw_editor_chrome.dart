@@ -32,6 +32,8 @@ class HwEditorTopBar extends StatelessWidget {
   /// Import an image or PDF onto the page (export lives in More).
   final VoidCallback? onImportFileTap;
   final VoidCallback? onMoreTap;
+  /// Find in notebook; on compact widths it lives in More instead.
+  final VoidCallback? onFindTap;
   /// Mouse mode: true = mouse draws like a pen; false = mouse selects.
   /// Desktop/web only — mutually exclusive with [onToggleTouchDraws] below.
   final bool mouseDraws;
@@ -65,6 +67,7 @@ class HwEditorTopBar extends StatelessWidget {
     this.onAddPage,
     this.onImportFileTap,
     this.onMoreTap,
+    this.onFindTap,
     this.showPages = true,
     this.mouseDraws = false,
     this.onToggleMouseMode,
@@ -248,6 +251,11 @@ class HwEditorTopBar extends StatelessWidget {
               const SizedBox(width: 4),
               const HwDivider(),
               const SizedBox(width: 4),
+              if (onFindTap != null)
+                HwButton.icon(
+                    icon: const HwIcon('search', size: 16),
+                    tooltip: l10n.findInNotebook,
+                    onPressed: onFindTap),
               HwButton.icon(
                   icon: const HwIcon('image', size: 16),
                   tooltip: l10n.csImportFile,
@@ -1274,6 +1282,9 @@ class HwBottomPageStrip extends StatefulWidget {
   /// reclaiming its height for the canvas. Null hides the affordance.
   final VoidCallback? onCollapse;
 
+  /// 1-based pages holding find matches: they show a marker swipe.
+  final Set<int> markedPages;
+
   const HwBottomPageStrip({
     super.key,
     this.chapterLabel,
@@ -1286,6 +1297,7 @@ class HwBottomPageStrip extends StatefulWidget {
     this.onPageSecondary,
     required this.onAllPagesTap,
     this.onCollapse,
+    this.markedPages = const {},
   });
 
   @override
@@ -1415,6 +1427,7 @@ class _HwBottomPageStripState extends State<HwBottomPageStrip> {
                         number: displayLabel,
                         selected: selected,
                         previous: isPrevious,
+                        marked: widget.markedPages.contains(n),
                         globalPageNumber: n,
                         onTap: () => widget.onPageTap(n),
                         onSecondary: widget.onPageSecondary == null
@@ -1562,6 +1575,8 @@ class _PageThumb extends StatelessWidget {
   /// Highlights the page the user was on right before the current one,
   /// so they can flip back with a single tap.
   final bool previous;
+  /// Holds a find match.
+  final bool marked;
   final VoidCallback onTap;
   /// Right-click / long-press → contextual menu. Receives the global
   /// pointer position so the caller can anchor the menu correctly.
@@ -1571,6 +1586,7 @@ class _PageThumb extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.previous = false,
+    this.marked = false,
     this.globalPageNumber,
     this.onSecondary,
   });
@@ -1632,6 +1648,9 @@ class _PageThumb extends StatelessWidget {
                       child: CustomPaint(
                         painter: _MiniPagePainter(
                           lineColor: p.ink3.withValues(alpha: 0.5),
+                          marker: marked
+                              ? p.accent.withValues(alpha: 0.55)
+                              : null,
                         ),
                       ),
                     ),
@@ -1686,7 +1705,9 @@ class _PageThumb extends StatelessWidget {
 
 class _MiniPagePainter extends CustomPainter {
   final Color lineColor;
-  _MiniPagePainter({required this.lineColor});
+  /// Marker swipe across the second line (a page with find matches).
+  final Color? marker;
+  _MiniPagePainter({required this.lineColor, this.marker});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1701,10 +1722,22 @@ class _MiniPagePainter extends CustomPainter {
       final y = ySpacing * (i + 1);
       canvas.drawLine(Offset(0, y), Offset(lengths[i], y), paint);
     }
+    final m = marker;
+    if (m != null) {
+      final y = ySpacing * 2;
+      canvas.drawLine(
+          Offset(size.width * 0.1, y),
+          Offset(size.width * 0.7, y),
+          Paint()
+            ..color = m
+            ..strokeWidth = ySpacing * 0.8
+            ..strokeCap = StrokeCap.round);
+    }
   }
 
   @override
-  bool shouldRepaint(_MiniPagePainter old) => old.lineColor != lineColor;
+  bool shouldRepaint(_MiniPagePainter old) =>
+      old.lineColor != lineColor || old.marker != marker;
 }
 
 // ═══════════════════════════════════════════════════════════════

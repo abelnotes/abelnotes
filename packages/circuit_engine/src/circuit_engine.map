@@ -1,4 +1,4 @@
 {
-  global: ce_*;
+  global: ce_*; abnn_*;
   local: *;
 };

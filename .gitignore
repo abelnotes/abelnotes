@@ -92,3 +92,5 @@ assets/models/*
 !assets/models/.gitkeep
 !assets/models/circuit_detector.ablm
 !assets/models/math_ink.ablm
+!assets/models/handwriting_text.abnn
+!assets/models/handwriting_text.json

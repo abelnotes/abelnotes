@@ -3,7 +3,7 @@ import 'package:abelnotes/core/platform/io.dart' show File, Platform, RandomAcce
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart' show VoidCallback, kIsWeb;
+import 'package:flutter/foundation.dart' show VoidCallback, kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 
@@ -175,8 +175,12 @@ class LinuxPenPressure {
 
   /// [onProximityOut] fires when the pen leaves the tablet's range (Wayland
   /// only): Flutter gets no pointer-removed for it.
+  /// Off in widget tests: they run on a Linux host with no GTK pen bridge.
+  @visibleForTesting
+  static bool debugEnabled = true;
+
   static void register({VoidCallback? onProximityOut}) {
-    if (kIsWeb || !Platform.isLinux || _registered) return;
+    if (kIsWeb || !Platform.isLinux || _registered || !debugEnabled) return;
     _onProximityOut = onProximityOut;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'penProximityOut') {

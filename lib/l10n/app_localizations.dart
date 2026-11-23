@@ -6487,6 +6487,90 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Contribuisci · AbelNotes'**
   String get donGuidedTabTitle;
+
+  /// No description provided for @srchSection.
+  ///
+  /// In it, this message translates to:
+  /// **'Nelle tue note'**
+  String get srchSection;
+
+  /// No description provided for @srchHitsCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{count, plural, one{{count} risultato nelle note} other{{count} risultati nelle note}}'**
+  String srchHitsCount(int count);
+
+  /// No description provided for @srchPageN.
+  ///
+  /// In it, this message translates to:
+  /// **'Pagina {page}'**
+  String srchPageN(int page);
+
+  /// No description provided for @srchShowMore.
+  ///
+  /// In it, this message translates to:
+  /// **'Mostra altri {count}'**
+  String srchShowMore(int count);
+
+  /// No description provided for @srchIndexing.
+  ///
+  /// In it, this message translates to:
+  /// **'Indicizzazione delle note…'**
+  String get srchIndexing;
+
+  /// No description provided for @srchNoMatch.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna nota contiene “{query}”.'**
+  String srchNoMatch(String query);
+
+  /// No description provided for @findHint.
+  ///
+  /// In it, this message translates to:
+  /// **'Trova nel taccuino…'**
+  String get findHint;
+
+  /// No description provided for @findInNotebook.
+  ///
+  /// In it, this message translates to:
+  /// **'Trova nel taccuino'**
+  String get findInNotebook;
+
+  /// No description provided for @findInNotebookSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Testo, formule e PDF'**
+  String get findInNotebookSub;
+
+  /// No description provided for @findCount.
+  ///
+  /// In it, this message translates to:
+  /// **'{current} di {total}'**
+  String findCount(int current, int total);
+
+  /// No description provided for @findNone.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessun risultato'**
+  String get findNone;
+
+  /// No description provided for @findPrevious.
+  ///
+  /// In it, this message translates to:
+  /// **'Risultato precedente (Maiusc+Invio)'**
+  String get findPrevious;
+
+  /// No description provided for @findNext.
+  ///
+  /// In it, this message translates to:
+  /// **'Risultato successivo (Invio)'**
+  String get findNext;
+
+  /// No description provided for @findClose.
+  ///
+  /// In it, this message translates to:
+  /// **'Chiudi (Esc)'**
+  String get findClose;
 }
 
 class _AppLocalizationsDelegate

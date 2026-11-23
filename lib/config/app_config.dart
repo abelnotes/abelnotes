@@ -138,7 +138,8 @@ class AppConfig {
   static const String dbName = 'abelnotes.db';
   /// 2: notebooks.local_only — per-notebook opt-out from syncing.
   /// 3: notebooks.download_skipped — per-device opt-out from downloading.
-  static const int dbVersion = 4;
+  /// 5: page_text — full-text search index, rebuilt from the stores.
+  static const int dbVersion = 6;
 
   // ── Local storage directory ──
   /// Root folder name under the app documents dir.

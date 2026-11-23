@@ -85,20 +85,38 @@ final _openGate = OpenGate();
 /// canvasProvider, then pushes the editor screen. Mirrors the legacy
 /// flow so the new UI inherits all the corruption-recovery logic.
 /// With [origin] (the tapped cover, global coords) the editor grows out of
-/// it and closes back into it.
+/// it and closes back into it. [startAt] opens on that page instead of the
+/// one last left open (a search hit): the same saved position every open path
+/// restores from.
 Future<void> openNotebookAndNavigate(
   BuildContext context,
   WidgetRef ref,
   NotebookEntry entry, {
   Rect? origin,
+  ({int pageIndex, String? chapterId})? startAt,
 }) async {
   final token = _openGate.begin();
   if (token == null) return;
   try {
+    if (startAt != null) await _saveStartPosition(entry.metadata.id, startAt);
+    if (!context.mounted) return;
     await _openNotebookAndNavigate(context, ref, entry, origin, token);
   } finally {
     _openGate.end(token);
   }
+}
+
+Future<void> _saveStartPosition(
+    String id, ({int pageIndex, String? chapterId}) at) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_page_$id', at.pageIndex);
+    if (at.chapterId != null) {
+      await prefs.setString('last_chapter_$id', at.chapterId!);
+    } else {
+      await prefs.remove('last_chapter_$id');
+    }
+  } catch (_) {}
 }
 
 Route<Object?> _editorRoute(Rect? origin, NotebookEntry entry) => origin == null

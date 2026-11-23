@@ -1,0 +1,9 @@
+Handwriting search reads handwritten lines with a text recognition model
+bundled in the app (assets/models/handwriting_text.abnn). It runs entirely on
+your device: nothing is sent to any server or third party.
+
+The model is PP-OCRv6 text recognition (small) by the PaddlePaddle authors
+(https://github.com/PaddlePaddle/PaddleOCR), licensed under the Apache
+License 2.0: https://www.apache.org/licenses/LICENSE-2.0. It was modified
+(retrained, output layer reduced to the Latin characters the app searches) and
+is run by the app's own engine (packages/circuit_engine/src/abnn.c).

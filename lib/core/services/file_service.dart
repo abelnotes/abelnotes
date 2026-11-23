@@ -13,6 +13,23 @@ import 'package:abelnotes/core/platform/store_snapshot.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/features/search/search_index.dart' show SearchIndex;
+
+/// A committed write to a notebook's store, for listeners such as the search
+/// indexer. [all] = the whole store may have changed; [removed] = the
+/// notebook is gone from the library (delete or trash).
+class StoreWrite {
+  final String notebookId;
+  final Set<String> changed;
+  final Set<String> deleted;
+  final bool all;
+  final bool removed;
+  const StoreWrite(this.notebookId,
+      {this.changed = const {},
+      this.deleted = const {},
+      this.all = false,
+      this.removed = false});
+}
 
 /// Manages local notebook files and the sync-metadata database.
 ///
@@ -39,6 +56,18 @@ class FileService {
   late final String _snapshotsDir;
   late final String _trashDir;
   late final Database _db;
+
+  /// The sync-metadata database, for the search index table.
+  Database get database => _db;
+
+  final _writes = StreamController<StoreWrite>.broadcast();
+
+  /// Emits after each write to a notebook's store has committed.
+  Stream<StoreWrite> get writes => _writes.stream;
+
+  void _emit(StoreWrite w) {
+    if (!_writes.isClosed) _writes.add(w);
+  }
 
   bool _initialized = false;
   bool get isInitialized => _initialized;
@@ -133,6 +162,7 @@ class FileService {
         FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
       )
     ''');
+    await SearchIndex.createTable(db);
   }
 
   Future<void> _upgradeTables(Database db, int oldVersion, int newVersion) async {
@@ -155,6 +185,15 @@ class FileService {
     if (oldVersion < 4) {
       // Null reads as the default style; rows fill in on their next sync.
       await _addColumnIfMissing(db, 'cover_style', 'TEXT');
+    }
+    if (oldVersion < 5) {
+      // Rebuilt from the stores by the search indexer, so nothing to carry.
+      await SearchIndex.createTable(db);
+    }
+    if (oldVersion < 6) {
+      // Handwriting column: the table is rebuilt from the stores anyway.
+      await db.execute('DROP TABLE IF EXISTS page_text');
+      await SearchIndex.createTable(db);
     }
   }
 
@@ -307,6 +346,7 @@ class FileService {
           // A stale store would shadow the file just written.
           await deleteLooseStore(notebookId);
         }
+        _emit(StoreWrite(notebookId, all: true));
       });
 
   Future<void> _writeNotebookAtomic(String notebookId, Uint8List data) async {
@@ -578,6 +618,10 @@ class FileService {
       } else if (symbolsJson != null) {
         await _writeStoreFileAtomic(p.join(dir, 'symbols.json'), symbolsJson);
       }
+      _emit(StoreWrite(notebookId,
+          changed: changedPages.keys.toSet(),
+          deleted: deletedPages.toSet(),
+          all: documentJson != null || metadataJson != null));
     } finally {
       completer.complete();
       if (identical(_saveLocks[notebookId], completer.future)) {
@@ -663,6 +707,7 @@ class FileService {
         try { await prev; } catch (_) {}
       }
       await _explodeZipUnlocked(notebookId, zipBytes);
+      _emit(StoreWrite(notebookId, all: true));
     } finally {
       completer.complete();
       if (identical(_saveLocks[notebookId], completer.future)) {
@@ -749,6 +794,7 @@ class FileService {
           .cast<String, dynamic>();
       final next = patch(meta);
       await _writeStoreFileAtomic(f.path, utf8.encode(jsonEncode(next)));
+      _emit(StoreWrite(notebookId, all: true));
       return next;
     });
   }
@@ -1228,6 +1274,7 @@ class FileService {
       final dir = Directory(p.join(_snapshotsDir, notebookId));
       if (await dir.exists()) await dir.delete(recursive: true);
     } catch (_) {}
+    _emit(StoreWrite(notebookId, removed: true));
   }
 
   // ── Trash (soft-delete with restore) ──
@@ -1259,6 +1306,7 @@ class FileService {
         await deleteLooseStore(notebookId);
         await _db.delete('notebooks', where: 'id = ?', whereArgs: [notebookId]);
         await _db.delete('dirty_pages', where: 'notebook_id = ?', whereArgs: [notebookId]);
+        _emit(StoreWrite(notebookId, removed: true));
         return null;
       }
 
@@ -1288,6 +1336,7 @@ class FileService {
       // Purge DB so library stops showing it.
       await _db.delete('notebooks', where: 'id = ?', whereArgs: [notebookId]);
       await _db.delete('dirty_pages', where: 'notebook_id = ?', whereArgs: [notebookId]);
+      _emit(StoreWrite(notebookId, removed: true));
       return trashId;
     } finally {
       completer.complete();
@@ -1349,6 +1398,7 @@ class FileService {
       // Restore the .ncnote file (atomically — a crash mid-write must not
       // leave a truncated live file that bricks the next open).
       await _writeNotebookAtomic(originalId, bytes);
+      _emit(StoreWrite(originalId, all: true));
     } finally {
       completer.complete();
       if (identical(_saveLocks[originalId], completer.future)) {
@@ -1401,6 +1451,7 @@ class FileService {
 
   /// Closes the database. Call on app shutdown.
   Future<void> dispose() async {
+    await _writes.close();
     await _db.close();
   }
 }

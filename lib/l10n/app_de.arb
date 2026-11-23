@@ -1127,5 +1127,19 @@
   "donGuidedNext": "Weiter",
   "donGuidedReview": "Prüfen und senden ({count})",
   "donGuidedFull": "Die Warteschlange ist voll: Sende oder verwirf zuerst ein paar Beispiele.",
-  "donGuidedTabTitle": "Mitmachen · AbelNotes"
+  "donGuidedTabTitle": "Mitmachen · AbelNotes",
+  "srchSection": "In deinen Notizen",
+  "srchHitsCount": "{count, plural, one{{count} Treffer in deinen Notizen} other{{count} Treffer in deinen Notizen}}",
+  "srchPageN": "Seite {page}",
+  "srchShowMore": "{count} weitere anzeigen",
+  "srchIndexing": "Notizen werden indexiert …",
+  "srchNoMatch": "Keine Notiz enthält „{query}“.",
+  "findHint": "Im Notizbuch suchen…",
+  "findInNotebook": "Im Notizbuch suchen",
+  "findInNotebookSub": "Text, Formeln und PDFs",
+  "findCount": "{current} von {total}",
+  "findNone": "Keine Treffer",
+  "findPrevious": "Vorheriger Treffer (Umschalt+Eingabe)",
+  "findNext": "Nächster Treffer (Eingabe)",
+  "findClose": "Schließen (Esc)"
 }

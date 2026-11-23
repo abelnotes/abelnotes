@@ -25,6 +25,8 @@ void main() {
     expect(assets.where((a) => a.startsWith('assets/models')), [
       kBundledCircuitModelAsset,
       'assets/models/math_ink.ablm',
+      'assets/models/handwriting_text.abnn',
+      'assets/models/handwriting_text.json',
     ]);
   });
 

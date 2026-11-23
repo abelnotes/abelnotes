@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:abelnotes/core/platform/io.dart' show File, HandshakeException, SocketException;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:http/http.dart' as http;
@@ -19,6 +20,7 @@ import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
 import 'package:abelnotes/core/services/pending_remote_deletes.dart';
 import 'package:abelnotes/core/services/pending_root_uploads.dart';
 import 'package:abelnotes/core/services/search_service.dart';
+import 'package:abelnotes/features/search/search_indexer.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/unpushed_guard.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -27,12 +29,29 @@ import 'package:abelnotes/core/services/remote_store.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:uuid/uuid.dart';
 
-/// Full-text search across locally-cached notebooks.
-final searchServiceProvider = Provider<SearchService?>((ref) {
-  final sync = ref.watch(syncServiceProvider);
-  if (sync == null) return null;
-  return SearchService(ref.watch(fileServiceProvider), sync);
+/// Full-text search across all notebooks, from the search index.
+final searchServiceProvider = Provider<SearchService>(
+    (ref) => SearchService(ref.watch(fileServiceProvider)));
+
+/// Keeps the search index current; started by the library screen.
+final searchIndexerProvider = Provider<SearchIndexer>((ref) {
+  final indexer = SearchIndexer(ref.watch(fileServiceProvider),
+      inkModel: kIsWeb ? null : _loadInkModel);
+  ref.onDispose(indexer.dispose);
+  return indexer;
 });
+
+/// The bundled handwriting model (native builds only: it runs on the C engine).
+Future<InkModel?> _loadInkModel() async {
+  final meta = await rootBundle.loadString('assets/models/handwriting_text.json');
+  final data = await rootBundle.load('assets/models/handwriting_text.abnn');
+  final version = (jsonDecode(meta) as Map<String, dynamic>)['version'] as String;
+  return (
+    bytes: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+    metaJson: meta,
+    version: version,
+  );
+}
 
 /// Un notebook nella libreria (metadata + info remote).
 /// Deleting a notebook this device doesn't hold needs a copy for the trash

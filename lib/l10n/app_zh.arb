@@ -1092,5 +1092,19 @@
   "donGuidedNext": "下一个",
   "donGuidedReview": "检查并发送（{count}）",
   "donGuidedFull": "队列已满：请先发送或丢弃一些样本。",
-  "donGuidedTabTitle": "参与贡献 · AbelNotes"
+  "donGuidedTabTitle": "参与贡献 · AbelNotes",
+  "srchSection": "在你的笔记中",
+  "srchHitsCount": "{count, plural, other{笔记中有 {count} 处匹配}}",
+  "srchPageN": "第 {page} 页",
+  "srchShowMore": "再显示 {count} 条",
+  "srchIndexing": "正在为笔记建立索引…",
+  "srchNoMatch": "没有包含“{query}”的笔记。",
+  "findHint": "在笔记本中查找…",
+  "findInNotebook": "在笔记本中查找",
+  "findInNotebookSub": "文本、公式和 PDF",
+  "findCount": "{current}/{total}",
+  "findNone": "无匹配",
+  "findPrevious": "上一个 (Shift+Enter)",
+  "findNext": "下一个 (Enter)",
+  "findClose": "关闭 (Esc)"
 }

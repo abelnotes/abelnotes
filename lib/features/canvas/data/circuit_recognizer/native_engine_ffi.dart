@@ -380,3 +380,6 @@ class NativeMath {
     return true;
   }
 }
+
+/// The circuit_engine library, shared with the handwriting recognizer (abnn).
+DynamicLibrary? circuitEngineLibrary() => NativeEngine._lib();

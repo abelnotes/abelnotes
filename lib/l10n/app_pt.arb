@@ -1092,5 +1092,19 @@
   "donGuidedNext": "Próximo",
   "donGuidedReview": "Revisar e enviar ({count})",
   "donGuidedFull": "A fila está cheia: envie ou descarte algumas amostras antes.",
-  "donGuidedTabTitle": "Contribuir · AbelNotes"
+  "donGuidedTabTitle": "Contribuir · AbelNotes",
+  "srchSection": "Nas suas notas",
+  "srchHitsCount": "{count, plural, one{{count} resultado nas tuas notas} other{{count} resultados nas tuas notas}}",
+  "srchPageN": "Página {page}",
+  "srchShowMore": "Mostrar mais {count}",
+  "srchIndexing": "Indexando as notas…",
+  "srchNoMatch": "Nenhuma nota contém “{query}”.",
+  "findHint": "Buscar no caderno…",
+  "findInNotebook": "Buscar no caderno",
+  "findInNotebookSub": "Texto, fórmulas e PDFs",
+  "findCount": "{current} de {total}",
+  "findNone": "Nenhum resultado",
+  "findPrevious": "Resultado anterior (Shift+Enter)",
+  "findNext": "Próximo resultado (Enter)",
+  "findClose": "Fechar (Esc)"
 }

@@ -47,6 +47,8 @@ import 'package:abelnotes/features/canvas/data/pdf_import_support.dart';
 import 'package:abelnotes/features/canvas/data/pdf_text_extractor.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_password_dialog.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_text_selection.dart';
+import 'package:abelnotes/features/search/notebook_find_bar.dart';
+import 'package:abelnotes/core/providers/notebook_provider.dart' show searchIndexerProvider;
 import 'package:abelnotes/shared/utils/rich_paste.dart';
 import 'package:abelnotes/features/canvas/presentation/image_handle_overlay.dart';
 import 'package:abelnotes/features/canvas/presentation/remote_changes_banner.dart';
@@ -122,10 +124,13 @@ class CanvasScreen extends ConsumerStatefulWidget {
 class _CanvasScreenState extends ConsumerState<CanvasScreen>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   // Released dock glides to its edge on these, carrying the throw velocity.
-  late final AnimationController _dockFlyX = AnimationController.unbounded(vsync: this)
-    ..addListener(_onDockFly);
-  late final AnimationController _dockFlyY = AnimationController.unbounded(vsync: this)
-    ..addListener(_onDockFly);
+  // Created on the first fling: making them in dispose() looks up the tree
+  // of a widget being torn down.
+  AnimationController? _flyX, _flyY;
+  AnimationController get _dockFlyX =>
+      _flyX ??= AnimationController.unbounded(vsync: this)..addListener(_onDockFly);
+  AnimationController get _dockFlyY =>
+      _flyY ??= AnimationController.unbounded(vsync: this)..addListener(_onDockFly);
   /// Bumped when a new drag grabs the dock, so a cancelled flight's late
   /// completion can't drop the dock back to its edge mid-drag.
   int _dockFlyGen = 0;
@@ -849,6 +854,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   // ── Keyboard shortcuts ──
   final _focusNode = FocusNode();
+
+  // ── Find in notebook ──
+  final _find = NotebookFindController();
+  final _findText = TextEditingController();
+  final _findFocus = FocusNode();
+  bool _pendingFindTaken = false;
 
   // ── Movable tool dock helpers ──────────────────────────────────
 
@@ -1795,8 +1806,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _tapFlash.dispose();
     webTouchDevice.removeListener(_onWebTouchDeviceChanged);
     PaintingBinding.instance.systemFonts.removeListener(_onSystemFonts);
-    _dockFlyX.dispose();
-    _dockFlyY.dispose();
+    _flyX?.dispose();
+    _flyY?.dispose();
     _dockDrag.dispose();
     _hintMessenger?.hideCurrentSnackBar();
     WidgetsBinding.instance.removeObserver(this);
@@ -1857,6 +1868,13 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     _autoSaveSub?.close();
     _toolChangeSub?.close();
     _focusNode.dispose();
+    try {
+      _findWaitsOn?.removeListener(_onPagesLoadedForFind);
+      _findIndexRevision?.removeListener(_onFindIndexChanged);
+    } catch (_) {}
+    _find.dispose();
+    _findText.dispose();
+    _findFocus.dispose();
     _pdfTextSelController?.dispose();
     _mouseHoverCursor.dispose();
     _webPenHoverTimer?.cancel();
@@ -2108,6 +2126,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // Typing in the find field: letters are text, not tool shortcuts.
+    if (_findFocus.hasFocus) return KeyEventResult.ignored;
     // The rest of the notebook is still loading: no shortcut acts yet.
     if (ref.read(canvasProvider.notifier).pagesLoading.value) {
       return KeyEventResult.handled;
@@ -2147,6 +2167,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           return KeyEventResult.handled;
         case LogicalKeyboardKey.keyS:
           _save();
+          return KeyEventResult.handled;
+        case LogicalKeyboardKey.keyF:
+          _openFind();
           return KeyEventResult.handled;
         case LogicalKeyboardKey.keyC:
           {
@@ -2310,6 +2333,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         ref.read(canvasProvider.notifier).cancelPendingPaste();
         return KeyEventResult.handled;
       }
+      if (_find.isOpen &&
+          state?.selectedElementId == null &&
+          state?.lassoSelection == null) {
+        _closeFind();
+        return KeyEventResult.handled;
+      }
       ref.read(canvasProvider.notifier).clearSelection();
       ref.read(canvasProvider.notifier).deselectElement();
       return KeyEventResult.handled;
@@ -2362,6 +2391,217 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     return KeyEventResult.ignored;
   }
 
+  // ── Find in notebook ──
+
+  /// Top of the find bar in canvas coordinates (below a top-edge dock).
+  double _findBarTop = 12;
+  static const double _findBarHeight = 48;
+
+  /// Handwriting of this notebook from the search index (lines and where
+  /// each character is), refreshed while find is open and the index moves.
+  Future<void> _loadFindInk() async {
+    final s = ref.read(canvasProvider);
+    if (s == null) return;
+    try {
+      final ink = await ref.read(searchIndexerProvider).index.inkLines(s.metadata.id);
+      if (!mounted || !_find.isOpen) return;
+      final cur = ref.read(canvasProvider);
+      if (_find.setInk(ink, fromPage: cur?.currentPageIndex ?? 0)) _revealFindMatch();
+    } catch (e) {
+      debugPrint('[Find] handwriting not loaded: $e');
+    }
+  }
+
+  ValueNotifier<int>? _findIndexRevision;
+
+  void _openFind({String? query, bool focus = true}) {
+    if (ref.read(canvasProvider) == null) return;
+    if (!_find.isOpen) {
+      unawaited(_loadFindInk());
+      _findIndexRevision = ref.read(searchIndexerProvider).revision
+        ..addListener(_onFindIndexChanged);
+    }
+    _find.open();
+    if (query != null) {
+      _findText.text = query;
+      _onFindChanged(query);
+    }
+    if (!focus) return;
+    void take() {
+      if (!mounted || !_find.isOpen) return;
+      _findFocus.requestFocus();
+      _findText.selection =
+          TextSelection(baseOffset: 0, extentOffset: _findText.text.length);
+    }
+    // Field already on screen: now, so the next key is typed into it. A new
+    // bar exists from the next frame on.
+    if (_findFocus.context != null) {
+      take();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => take());
+    }
+  }
+
+  void _onFindIndexChanged() => unawaited(_loadFindInk());
+
+  void _closeFind() {
+    _findIndexRevision?.removeListener(_onFindIndexChanged);
+    _findIndexRevision = null;
+    _find.close();
+    _findText.clear();
+    _focusNode.requestFocus();
+  }
+
+  void _onFindChanged(String query) {
+    final s = ref.read(canvasProvider);
+    if (s == null) return;
+    _find.setQuery(query, s.document, s.pages, s.currentPageIndex);
+    _revealFindMatch();
+  }
+
+  void _findStep(int by) {
+    final s = ref.read(canvasProvider);
+    if (s != null) _find.sync(s.document, s.pages);
+    _find.step(by);
+    _revealFindMatch();
+  }
+
+  /// Turns to the current match's page and pans it into view when hidden.
+  void _revealFindMatch() {
+    final m = _find.currentMatch;
+    final notifier = ref.read(canvasProvider.notifier);
+    final before = ref.read(canvasProvider);
+    if (m == null || before == null || m.pageIndex >= before.pageCount) return;
+    final chapter = before.document.pages[m.pageIndex].chapterId;
+    if (before.activeChapterId != null && before.activeChapterId != chapter) {
+      notifier.setActiveChapter(chapter);
+    }
+    if (ref.read(canvasProvider)?.currentPageIndex != m.pageIndex) {
+      notifier.goToPage(m.pageIndex);
+    }
+    final s = ref.read(canvasProvider);
+    final vp = notifier.viewportSize;
+    final page = s?.currentPage;
+    if (s == null || vp == null || page == null) return;
+    final rects = _find.rectsOf(page, m);
+    if (rects.isEmpty) return;
+    final box = rects.reduce((a, b) => a.expandToInclude(b));
+    final rs = _getRenderScale(s, vp);
+    final center = _getCenterOffset(s, vp);
+    Offset toScreen(Offset pt, double zoom, Offset pan) =>
+        (pt * rs + center) * zoom + pan;
+    final visible = Rect.fromLTRB(
+        24, _findBarTop + _findBarHeight + 12, vp.width - 24, vp.height - 72);
+    if (visible.width <= 0 || visible.height <= 0) return;
+    final tl = toScreen(box.topLeft, s.zoom, s.panOffset);
+    final br = toScreen(box.bottomRight, s.zoom, s.panOffset);
+    if (visible.contains(tl) && visible.contains(br)) return;
+    final w = br.dx - tl.dx, h = br.dy - tl.dy;
+    if (w > visible.width || h > visible.height) {
+      final zoom = (s.zoom * min(visible.width / w, visible.height / h))
+          .clamp(0.25, 5.0)
+          .toDouble();
+      notifier.setZoomAndPan(
+          zoom, visible.center - (box.center * rs + center) * zoom);
+      return;
+    }
+    // Only the axis it is hidden on moves; vertically it lands a third down.
+    var pan = s.panOffset;
+    if (tl.dx < visible.left || br.dx > visible.right) {
+      pan += Offset(visible.center.dx - (tl.dx + br.dx) / 2, 0);
+    }
+    if (tl.dy < visible.top || br.dy > visible.bottom) {
+      var dy = visible.top + visible.height / 3 - (tl.dy + br.dy) / 2;
+      // No empty band above or below the sheet when the match is near an edge.
+      if (!s.isScratch) {
+        final top = center.dy * s.zoom + s.panOffset.dy + dy;
+        final bottom = top + page.height * rs * s.zoom;
+        if (dy > 0 && top > 0) dy = max(visible.top - tl.dy, dy - top);
+        if (dy < 0 && bottom < vp.height) {
+          dy = min(visible.bottom - br.dy, dy + vp.height - bottom);
+        }
+      }
+      pan += Offset(0, dy);
+    }
+    notifier.setPanOffset(pan);
+  }
+
+  /// A library search hit was opened: show its words found on the page.
+  void _takePendingFind() {
+    if (_pendingFindTaken || !mounted) return;
+    final s = ref.read(canvasProvider);
+    final notifier = ref.read(canvasProvider.notifier);
+    final pending = ref.read(pendingFindProvider);
+    if (s == null || pending == null) return;
+    if (pending.notebookId != s.metadata.id) {
+      // Left over from an open that never got here.
+      _pendingFindTaken = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && ref.read(pendingFindProvider) == pending) {
+          ref.read(pendingFindProvider.notifier).state = null;
+        }
+      });
+      return;
+    }
+    if (notifier.pagesLoading.value) {
+      if (_findWaitsOn == null) {
+        final loading = notifier.pagesLoading;
+        loading.addListener(_onPagesLoadedForFind);
+        _findWaitsOn = loading;
+      }
+      return;
+    }
+    _pendingFindTaken = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(pendingFindProvider.notifier).state = null;
+      _openFind(query: pending.query, focus: false);
+    });
+  }
+
+  ValueNotifier<bool>? _findWaitsOn;
+
+  void _onPagesLoadedForFind() {
+    final loading = _findWaitsOn;
+    if (loading == null || loading.value) return;
+    loading.removeListener(_onPagesLoadedForFind);
+    _findWaitsOn = null;
+    _takePendingFind();
+  }
+
+  /// Highlights of the matches on the page on screen.
+  Widget _buildFindHighlights(CanvasState state, Size canvasSize) {
+    final page = state.currentPage;
+    if (page == null) return const SizedBox.shrink();
+    final current = _find.currentMatch;
+    final rs = _getRenderScale(state, canvasSize);
+    final center = _getCenterOffset(state, canvasSize);
+    Rect toScreen(Rect r) => Rect.fromPoints(
+        (r.topLeft * rs + center) * state.zoom + state.panOffset,
+        (r.bottomRight * rs + center) * state.zoom + state.panOffset);
+    final others = <Rect>[], now = <Rect>[];
+    for (final m in _find.matches) {
+      if (m.pageIndex != state.currentPageIndex) continue;
+      final out = m == current ? now : others;
+      for (final r in _find.rectsOf(page, m)) {
+        out.add(toScreen(r));
+      }
+    }
+    if (others.isEmpty && now.isEmpty) return const SizedBox.shrink();
+    // Paper stays light in the dark theme: logo blue, not the theme accent.
+    return IgnorePointer(
+      child: CustomPaint(
+        size: canvasSize,
+        painter: FindHighlightPainter(
+          others: others,
+          current: now,
+          marker: HwTheme.teal,
+          ink: Color.lerp(HwTheme.teal, Colors.black, 0.35)!,
+        ),
+      ),
+    );
+  }
+
   void _showShortcutHelp() {
     showDialog<void>(
       context: context,
@@ -2384,6 +2624,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 children: [
                   _ShortcutGroup(l10n.csShortcutGroupGeneral, [
                     ('Ctrl+S', l10n.csSaveNow),
+                    ('Ctrl+F', l10n.findInNotebook),
                     ('Ctrl+Z', l10n.csShortcutUndo),
                     ('Ctrl+Shift+Z / Ctrl+Y', l10n.csShortcutRedo),
                     ('Ctrl+A', l10n.csSelectAll),
@@ -2425,6 +2666,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   static final Set<LogicalKeyboardKey> _previewKeys = {
+    LogicalKeyboardKey.keyF,
     LogicalKeyboardKey.digit0,
     LogicalKeyboardKey.numpad0,
     LogicalKeyboardKey.equal,
@@ -5525,6 +5767,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final palette = HwThemeScope.of(context);
     final notifier = ref.read(canvasProvider.notifier);
     final presetColors = ref.watch(presetColorsProvider);
+    _takePendingFind();
     final activeColor = Color(canvasState.toolSettings.color);
     final appSettings = ref.watch(appSettingsProvider);
     final toolDock = appSettings.toolDock;
@@ -5673,6 +5916,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onImportFileTap: () => _pickAndInsertImage(
                         _visibleCenterPagePos(canvasState)),
                     onMoreTap: () => _showMoreSheet(canvasState),
+                    onFindTap: () => _openFind(),
                     mouseDraws: mouseDraws,
                     // No mouse ever shows up on a touch-only phone/tablet —
                     // swap the mouse toggle for a finger-draws-vs-pans one
@@ -5713,7 +5957,12 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     // page strip chrome at all.
                     const SizedBox.shrink()
                   else if (showPageStrip)
-                    HwBottomPageStrip(
+                    ListenableBuilder(
+                      listenable: _find,
+                      builder: (_, __) => HwBottomPageStrip(
+                      markedPages: _find.isOpen
+                          ? {for (final i in _find.pagesWithMatches) i + 1}
+                          : const {},
                       chapterLabel: _currentChapterLabel(canvasState),
                       chapterShortLabel: _currentChapterTitle(canvasState),
                       onChapterTap: _showChapterMenu,
@@ -5739,6 +5988,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       onCollapse: () => ref
                           .read(appSettingsProvider.notifier)
                           .setShowPageStrip(false),
+                    ),
                     )
                   else
                     HwPageStripHandle(
@@ -5985,6 +6235,9 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         final p = HwThemeScope.of(context);
         final canvasSize = Size(constraints.maxWidth, constraints.maxHeight);
         _lastCanvasSize = canvasSize;
+        // Below a dock parked on the top edge.
+        _findBarTop =
+            ref.read(appSettingsProvider).toolDock.edge == 'top' ? 76 : 12;
         ref.read(canvasProvider.notifier).setViewportSize(canvasSize);
 
         // Tool default cursor (used by the pen / non-mouse devices). The mouse
@@ -6008,6 +6261,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           ),
           child: Stack(
             key: _canvasStackKey,
+            // The canvas area, always: never sized by an overlay child.
+            fit: StackFit.expand,
             children: [
               // Canvas painter
               Positioned.fill(
@@ -6551,6 +6806,74 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     return _buildPdfTextSelectionLayer(sel, live, canvasSize);
                   },
                 ),
+              ),
+
+              // Find in notebook: match highlights, then the bar over them.
+              Positioned.fill(
+                child: ListenableBuilder(
+                  listenable: _find,
+                  builder: (_, __) {
+                    if (!_find.isOpen) return const SizedBox.shrink();
+                    return Consumer(builder: (_, ref2, __) {
+                      ref2.watch(canvasProvider.select((s) => (
+                            zoom: s?.zoom ?? 1.0,
+                            panOffset: s?.panOffset ?? Offset.zero,
+                            pages: s?.pages,
+                            document: s?.document,
+                            page: s?.currentPageIndex,
+                          )));
+                      final live = ref2.read(canvasProvider) ?? canvasState;
+                      _find.sync(live.document, live.pages);
+                      return _buildFindHighlights(live, canvasSize);
+                    });
+                  },
+                ),
+              ),
+              ListenableBuilder(
+                listenable: _find,
+                builder: (_, __) {
+                  // Always a positioned child: a non-positioned one would give
+                  // the Stack its own size (0x0 here) wherever nothing above
+                  // forces the canvas size (web, no drop zone).
+                  if (!_find.isOpen) {
+                    return const Positioned(left: 0, top: 0, child: SizedBox.shrink());
+                  }
+                  final narrow = canvasSize.width < 600;
+                  return Positioned(
+                    top: _findBarTop,
+                    right: 12,
+                    left: narrow ? 12 : null,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                          maxWidth: narrow ? double.infinity : 440),
+                      child: SizedBox(
+                        width: narrow ? null : 440,
+                        child: Consumer(builder: (_, ref2, __) {
+                          // Counter follows edits made while the bar is open.
+                          final live = ref2.watch(canvasProvider.select(
+                              (s) => (pages: s?.pages, document: s?.document)));
+                          if (live.pages != null && live.document != null) {
+                            _find.sync(live.document!, live.pages!);
+                          }
+                          return NotebookFindBar(
+                            controller: _find,
+                            text: _findText,
+                            focus: _findFocus,
+                            onChanged: _onFindChanged,
+                            onNext: () => _findStep(1),
+                            onPrevious: () => _findStep(-1),
+                            onClose: _closeFind,
+                            // Back to the page: keys are shortcuts again and
+                            // the on-screen keyboard goes away; the bar stays.
+                            onTapOutside: () {
+                              if (_findFocus.hasFocus) _focusNode.requestFocus();
+                            },
+                          );
+                        }),
+                      ),
+                    ),
+                  );
+                },
               ),
 
               // Recognized shape adjustment indicator (only for shape tool adjustment mode)
@@ -9906,6 +10229,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // Groups: show, insert, page, notebook, device. Empty groups vanish.
     final groups = <List<Widget>>[
       [
+        // Wide windows have it in the top bar.
+        if (compact)
+          tile(const HwIcon('search', size: 22), l10n.findInNotebook,
+              l10n.findInNotebookSub, () => _openFind()),
         if (!state.isScratch)
           tile(const Icon(Icons.slideshow_outlined), l10n.csPresentationMode,
               l10n.csPresentationModeSub, _enterPresentationMode),

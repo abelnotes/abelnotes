@@ -4158,4 +4158,62 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get donGuidedTabTitle => 'Contribuir · AbelNotes';
+
+  @override
+  String get srchSection => 'En tus notas';
+
+  @override
+  String srchHitsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count resultados en tus notas',
+      one: '$count resultado en tus notas',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String srchPageN(int page) {
+    return 'Página $page';
+  }
+
+  @override
+  String srchShowMore(int count) {
+    return 'Mostrar $count más';
+  }
+
+  @override
+  String get srchIndexing => 'Indexando notas…';
+
+  @override
+  String srchNoMatch(String query) {
+    return 'Ninguna nota contiene «$query».';
+  }
+
+  @override
+  String get findHint => 'Buscar en el cuaderno…';
+
+  @override
+  String get findInNotebook => 'Buscar en el cuaderno';
+
+  @override
+  String get findInNotebookSub => 'Texto, fórmulas y PDF';
+
+  @override
+  String findCount(int current, int total) {
+    return '$current de $total';
+  }
+
+  @override
+  String get findNone => 'Sin resultados';
+
+  @override
+  String get findPrevious => 'Resultado anterior (Mayús+Intro)';
+
+  @override
+  String get findNext => 'Resultado siguiente (Intro)';
+
+  @override
+  String get findClose => 'Cerrar (Esc)';
 }

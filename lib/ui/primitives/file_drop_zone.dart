@@ -25,7 +25,11 @@ class FileDropZone extends StatefulWidget {
   });
 
   static bool get supported =>
-      !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+      debugEnabled && !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+
+  /// Off in widget tests: no native drop engine there.
+  @visibleForTesting
+  static bool debugEnabled = true;
 
   @override
   State<FileDropZone> createState() => _FileDropZoneState();

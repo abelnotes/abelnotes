@@ -1127,5 +1127,19 @@
   "donGuidedNext": "Next",
   "donGuidedReview": "Review and send ({count})",
   "donGuidedFull": "The queue is full: send or discard some samples first.",
-  "donGuidedTabTitle": "Contribute · AbelNotes"
+  "donGuidedTabTitle": "Contribute · AbelNotes",
+  "srchSection": "In your notes",
+  "srchHitsCount": "{count, plural, one{{count} match in your notes} other{{count} matches in your notes}}",
+  "srchPageN": "Page {page}",
+  "srchShowMore": "Show {count} more",
+  "srchIndexing": "Indexing notes…",
+  "srchNoMatch": "No notes contain “{query}”.",
+  "findHint": "Find in notebook…",
+  "findInNotebook": "Find in notebook",
+  "findInNotebookSub": "Typed text, formulas and PDFs",
+  "findCount": "{current} of {total}",
+  "findNone": "No matches",
+  "findPrevious": "Previous match (Shift+Enter)",
+  "findNext": "Next match (Enter)",
+  "findClose": "Close (Esc)"
 }

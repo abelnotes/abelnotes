@@ -3974,4 +3974,61 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get donGuidedTabTitle => '参与贡献 · AbelNotes';
+
+  @override
+  String get srchSection => '在你的笔记中';
+
+  @override
+  String srchHitsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '笔记中有 $count 处匹配',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String srchPageN(int page) {
+    return '第 $page 页';
+  }
+
+  @override
+  String srchShowMore(int count) {
+    return '再显示 $count 条';
+  }
+
+  @override
+  String get srchIndexing => '正在为笔记建立索引…';
+
+  @override
+  String srchNoMatch(String query) {
+    return '没有包含“$query”的笔记。';
+  }
+
+  @override
+  String get findHint => '在笔记本中查找…';
+
+  @override
+  String get findInNotebook => '在笔记本中查找';
+
+  @override
+  String get findInNotebookSub => '文本、公式和 PDF';
+
+  @override
+  String findCount(int current, int total) {
+    return '$current/$total';
+  }
+
+  @override
+  String get findNone => '无匹配';
+
+  @override
+  String get findPrevious => '上一个 (Shift+Enter)';
+
+  @override
+  String get findNext => '下一个 (Enter)';
+
+  @override
+  String get findClose => '关闭 (Esc)';
 }
