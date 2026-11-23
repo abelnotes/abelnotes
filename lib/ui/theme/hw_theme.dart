@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 
 /// AbelNotes theme tokens: logo blue/teal accent, slate ink, chalk/paper
 /// neutrals. Three variants: paper (warm, default light), light, dark.
@@ -239,7 +240,7 @@ class HwType {
 }
 
 /// Builds the MaterialApp ThemeData for a given variant.
-ThemeData buildHwThemeData(HwThemeVariant variant) {
+ThemeData buildHwThemeData(HwThemeVariant variant, {bool japanese = false}) {
   final p = switch (variant) {
     HwThemeVariant.paper => HwPalette.paper,
     HwThemeVariant.light => HwPalette.light,
@@ -248,13 +249,18 @@ ThemeData buildHwThemeData(HwThemeVariant variant) {
   final rMd = BorderRadius.circular(HwTheme.rMd);
   final rLg = BorderRadius.circular(HwTheme.rLg);
   final rBtn = BorderRadius.circular(HwTheme.rSm + 2);
-  const btnText = TextStyle(
-      fontWeight: FontWeight.w600, fontSize: 14, fontFamily: HwTheme.fontSans);
+  final fallback = japanese ? japaneseFontFallback : null;
+  final btnText = TextStyle(
+      fontWeight: FontWeight.w600,
+      fontSize: 14,
+      fontFamily: HwTheme.fontSans,
+      fontFamilyFallback: fallback);
 
   return ThemeData(
     useMaterial3: true,
     brightness: p.brightness,
     fontFamily: HwTheme.fontSans,
+    fontFamilyFallback: fallback,
     scaffoldBackgroundColor: p.paper1,
     canvasColor: p.paper0,
     colorScheme: ColorScheme(
@@ -309,18 +315,20 @@ ThemeData buildHwThemeData(HwThemeVariant variant) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      titleTextStyle: HwType.headline
-          .copyWith(color: p.ink0, fontSize: 17, fontFamily: HwTheme.fontSans),
+      titleTextStyle: HwType.headline.copyWith(
+          color: p.ink0, fontSize: 17, fontFamily: HwTheme.fontSans,
+          fontFamilyFallback: fallback),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: p.paper0,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(HwTheme.rXl)),
-      titleTextStyle: HwType.title
-          .copyWith(color: p.ink0, fontSize: 18, fontFamily: HwTheme.fontSans),
-      contentTextStyle:
-          HwType.callout.copyWith(color: p.ink1, fontFamily: HwTheme.fontSans),
+      titleTextStyle: HwType.title.copyWith(
+          color: p.ink0, fontSize: 18, fontFamily: HwTheme.fontSans,
+          fontFamilyFallback: fallback),
+      contentTextStyle: HwType.callout.copyWith(
+          color: p.ink1, fontFamily: HwTheme.fontSans, fontFamilyFallback: fallback),
       barrierColor: p.scrim,
     ),
     bottomSheetTheme: BottomSheetThemeData(
@@ -338,8 +346,8 @@ ThemeData buildHwThemeData(HwThemeVariant variant) {
       shadowColor: const Color(0x5500202E),
       shape: RoundedRectangleBorder(
           borderRadius: rMd, side: BorderSide(color: p.glassLine)),
-      textStyle:
-          HwType.callout.copyWith(color: p.ink0, fontFamily: HwTheme.fontSans),
+      textStyle: HwType.callout.copyWith(
+          color: p.ink0, fontFamily: HwTheme.fontSans, fontFamilyFallback: fallback),
     ),
     menuTheme: MenuThemeData(
       style: MenuStyle(
@@ -352,8 +360,8 @@ ThemeData buildHwThemeData(HwThemeVariant variant) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: p.ink0,
-      contentTextStyle: HwType.callout
-          .copyWith(color: p.paper0, fontFamily: HwTheme.fontSans),
+      contentTextStyle: HwType.callout.copyWith(
+          color: p.paper0, fontFamily: HwTheme.fontSans, fontFamilyFallback: fallback),
       actionTextColor: p.isDark ? HwTheme._accentLight : HwTheme._accentDark,
       shape: RoundedRectangleBorder(borderRadius: rMd),
       elevation: 0,
@@ -363,7 +371,8 @@ ThemeData buildHwThemeData(HwThemeVariant variant) {
           color: p.ink0.withValues(alpha: 0.92),
           borderRadius: BorderRadius.circular(HwTheme.rSm)),
       textStyle: TextStyle(
-          color: p.paper0, fontSize: 12.5, fontFamily: HwTheme.fontSans),
+          color: p.paper0, fontSize: 12.5, fontFamily: HwTheme.fontSans,
+          fontFamilyFallback: fallback),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     ),
     filledButtonTheme: FilledButtonThemeData(

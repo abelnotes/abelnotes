@@ -44,19 +44,26 @@ PY
 # Everything the app can need, relative to the site root. The CanvasKit
 # variants for other renderers (skwasm, webparagraph) are never loaded, and
 # model files and fallback fonts are not worth a download for every visitor.
+# The Japanese font is loaded on demand (lib/core/config/japanese_font.dart).
 FILES="$(cd "$OUT" && find . -type f \
   ! -name 'flutter_service_worker.js' ! -name '*.symbols' ! -name '*.map' \
   ! -name '.last_build_id' ! -name 'update.html' ! -path './canvaskit/skwasm*' \
   ! -path './canvaskit/experimental_webparagraph/*' ! -name '*.ablm' \
   ! -path './fonts/fallback/*' \
+  ! -name 'NotoSansJP-Regular.ttf' \
   | sed 's|^\./||' | sort | python3 -c \
   'import sys,json; print(json.dumps(["./"]+[l.strip() for l in sys.stdin if l.strip()]))')"
 
-python3 - "$OUT/flutter_service_worker.js" "$BUILD_ID" "$FILES" <<'PY'
+# On-demand files the worker keeps across builds while their content is unchanged.
+JA_FONT=assets/assets/fonts/NotoSansJP-Regular.ttf
+LAZY="{\"$JA_FONT\": \"$(sha256sum "$OUT/$JA_FONT" | cut -c1-16)\"}"
+
+python3 - "$OUT/flutter_service_worker.js" "$BUILD_ID" "$FILES" "$LAZY" <<'PY'
 import sys
-out, build_id, files = sys.argv[1:4]
+out, build_id, files, lazy = sys.argv[1:5]
 src = open('tool/web_sw.js').read()
-open(out, 'w').write(src.replace('__BUILD_ID__', build_id).replace('__FILES__', files))
+open(out, 'w').write(src.replace('__BUILD_ID__', build_id).replace('__FILES__', files)
+                      .replace('__LAZY__', lazy))
 PY
 
 echo "Built $OUT (offline cache id $BUILD_ID), $(du -sh "$OUT" | cut -f1)"

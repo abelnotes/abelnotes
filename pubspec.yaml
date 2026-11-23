@@ -151,6 +151,10 @@ flutter:
     - assets/models/math_ink.ablm
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
+    - assets/fonts/NotoSansJP-OFL.txt
+    # Loaded on demand (japanese_font.dart), not a font family: the web
+    # engine downloads every declared family before the first frame.
+    - assets/fonts/NotoSansJP-Regular.ttf
     # Apache-2.0 text for the bundled Roboto, registered in LicenseRegistry.
     - assets/fonts/Roboto-LICENSE.txt
 
@@ -213,7 +217,7 @@ msix_config:
   # Must track main.dart's supportedLocales. Left unset the packager declares
   # en-us alone, and the Store then advertises an English-only app whose UI is
   # in fact fully translated.
-  languages: en-us, it-it, es-es, de-de, fr-fr, pt-br, zh-cn
+  languages: en-us, it-it, es-es, de-de, fr-fr, pt-br, ja-jp, zh-cn
   # internetClient: WebDAV sync. privateNetworkClientServer: a self-hosted
   # Nextcloud on the LAN, which is the common setup for this app.
   capabilities: internetClient, privateNetworkClientServer

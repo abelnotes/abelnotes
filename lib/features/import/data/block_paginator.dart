@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/features/canvas/data/text_paragraph_factory.dart';
 import 'package:abelnotes/features/import/data/import_models.dart';
@@ -51,6 +52,13 @@ class BlockPaginator {
     int? maxPages,
   }) async {
     truncated = false;
+    // Measure Japanese text with the font it will be painted with.
+    if (preferJapaneseTypography ||
+        blocks.any((b) =>
+            (b is TextBlock && containsKana(b.plain)) ||
+            (b is TableBlock && b.rows.any((r) => r.any(containsKana))))) {
+      await ensureJapaneseFont();
+    }
     final pages = <DraftPage>[DraftPage()];
     var cursorY = topY;
 

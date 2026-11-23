@@ -808,6 +808,7 @@
   "setLanguageGerman": "Deutsch",
   "setLanguageFrench": "Français",
   "setLanguagePortuguese": "Português",
+  "setLanguageJapanese": "日本語",
   "setLanguageChinese": "中文",
   "qlTrashDeletedNow": "Excluído agora mesmo",
   "qlTrashDeletedMinutes": "{count, plural, one{Excluído há {count} minuto} other{Excluído há {count} minutos}}",

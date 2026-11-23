@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:abelnotes/core/config/japanese_font.dart';
 import 'package:abelnotes/core/platform/io.dart';
 
 import 'package:flutter/foundation.dart';
@@ -85,6 +86,10 @@ void main(List<String> args) async {
       final text = await rootBundle.loadString('assets/fonts/Roboto-LICENSE.txt');
       yield LicenseEntryWithLineBreaks(const ['Roboto'], text);
     });
+    LicenseRegistry.addLicense(() async* {
+      final text = await rootBundle.loadString('assets/fonts/NotoSansJP-OFL.txt');
+      yield LicenseEntryWithLineBreaks(const ['Noto Sans JP'], text);
+    });
 
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       sqfliteFfiInit();
@@ -154,6 +159,7 @@ class AbelNotesApp extends ConsumerWidget {
         Locale('de'),
         Locale('fr'),
         Locale('pt'),
+        Locale('ja'),
         Locale('zh'),
       ],
       theme: buildHwThemeData(variant),
@@ -163,9 +169,12 @@ class AbelNotesApp extends ConsumerWidget {
         child: const _AuthGate(),
       ),
       builder: (context, child) {
+        final japanese = Localizations.localeOf(context).languageCode == 'ja';
+        CanvasRenderEngine.japaneseTypography = japanese;
+        if (japanese) unawaited(ensureJapaneseFont());
         // Re-inject the scope inside Navigator routes so dialogs & pushed
         // pages can also read the palette.
-        return HwThemeScope(
+        final content = HwThemeScope(
           palette: palette,
           variant: variant,
           child: AboveNavigatorOverlay(
@@ -173,6 +182,12 @@ class AbelNotesApp extends ConsumerWidget {
                 child:
                     PagesTrayOverlay(child: child ?? const SizedBox.shrink())),
           ),
+        );
+        return Theme(
+          data: japanese
+              ? buildHwThemeData(variant, japanese: true)
+              : Theme.of(context),
+          child: content,
         );
       },
     );

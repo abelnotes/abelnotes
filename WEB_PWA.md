@@ -18,6 +18,8 @@ service worker (`tool/web_sw.js`) that precaches every file. The engine's Noto
 fallback fonts (emoji, CJK and other scripts, ~22 MB) are copied in by
 `tool/fetch_web_fonts.sh` from a checksummed cache and served from the app, so
 the browser never asks fonts.gstatic.com; the worker caches them only on use.
+The bundled Japanese font is not precached either: it is fetched when Japanese
+text first needs it (see `lib/ui/theme/README.md`).
 
 ## Startup
 
