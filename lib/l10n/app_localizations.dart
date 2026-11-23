@@ -2720,6 +2720,18 @@ abstract class AppLocalizations {
   /// **'Log copiato negli appunti.'**
   String get setCopyLogDone;
 
+  /// No description provided for @setDetailedLog.
+  ///
+  /// In it, this message translates to:
+  /// **'Log dettagliato'**
+  String get setDetailedLog;
+
+  /// No description provided for @setDetailedLogSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Registra anche sincronizzazione e penna nei dettagli, così il log copiato spiega meglio un problema. Lascialo spento se non ti serve.'**
+  String get setDetailedLogSub;
+
   /// No description provided for @setContribute.
   ///
   /// In it, this message translates to:

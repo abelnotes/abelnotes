@@ -1640,6 +1640,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setCopyLogDone => 'Log copied to clipboard.';
 
   @override
+  String get setDetailedLog => 'Detailed log';
+
+  @override
+  String get setDetailedLogSub =>
+      'Also records sync and pen details, so a copied log explains a problem better. Leave it off when you don\'t need it.';
+
+  @override
   String get setContribute => 'Help improve recognition';
 
   @override

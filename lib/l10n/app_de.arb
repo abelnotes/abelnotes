@@ -435,6 +435,8 @@
   "setCopyLog": "Protokoll kopieren",
   "setReportProblemEmpty": "Keine Fehler protokolliert.",
   "setCopyLogDone": "Protokoll in die Zwischenablage kopiert.",
+  "setDetailedLog": "Ausführliches Protokoll",
+  "setDetailedLogSub": "Zeichnet auch Synchronisierung und Stift im Detail auf, damit ein kopiertes Protokoll ein Problem besser erklärt. Lass es aus, wenn du es nicht brauchst.",
   "setContribute": "Hilf, die Erkennung zu verbessern",
   "setContributeSub": "Schreib ein paar Formeln und Schaltzeichen auf contribute.abelnotes.app. Die App sendet deine Notizen nie: Proben verlassen nur diese Seite, und nur wenn du sie absendest.",
   "setContributeOpen": "Seite öffnen",

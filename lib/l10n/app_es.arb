@@ -435,6 +435,8 @@
   "setCopyLog": "Copiar registro",
   "setReportProblemEmpty": "No hay errores registrados.",
   "setCopyLogDone": "Registro copiado al portapapeles.",
+  "setDetailedLog": "Registro detallado",
+  "setDetailedLogSub": "También guarda detalles de la sincronización y del lápiz, para que el registro copiado explique mejor un problema. Déjalo desactivado si no lo necesitas.",
   "setContribute": "Ayuda a mejorar el reconocimiento",
   "setContributeSub": "Escribe algunas fórmulas y símbolos de circuito en contribute.abelnotes.app. La app nunca envía tus notas: las muestras salen solo de esa página, cuando tú decides enviarlas.",
   "setContributeOpen": "Abrir página",

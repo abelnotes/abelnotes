@@ -1682,6 +1682,11 @@ class _AboutSection extends StatelessWidget {
                 onPressed: () => _copyLog(context))),
         const SizedBox(height: 16),
         _Row(
+            title: l10n.setDetailedLog,
+            sub: l10n.setDetailedLogSub,
+            control: const _DetailedLogSwitch()),
+        const SizedBox(height: 16),
+        _Row(
             title: l10n.setOpenSourceLicenses,
             sub: l10n.setOpenSourceLicensesSub,
             control: HwButton(
@@ -1705,4 +1710,28 @@ class _AboutSection extends StatelessWidget {
         content: Text(
             log.isEmpty ? l10n.setReportProblemEmpty : l10n.setCopyLogDone)));
   }
+}
+
+/// Turns on the routine sync/pen lines in the crash log ([CrashLogger]),
+/// kept across launches. On the web this is also how a home-screen app,
+/// which can't be opened with `?diag=1`, gets a useful log.
+class _DetailedLogSwitch extends StatefulWidget {
+  const _DetailedLogSwitch();
+
+  @override
+  State<_DetailedLogSwitch> createState() => _DetailedLogSwitchState();
+}
+
+class _DetailedLogSwitchState extends State<_DetailedLogSwitch> {
+  @override
+  Widget build(BuildContext context) => HwSwitch(
+        value: CrashLogger.verboseEnabled,
+        onChanged: (v) async {
+          setState(() => CrashLogger.verboseEnabled = v);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(CrashLogger.detailedLogPref, v);
+          unawaited(CrashLogger.append(
+              v ? '[Log] detailed log on' : '[Log] detailed log off'));
+        },
+      );
 }

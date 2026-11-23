@@ -1268,6 +1268,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _ref.listen(remoteStoreProvider, (prev, next) {
       if (next == null || _disposed || state == null) return;
       _consecutiveSyncFailures = 0;
+      _consecutiveFailedPulls = 0;
       _pullUnreachable = false;
       _recomputeSyncStatus();
       _retryUnpushed();
@@ -1695,6 +1696,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Initialize delta sync tracking
     _disposed = false;
     _consecutiveSyncFailures = 0;
+    _consecutiveFailedPulls = 0;
+    _absentRemoteAssets.clear();
     _pullUnreachable = false;
     hasSyncFailure.value = false;
     remoteSaveInFlight.value = false;
@@ -2376,6 +2379,37 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
+  /// Web builds up to 0.38.1 could read WebDAV pages back from the service
+  /// worker cache (same-origin proxy): stale content stored under fresh
+  /// ETags. Forgetting every pull baseline once makes the next open
+  /// download each page again; unpushed local edits go through the merge.
+  static Future<void> forgetWebPullBaselinesOnce() async {
+    if (!kIsWeb) return;
+    const done = 'web_pull_baselines_reset_v1';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(done) ?? false) return;
+      for (final k in prefs.getKeys().toList()) {
+        if (k.startsWith('page_etags_') || k.startsWith('delta_meta_etag_')) {
+          await prefs.remove(k);
+        }
+      }
+      await prefs.setBool(done, true);
+      unawaited(CrashLogger.append('[Web] pull baselines reset once'));
+    } catch (_) {}
+  }
+
+  /// Pull baseline for a notebook just downloaded whole: without it the
+  /// editor's first pull fetched every page a second time.
+  static Future<void> seedPageEtags(
+      String notebookId, Map<String, String> etags) async {
+    if (etags.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_pageEtagsPrefsKey(notebookId), jsonEncode(etags));
+    } catch (_) {}
+  }
+
   /// SharedPreferences key for the per-page ETag map of a notebook.
   static String _pageEtagsPrefsKey(String notebookId) =>
       'page_etags_$notebookId';
@@ -2611,7 +2645,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   void _recomputeSyncStatus() {
     final next = _consecutiveSyncFailures > 0 ||
         _pendingMetaCommitBytes != null ||
-        _pullUnreachable;
+        _pullUnreachable ||
+        _consecutiveFailedPulls >= _failedPullsShown;
     if (hasSyncFailure.value != next) hasSyncFailure.value = next;
   }
 
@@ -2765,6 +2800,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// after exit because the pulled-save hadn't reached SQLite yet).
   Future<void> flushPendingWork() async {
     _runThumbnail();
+    _pullLoopOn = false;
     _pullTimer?.cancel();
     _pullTimer = null;
     _saveLastPosition();
@@ -9730,9 +9766,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // _disposed guard avoids scheduling a pull whose continuation could
     // race a `closeNotebook` issued seconds later on a slow link
     // (downloads keep arriving and try to mutate a torn-down state).
-    _pendingPullFuture = _pullRemoteChanges();
-    _schedulePullTick();
+    _pullLoopOn = true;
+    _pullThenSchedule();
   }
+
+  /// Runs a pull and arms the next tick only once it has finished, so the
+  /// interval reflects how this pull went (the failure backoff counted one
+  /// pull late when the next tick was armed at the start).
+  void _pullThenSchedule() {
+    final f = _pullRemoteChanges();
+    _pendingPullFuture = f;
+    f.then((_) {}, onError: (_) {}).whenComplete(() {
+      if (!_disposed && _pullLoopOn) _schedulePullTick();
+    });
+  }
+
+  /// False once [flushPendingWork] or [dispose] stopped polling: a pull that
+  /// finishes after that must not re-arm the timer.
+  bool _pullLoopOn = false;
 
   /// Restart the pull timer when coming back from a teardown that killed it
   /// (e.g. previous `paused` lifecycle event). No-op if a timer is already
@@ -9770,6 +9821,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   @override
   void dispose() {
+    _pullLoopOn = false;
     _pullTimer?.cancel();
     _pullTimer = null;
     _pendingMetaCommitTimer?.cancel();
@@ -9857,7 +9909,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // when save() is uploading so a concurrent PROPFIND doesn't see our
       // half-committed delta folder and mis-diagnose it as a remote change.
       if (!_isPulling && _syncLock == null && !_bulkOperationInProgress) {
-        _pendingPullFuture = _pullRemoteChanges();
+        _pullThenSchedule();
+        return;
       }
       _schedulePullTick();
     });
@@ -9892,7 +9945,37 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   DateTime _lastFullPropfindAt = DateTime.fromMillisecondsSinceEpoch(0);
   static const Duration _propfindSafetyNetMaxAge = Duration(minutes: 5);
 
+  /// Pulls in a row that ended with something not received (a page, or
+  /// document/metadata that would not verify). Each one used to retry at the
+  /// 4-second cadence forever; from [_failedPullsBackoff] on the interval
+  /// doubles up to [_failedPullMaxInterval], and from [_failedPullsShown] the
+  /// sync badge says so.
+  int _consecutiveFailedPulls = 0;
+
+  /// Assets the server answered 404 for, and when. Not asked again for
+  /// [_absentAssetRetry]: an upload from another device may still be on
+  /// its way, a reference to a deleted image never will be.
+  final Map<String, DateTime> _absentRemoteAssets = {};
+  static const Duration _absentAssetRetry = Duration(minutes: 10);
+
+  bool _knownAbsent(String ref) {
+    final at = _absentRemoteAssets[ref];
+    if (at == null) return false;
+    if (DateTime.now().difference(at) < _absentAssetRetry) return true;
+    _absentRemoteAssets.remove(ref);
+    return false;
+  }
+  static const int _failedPullsBackoff = 3;
+  static const int _failedPullsShown = 5;
+  static const Duration _failedPullMaxInterval = Duration(minutes: 5);
+
   Duration _pullIntervalForIdle() {
+    if (_consecutiveFailedPulls >= _failedPullsBackoff) {
+      final shift = (_consecutiveFailedPulls - _failedPullsBackoff).clamp(0, 10);
+      final ms = AppConfig.deltaPullInterval.inMilliseconds * (2 << shift);
+      return Duration(
+          milliseconds: ms.clamp(0, _failedPullMaxInterval.inMilliseconds));
+    }
     if (_idlePullCount < _idlePullThreshold) {
       return AppConfig.deltaPullInterval;
     }
@@ -10323,6 +10406,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
               }
             }
             _remoteMetaEtag = changeState.metaEtag;
+            if (_consecutiveFailedPulls > 0) {
+              _consecutiveFailedPulls = 0;
+              _recomputeSyncStatus();
+            }
             // Real progress (ETag advanced) → reset the inconsistent-loop
             // watchdog. The next inconsistent pull starts a fresh window.
             _consecutiveInconsistentPulls = 0;
@@ -10335,10 +10422,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
               '[Pull] ETag advanced: ${changeState.metaEtag}',
             ));
           } else if (_pullHadFailures) {
+            _consecutiveFailedPulls++;
+            _recomputeSyncStatus();
             print('[Canvas] Pull had failures — leaving _remoteMetaEtag stale '
                 'so next sync retries missing content');
             unawaited(CrashLogger.append(
-              '[Pull] ETag not advanced: pull had page failures',
+              '[Pull] ETag not advanced: pull failed '
+              '($_consecutiveFailedPulls in a row, next in '
+              '${_pullIntervalForIdle().inSeconds}s)',
             ));
           } else if (stillOpen && !stateConsistent) {
             // Increment the watchdog inside a rolling window. Once it crosses
@@ -10939,12 +11030,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     //      `_decodeAndCacheImage` clears the corrupt flag.
     final missingAssets = <String>{};
     bool needsHeal(String ref) =>
-        !updatedAssets.containsKey(ref) || _corruptAssetIds.contains(ref);
+        !_knownAbsent(ref) &&
+        (!updatedAssets.containsKey(ref) || _corruptAssetIds.contains(ref));
     for (final page in updatedPages.values) {
-      for (final ref in page.assetReferences) {
-        if (needsHeal(ref)) missingAssets.add(ref);
-      }
-      // Also scan image elements directly (assetReferences may be out of date)
+      // Only what an image element draws: assetReferences is append-only and
+      // keeps ids of deleted images, which were fetched (404) on every pull.
       for (final el in page.layers.content) {
         el.map(unknown: (_) {},
           stroke: (_) {},
@@ -11004,6 +11094,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             return (ref, data, null);
           } catch (e) {
             lastError = e;
+            // Not on the server: retrying (now or next pull) can't help.
+            if (e is RemoteStoreException && e.statusCode == 404) {
+              _absentRemoteAssets[ref] = DateTime.now();
+              unawaited(CrashLogger.append('[Pull] asset missing on the '
+                  'server, asked again in 10 min: $ref'));
+              break;
+            }
             if (attempt == maxAttempts - 1) break;
             await Future.delayed(
                 Duration(milliseconds: 200 * (1 << attempt)));

@@ -8,10 +8,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show BrowserContextMenu, rootBundle;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/platform/web_bootstrap.dart';
 import 'package:abelnotes/core/providers/app_mode_provider.dart';
+import 'package:abelnotes/core/providers/canvas_provider.dart' show CanvasNotifier;
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
@@ -38,9 +40,16 @@ void main(List<String> args) async {
     // Before the crash log: on the web its file lives in the IndexedDB-backed
     // store, which has to be loaded first or the log is overwritten.
     if (kIsWeb) await initWebStorage();
+    await CanvasNotifier.forgetWebPullBaselinesOnce();
     // Right-click opens the app's own menus; the browser's would cover them.
     if (kIsWeb) unawaited(BrowserContextMenu.disableContextMenu());
     await CrashLogger.init();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(CrashLogger.detailedLogPref) ?? false) {
+        CrashLogger.verboseEnabled = true;
+      }
+    } catch (_) {}
     if (kIsWeb) CrashLogger.append('[Web] ${webDeviceDiagnostics()}');
     if (webDiagnostics) {
       CrashLogger.verboseEnabled = true;

@@ -31,6 +31,9 @@ class CrashLogger {
   /// to investigate a pointer-pipeline / sync issue.
   static bool verboseEnabled = false;
 
+  /// SharedPreferences key of the user's "Detailed log" setting.
+  static const String detailedLogPref = 'detailed_log';
+
   /// Tag prefixes that count as "verbose / routine instrumentation"
   /// and are gated by [verboseEnabled]. Order: most-frequent first
   /// (short-circuit on the first match).

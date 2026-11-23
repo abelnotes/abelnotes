@@ -16,6 +16,13 @@ const FILES = __FILES__;
 // Files fetched only when the app needs them (path from the scope: content hash),
 // cached on first use in FONTS under a versioned key, so an update keeps them.
 const LAZY = __LAZY__;
+// Paths this worker may answer. Anything else on this origin (a Nextcloud
+// served behind the same host, /diag/, update.html) must reach the network:
+// caching WebDAV reads here served stale pages forever.
+const SCOPE = new URL(self.registration.scope).pathname;
+const OWN = new Set(FILES.map((f) => new URL(f, self.registration.scope).pathname));
+// Build files left out of the precache (models, lazily loaded engine parts).
+const LAZY_DIRS = ['assets/', 'canvaskit/'].map((d) => SCOPE + d);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -58,16 +65,18 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   // Only our own files. WebDAV / Drive traffic goes straight to the network.
   if (url.origin !== self.location.origin) return;
+  const font = url.pathname.includes('/fonts/fallback/');
+  if (!font && !OWN.has(url.pathname) &&
+      !LAZY_DIRS.some((d) => url.pathname.startsWith(d))) return;
   // V8 recompiles a script served from here on every launch, so the app script
   // goes to the browser; flutter_bootstrap.js adds ?offline when that can't work.
   if (/\/main\.dart\.[^/]+\.js$/.test(url.pathname) && !url.searchParams.has('offline')) return;
 
-  const scope = new URL(self.registration.scope).pathname;
-  const lazy = url.pathname.startsWith(scope) && LAZY[url.pathname.slice(scope.length)];
+  const lazy = url.pathname.startsWith(SCOPE) && LAZY[url.pathname.slice(SCOPE.length)];
   if (lazy) {
     event.respondWith((async () => {
       const cache = await caches.open(FONTS);
-      const key = lazyKey(url.pathname.slice(scope.length), lazy);
+      const key = lazyKey(url.pathname.slice(SCOPE.length), lazy);
       const hit = await cache.match(key);
       if (hit) return hit;
       const res = await fetch(req);
@@ -85,7 +94,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith((async () => {
-    const cache = await caches.open(url.pathname.includes('/fonts/fallback/') ? FONTS : CACHE);
+    const cache = await caches.open(font ? FONTS : CACHE);
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
     try {

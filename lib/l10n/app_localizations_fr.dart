@@ -1649,6 +1649,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get setCopyLogDone => 'Journal copié dans le presse-papiers.';
 
   @override
+  String get setDetailedLog => 'Journal détaillé';
+
+  @override
+  String get setDetailedLogSub =>
+      'Enregistre aussi les détails de la synchronisation et du stylet, pour qu\'un journal copié explique mieux un problème. Laisse-le désactivé si tu n\'en as pas besoin.';
+
+  @override
   String get setContribute => 'Aidez à améliorer la reconnaissance';
 
   @override

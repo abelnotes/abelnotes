@@ -38,6 +38,9 @@
   <!-- Splash until Flutter's first frame, in the app's paper / dark colours. -->
   <style>
     html, body { background: #F5F2EC; }
+    /* The page never scrolls: in the home-screen app iPadOS opened it scrolled
+       by the status bar height, and pen input landed 20 px off the ink. */
+    html, body { height: 100%; overflow: hidden; }
     #splash {
       position: fixed; inset: 0; z-index: 2147483647;
       display: flex; align-items: center; justify-content: center;
@@ -94,6 +97,23 @@
       window.abelnotesLoadGis = function () {
         held.splice(0).forEach(function (n) { append.call(head, n); });
       };
+    })();
+  </script>
+  <script>
+    // Home-screen app only: iPadOS can still pan the page by the status bar
+    // on launch or rotation; put it back so touches and ink share one origin.
+    (function () {
+      if (!window.matchMedia('(display-mode: standalone)').matches) return;
+      var vv = window.visualViewport;
+      function pin() {
+        if (window.scrollY || window.scrollX || (vv && vv.offsetTop)) window.scrollTo(0, 0);
+      }
+      window.addEventListener('scroll', pin, { passive: true });
+      window.addEventListener('resize', pin);
+      window.addEventListener('load', pin);
+      if (vv) { vv.addEventListener('scroll', pin); vv.addEventListener('resize', pin); }
+      setTimeout(pin, 300);
+      setTimeout(pin, 1500);
     })();
   </script>
   <!--

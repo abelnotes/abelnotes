@@ -36,7 +36,7 @@ ShapeData? recognizeShape(
   bool fill = false,
 }) {
   if (points.length < 5) return null;
-  final pts = _dedupe(points);
+  final pts = _collapseDwell(_dedupe(points));
   if (pts.length < 5) return null;
 
   var minX = double.infinity, maxX = -double.infinity;
@@ -575,6 +575,37 @@ List<Offset> _dedupe(List<StrokePoint> pts) {
     if (out.isEmpty || (o - out.last).distance > 0.05) out.add(o);
   }
   return out;
+}
+
+/// A pen held still at either end of a stroke keeps sending a few units of
+/// wobble (hold-to-recognize asks for exactly that pause). Left in, that
+/// wobble lengthens the path and a straight line fails the straightness test.
+/// Each end's cluster becomes its outermost point plus the true endpoint.
+List<Offset> _collapseDwell(List<Offset> p) {
+  if (p.length < 8) return p;
+  var minX = double.infinity, maxX = -double.infinity;
+  var minY = double.infinity, maxY = -double.infinity;
+  for (final o in p) {
+    minX = min(minX, o.dx);
+    maxX = max(maxX, o.dx);
+    minY = min(minY, o.dy);
+    maxY = max(maxY, o.dy);
+  }
+  final r = min(6.0, 0.15 * max(maxX - minX, maxY - minY));
+  var end = p.length - 1;
+  while (end > 1 && (p[end - 1] - p.last).distance <= r) {
+    end--;
+  }
+  var start = 0;
+  while (start < end - 1 && (p[start + 1] - p.first).distance <= r) {
+    start++;
+  }
+  final out = [
+    p.first,
+    for (var i = start + 1; i < end; i++) p[i],
+    p.last,
+  ];
+  return out.length >= 5 ? out : p;
 }
 
 double _pathLen(List<Offset> p) {

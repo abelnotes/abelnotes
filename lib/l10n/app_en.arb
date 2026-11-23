@@ -435,6 +435,8 @@
   "setCopyLog": "Copy log",
   "setReportProblemEmpty": "No errors logged.",
   "setCopyLogDone": "Log copied to clipboard.",
+  "setDetailedLog": "Detailed log",
+  "setDetailedLogSub": "Also records sync and pen details, so a copied log explains a problem better. Leave it off when you don't need it.",
   "setContribute": "Help improve recognition",
   "setContributeSub": "Write a few formulas and circuit symbols on contribute.abelnotes.app. The app never sends your notes: samples leave only from that page, when you choose to send them.",
   "setContributeOpen": "Open page",

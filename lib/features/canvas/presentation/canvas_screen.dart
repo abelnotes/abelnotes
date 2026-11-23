@@ -6257,7 +6257,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                                   // the first PointerMove). Either may be
                                   // null between strokes.
                                   if (_activeStrokeNotifier.points.isNotEmpty) {
-                                    return _activeStrokeNotifier.points;
+                                    return _activeStrokeNotifier.displayPoints;
                                   }
                                   final liveS = ref.read(canvasProvider);
                                   final stroke = liveS?.activeStroke;

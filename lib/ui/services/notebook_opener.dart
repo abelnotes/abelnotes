@@ -16,15 +16,6 @@ import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_screen.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 
-/// Thrown when the notebook has no local copy and no server is reachable
-/// to download it. Typed (instead of a bare `Exception(message)`) so the
-/// catch below can show a localized message to the user.
-class NoLocalCopyOfflineException implements Exception {
-  @override
-  String toString() =>
-      'NoLocalCopyOfflineException: no local copy and not connected to a server';
-}
-
 /// True while an open is between "loader shown" and "CanvasScreen pushed".
 ///
 /// Opening is slow enough to be tapped twice (loading + parsing, and on a
@@ -344,38 +335,11 @@ Future<void> _openNotebookAndNavigate(
       throw NoLocalCopyOfflineException();
     }
 
-    final result =
-        await syncService.downloadExplodedFull(entry.metadata.id);
-
-    try {
-      final bytes = SyncService.buildPackageBytes(
-        metadata: result.metadata,
-        document: result.document,
-        pages: result.pages,
-        assets: result.assets,
-        symbolLibraries: result.symbolLibraries,
-      );
-      await fileService.saveNotebookFile(result.metadata.id, bytes);
-      await fileService.upsertNotebookMeta(
-        id: result.metadata.id,
-        title: result.metadata.title,
-        remotePath: entry.remotePath,
-        localModifiedAt: result.metadata.modifiedAt,
-        syncStatus: 'synced',
-        fileSize: bytes.length,
-        coverColor: result.metadata.coverColor,
-        coverStyle: result.metadata.coverStyle,
-        paperType: result.metadata.paperType,
-        pageCount: result.metadata.pageCount,
-        createdAt: result.metadata.createdAt,
-      );
-      // Opening it is the user asking for it back: the notebook is on this
-      // device now, so the "don't download this one" flag no longer describes
-      // reality and would make the badge lie.
-      await fileService.setNotebookDownloadSkipped(result.metadata.id, false);
-    } catch (e) {
-      debugPrint('[NotebookOpener] persist after download failed: $e');
-    }
+    // Opening it is the user asking for it back: fetchToDevice clears the
+    // "not on this device" flag once it is stored.
+    final result = await ref
+        .read(notebookListProvider.notifier)
+        .fetchToDevice(entry.metadata.id, entry.remotePath);
 
     if (await abandoned()) return;
     await ref.read(canvasProvider.notifier).openNotebook(

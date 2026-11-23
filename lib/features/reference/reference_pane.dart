@@ -44,7 +44,14 @@ final _referenceContentsProvider = FutureProvider.autoDispose
   final bytes = await files.readNotebookFile(id);
   if (bytes != null) return sync.parsePackage(bytes);
   if (sync.isOffline) throw _NotAvailable();
-  return sync.downloadExplodedFull(id);
+  final r = await sync.downloadExplodedFull(id);
+  return (
+    metadata: r.metadata,
+    document: r.document,
+    pages: r.pages,
+    assets: r.assets,
+    symbolLibraries: r.symbolLibraries,
+  );
 });
 
 /// The editor, plus the side notebook when one is open: beside it on wide

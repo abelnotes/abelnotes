@@ -435,6 +435,8 @@
   "setCopyLog": "Copier le journal",
   "setReportProblemEmpty": "Aucune erreur enregistrée.",
   "setCopyLogDone": "Journal copié dans le presse-papiers.",
+  "setDetailedLog": "Journal détaillé",
+  "setDetailedLogSub": "Enregistre aussi les détails de la synchronisation et du stylet, pour qu'un journal copié explique mieux un problème. Laisse-le désactivé si tu n'en as pas besoin.",
   "setContribute": "Aidez à améliorer la reconnaissance",
   "setContributeSub": "Écrivez quelques formules et symboles de circuit sur contribute.abelnotes.app. L'application n'envoie jamais vos notes : les échantillons partent uniquement de cette page, quand vous choisissez de les envoyer.",
   "setContributeOpen": "Ouvrir la page",

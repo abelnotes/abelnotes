@@ -158,4 +158,42 @@ void main() {
     final dirty = await fs.getDirtyNotebooks();
     expect(dirty.where((r) => r['id'] == 'nb'), isEmpty);
   });
+
+  test('a not-yet-fetched card is skipped but queued for prefetch', () async {
+    await addNotebook('new');
+    await fs.setNotebookDownloadSkipped('new', true, pending: true);
+    expect(await fs.isNotebookDownloadSkipped('new'), isTrue);
+    expect((await fs.pendingDownloads()).map((n) => n.id), ['new']);
+    await fs.setNotebookDownloadSkipped('new', false);
+    expect(await fs.pendingDownloads(), isEmpty);
+  });
+
+  test('prefetch never picks a notebook the user evicted', () async {
+    await addNotebook('evicted');
+    await writeLocalCopy('evicted', 1024);
+    await fs.evictLocalCopy('evicted');
+    expect(await fs.pendingDownloads(), isEmpty);
+  });
+
+  test('prefetch goes newest first', () async {
+    for (final (id, day) in [('old', 1), ('newest', 20), ('mid', 10)]) {
+      await fs.upsertNotebookMeta(
+        id: id,
+        title: id,
+        remotePath: '/AbelNotes/$id.abelnote',
+        localModifiedAt: DateTime(2026, 11, day),
+        syncStatus: 'synced',
+      );
+      await fs.setNotebookDownloadSkipped(id, true, pending: true);
+    }
+    expect((await fs.pendingDownloads()).map((n) => n.id),
+        ['newest', 'mid', 'old']);
+  });
+
+  test('disconnecting drops not-yet-fetched cards too', () async {
+    await addNotebook('new');
+    await fs.setNotebookDownloadSkipped('new', true, pending: true);
+    await fs.markAllNotebooksLocal();
+    expect(await fs.getNotebookMeta('new'), isNull);
+  });
 }

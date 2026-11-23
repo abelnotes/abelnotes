@@ -399,7 +399,7 @@ class _PageGridState extends ConsumerState<PageGrid> {
       return vector();
     }
     final rasters = PreviewRasters.instance;
-    final key = PreviewKey(page, pw, ph, state.imageCache);
+    final key = PreviewKey(page, pw, ph, imagesSignature(_imagePaths(page), state.imageCache));
     return ValueListenableBuilder<int>(
       valueListenable: rasters.version,
       builder: (_, __, ___) {
@@ -424,6 +424,12 @@ class _PageGridState extends ConsumerState<PageGrid> {
         return const SizedBox.expand();
       },
     );
+  }
+
+  Iterable<String> _imagePaths(PageData page) sync* {
+    for (final el in page.layers.content) {
+      if (el is ImageElement) yield el.data.assetPath;
+    }
   }
 
   // ── thumbnail (lazy asset decoding, corrupt/loading badges) ──

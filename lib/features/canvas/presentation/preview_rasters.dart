@@ -3,13 +3,15 @@ import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 /// Web: page previews as bitmaps, each made once.
 ///
 /// CanvasKit replays a vector picture by re-stroking every path, so a grid
 /// of page previews redrew all their ink on every frame of a scroll or of the
 /// sheet sliding in. A bitmap is one blit. Bitmaps are made a few at a time
-/// between frames, so opening the grid never waits for all of them.
+/// as idle-priority tasks: never during the sheet's slide-in or a fling, so
+/// those keep their frames and the previews fill in right after.
 class PreviewRasters {
   PreviewRasters._();
   static final PreviewRasters instance = PreviewRasters._();
@@ -41,7 +43,7 @@ class PreviewRasters {
     _queue[key] = render;
     if (!_running) {
       _running = true;
-      Timer.run(_work);
+      _schedule();
     }
   }
 
@@ -67,30 +69,48 @@ class PreviewRasters {
     if (_queue.isEmpty) {
       _running = false;
     } else {
-      Timer.run(_work);
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    try {
+      SchedulerBinding.instance.scheduleTask(_work, Priority.idle);
+    } catch (_) {
+      Timer.run(_work); // no binding (tests without one)
     }
   }
 }
 
-/// A preview bitmap of one page state at one size. Pages and image caches are
-/// compared by identity: both are replaced, never changed in place.
+/// A preview bitmap of one page state at one size. Pages are compared by
+/// identity (replaced, never changed in place). [images] stands for the
+/// decoded images that page draws (see [imagesSignature]): another page's
+/// image finishing its decode must not throw this bitmap away.
 @immutable
 class PreviewKey {
   const PreviewKey(this.page, this.width, this.height, this.images);
   final Object page;
   final int width;
   final int height;
-  final Object images;
+  final int images;
 
   @override
   bool operator ==(Object other) =>
       other is PreviewKey &&
       identical(other.page, page) &&
-      identical(other.images, images) &&
+      other.images == images &&
       other.width == width &&
       other.height == height;
 
   @override
-  int get hashCode => Object.hash(
-      identityHashCode(page), identityHashCode(images), width, height);
+  int get hashCode => Object.hash(identityHashCode(page), images, width, height);
+}
+
+/// Identity of the decoded images behind [paths]; 0 for a page without any.
+int imagesSignature(Iterable<String> paths, Map<String, Object?> cache) {
+  var h = 0;
+  for (final p in paths) {
+    h = Object.hash(h, p, identityHashCode(cache[p]));
+  }
+  return h;
 }

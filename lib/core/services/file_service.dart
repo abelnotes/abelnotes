@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:abelnotes/core/services/zip_guard.dart';
 import 'package:abelnotes/features/canvas/data/pdf_sources.dart' show kPdfSourcesDir;
 import 'package:abelnotes/core/platform/io.dart';
 import 'dart:math' as math;
@@ -681,7 +682,7 @@ class FileService {
     final tmpDir = '$dir.$ts-$seq.tmpdir';
     final oldDir = '$dir.$ts-$seq.olddir';
     try {
-      final archive = ZipDecoder().decodeBytes(zipBytes);
+      final archive = decodeNotebookArchive(zipBytes);
       for (final f in archive.files) {
         if (!f.isFile) continue;
         // Zip-slip guard: skip entries with absolute paths or `..` segments
@@ -981,7 +982,7 @@ class FileService {
   /// it) and that the deletion cleanup never removes, because it skips
   /// anything that isn't `synced`.
   Future<int> markAllNotebooksLocal() async {
-    await _db.delete('notebooks', where: 'download_skipped = 1');
+    await _db.delete('notebooks', where: 'download_skipped != 0');
     return _db.update(
       'notebooks',
       {'sync_status': 'modified', 'etag': null, 'remote_modified_at': null},
@@ -1022,10 +1023,15 @@ class FileService {
   /// Per-device and never uploaded: the notebook stays on the remote and on
   /// the devices that do want it. Setting the flag does not delete anything —
   /// [evictLocalCopy] does that.
-  Future<void> setNotebookDownloadSkipped(String id, bool skipped) async {
+  ///
+  /// [pending] marks a card this device has simply not fetched yet (first
+  /// sync on a new device): unlike a user's opt-out, the background prefetch
+  /// may bring it down.
+  Future<void> setNotebookDownloadSkipped(String id, bool skipped,
+      {bool pending = false}) async {
     await _db.update(
       'notebooks',
-      {'download_skipped': skipped ? 1 : 0},
+      {'download_skipped': !skipped ? 0 : (pending ? downloadPending : 1)},
       where: 'id = ?',
       whereArgs: [id],
     );
@@ -1041,7 +1047,26 @@ class FileService {
       limit: 1,
     );
     if (rows.isEmpty) return false;
-    return (rows.first['download_skipped'] as int? ?? 0) == 1;
+    return (rows.first['download_skipped'] as int? ?? 0) != 0;
+  }
+
+  /// `download_skipped` value of a card not fetched yet, as opposed to 1 (the
+  /// user asked this device not to keep it).
+  static const int downloadPending = 2;
+
+  /// Notebooks waiting for their first download, most recently edited first.
+  Future<List<({String id, String remotePath})>> pendingDownloads() async {
+    final rows = await _db.query(
+      'notebooks',
+      columns: ['id', 'remote_path'],
+      where: 'download_skipped = ?',
+      whereArgs: [downloadPending],
+      orderBy: 'local_modified_at DESC',
+    );
+    return [
+      for (final r in rows)
+        (id: r['id'] as String, remotePath: r['remote_path'] as String? ?? ''),
+    ];
   }
 
   /// Frees the local content of a notebook, keeping its library row.

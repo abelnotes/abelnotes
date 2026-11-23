@@ -435,6 +435,8 @@
   "setCopyLog": "复制日志",
   "setReportProblemEmpty": "没有记录到错误。",
   "setCopyLogDone": "日志已复制到剪贴板。",
+  "setDetailedLog": "详细日志",
+  "setDetailedLogSub": "同时记录同步和笔的详细信息，让复制的日志更能说明问题。不需要时请保持关闭。",
   "setContribute": "帮助改进识别",
   "setContributeSub": "在 contribute.abelnotes.app 上写几个公式和电路符号。应用从不发送你的笔记：样本只会在你决定发送时从该页面发出。",
   "setContributeOpen": "打开页面",

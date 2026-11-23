@@ -10,7 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/folder_sync_provider.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart';
-import 'package:abelnotes/core/providers/canvas_provider.dart' show canvasProvider;
+import 'package:abelnotes/core/providers/canvas_provider.dart'
+    show CanvasNotifier, canvasProvider;
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/file_service.dart';
@@ -276,6 +277,7 @@ class NotebookListNotifier
 
       await _syncWithServer(syncService, webdav, fileService);
       if (mounted) serverUnreachable.value = false;
+      unawaited(prefetchPending());
     } on RemoteStorageFullException catch (e) {
       debugPrint('[Library] Remote is out of space: $e');
       storageFull.value = true;
@@ -349,7 +351,7 @@ class NotebookListNotifier
           : null,
       isLocal: row['sync_status'] != 'synced',
       localOnly: (row['local_only'] as int? ?? 0) == 1,
-      notOnDevice: (row['download_skipped'] as int? ?? 0) == 1,
+      notOnDevice: (row['download_skipped'] as int? ?? 0) != 0,
     );
   }
 
@@ -404,7 +406,7 @@ class NotebookListNotifier
 
       // This device was told not to keep this notebook. It stays a stub card
       // until the user opens it; the opener downloads on demand.
-      if (localRow != null && (localRow['download_skipped'] as int? ?? 0) == 1) {
+      if (localRow != null && (localRow['download_skipped'] as int? ?? 0) != 0) {
         metaOnlyRows.add(localRow);
         continue;
       }
@@ -880,6 +882,22 @@ class NotebookListNotifier
           }
         }
 
+        // First sight of a delta notebook: its root is a stale snapshot (up to
+        // 150 MB) and the card needs only metadata.json, so skip the root.
+        if (uuidMatch != null) {
+          final candidateId = uuidMatch.group(1)!;
+          if (!await fileService.hasLocalCopy(candidateId)) {
+            final deltaMeta =
+                await syncService.downloadDeltaMetadataOnly(candidateId);
+            if (deltaMeta != null && deltaMeta.id == candidateId) {
+              await _saveStubRow(fileService, deltaMeta, remotePath, file);
+              debugPrint('[Library] $candidateId listed from delta metadata '
+                  '(root not downloaded)');
+              return true;
+            }
+          }
+        }
+
         final Future<NotebookMetadata?> deltaFut = uuidMatch != null
             ? syncService.downloadDeltaMetadataOnly(uuidMatch.group(1)!)
             : Future.value(null);
@@ -987,7 +1005,8 @@ class NotebookListNotifier
           createdAt: libraryMeta.createdAt,
         );
         if (stub) {
-          await fileService.setNotebookDownloadSkipped(rootMeta.id, true);
+          await fileService.setNotebookDownloadSkipped(rootMeta.id, true,
+              pending: true);
         }
         return true;
       } catch (e) {
@@ -1003,6 +1022,119 @@ class NotebookListNotifier
       }
     }
     return false;
+  }
+
+  Future<void> _saveStubRow(FileService fileService, NotebookMetadata meta,
+      String remotePath, RemoteItem file) async {
+    await fileService.upsertNotebookMeta(
+      id: meta.id,
+      title: meta.title,
+      remotePath: remotePath,
+      etag: file.version,
+      localModifiedAt: meta.modifiedAt,
+      remoteModifiedAt: file.lastModified,
+      syncStatus: 'synced',
+      fileSize: null,
+      coverColor: meta.coverColor,
+      coverStyle: meta.coverStyle,
+      paperType: meta.paperType,
+      pageCount: meta.pageCount,
+      createdAt: meta.createdAt,
+    );
+    await fileService.setNotebookDownloadSkipped(meta.id, true, pending: true);
+  }
+
+  final Map<String, Future<ExplodedNotebook>> _fetching = {};
+
+  /// Downloads a notebook this device lists but does not hold and stores it.
+  /// Concurrent calls for the same id share one download.
+  Future<ExplodedNotebook> fetchToDevice(String id, String remotePath) {
+    return _fetching[id] ??= () async {
+      try {
+        final sync = _ref.read(syncServiceProvider);
+        if (sync == null || sync.isOffline) throw NoLocalCopyOfflineException();
+        final r = await sync.downloadExplodedFull(id);
+        try {
+          await _storeFetched(_ref.read(fileServiceProvider), id, remotePath, r);
+        } catch (e) {
+          // Still openable from memory; the next open downloads it again.
+          debugPrint('[Library] storing fetched $id failed: $e');
+          unawaited(CrashLogger.append('[Fetch] store $id failed: $e'));
+        }
+        return r;
+      } finally {
+        _fetching.remove(id);
+      }
+    }();
+  }
+
+  Future<void> _storeFetched(FileService fileService, String id,
+      String remotePath, ExplodedNotebook r) async {
+    final bytes = SyncService.buildPackageBytes(
+      metadata: r.metadata,
+      document: r.document,
+      pages: r.pages,
+      assets: r.assets,
+      symbolLibraries: r.symbolLibraries,
+    );
+    await fileService.saveNotebookFile(id, bytes);
+    await fileService.upsertNotebookMeta(
+      id: id,
+      title: r.metadata.title,
+      remotePath: remotePath,
+      localModifiedAt: r.metadata.modifiedAt,
+      syncStatus: 'synced',
+      fileSize: bytes.length,
+      coverColor: r.metadata.coverColor,
+      coverStyle: r.metadata.coverStyle,
+      paperType: r.metadata.paperType,
+      pageCount: r.metadata.pageCount,
+      createdAt: r.metadata.createdAt,
+    );
+    await fileService.setNotebookDownloadSkipped(id, false);
+    await CanvasNotifier.seedPageEtags(id, r.pageEtags);
+  }
+
+  bool _prefetching = false;
+  static const prefetchDelay = Duration(seconds: 8);
+
+  /// Desktop only: after a sync, brings down the notebooks still waiting for
+  /// their first download, one at a time, newest first. Phones and the web
+  /// fetch on open to spare storage.
+  Future<void> prefetchPending() async {
+    if (kIsWeb || _prefetching) return;
+    if (defaultTargetPlatform != TargetPlatform.linux &&
+        defaultTargetPlatform != TargetPlatform.windows &&
+        defaultTargetPlatform != TargetPlatform.macOS) {
+      return;
+    }
+    _prefetching = true;
+    try {
+      // The notebook the user taps right after launch goes first.
+      await Future.delayed(prefetchDelay);
+      final fileService = _ref.read(fileServiceProvider);
+      for (final n in await fileService.pendingDownloads()) {
+        while (mounted && _fetching.isNotEmpty) {
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+        if (!mounted) return;
+        final sync = _ref.read(syncServiceProvider);
+        if (sync == null || sync.isOffline) return;
+        // The open editor owns that notebook's store.
+        if (_ref.read(canvasProvider)?.metadata.id == n.id) continue;
+        if (!await fileService.isNotebookDownloadSkipped(n.id)) continue;
+        try {
+          await fetchToDevice(n.id, n.remotePath);
+          unawaited(CrashLogger.append('[Prefetch] ${n.id} downloaded'));
+          if (mounted) await _loadFromLocalDb(fileService);
+        } catch (e) {
+          debugPrint('[Library] prefetch of ${n.id} failed: $e');
+          return; // network trouble: the next sync retries
+        }
+      }
+    } finally {
+      _prefetching = false;
+    }
   }
 
   /// Crea un nuovo notebook vuoto. Salva localmente e tenta upload remoto.

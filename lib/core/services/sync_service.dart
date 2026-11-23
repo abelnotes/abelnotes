@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:abelnotes/core/services/zip_guard.dart';
 import 'package:abelnotes/core/platform/io.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
@@ -43,6 +44,27 @@ class _Gate {
 
 /// Same cap as the page pull in CanvasNotifier.
 const _remoteParallelism = 4;
+
+/// A whole notebook as read from its delta folder.
+typedef ExplodedNotebook = ({
+  NotebookMetadata metadata,
+  DocumentStructure document,
+  Map<String, PageData> pages,
+  Map<String, Uint8List> assets,
+  List<Map<String, dynamic>> symbolLibraries,
+  // Server version of each page received, from the listing taken before
+  // the downloads: never newer than the bytes, so safe as a pull baseline.
+  Map<String, String> pageEtags,
+});
+
+/// Thrown when the notebook has no local copy and no server is reachable
+/// to download it. Typed (instead of a bare `Exception(message)`) so the
+/// opener can show a localized message to the user.
+class NoLocalCopyOfflineException implements Exception {
+  @override
+  String toString() =>
+      'NoLocalCopyOfflineException: no local copy and not connected to a server';
+}
 
 /// Engine di sincronizzazione offline-first.
 ///
@@ -92,7 +114,7 @@ class SyncService {
     }
     // Full parse to find End of Central Directory
     try {
-      final archive = ZipDecoder().decodeBytes(data);
+      final archive = decodeNotebookArchive(data);
       final hasMetadata = archive.findFile(AppConfig.metadataFile) != null;
       final hasDocument = archive.findFile(AppConfig.documentFile) != null;
       if (!hasMetadata || !hasDocument) {
@@ -205,7 +227,7 @@ class SyncService {
   /// Parsa un archivio .ncnote scaricato.
   ({NotebookMetadata metadata, DocumentStructure document})
       _parseNcnoteArchive(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
+    final archive = decodeNotebookArchive(data);
 
     // Estrai metadata.json
     final metadataFile = archive.findFile(AppConfig.metadataFile);
@@ -255,7 +277,7 @@ class SyncService {
   }
 
   static NotebookMetadata _parseMetadataInIsolate(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
+    final archive = decodeNotebookArchive(data);
     final metadataFile = archive.findFile(AppConfig.metadataFile);
     if (metadataFile == null) {
       throw Exception('Missing ${AppConfig.metadataFile}');
@@ -299,7 +321,7 @@ class SyncService {
   /// Upload di un notebook completo sul server.
   /// Extract symbol libraries from an .ncnote archive.
   List<Map<String, dynamic>> extractSymbolLibraries(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
+    final archive = decodeNotebookArchive(data);
     final symbolsFile = archive.findFile('symbols.json');
     if (symbolsFile == null) return [];
     try {
@@ -1303,7 +1325,7 @@ class SyncService {
   Future<void> migrateToExploded(String notebookId, Uint8List ncnoteData) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
-    final archive = ZipDecoder().decodeBytes(ncnoteData);
+    final archive = decodeNotebookArchive(ncnoteData);
 
     // Create asset subdirectories that might be needed
     final subDirs = <String>{};
@@ -1334,8 +1356,7 @@ class SyncService {
   }
 
   /// Downloads a full notebook from the exploded folder structure.
-  Future<({NotebookMetadata metadata, DocumentStructure document, Map<String, PageData> pages, Map<String, Uint8List> assets, List<Map<String, dynamic>> symbolLibraries})>
-      downloadExplodedFull(String notebookId) async {
+  Future<ExplodedNotebook> downloadExplodedFull(String notebookId) async {
     final dir = _deltaDir(notebookId);
 
     final meta = await downloadDeltaMeta(notebookId);
@@ -1454,6 +1475,11 @@ class SyncService {
       pages: pages,
       assets: assets,
       symbolLibraries: symbols,
+      pageEtags: {
+        for (final item in pageItems)
+          if (item.version != null && pages.containsKey(item.name))
+            item.name: item.version!,
+      },
     );
   }
 
@@ -1505,7 +1531,7 @@ class SyncService {
 
   /// Estrae tutte le pagine da un archivio .ncnote raw bytes.
   Map<String, PageData> extractAllPages(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
+    final archive = decodeNotebookArchive(data);
     final pages = <String, PageData>{};
 
     for (final file in archive.files) {
@@ -1612,7 +1638,7 @@ class SyncService {
 
   /// Estrae tutti gli asset binari (immagini) da un archivio .ncnote.
   Map<String, Uint8List> extractAllAssets(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
+    final archive = decodeNotebookArchive(data);
     final assets = <String, Uint8List>{};
     for (final file in archive.files) {
       if (file.name.startsWith('${AppConfig.assetsDir}/') && file.isFile) {
@@ -1912,7 +1938,7 @@ Map<String, PageData> _decodePageFiles(List<String> paths) => {
 /// Shared implementation for [SyncService.extractNotebookContents] and its
 /// isolate variant — top level so [compute] can take it directly.
 NcnoteContents _extractContentsImpl(Uint8List data) {
-  final archive = ZipDecoder().decodeBytes(data);
+  final archive = decodeNotebookArchive(data);
   final pages = <String, PageData>{};
   final assets = <String, Uint8List>{};
   var symbols = <Map<String, dynamic>>[];

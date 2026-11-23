@@ -1600,6 +1600,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setCopyLogDone => '日志已复制到剪贴板。';
 
   @override
+  String get setDetailedLog => '详细日志';
+
+  @override
+  String get setDetailedLogSub => '同时记录同步和笔的详细信息，让复制的日志更能说明问题。不需要时请保持关闭。';
+
+  @override
   String get setContribute => '帮助改进识别';
 
   @override

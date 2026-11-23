@@ -1647,6 +1647,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get setCopyLogDone => 'Registro copiado al portapapeles.';
 
   @override
+  String get setDetailedLog => 'Registro detallado';
+
+  @override
+  String get setDetailedLogSub =>
+      'También guarda detalles de la sincronización y del lápiz, para que el registro copiado explique mejor un problema. Déjalo desactivado si no lo necesitas.';
+
+  @override
   String get setContribute => 'Ayuda a mejorar el reconocimiento';
 
   @override

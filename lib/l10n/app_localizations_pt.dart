@@ -1644,6 +1644,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get setCopyLogDone => 'Log copiado para a área de transferência.';
 
   @override
+  String get setDetailedLog => 'Registo detalhado';
+
+  @override
+  String get setDetailedLogSub =>
+      'Também regista detalhes da sincronização e da caneta, para que o registo copiado explique melhor um problema. Deixa-o desligado se não precisares.';
+
+  @override
   String get setContribute => 'Ajude a melhorar o reconhecimento';
 
   @override

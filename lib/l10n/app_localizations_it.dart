@@ -1646,6 +1646,13 @@ class AppLocalizationsIt extends AppLocalizations {
   String get setCopyLogDone => 'Log copiato negli appunti.';
 
   @override
+  String get setDetailedLog => 'Log dettagliato';
+
+  @override
+  String get setDetailedLogSub =>
+      'Registra anche sincronizzazione e penna nei dettagli, così il log copiato spiega meglio un problema. Lascialo spento se non ti serve.';
+
+  @override
   String get setContribute => 'Aiuta a migliorare il riconoscimento';
 
   @override

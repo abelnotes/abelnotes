@@ -1649,6 +1649,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setCopyLogDone => 'Protokoll in die Zwischenablage kopiert.';
 
   @override
+  String get setDetailedLog => 'Ausführliches Protokoll';
+
+  @override
+  String get setDetailedLogSub =>
+      'Zeichnet auch Synchronisierung und Stift im Detail auf, damit ein kopiertes Protokoll ein Problem besser erklärt. Lass es aus, wenn du es nicht brauchst.';
+
+  @override
   String get setContribute => 'Hilf, die Erkennung zu verbessern';
 
   @override

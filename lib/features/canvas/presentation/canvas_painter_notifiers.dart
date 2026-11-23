@@ -72,6 +72,11 @@ class ActiveStrokeNotifier extends ChangeNotifier {
   int _t0Ms = 0;
   Duration? _t0Event;
 
+  /// Event time of the newest accepted sample. iPadOS Safari replays already
+  /// delivered pen samples (older timestamps) inside later events: drawn,
+  /// they zigzagged the live ink back and forth.
+  Duration? _lastEvent;
+
   int _stamp(Duration? eventTime) {
     final t0 = _t0Event;
     if (eventTime == null || t0 == null) {
@@ -88,9 +93,11 @@ class ActiveStrokeNotifier extends ChangeNotifier {
       bool integerCoords = false,
       Duration? eventTime}) {
     _points.clear();
+    _display = null;
     _active = true;
     _t0Ms = DateTime.now().millisecondsSinceEpoch;
     _t0Event = eventTime;
+    _lastEvent = eventTime;
     _pageUnitsPerPx = pageUnitsPerPx;
     _integerCoords = integerCoords;
     _lastRawPos = pos;
@@ -126,6 +133,9 @@ class ActiveStrokeNotifier extends ChangeNotifier {
   }
 
   void addPoint(Offset pos, double pressure, {Duration? eventTime}) {
+    final last = _lastEvent;
+    if (eventTime != null && last != null && eventTime <= last) return;
+    if (eventTime != null) _lastEvent = eventTime;
     final nowMs = _stamp(eventTime);
     // Always remember where the cursor really is — snapshotForCommit
     // completes the lazy-brush tail from here even when this sample gets
@@ -380,8 +390,38 @@ class ActiveStrokeNotifier extends ChangeNotifier {
         ));
       }
     }
-    final quantized = _integerCoords || (!kIsWeb && io.Platform.isWindows);
-    if (!quantized || _pageUnitsPerPx <= 0 || pts.length < 5) {
+    return _smoothQuantized(pts);
+  }
+
+  bool get _quantized => _integerCoords || (!kIsWeb && io.Platform.isWindows);
+
+  List<StrokePoint>? _display;
+  int _displayLen = -1;
+
+  /// What the live preview draws: the same smoothing the commit applies, so
+  /// the ink doesn't look rough while drawing and change shape on lift. The
+  /// last two samples have no right-hand neighbours yet and stay as they are,
+  /// exactly as at commit time.
+  List<StrokePoint> get displayPoints {
+    if (!_quantized || _points.length < 5) return _points;
+    final n = _points.length;
+    final prev = _display;
+    if (prev != null && _displayLen == n) return prev;
+    // Three 5-tap passes reach 6 samples out: only the tail moved since the
+    // last frame. Re-smooth that window with 8 samples of context.
+    if (prev == null || _displayLen != n - 1 || n < 40) {
+      _display = _smoothQuantized(_points);
+    } else {
+      final from = n - 16;
+      final win = _smoothQuantized(_points.sublist(from - 8));
+      _display = [...prev.sublist(0, from), ...win.sublist(8)];
+    }
+    _displayLen = n;
+    return _display!;
+  }
+
+  List<StrokePoint> _smoothQuantized(List<StrokePoint> pts) {
+    if (!_quantized || _pageUnitsPerPx <= 0 || pts.length < 5) {
       return pts;
     }
     final maxShift = 0.75 * _pageUnitsPerPx; // page units
@@ -424,11 +464,13 @@ class ActiveStrokeNotifier extends ChangeNotifier {
 
   void clearPoints() {
     _points.clear();
+    _display = null;
     notifyListeners();
   }
 
   void clear() {
     _points.clear();
+    _display = null;
     _active = false;
     _lastRawPos = null;
     _lazyBrush = false;
@@ -446,6 +488,7 @@ class ActiveStrokeNotifier extends ChangeNotifier {
   /// continues smoothly across the seam.
   void restoreActive(List<StrokePoint> previousPoints) {
     _points.clear();
+    _display = null;
     if (previousPoints.isNotEmpty) {
       _points.addAll(previousPoints);
       _synthEma = previousPoints.last.pressure.clamp(0.30, 0.85).toDouble();
