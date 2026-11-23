@@ -22,6 +22,7 @@ class ElementHandles extends ConsumerWidget {
     required this.onEditComment,
     required this.onEditMath,
     required this.onTidyCircuit,
+    required this.onConvertToInk,
     required this.copyImageToSystemClipboard,
     required this.toast,
   });
@@ -34,6 +35,7 @@ class ElementHandles extends ConsumerWidget {
   final void Function(String elementId) onEditComment;
   final void Function(MathElement element) onEditMath;
   final void Function(String elementId) onTidyCircuit;
+  final void Function(String elementId) onConvertToInk;
   final void Function(String elementId) copyImageToSystemClipboard;
   final void Function(String message) toast;
 
@@ -275,6 +277,7 @@ class ElementHandles extends ConsumerWidget {
         } : null,
         onTidyCircuit:
             isImage && circuitsReady ? () => onTidyCircuit(elementId) : null,
+        onConvertToInk: isImage ? () => onConvertToInk(elementId) : null,
       ),
     ];
   }

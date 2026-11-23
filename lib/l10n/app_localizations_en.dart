@@ -3694,6 +3694,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csRecognizeImageMissing => 'Image not loaded yet';
 
   @override
+  String get imgConvertToInk => 'Convert to ink';
+
+  @override
+  String get csPhotoInkBusy => 'Reading the handwriting…';
+
+  @override
+  String get csPhotoInkFailed => 'No handwriting found in this picture';
+
+  @override
+  String get csInsertPhotoInk => 'Photo of notes as ink';
+
+  @override
   String shareImportTitle(String name) {
     return 'Import $name';
   }

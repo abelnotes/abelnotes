@@ -3725,6 +3725,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get csRecognizeImageMissing => 'Bild noch nicht geladen';
 
   @override
+  String get imgConvertToInk => 'In Striche umwandeln';
+
+  @override
+  String get csPhotoInkBusy => 'Handschrift wird gelesen…';
+
+  @override
+  String get csPhotoInkFailed => 'Keine Handschrift im Bild gefunden';
+
+  @override
+  String get csInsertPhotoInk => 'Foto von Notizen als Striche';
+
+  @override
   String shareImportTitle(String name) {
     return '$name importieren';
   }

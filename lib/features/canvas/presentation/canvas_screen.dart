@@ -50,6 +50,7 @@ import 'package:abelnotes/core/services/pen_input_channel.dart'
 import 'package:abelnotes/core/services/pen_monitor_service.dart';
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_recognizer_service.dart';
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/image_circuit.dart';
+import 'package:abelnotes/features/canvas/data/photo_ink/photo_ink_strokes.dart';
 import 'package:abelnotes/features/modules/module_registry.dart';
 import 'package:abelnotes/features/modules/selection_action.dart';
 import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
@@ -2076,6 +2077,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                     onEditComment: _showCommentDialog,
                     onEditMath: _editMath,
                     onTidyCircuit: _tidyImageCircuit,
+                    onConvertToInk: _convertImageToInk,
                     copyImageToSystemClipboard:
                         _clipboard.copyImageElementToSystemClipboard,
                     toast: _toast,
@@ -2580,6 +2582,56 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     notifier.replaceStrokesWithDrawing(fileName, {elementId}, circuit.strokes, image: circuit.rest);
   }
 
+  /// Traces the handwriting in image [elementId] into strokes in its place,
+  /// one undo step. A picture with none is left as it is, with a toast.
+  Future<void> _convertImageToInk(String elementId) async {
+    final l10n = AppLocalizations.of(context);
+    final s = ref.read(canvasProvider);
+    final image = s?.currentPage?.layers.content.whereType<ImageElement>().where((e) => e.id == elementId).firstOrNull;
+    final bytes = image == null ? null : s!.assetBytes[image.data.assetPath];
+    if (image == null || bytes == null) {
+      _toast(l10n.csRecognizeImageMissing);
+      return;
+    }
+    final fileName = s!.currentPageFileName;
+    _toast(l10n.csPhotoInkBusy);
+    // On the web the trace runs on this thread: the toast paints first.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final (strokes, why) = await photoInkStrokes(bytes, image.data);
+    CrashLogger.append('[photo-ink] image $elementId: $why');
+    if (!mounted) return;
+    if (strokes == null) {
+      _toast(l10n.csPhotoInkFailed);
+      return;
+    }
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    final notifier = ref.read(canvasProvider.notifier);
+    notifier.deselectElement();
+    notifier.replaceStrokesWithDrawing(fileName, {elementId}, strokes);
+  }
+
+  /// Picks a photo of paper notes, puts it on the page across the width and
+  /// converts it: undo brings the photo back.
+  Future<void> _pickPhotoAsInk(Offset pagePos) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'],
+      withData: true,
+    );
+    final file = result?.files.firstOrNull;
+    final bytes = file?.bytes;
+    final page = ref.read(canvasProvider)?.currentPage;
+    if (file == null || bytes == null || page == null || !mounted) return;
+    final dims = _decodeImageDimensions(bytes);
+    final iw = dims?.width.toDouble() ?? 3, ih = dims?.height.toDouble() ?? 4;
+    final f = min(0.9 * page.width / iw, 0.9 * page.height / ih);
+    // Returns the asset; the new element is the one left selected.
+    final asset = ref.read(canvasProvider.notifier).addImageElement(
+        Offset(0.05 * page.width, pagePos.dy.clamp(0, max(0, page.height - ih * f))), file.name, bytes, iw * f, ih * f);
+    final id = ref.read(canvasProvider)?.selectedElementId;
+    if (asset != null && id != null) await _convertImageToInk(id);
+  }
+
   /// Snapshot the live transform from [_ptr.lassoTransform] back into
   /// Riverpod and clear the notifier. Called from drag/rotate/scale
   /// onPanEnd / onPanCancel + the drag-selection branch of _ptr.onPointerUp.
@@ -2659,6 +2711,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           PopupMenuItem(value: 'insert_file', child: MenuRow(Icons.attach_file_rounded, l10n.csImportFile, null)),
           if (_cameraAvailable)
             PopupMenuItem(value: 'insert_camera', child: MenuRow(Icons.camera_alt_rounded, l10n.csTakePhoto, null)),
+          PopupMenuItem(value: 'insert_photo_ink', child: MenuRow(Icons.draw_rounded, l10n.csInsertPhotoInk, null)),
           PopupMenuItem(value: 'insert_text', child: MenuRow(Icons.text_fields_rounded, l10n.csInsertText, null)),
           // Symbols
           if (hasSymbols)
@@ -2695,6 +2748,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         case 'clear_page': _confirmClearPage(); break;
         case 'insert_file': _pickAndInsertImage(pagePos); break;
         case 'insert_camera': _captureAndInsertImage(pagePos); break;
+        case 'insert_photo_ink': _pickPhotoAsInk(pagePos); break;
         case 'insert_text': _handleTextTool(localPos, state, canvasSize); break;
         case 'select_element':
           if (tappedElement != null) notifier.selectElement(tappedElement);

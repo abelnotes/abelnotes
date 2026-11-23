@@ -3714,6 +3714,18 @@ class AppLocalizationsPt extends AppLocalizations {
   String get csRecognizeImageMissing => 'Imagem ainda não carregada';
 
   @override
+  String get imgConvertToInk => 'Converter em traços';
+
+  @override
+  String get csPhotoInkBusy => 'Lendo a escrita…';
+
+  @override
+  String get csPhotoInkFailed => 'Nenhuma escrita encontrada na imagem';
+
+  @override
+  String get csInsertPhotoInk => 'Foto de anotações como traços';
+
+  @override
   String shareImportTitle(String name) {
     return 'Importar $name';
   }

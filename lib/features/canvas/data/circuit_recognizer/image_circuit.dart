@@ -25,7 +25,7 @@ typedef ImageCircuit = ({List<StrokeData> strokes, ({Uint8List png, ImageData da
 /// it reads as a circuit; the string says why, for the log.
 Future<(ImageCircuit?, String)> imageCircuitStrokes(CircuitRecognizer recognizer, Uint8List bytes, ImageData d) async {
   final watch = Stopwatch()..start();
-  final pixels = await _decode(bytes);
+  final pixels = await decodeRgba(bytes);
   if (pixels == null) return (null, 'image not decoded');
   final (rgba, w, h) = pixels;
   final tDecode = watch.elapsedMilliseconds;
@@ -97,7 +97,7 @@ Future<(ImageCircuit?, String)> imageCircuitStrokes(CircuitRecognizer recognizer
 
 /// RGBA (straight alpha) through the engine's own decoder; package:image
 /// only where that fails (it is ten times slower on a photo).
-Future<(Uint8List, int, int)?> _decode(Uint8List bytes) async {
+Future<(Uint8List, int, int)?> decodeRgba(Uint8List bytes) async {
   try {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();

@@ -3557,6 +3557,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csRecognizeImageMissing => '图片尚未加载';
 
   @override
+  String get imgConvertToInk => '转换为笔迹';
+
+  @override
+  String get csPhotoInkBusy => '正在读取手写内容…';
+
+  @override
+  String get csPhotoInkFailed => '图片中未找到手写内容';
+
+  @override
+  String get csInsertPhotoInk => '将笔记照片转为笔迹';
+
+  @override
   String shareImportTitle(String name) {
     return '导入 $name';
   }

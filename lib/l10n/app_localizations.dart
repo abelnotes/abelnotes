@@ -5780,6 +5780,30 @@ abstract class AppLocalizations {
   /// **'Immagine non ancora caricata'**
   String get csRecognizeImageMissing;
 
+  /// No description provided for @imgConvertToInk.
+  ///
+  /// In it, this message translates to:
+  /// **'Converti in tratti'**
+  String get imgConvertToInk;
+
+  /// No description provided for @csPhotoInkBusy.
+  ///
+  /// In it, this message translates to:
+  /// **'Lettura della scrittura…'**
+  String get csPhotoInkBusy;
+
+  /// No description provided for @csPhotoInkFailed.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna scrittura trovata nell\'immagine'**
+  String get csPhotoInkFailed;
+
+  /// No description provided for @csInsertPhotoInk.
+  ///
+  /// In it, this message translates to:
+  /// **'Foto di appunti come tratti'**
+  String get csInsertPhotoInk;
+
   /// No description provided for @shareImportTitle.
   ///
   /// In it, this message translates to:

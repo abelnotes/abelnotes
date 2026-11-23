@@ -27,6 +27,8 @@ class ImageHandleOverlay extends StatefulWidget {
   final VoidCallback? onFlipHorizontal;
   /// Images only, with the circuits module on: redraw the circuit in it.
   final VoidCallback? onTidyCircuit;
+  /// Images only: trace the handwriting in it into strokes.
+  final VoidCallback? onConvertToInk;
   /// Text only: decrease / increase the font size. Non-null marks the element
   /// as text, which shows the A−/A+ buttons in the action bar. Resizing the
   /// box never changes the font, so these are the only way to scale glyphs.
@@ -62,6 +64,7 @@ class ImageHandleOverlay extends StatefulWidget {
     this.onCut,
     this.onFlipHorizontal,
     this.onTidyCircuit,
+    this.onConvertToInk,
     this.onFontSmaller,
     this.onFontLarger,
     this.onEditMath,
@@ -428,6 +431,7 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
         widget.onSendToBack != null ||
         (widget.onFlipHorizontal != null && !widget.isLocked) ||
         (widget.onTidyCircuit != null && !widget.isLocked) ||
+        (widget.onConvertToInk != null && !widget.isLocked) ||
         (widget.onCut != null && !widget.isLocked);
   }
 
@@ -455,6 +459,9 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
                 break;
               case 'circuit':
                 widget.onTidyCircuit?.call();
+                break;
+              case 'ink':
+                widget.onConvertToInk?.call();
                 break;
               case 'flip':
                 widget.onFlipHorizontal?.call();
@@ -507,6 +514,15 @@ class _ImageHandleOverlayState extends State<ImageHandleOverlay> {
                   ),
                   const SizedBox(width: 10),
                   Text(widget.isFlipped ? l10n.imgFlipHChecked : l10n.imgFlipH),
+                ]),
+              ),
+            if (widget.onConvertToInk != null && !widget.isLocked)
+              PopupMenuItem<String>(
+                value: 'ink',
+                child: Row(children: [
+                  Icon(Icons.draw_rounded, size: 18, color: inactiveIcon),
+                  const SizedBox(width: 10),
+                  Text(l10n.imgConvertToInk),
                 ]),
               ),
             if (widget.onTidyCircuit != null && !widget.isLocked)
