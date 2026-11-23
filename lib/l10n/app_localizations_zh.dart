@@ -1300,6 +1300,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setTapUndoSub => '双指轻点撤销，三指轻点重做';
 
   @override
+  String get setPenButton => '笔侧键';
+
+  @override
+  String get setPenButtonSub => '按住笔侧键时的功能（S Pen 唯一的按键）';
+
+  @override
+  String get setPenButton2 => '第二个侧键';
+
+  @override
+  String get setPenButton2Sub => '适用于有两个按键的笔：离笔尖较远的那个';
+
+  @override
+  String get setPenButtonNone => '无';
+
+  @override
   String get setSyncConnectedDesc => '已连接到 WebDAV 服务器。笔记本会在你的所有设备之间同步。';
 
   @override

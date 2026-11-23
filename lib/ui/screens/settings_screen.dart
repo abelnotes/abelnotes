@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:abelnotes/ui/primitives/hw_segmented.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -657,6 +658,24 @@ class _InputSection extends ConsumerWidget {
         ref.watch(appSettingsProvider.select((s) => s.fillRecognizedShapes));
     final tapUndo =
         ref.watch(appSettingsProvider.select((s) => s.tapUndo));
+    final penLower =
+        ref.watch(appSettingsProvider.select((s) => s.penLowerButton));
+    final penUpper =
+        ref.watch(appSettingsProvider.select((s) => s.penUpperButton));
+    Widget penButtonPicker(PenButtonAction value, {required bool upper}) =>
+        HwSegmented<PenButtonAction>(
+          segments: [
+            HwSegment(PenButtonAction.lasso, l10n.csToolLasso),
+            HwSegment(PenButtonAction.eraser, l10n.csToolEraser),
+            HwSegment(PenButtonAction.none, l10n.setPenButtonNone),
+          ],
+          selected: value,
+          onChanged: (v) => ref
+              .read(appSettingsProvider.notifier)
+              .setPenButton(upper: upper, action: v),
+        );
+    // The Apple Pencil has no buttons.
+    final penHasButtons = kIsWeb || !Platform.isIOS;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -720,6 +739,16 @@ class _InputSection extends ConsumerWidget {
                 onChanged: (v) => ref
                     .read(appSettingsProvider.notifier)
                     .setTapUndo(v))),
+        if (penHasButtons) ...[
+          _Row(
+              title: l10n.setPenButton,
+              sub: l10n.setPenButtonSub,
+              control: penButtonPicker(penLower, upper: false)),
+          _Row(
+              title: l10n.setPenButton2,
+              sub: l10n.setPenButton2Sub,
+              control: penButtonPicker(penUpper, upper: true)),
+        ],
       ],
     );
   }

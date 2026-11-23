@@ -1337,6 +1337,23 @@ class AppLocalizationsDe extends AppLocalizations {
       'Mit zwei Fingern tippen macht rückgängig, mit drei wiederholt';
 
   @override
+  String get setPenButton => 'Seitentaste des Stifts';
+
+  @override
+  String get setPenButtonSub =>
+      'Was der Stift tut, während du die Taste hältst (die einzige des S Pen)';
+
+  @override
+  String get setPenButton2 => 'Zweite Seitentaste';
+
+  @override
+  String get setPenButton2Sub =>
+      'Bei Stiften mit zwei Tasten die von der Spitze weiter entfernte';
+
+  @override
+  String get setPenButtonNone => 'Keine';
+
+  @override
   String get setSyncConnectedDesc =>
       'Mit einem WebDAV-Server verbunden. Notizbücher werden auf allen deinen Geräten synchronisiert.';
 

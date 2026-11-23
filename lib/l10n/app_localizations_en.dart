@@ -1331,6 +1331,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setTapUndoSub => 'Tap with two fingers to undo, three to redo';
 
   @override
+  String get setPenButton => 'Pen side button';
+
+  @override
+  String get setPenButtonSub =>
+      'What the pen does while you hold its button (the S Pen\'s only one)';
+
+  @override
+  String get setPenButton2 => 'Second side button';
+
+  @override
+  String get setPenButton2Sub =>
+      'On pens with two buttons, the one further from the tip';
+
+  @override
+  String get setPenButtonNone => 'None';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connected to a WebDAV server. Notebooks sync across all your devices.';
 

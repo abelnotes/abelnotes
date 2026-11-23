@@ -1336,6 +1336,23 @@ class AppLocalizationsFr extends AppLocalizations {
       'Touchez avec deux doigts pour annuler, trois pour rétablir';
 
   @override
+  String get setPenButton => 'Bouton latéral du stylet';
+
+  @override
+  String get setPenButtonSub =>
+      'Ce que fait le stylet quand vous maintenez son bouton (le seul du S Pen)';
+
+  @override
+  String get setPenButton2 => 'Second bouton latéral';
+
+  @override
+  String get setPenButton2Sub =>
+      'Sur les stylets à deux boutons, celui le plus éloigné de la pointe';
+
+  @override
+  String get setPenButtonNone => 'Aucune';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connecté à un serveur WebDAV. Les carnets se synchronisent sur tous vos appareils.';
 

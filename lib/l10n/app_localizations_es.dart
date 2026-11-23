@@ -1336,6 +1336,23 @@ class AppLocalizationsEs extends AppLocalizations {
       'Toca con dos dedos para deshacer, con tres para rehacer';
 
   @override
+  String get setPenButton => 'Botón lateral del lápiz';
+
+  @override
+  String get setPenButtonSub =>
+      'Lo que hace el lápiz mientras mantienes pulsado su botón (el único del S Pen)';
+
+  @override
+  String get setPenButton2 => 'Segundo botón lateral';
+
+  @override
+  String get setPenButton2Sub =>
+      'En lápices con dos botones, el más alejado de la punta';
+
+  @override
+  String get setPenButtonNone => 'Ninguna';
+
+  @override
   String get setSyncConnectedDesc =>
       'Conectado a un servidor WebDAV. Los cuadernos se sincronizan en todos tus dispositivos.';
 

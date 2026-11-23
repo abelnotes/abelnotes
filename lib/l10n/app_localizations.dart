@@ -2228,6 +2228,36 @@ abstract class AppLocalizations {
   /// **'Tocca con due dita per annullare, con tre per ripristinare'**
   String get setTapUndoSub;
 
+  /// No description provided for @setPenButton.
+  ///
+  /// In it, this message translates to:
+  /// **'Tasto laterale della penna'**
+  String get setPenButton;
+
+  /// No description provided for @setPenButtonSub.
+  ///
+  /// In it, this message translates to:
+  /// **'Cosa fa la penna mentre tieni premuto il tasto (l\'unico della S Pen)'**
+  String get setPenButtonSub;
+
+  /// No description provided for @setPenButton2.
+  ///
+  /// In it, this message translates to:
+  /// **'Secondo tasto laterale'**
+  String get setPenButton2;
+
+  /// No description provided for @setPenButton2Sub.
+  ///
+  /// In it, this message translates to:
+  /// **'Sulle penne con due tasti, quello più lontano dalla punta'**
+  String get setPenButton2Sub;
+
+  /// No description provided for @setPenButtonNone.
+  ///
+  /// In it, this message translates to:
+  /// **'Nessuna'**
+  String get setPenButtonNone;
+
   /// No description provided for @setSyncConnectedDesc.
   ///
   /// In it, this message translates to:

@@ -1298,6 +1298,21 @@ class AppLocalizationsJa extends AppLocalizations {
   String get setTapUndoSub => '2本指でタップして元に戻し、3本指でタップしてやり直します。';
 
   @override
+  String get setPenButton => 'ペンのサイドボタン';
+
+  @override
+  String get setPenButtonSub => 'ボタンを押している間のペンの動作（S Pen の唯一のボタン）';
+
+  @override
+  String get setPenButton2 => '2つ目のサイドボタン';
+
+  @override
+  String get setPenButton2Sub => 'ボタンが2つあるペンで、ペン先から遠い方';
+
+  @override
+  String get setPenButtonNone => 'なし';
+
+  @override
   String get setSyncConnectedDesc => 'WebDAVサーバーに接続しています。ノートブックを各端末で同期できます。';
 
   @override

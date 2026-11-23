@@ -100,6 +100,12 @@ class NotebookFolder {
 }
 
 /// Combined settings blob so we only touch SharedPreferences once per write.
+/// What a held pen side button does. The eraser end is always the eraser.
+enum PenButtonAction { lasso, eraser, none }
+
+PenButtonAction _penButton(Object? name, PenButtonAction fallback) =>
+    PenButtonAction.values.asNameMap()[name] ?? fallback;
+
 class AppSettings {
   final Set<String> favoriteNotebookIds;
   final FolderDoc? _folderDoc;
@@ -170,6 +176,10 @@ class AppSettings {
   /// Tapping the canvas with two fingers undoes, with three redoes.
   final bool tapUndo;
 
+  /// The pen's side button (the S Pen's only one), and the second one.
+  final PenButtonAction penLowerButton;
+  final PenButtonAction penUpperButton;
+
   /// Module ids the user switched off in Settings → Modules.
   final Set<String> disabledModules;
 
@@ -220,6 +230,8 @@ class AppSettings {
     this.pencilDoubleTap = true,
     this.fillRecognizedShapes = true,
     this.tapUndo = true,
+    this.penLowerButton = PenButtonAction.lasso,
+    this.penUpperButton = PenButtonAction.eraser,
     this.disabledModules = const {},
     this.lastTool,
     this.syncBackend,
@@ -266,6 +278,8 @@ class AppSettings {
     bool? pencilDoubleTap,
     bool? fillRecognizedShapes,
     bool? tapUndo,
+    PenButtonAction? penLowerButton,
+    PenButtonAction? penUpperButton,
     Set<String>? disabledModules,
     String? lastTool,
     String? syncBackend,
@@ -299,6 +313,8 @@ class AppSettings {
         pencilDoubleTap: pencilDoubleTap ?? this.pencilDoubleTap,
         fillRecognizedShapes: fillRecognizedShapes ?? this.fillRecognizedShapes,
         tapUndo: tapUndo ?? this.tapUndo,
+        penLowerButton: penLowerButton ?? this.penLowerButton,
+        penUpperButton: penUpperButton ?? this.penUpperButton,
         disabledModules: disabledModules ?? this.disabledModules,
         lastTool: lastTool ?? this.lastTool,
         syncBackend:
@@ -411,6 +427,10 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         pencilDoubleTap: map['pencil_double_tap'] as bool? ?? true,
         fillRecognizedShapes: map['fill_shapes'] as bool? ?? true,
         tapUndo: map['tap_undo'] as bool? ?? true,
+        penLowerButton:
+            _penButton(map['pen_button_lower'], PenButtonAction.lasso),
+        penUpperButton:
+            _penButton(map['pen_button_upper'], PenButtonAction.eraser),
         disabledModules: {
           for (final id in map['modules_disabled'] as List? ?? const [])
             if (id is String) id,
@@ -455,6 +475,8 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         'pencil_double_tap': state.pencilDoubleTap,
         'fill_shapes': state.fillRecognizedShapes,
         'tap_undo': state.tapUndo,
+        'pen_button_lower': state.penLowerButton.name,
+        'pen_button_upper': state.penUpperButton.name,
         'modules_disabled': state.disabledModules.toList(),
         if (state.lastTool != null) 'last_tool': state.lastTool,
         if (state.syncBackend != null) 'sync_backend': state.syncBackend,
@@ -548,6 +570,13 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setStrokeContinuation(bool v) {
     state = state.copyWith(strokeContinuation: v);
+    _persist();
+  }
+
+  void setPenButton({required bool upper, required PenButtonAction action}) {
+    state = upper
+        ? state.copyWith(penUpperButton: action)
+        : state.copyWith(penLowerButton: action);
     _persist();
   }
 

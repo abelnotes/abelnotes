@@ -237,6 +237,63 @@ void main() {
       expect(h.state.currentTool, CanvasTool.pen);
     });
 
+    testEditor('the lower side button set to the eraser erases (#19)', (h) async {
+      h.container
+          .read(appSettingsProvider.notifier)
+          .setPenButton(upper: false, action: PenButtonAction.eraser);
+      final c = h.canvasCenter;
+      await seedStroke(h, c);
+      final pen = Ptr(h, PointerDeviceKind.stylus, 3);
+      const b = kPrimaryButton | kPrimaryStylusButton;
+      await pen.down(c + const Offset(40, -30), buttons: b);
+      expect(h.state.currentTool, CanvasTool.eraserStroke);
+      await pen.move(c + const Offset(40, 0), buttons: b);
+      await pen.move(c + const Offset(40, 30), buttons: b);
+      await pen.up();
+      expect(h.strokeCount, 0);
+      expect(h.state.currentTool, CanvasTool.pen);
+    });
+
+    testEditor('a side button set to none leaves the pen writing (#19)', (h) async {
+      h.container
+          .read(appSettingsProvider.notifier)
+          .setPenButton(upper: false, action: PenButtonAction.none);
+      final c = h.canvasCenter;
+      final pen = Ptr(h, PointerDeviceKind.stylus, 3);
+      const b = kPrimaryButton | kPrimaryStylusButton;
+      await pen.down(c, buttons: b);
+      expect(h.state.currentTool, CanvasTool.pen);
+      await pen.move(c + const Offset(30, 10), buttons: b);
+      await pen.move(c + const Offset(60, 20), buttons: b);
+      await pen.up();
+      await h.settle();
+      expect(h.strokeCount, 1);
+      expect(h.state.currentTool, CanvasTool.pen);
+    });
+
+    testEditor('the upper side button set to the lasso selects (#19)', (h) async {
+      h.container
+          .read(appSettingsProvider.notifier)
+          .setPenButton(upper: true, action: PenButtonAction.lasso);
+      final c = h.canvasCenter;
+      await seedStroke(h, c);
+      final pen = Ptr(h, PointerDeviceKind.stylus, 3);
+      const b = kPrimaryButton | kSecondaryStylusButton;
+      await pen.down(c + const Offset(-20, -20), buttons: b);
+      expect(h.state.currentTool, CanvasTool.lasso);
+      await pen.up();
+    });
+
+    testEditor('the inverted end erases whatever the side buttons do (#19)', (h) async {
+      h.container
+          .read(appSettingsProvider.notifier)
+          .setPenButton(upper: true, action: PenButtonAction.none);
+      final eraser = Ptr(h, PointerDeviceKind.invertedStylus, 2);
+      await eraser.down(h.canvasCenter);
+      expect(h.state.currentTool, CanvasTool.eraserStroke);
+      await eraser.up();
+    });
+
     testEditor('the lower side button makes a lasso selection and stays in lasso', (h) async {
       final c = h.canvasCenter;
       await seedStroke(h, c);

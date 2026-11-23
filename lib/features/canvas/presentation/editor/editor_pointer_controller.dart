@@ -549,6 +549,31 @@ class EditorPointerController {
     return false;
   }
 
+  /// The tool [action] switches to, null for none.
+  CanvasTool? _penButtonToolFor(PenButtonAction action) => switch (action) {
+        PenButtonAction.lasso => CanvasTool.lasso,
+        PenButtonAction.eraser =>
+          ref.read(canvasProvider.notifier).lastEraserMode,
+        PenButtonAction.none => null,
+      };
+
+  /// Tool the held pen buttons of [event] switch to (eraser end: always the
+  /// eraser; side buttons: as set in Settings), null when none acts.
+  CanvasTool? penButtonTool(PointerEvent event) {
+    if (isPenEraser(event)) {
+      return ref.read(canvasProvider.notifier).lastEraserMode;
+    }
+    final settings = ref.read(appSettingsProvider);
+    if ((event.buttons & kSecondaryStylusButton) != 0) {
+      final tool = _penButtonToolFor(settings.penUpperButton);
+      if (tool != null) return tool;
+    }
+    if ((event.buttons & kPrimaryStylusButton) != 0) {
+      return _penButtonToolFor(settings.penLowerButton);
+    }
+    return null;
+  }
+
   /// Called by the WM_POINTER bridge when the user presses or releases
   /// a side button. Press = save the current tool and switch to the
   /// override target; release = restore.
@@ -562,18 +587,14 @@ class EditorPointerController {
       // Already in another override → ignore the second press so the
       // restore-tool slot doesn't get clobbered.
       if (activeNativeBarrel != null) return;
+      final settings = ref.read(appSettingsProvider);
+      final tool = _penButtonToolFor(button == NativeBarrel.upper
+          ? settings.penUpperButton
+          : settings.penLowerButton);
+      if (tool == null) return;
       activeNativeBarrel = button;
       nativeBarrelPreviousTool = state.currentTool;
-      switch (button) {
-        case NativeBarrel.upper:
-          // Honour the user's last-picked eraser sub-mode (per-stroke
-          // vs per-area) instead of hardcoding eraserStroke.
-          notif.setTool(notif.lastEraserMode);
-          break;
-        case NativeBarrel.lower:
-          notif.setTool(CanvasTool.lasso);
-          break;
-      }
+      notif.setTool(tool);
       HapticFeedback.selectionClick();
     } else {
       // Release only restores if we were actually overriding via
@@ -593,7 +614,7 @@ class EditorPointerController {
       // user eventually deselects (tap outside / clearSelection /
       // anything that nulls `lassoSelection`).
       final live = ref.read(canvasProvider);
-      final keepLassoForSelection = button == NativeBarrel.lower &&
+      final keepLassoForSelection = live?.currentTool == CanvasTool.lasso &&
           live?.lassoSelection != null;
       if (keepLassoForSelection) return;
       // Race fix: if the pen gesture is still in progress, the lasso / text
@@ -822,15 +843,11 @@ class EditorPointerController {
       clearPenHover();
       return;
     }
-    final upper =
-        isPenEraser(event) || (event.buttons & kSecondaryStylusButton) != 0;
-    final lower = !upper && (event.buttons & kPrimaryStylusButton) != 0;
+    final buttonTool = penButtonTool(event);
     final tool = state?.currentTool;
-    final PenHoverHint? hint = upper
-        ? PenHoverHint.eraser
-        : lower
-            ? PenHoverHint.lasso
-            : tool == null
+    final PenHoverHint? hint = buttonTool != null
+        ? (isEraserTool(buttonTool) ? PenHoverHint.eraser : PenHoverHint.lasso)
+        : tool == null
                 ? null
                 : isEraserTool(tool)
                     ? PenHoverHint.eraser
@@ -854,7 +871,7 @@ class EditorPointerController {
           Timer(const Duration(milliseconds: 300), clearPenHover);
     }
     _penHoverPointer = event.pointer;
-    penHoverBarrel = upper || lower;
+    penHoverBarrel = buttonTool != null;
     penHoverHint = hint;
     penHoverPos.value = _stylusLocalPosition(event);
   }
@@ -1195,18 +1212,17 @@ class EditorPointerController {
     // strict equality) is required because contact + barrel report
     // the OR — `0x03` or `0x05` — never the raw barrel bit alone.
     //
-    //   - upper barrel (or invertedStylus kind) → eraser
-    //   - lower barrel (`kPrimaryStylusButton` bit) → lasso
+    //   - eraser end → eraser
+    //   - upper / lower barrel → the tool set in Settings (default eraser /
+    //     lasso), see [penButtonTool]
     //
     // Pending modal states (pendingSymbol / selectedElement /
     // lassoSelection) get "escape first" — either path cancels the
     // modal instead of switching tool.
     if (event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus) {
-      final hasUpper =
-          isPenEraser(event) || (event.buttons & kSecondaryStylusButton) != 0;
-      final hasLower = !hasUpper && (event.buttons & kPrimaryStylusButton) != 0;
-      if (hasUpper || hasLower) {
+      final buttonTool = penButtonTool(event);
+      if (buttonTool != null) {
         // Escape pending modal states first (any button).
         if (state.pendingSymbol != null) {
           ref.read(canvasProvider.notifier).clearPendingSymbol();
@@ -1225,11 +1241,9 @@ class EditorPointerController {
         barrelButtonOverride = true;
         barrelButtonPreviousTool = state.currentTool;
 
-        // Upper barrel → eraser, honouring the user's last picked sub-mode
-        // (per-stroke vs per-area) so it feels like the dock button.
-        // Lower barrel → lasso.
-        final n = ref.read(canvasProvider.notifier);
-        n.setTool(hasUpper ? n.lastEraserMode : CanvasTool.lasso);
+        // The eraser keeps the user's last picked sub-mode (per-stroke vs
+        // per-area) so it feels like the dock button.
+        ref.read(canvasProvider.notifier).setTool(buttonTool);
         if (!penTipTouches(event.buttons,
             downMayPrecedeContact: _downMayPrecedeContact)) {
           // Pressed while hovering: switch now, act once the tip touches.
@@ -1604,8 +1618,7 @@ class EditorPointerController {
       if (_barrelAwaitingContact) return;
     } else if (isPen &&
         contact &&
-        ((event.buttons & (kPrimaryStylusButton | kSecondaryStylusButton)) != 0 ||
-            (kIsWeb && isPenEraser(event)))) {
+        penButtonTool(event) != null) {
       _restartStrokeForBarrel(event, state, canvasSize);
       return;
     }

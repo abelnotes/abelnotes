@@ -1336,6 +1336,23 @@ class AppLocalizationsIt extends AppLocalizations {
       'Tocca con due dita per annullare, con tre per ripristinare';
 
   @override
+  String get setPenButton => 'Tasto laterale della penna';
+
+  @override
+  String get setPenButtonSub =>
+      'Cosa fa la penna mentre tieni premuto il tasto (l\'unico della S Pen)';
+
+  @override
+  String get setPenButton2 => 'Secondo tasto laterale';
+
+  @override
+  String get setPenButton2Sub =>
+      'Sulle penne con due tasti, quello più lontano dalla punta';
+
+  @override
+  String get setPenButtonNone => 'Nessuna';
+
+  @override
   String get setSyncConnectedDesc =>
       'Connesso a un server WebDAV. I taccuini si sincronizzano su tutti i tuoi dispositivi.';
 
