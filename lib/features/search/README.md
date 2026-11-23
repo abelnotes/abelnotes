@@ -75,3 +75,29 @@ Handwriting: another source bit (8). `_compose` in `page_text.dart` takes
 per-source segment lists; a recogniser adds its own list, cached by stroke-group
 hash + model version. Table and indexer stay as they are; find in notebook needs
 the recognised words with their stroke boxes as one more haystack.
+
+## Handwriting (phase 3)
+Native only (the recognizer runs on the C engine, `abnn` in packages/circuit_engine).
+
+- Segmentation (`ink_segment.dart`). Strokes whose ends continue each other (touching, or a small gap with
+  both ends pointing at each other) are one unit, so ink cut into more strokes
+  (photo traces) groups the same way. Units join a line left to right by
+  vertical overlap with the band of the line's rightmost units, or as an
+  ascender or descender of that band; a wide gap closes the line. Low units (dots, accents, bars) join the nearest line after,
+  and lines too small to read move into a neighbour (tails). A segment is kept
+  when wider than tall, at most 4.6 core bands high (ascenders + descenders)
+  and its units sit on one band (two rows of a fraction do not).
+- Raster + model: `rasterGeometry` + `abnn_raster`, 48 px high, then the model.
+- Decoding (`ink_decode.dart`): CTC prefix
+  beam search (10 beams) with a soft word list
+  (`assets/models/handwriting_lexicon.tsv`, about 70k Italian + English words,
+  CC BY-SA 4.0, see its notice): a finished word scores alpha x log-prob + beta,
+  an unknown one a fixed low log-prob, a word leaving the list's prefixes
+  delta. Weights live in `handwriting_text.json` ("decoder").
+- Both readings are kept: the lexicon line, plus the plain (greedy) one as an
+  `alt` line when it differs. The index holds both, so a word the list bent
+  (a name, a symbol, an abbreviation) is still found; find in notebook shows an
+  `alt` match only when the line before it missed.
+- Cache: lines are stored per page with the model version; bumping `version`
+  in `handwriting_text.json` re-reads every page.
+

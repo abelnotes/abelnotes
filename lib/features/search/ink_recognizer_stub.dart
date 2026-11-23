@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:abelnotes/features/search/ink_decode.dart';
 import 'package:abelnotes/features/search/ink_text.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -7,11 +8,12 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 class InkRecognizer {
   InkRecognizer._();
 
-  static InkRecognizer? open(Uint8List model, InkModelMeta meta) => null;
+  static InkRecognizer? open(Uint8List model, InkModelMeta meta, {InkLexicon? lexicon}) =>
+      null;
 
   List<InkLine> recognizePage(PageData page) => const [];
 
-  InkLine? recognize(InkSegment seg) => null;
+  List<InkLine> recognize(InkSegment seg) => const [];
 
   void dispose() {}
 }

@@ -6,6 +6,7 @@ import 'package:ffi/ffi.dart';
 
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/native_engine_ffi.dart'
     show circuitEngineLibrary;
+import 'package:abelnotes/features/search/ink_decode.dart';
 import 'package:abelnotes/features/search/ink_text.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -24,16 +25,17 @@ typedef _Raster = void Function(Pointer<Float>, Pointer<Int32>, int, int, double
 
 /// Reads handwritten lines with the bundled model (assets/models/handwriting_text.*).
 class InkRecognizer {
-  InkRecognizer._(this._m, this._meta, this._free, this._run, this._raster);
+  InkRecognizer._(this._m, this._meta, this._lexicon, this._free, this._run, this._raster);
 
   final Pointer<Void> _m;
   final InkModelMeta _meta;
+  final InkLexicon? _lexicon;
   final _Free _free;
   final _Run _run;
   final _Raster _raster;
   bool _disposed = false;
 
-  static InkRecognizer? open(Uint8List model, InkModelMeta meta) {
+  static InkRecognizer? open(Uint8List model, InkModelMeta meta, {InkLexicon? lexicon}) {
     final lib = circuitEngineLibrary();
     if (lib == null) return null;
     try {
@@ -46,6 +48,7 @@ class InkRecognizer {
       return InkRecognizer._(
         m,
         meta,
+        lexicon,
         lib.lookupFunction<_FreeC, _Free>('abnn_free'),
         lib.lookupFunction<_RunC, _Run>('abnn_run'),
         lib.lookupFunction<_RasterC, _Raster>('abnn_raster'),
@@ -58,12 +61,11 @@ class InkRecognizer {
   /// Every line of handwriting on [page] that reads as text.
   List<InkLine> recognizePage(PageData page) {
     if (_disposed) return const [];
-    return [
-      for (final seg in segmentInk(inkStrokes(page))) recognize(seg),
-    ].whereType<InkLine>().toList();
+    return [for (final seg in segmentInk(inkStrokes(page))) ...recognize(seg)];
   }
 
-  InkLine? recognize(InkSegment seg) {
+  /// The segment's line (lexicon reading first, then the plain one if it differs).
+  List<InkLine> recognize(InkSegment seg) {
     final r = rasterGeometry(seg, _meta);
     final h = _meta.height, w = r.width;
     final xy = malloc<Float>(math.max(1, r.xy.length));
@@ -79,11 +81,11 @@ class InkRecognizer {
       final lw = math.max(1.0, (_meta.lineWidth * r.scale / 2).roundToDouble());
       _raster(xy, st, r.starts.length, r.xy.length ~/ 2, lw, w, h, img);
       dims.asTypedList(4).setAll(0, [1, 3, h, w]);
-      if (_run(_m, img, 4, dims, out, outNd, outDims) != 0) return null;
-      if (outNd.value != 3) return null;
+      if (_run(_m, img, 4, dims, out, outNd, outDims) != 0) return const [];
+      if (outNd.value != 3) return const [];
       final frames = outDims[1], classes = outDims[2];
       final probs = Float32List.fromList(out.value.asTypedList(frames * classes));
-      return decodeCtc(probs, frames, classes, seg, r, _meta);
+      return decodeLines(probs, frames, classes, seg, r, _meta, _lexicon);
     } finally {
       malloc
         ..free(xy)

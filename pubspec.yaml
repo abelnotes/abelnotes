@@ -149,10 +149,13 @@ flutter:
     # Formula recognition model and its notice, see ml/MODEL_CARD.md.
     - assets/licenses/math_ink_NOTICE.txt
     - assets/models/math_ink.ablm
-    # Handwriting text recognition (search).
+    # Handwriting text recognition (search), see lib/features/search/README.md.
     - assets/licenses/handwriting_text_NOTICE.txt
     - assets/models/handwriting_text.abnn
     - assets/models/handwriting_text.json
+    # Word list for the handwriting decoder (CC BY-SA 4.0, see its notice).
+    - assets/licenses/handwriting_lexicon_NOTICE.txt
+    - assets/models/handwriting_lexicon.tsv
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
     - assets/fonts/NotoSansJP-OFL.txt

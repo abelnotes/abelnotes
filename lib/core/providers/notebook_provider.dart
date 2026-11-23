@@ -46,10 +46,12 @@ Future<InkModel?> _loadInkModel() async {
   final meta = await rootBundle.loadString('assets/models/handwriting_text.json');
   final data = await rootBundle.load('assets/models/handwriting_text.abnn');
   final version = (jsonDecode(meta) as Map<String, dynamic>)['version'] as String;
+  final lexicon = await rootBundle.loadString('assets/models/handwriting_lexicon.tsv');
   return (
     bytes: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
     metaJson: meta,
     version: version,
+    lexicon: lexicon,
   );
 }
 

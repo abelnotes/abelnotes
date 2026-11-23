@@ -81,12 +81,17 @@ List<FindMatch> _findAll(DocumentStructure doc, Map<String, PageData> pages,
     if (page == null) continue;
     final found = <(double, double, FindMatch)>[];
     final lines = ink[doc.pages[i].fileName] ?? const <InkLine>[];
+    var lineHit = false;
     for (final h in [..._haystacks(page), ..._inkHaystacks(lines)]) {
+      if (h.alt && lineHit) continue;
+      var hit = false;
       for (final m in pattern.allMatches(h.folded)) {
         if (m.end == m.start) continue;
         final at = h.anchor(m.start);
         found.add((at.dy, at.dx, FindMatch(i, h.source, h.id, m.start, m.end)));
+        hit = true;
       }
+      lineHit = hit;
     }
     found.sort((a, b) {
       final y = a.$1.compareTo(b.$1);
@@ -154,7 +159,8 @@ Iterable<_Haystack> _inkHaystacks(List<InkLine> lines) sync* {
   for (var k = 0; k < lines.length; k++) {
     final l = lines[k];
     yield _Haystack(FindSource.ink, 'ink:$k', foldForSearch(l.text),
-        (_) => Offset(l.x0, l.y0));
+        (_) => Offset(l.x0, l.y0),
+        alt: l.alt);
   }
 }
 
@@ -176,7 +182,10 @@ class _Haystack {
   final String id;
   final String folded;
   final Offset Function(int at) anchor;
-  const _Haystack(this.source, this.id, this.folded, this.anchor);
+
+  /// The plain reading of the ink line before it: searched only when that one missed.
+  final bool alt;
+  const _Haystack(this.source, this.id, this.folded, this.anchor, {this.alt = false});
 }
 
 // Pages are immutable, so folded text is cached per page object.

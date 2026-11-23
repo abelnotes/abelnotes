@@ -27,6 +27,7 @@ void main() {
       'assets/models/math_ink.ablm',
       'assets/models/handwriting_text.abnn',
       'assets/models/handwriting_text.json',
+      'assets/models/handwriting_lexicon.tsv',
     ]);
   });
 

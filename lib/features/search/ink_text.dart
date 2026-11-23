@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:abelnotes/features/search/ink_decode.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
+
+export 'package:abelnotes/features/search/ink_segment.dart' show segmentInk;
 
 /// A recognised handwritten line: its text and where each character sits.
 class InkLine {
@@ -14,12 +17,17 @@ class InkLine {
   /// Page x of the middle of each character of [text].
   final List<double> xs;
 
-  const InkLine(this.text, this.x0, this.y0, this.x1, this.y1, this.xs);
+  /// The plain (greedy) reading of a line whose dictionary reading differs:
+  /// indexed too, so a word the dictionary bent is still found.
+  final bool alt;
+
+  const InkLine(this.text, this.x0, this.y0, this.x1, this.y1, this.xs, {this.alt = false});
 
   Map<String, Object> toJson() => {
         't': text,
         'b': [x0, y0, x1, y1].map(_r).toList(),
         'x': xs.map(_r).toList(),
+        if (alt) 'a': 1,
       };
 
   static double _r(double v) => (v * 10).roundToDouble() / 10;
@@ -29,7 +37,8 @@ class InkLine {
     final t = j['t'], b = j['b'], x = j['x'];
     if (t is! String || b is! List || b.length != 4 || x is! List) return null;
     double d(Object? v) => (v as num).toDouble();
-    return InkLine(t, d(b[0]), d(b[1]), d(b[2]), d(b[3]), [for (final v in x) d(v)]);
+    return InkLine(t, d(b[0]), d(b[1]), d(b[2]), d(b[3]), [for (final v in x) d(v)],
+        alt: j['a'] == 1);
   }
 
   static String encodeAll(List<InkLine> lines) =>
@@ -54,7 +63,9 @@ class InkModelMeta {
   final double pad;
   final double lineWidth;
   final List<String> chars;
-  const InkModelMeta(this.version, this.height, this.pad, this.lineWidth, this.chars);
+  final InkDecoderParams decoder;
+  const InkModelMeta(this.version, this.height, this.pad, this.lineWidth, this.chars,
+      {this.decoder = const InkDecoderParams()});
 
   factory InkModelMeta.fromJson(Map<String, dynamic> j) => InkModelMeta(
         j['version'] as String,
@@ -62,6 +73,9 @@ class InkModelMeta {
         (j['pad'] as num).toDouble(),
         (j['line_width'] as num).toDouble(),
         [for (final c in j['chars'] as List) c as String],
+        decoder: j['decoder'] is Map
+            ? InkDecoderParams.fromJson((j['decoder'] as Map).cast<String, dynamic>())
+            : const InkDecoderParams(),
       );
 }
 
@@ -76,173 +90,11 @@ List<StrokeData> inkStrokes(PageData page) => [
           e.data,
     ];
 
-typedef _Box = ({double x0, double y0, double x1, double y1});
-
-_Box _boxOf(StrokeData s) {
-  var x0 = double.infinity, y0 = double.infinity;
-  var x1 = -double.infinity, y1 = -double.infinity;
-  for (final p in s.points) {
-    x0 = math.min(x0, p.x);
-    y0 = math.min(y0, p.y);
-    x1 = math.max(x1, p.x);
-    y1 = math.max(y1, p.y);
-  }
-  return (x0: x0, y0: y0, x1: x1, y1: y1);
-}
-
 /// A run of strokes that reads as one line of handwriting.
 class InkSegment {
   final List<StrokeData> strokes;
   final double x0, y0, x1, y1;
   const InkSegment(this.strokes, this.x0, this.y0, this.x1, this.y1);
-}
-
-/// Groups strokes into lines, then splits lines at wide gaps. Drawings,
-/// multi-line blobs and lone marks are left out.
-List<InkSegment> segmentInk(List<StrokeData> strokes) {
-  final bx = [for (final s in strokes) _boxOf(s)];
-  final idx = List<int>.generate(strokes.length, (i) => i)
-    ..sort((a, b) => ((bx[a].y0 + bx[a].y1) / 2).compareTo((bx[b].y0 + bx[b].y1) / 2));
-  final lines = <_Line>[];
-  for (final i in idx) {
-    final x = bx[i];
-    final h = math.max(x.y1 - x.y0, 2.0);
-    final cy = (x.y0 + x.y1) / 2;
-    _Line? best;
-    for (final l in lines) {
-      if (!(l.t <= cy && cy <= l.b)) continue;
-      final med = math.max(_median([for (final j in l.ids) bx[j].y1 - bx[j].y0]), 4.0);
-      if (math.max(l.b, x.y1) - math.min(l.t, x.y0) > 2.5 * med + 4 && h < 3 * med) {
-        if (!(l.t + 0.2 * (l.b - l.t) <= cy && cy <= l.b - 0.2 * (l.b - l.t))) {
-          continue;
-        }
-      }
-      best = l;
-      break;
-    }
-    if (best == null) {
-      lines.add(_Line([i], x.y0, x.y1));
-    } else {
-      best.ids.add(i);
-      best.t = math.min(best.t, x.y0);
-      best.b = math.max(best.b, x.y1);
-    }
-  }
-  final moved = _attachMarks(lines, bx);
-  final out = <InkSegment>[];
-  for (final l in lines) {
-    final lh = l.b - l.t;
-    if (lh < 6) continue;
-    for (final piece in _splitAtGaps(l.ids, bx, lh)) {
-      if (piece.length < 3) continue;
-      final seg = _segment(piece, strokes, bx, moved);
-      if (seg != null) out.add(seg);
-    }
-  }
-  return out;
-}
-
-class _Line {
-  final List<int> ids;
-  double t, b;
-  _Line(this.ids, this.t, this.b);
-}
-
-double _median(List<double> v) => (v..sort())[v.length ~/ 2];
-
-/// Splits a line left to right where the gap is wider than ~1.5 line heights.
-List<List<int>> _splitAtGaps(List<int> lineIds, List<_Box> bx, double lh) {
-  final ids = [...lineIds]..sort((a, b) => bx[a].x0.compareTo(bx[b].x0));
-  final pieces = <List<int>>[];
-  var cur = <int>[];
-  double? right;
-  for (final i in ids) {
-    if (cur.isNotEmpty && bx[i].x0 - right! > math.max(1.5 * lh, 18)) {
-      pieces.add(cur);
-      cur = [];
-    }
-    cur.add(i);
-    right = cur.length == 1 ? bx[i].x1 : math.max(right!, bx[i].x1);
-  }
-  if (cur.isNotEmpty) pieces.add(cur);
-  return pieces;
-}
-
-/// Tails (p/g/q), t-bars, dots and accents sort outside their line and would
-/// be dropped as 1-2 stroke lines: they join the nearest line instead.
-Set<int> _attachMarks(List<_Line> lines, List<_Box> bx) {
-  final moved = <int>{};
-  final big = [
-    for (final l in lines)
-      if (l.ids.length >= 3)
-        (
-          line: l,
-          bt: _median([for (final j in l.ids) bx[j].y0]),
-          bb: _median([for (final j in l.ids) bx[j].y1]),
-          x0: l.ids.map((j) => bx[j].x0).reduce(math.min),
-          x1: l.ids.map((j) => bx[j].x1).reduce(math.max),
-        ),
-  ];
-  _Line? home(int i, _Line s, bool tailsOnly) {
-    final x = bx[i];
-    _Line? best;
-    double? bestGap, bestOv;
-    for (final c in big) {
-      if (identical(c.line, s)) continue;
-      final bh = math.max(c.bb - c.bt, 2.0);
-      if (x.x1 < c.x0 - bh || x.x0 > c.x1 + bh || x.y1 - x.y0 > 4 * bh) continue;
-      final gap = math.max(0.0, math.max(c.bt - x.y1, x.y0 - c.bb)) / bh;
-      final ov = math.max(0.0, math.min(x.y1, c.bb) - math.max(x.y0, c.bt)) / bh;
-      if (tailsOnly) {
-        if (ov < 0.5 || (x.y0 + x.y1) / 2 <= (c.bt + c.bb) / 2) continue;
-      } else if (gap > 0.8) {
-        continue;
-      }
-      if (best == null || gap < bestGap! || (gap == bestGap && ov > bestOv!)) {
-        best = c.line;
-        bestGap = gap;
-        bestOv = ov;
-      }
-    }
-    return best;
-  }
-
-  for (final s in lines) {
-    final small = _splitAtGaps(s.ids, bx, math.max(s.b - s.t, 6))
-        .every((p) => p.length < 3);
-    final homes = {for (final i in s.ids) i: home(i, s, !small)};
-    final moving = [for (final e in homes.entries) if (e.value != null) e.key];
-    // A row of 3+ strokes moves only when it is mostly tails of one line.
-    if (!small && moving.length < 0.7 * s.ids.length) continue;
-    for (final i in moving) {
-      s.ids.remove(i);
-      homes[i]!.ids.add(i);
-      moved.add(i);
-    }
-  }
-  // Line order and t/b (used for the gap split) stay as before the move.
-  lines.removeWhere((l) => l.ids.isEmpty);
-  return moved;
-}
-
-InkSegment? _segment(
-    List<int> ids, List<StrokeData> strokes, List<_Box> bx, Set<int> moved) {
-  ({double x0, double y0, double x1, double y1}) extent(Iterable<int> js) => (
-        x0: js.map((j) => bx[j].x0).reduce(math.min),
-        y0: js.map((j) => bx[j].y0).reduce(math.min),
-        x1: js.map((j) => bx[j].x1).reduce(math.max),
-        y1: js.map((j) => bx[j].y1).reduce(math.max),
-      );
-  // Height checks use the line's own strokes, not the attached marks.
-  final own = ids.where((j) => !moved.contains(j)).toList();
-  final core = own.isEmpty ? ids : own;
-  final med = math.max(_median([for (final j in core) bx[j].y1 - bx[j].y0]), 1.0);
-  final c = extent(core);
-  // Two lines in one, or a drawing: taller than any written line.
-  if ((c.y1 - c.y0) / med >= 2.6) return null;
-  if ((c.x1 - c.x0) < (c.y1 - c.y0)) return null;
-  final e = extent(ids);
-  return InkSegment([for (final j in ids) strokes[j]], e.x0, e.y0, e.x1, e.y1);
 }
 
 /// Pixel geometry of one segment as the recognizer sees it.
@@ -277,6 +129,18 @@ InkRaster rasterGeometry(InkSegment seg, InkModelMeta meta) {
   return InkRaster(sc, w, xy, starts);
 }
 
+/// A line from decoded [text] whose characters were emitted at [frames].
+InkLine? inkLineFromFrames(String text, List<int> frames, int nFrames, InkSegment seg,
+    InkRaster r, InkModelMeta meta, {bool alt = false}) {
+  final pxPerFrame = r.width / nFrames;
+  final xs = [for (final t in frames) ((t + 0.5) * pxPerFrame) / r.scale + seg.x0 - meta.pad];
+  final trimmed = text.trim();
+  if (trimmed.isEmpty) return null;
+  final lead = text.length - text.trimLeft().length;
+  return InkLine(trimmed, seg.x0, seg.y0, seg.x1, seg.y1,
+      xs.sublist(lead, lead + trimmed.length), alt: alt);
+}
+
 /// Greedy CTC decoding of [probs] (T x C, class 0 = blank) into a line,
 /// placing each character at the middle of its first frame.
 InkLine? decodeCtc(Float32List probs, int frames, int classes, InkSegment seg,
@@ -308,4 +172,21 @@ InkLine? decodeCtc(Float32List probs, int frames, int classes, InkSegment seg,
   final lead = raw.length - raw.trimLeft().length;
   return InkLine(text, seg.x0, seg.y0, seg.x1, seg.y1,
       xs.sublist(lead, lead + text.length));
+}
+
+/// The line read with the lexicon beam search, plus the greedy reading as an
+/// [InkLine.alt] line when it differs (search indexes both). Greedy only
+/// without a lexicon.
+List<InkLine> decodeLines(Float32List probs, int frames, int classes, InkSegment seg,
+    InkRaster r, InkModelMeta meta, InkLexicon? lexicon) {
+  final greedy = decodeCtc(probs, frames, classes, seg, r, meta);
+  if (lexicon == null) return [if (greedy != null) greedy];
+  final b = beamDecode(probs, frames, classes, meta.chars, lexicon, meta.decoder);
+  final beam = inkLineFromFrames(b.text, b.frames, frames, seg, r, meta);
+  if (beam == null) return [if (greedy != null) greedy];
+  if (greedy == null || greedy.text == beam.text) return [beam];
+  return [
+    beam,
+    InkLine(greedy.text, greedy.x0, greedy.y0, greedy.x1, greedy.y1, greedy.xs, alt: true),
+  ];
 }

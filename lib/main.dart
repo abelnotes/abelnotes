@@ -87,6 +87,8 @@ void main(List<String> args) async {
           await rootBundle.loadString('assets/licenses/math_ink_NOTICE.txt'));
       yield LicenseEntryWithLineBreaks(const ['Handwriting search model'],
           await rootBundle.loadString('assets/licenses/handwriting_text_NOTICE.txt'));
+      yield LicenseEntryWithLineBreaks(const ['Handwriting search word list'],
+          await rootBundle.loadString('assets/licenses/handwriting_lexicon_NOTICE.txt'));
     });
     LicenseRegistry.addLicense(() async* {
       final text =

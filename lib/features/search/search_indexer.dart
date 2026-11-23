@@ -10,6 +10,7 @@ import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/platform/io.dart' show File;
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart' show decodePageBytes;
+import 'package:abelnotes/features/search/ink_decode.dart';
 import 'package:abelnotes/features/search/ink_recognizer.dart';
 import 'package:abelnotes/features/search/ink_text.dart';
 import 'package:abelnotes/features/search/page_text.dart';
@@ -42,16 +43,17 @@ typedef _Todo = ({
 const _chunk = 8;
 
 /// The handwriting model handed to the extraction isolate.
-typedef InkModel = ({Uint8List bytes, String metaJson, String version});
+typedef InkModel = ({Uint8List bytes, String metaJson, String version, String? lexicon});
 
 /// The text of each page (with recognised handwriting when [ink] is given),
 /// null for one that does not parse.
 List<PageText?> _extractBatch(
-    ({List<Uint8List> pages, Uint8List? model, String? meta}) job) {
+    ({List<Uint8List> pages, Uint8List? model, String? meta, String? lexicon}) job) {
   InkRecognizer? rec;
   if (job.model != null && job.meta != null) {
     rec = InkRecognizer.open(job.model!,
-        InkModelMeta.fromJson(jsonDecode(job.meta!) as Map<String, dynamic>));
+        InkModelMeta.fromJson(jsonDecode(job.meta!) as Map<String, dynamic>),
+        lexicon: job.lexicon == null ? null : InkLexicon.parse(job.lexicon!));
   }
   try {
     return [
@@ -324,6 +326,7 @@ class SearchIndexer {
         pages: [for (final r in read) r.bytes],
         model: ink?.bytes,
         meta: ink?.metaJson,
+        lexicon: ink?.lexicon,
       );
       final texts =
           useIsolate ? await compute(_extractBatch, job) : _extractBatch(job);

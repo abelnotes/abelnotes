@@ -1,0 +1,14 @@
+Handwriting search reads lines with the help of a word list
+(assets/models/handwriting_lexicon.tsv): Italian and English words with how
+often they occur.
+
+The word frequencies are adapted from FrequencyWords by Hermit Dave
+(https://github.com/hermitdave/FrequencyWords, 2018 Italian and English lists,
+built from OpenSubtitles), licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International licence:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Changes: words lower-cased with accents removed, kept only when made of the
+letters a-z, the most frequent ones of both languages merged with some
+technical words, and turned into log-probabilities. This adapted list is
+shared under the same CC BY-SA 4.0 licence.

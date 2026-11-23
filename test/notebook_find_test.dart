@@ -184,6 +184,18 @@ void main() {
     expect(r, const Rect.fromLTRB(120, 50, 170, 70));
   });
 
+  test('the plain reading of a line counts only where the dictionary one missed', () {
+    final b = _book([_page('a')]);
+    const lex = InkLine('corrente R1', 0, 0, 100, 20, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95, 99]);
+    const plain = InkLine('comente R1', 0, 0, 100, 20, [5, 15, 25, 35, 45, 55, 65, 75, 85, 95],
+        alt: true);
+    final ink = {'p0.json': [lex, plain]};
+    // Both readings hold "r1": one match, from the dictionary line.
+    expect(findInNotebook(b.doc, b.pages, 'r1', ink: ink).map((m) => m.elementId), ['ink:0']);
+    // Only the plain reading holds "comente".
+    expect(findInNotebook(b.doc, b.pages, 'comente', ink: ink).map((m) => m.elementId), ['ink:1']);
+  });
+
   group('controller', () {
     final b = _book([
       _page('a', content: [_text('t', 'node one')]),
