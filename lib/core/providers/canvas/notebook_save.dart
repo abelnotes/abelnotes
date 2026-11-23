@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:abelnotes/core/providers/canvas/canvas_core.dart';
 import 'package:abelnotes/core/providers/canvas_state.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
+import 'package:abelnotes/core/services/app_windows.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -307,6 +308,8 @@ class NotebookSave {
   }
 
   void _onLocalWriteOk(String id) {
+    // A read-only copy of it in another window reloads.
+    unawaited(AppWindows.notifySaved(id));
     final recovered = _localFailures > 0;
     _localRetryTimer?.cancel();
     _localRetryTimer = null;

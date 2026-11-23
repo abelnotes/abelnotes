@@ -3637,6 +3637,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refZoomOut => '缩小';
 
   @override
+  String get winMirrorBanner => '只读：此笔记本也在另一个窗口中打开，会自动更新。';
+
+  @override
+  String get winOpenElsewhere => '此笔记本已在另一个窗口中打开。请在那里关闭后重试。';
+
+  @override
+  String get winOpenNewWindow => '在新窗口中打开';
+
+  @override
   String get libDropHint => '松开以导入';
 
   @override

@@ -34,7 +34,9 @@ import 'package:abelnotes/features/canvas/data/zoom_snapshot.dart';
 import 'package:abelnotes/features/canvas/data/pdf_export.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_text_selection.dart';
 import 'package:abelnotes/features/search/notebook_find_bar.dart';
-import 'package:abelnotes/core/providers/notebook_provider.dart' show searchIndexerProvider;
+import 'package:abelnotes/core/providers/notebook_provider.dart'
+    show searchIndexerProvider, syncServiceProvider;
+import 'package:abelnotes/core/services/app_windows.dart';
 import 'package:abelnotes/features/canvas/presentation/remote_changes_banner.dart';
 import 'package:abelnotes/features/canvas/presentation/conflict_resolution_screen.dart';
 import 'package:abelnotes/features/canvas/presentation/symbol_library_panel.dart';
@@ -480,6 +482,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   @override
   void initState() {
     super.initState();
+    _mirrorSub = AppWindows.saved.listen(_onOtherWindowSaved);
     webTouchDevice.addListener(_onWebTouchDeviceChanged);
     PaintingBinding.instance.systemFonts.addListener(_onSystemFonts);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -816,8 +819,49 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     }
   }
 
+  StreamSubscription<String>? _mirrorSub;
+  Timer? _mirrorReload;
+
+  /// The window writing the mirrored notebook saved: show its new state.
+  void _onOtherWindowSaved(String id) {
+    if (ref.read(windowMirrorProvider) != id) return;
+    _mirrorReload?.cancel();
+    _mirrorReload =
+        Timer(const Duration(milliseconds: 400), () => _reloadMirror(id));
+  }
+
+  Future<void> _reloadMirror(String id) async {
+    final st = ref.read(canvasProvider);
+    if (st == null || !mounted) return;
+    final page = st.currentPageIndex;
+    final mirrorId = st.metadata.id;
+    try {
+      final c = await readNotebookReadOnly(
+          ref.read(fileServiceProvider), ref.read(syncServiceProvider), id);
+      if (!mounted || ref.read(windowMirrorProvider) != id) return;
+      final notifier = ref.read(canvasProvider.notifier);
+      await notifier.openNotebook(
+        metadata: c.metadata.copyWith(id: mirrorId),
+        document: c.document.copyWith(notebookId: mirrorId),
+        pages: c.pages,
+        remotePath: '',
+        assets: c.assets,
+        symbolLibraries:
+            c.symbolLibraries.map((j) => SymbolLibrary.fromJson(j)).toList(),
+        preview: true,
+      );
+      if (c.document.pages.isNotEmpty) {
+        notifier.goToPage(page.clamp(0, c.document.pages.length - 1));
+      }
+    } catch (e) {
+      debugPrint('[Canvas] mirror reload failed: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _mirrorSub?.cancel();
+    _mirrorReload?.cancel();
     _zoomSnapshot.dispose();
     _tapFlashTimer?.cancel();
     _tapFlash.dispose();

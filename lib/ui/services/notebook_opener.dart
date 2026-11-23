@@ -1,4 +1,5 @@
-import 'dart:async' show TimeoutException;
+import 'dart:async';
+import 'package:abelnotes/core/services/app_windows.dart';
 import 'package:abelnotes/features/reference/reference_pane.dart';
 import 'package:abelnotes/core/platform/io.dart' show SocketException;
 
@@ -14,7 +15,9 @@ import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_screen.dart';
+import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
+import 'package:uuid/uuid.dart';
 
 /// True while an open is between "loader shown" and "CanvasScreen pushed".
 ///
@@ -97,12 +100,61 @@ Future<void> openNotebookAndNavigate(
 }) async {
   final token = _openGate.begin();
   if (token == null) return;
+  final id = entry.metadata.id;
   try {
-    if (startAt != null) await _saveStartPosition(entry.metadata.id, startAt);
-    if (!context.mounted) return;
-    await _openNotebookAndNavigate(context, ref, entry, origin, token);
+    // Android multi-window: two editors on one notebook would overwrite each
+    // other's saves, since their locks don't reach across windows.
+    if (!await AppWindows.claim(id)) {
+      // Shown read-only instead, kept up to date by the window writing it.
+      if (context.mounted) await _openMirror(context, ref, entry);
+      return;
+    }
+    try {
+      if (startAt != null) await _saveStartPosition(id, startAt);
+      if (!context.mounted) return;
+      await _openNotebookAndNavigate(context, ref, entry, origin, token);
+    } finally {
+      // The editor has closed, or never opened.
+      unawaited(AppWindows.release(id));
+    }
   } finally {
     _openGate.end(token);
+  }
+}
+
+/// Another window has [entry] open for writing: show it here read-only.
+/// Its own id, so nothing keyed by the notebook's id touches the real one.
+Future<void> _openMirror(
+    BuildContext context, WidgetRef ref, NotebookEntry entry) async {
+  final l10n = AppLocalizations.of(context);
+  try {
+    final c = await readNotebookReadOnly(ref.read(fileServiceProvider),
+        ref.read(syncServiceProvider), entry.metadata.id);
+    final mirrorId = 'mirror-${const Uuid().v4()}';
+    await ref.read(canvasProvider.notifier).openNotebook(
+          metadata: c.metadata.copyWith(id: mirrorId),
+          document: c.document.copyWith(notebookId: mirrorId),
+          pages: c.pages,
+          remotePath: '',
+          assets: c.assets,
+          symbolLibraries:
+              c.symbolLibraries.map((j) => SymbolLibrary.fromJson(j)).toList(),
+          preview: true,
+        );
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(l10n.nbOpenFailed('$e'))));
+    }
+    return;
+  }
+  if (!context.mounted) return;
+  ref.read(windowMirrorProvider.notifier).state = entry.metadata.id;
+  try {
+    await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const EditorWithReference()));
+  } finally {
+    ref.read(windowMirrorProvider.notifier).state = null;
   }
 }
 

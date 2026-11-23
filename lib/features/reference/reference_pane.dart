@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
+import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_screen.dart';
@@ -33,9 +34,13 @@ class _NotAvailable implements Exception {
 /// or straight from the server for one this device doesn't hold. Never
 /// written back, never added to the library.
 final _referenceContentsProvider = FutureProvider.autoDispose
-    .family<LooseStoreContents, String>((ref, id) async {
-  final files = ref.read(fileServiceProvider);
-  final sync = ref.read(syncServiceProvider);
+    .family<LooseStoreContents, String>((ref, id) => readNotebookReadOnly(
+        ref.read(fileServiceProvider), ref.read(syncServiceProvider), id));
+
+/// A notebook's contents, read without touching it: from its folder on disk,
+/// the legacy package, or the server for one this device doesn't hold.
+Future<LooseStoreContents> readNotebookReadOnly(
+    FileService files, SyncService? sync, String id) async {
   if (sync == null) throw _NotAvailable();
   if (await files.hasLooseStore(id)) {
     final c = await sync.loadLooseStoreFromDisk(files.notebookStoreDir(id));
@@ -52,7 +57,7 @@ final _referenceContentsProvider = FutureProvider.autoDispose
     assets: r.assets,
     symbolLibraries: r.symbolLibraries,
   );
-});
+}
 
 /// The editor, plus the side notebook when one is open: beside it on wide
 /// screens, below it on narrow ones. The editor always starts at the

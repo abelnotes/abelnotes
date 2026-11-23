@@ -5924,6 +5924,24 @@ abstract class AppLocalizations {
   /// **'Riduci'**
   String get refZoomOut;
 
+  /// No description provided for @winMirrorBanner.
+  ///
+  /// In it, this message translates to:
+  /// **'Sola lettura: questo taccuino è aperto anche nell\'altra finestra. Si aggiorna da solo.'**
+  String get winMirrorBanner;
+
+  /// No description provided for @winOpenElsewhere.
+  ///
+  /// In it, this message translates to:
+  /// **'Questo taccuino è aperto in un\'altra finestra. Chiudilo lì e riprova.'**
+  String get winOpenElsewhere;
+
+  /// No description provided for @winOpenNewWindow.
+  ///
+  /// In it, this message translates to:
+  /// **'Apri in una nuova finestra'**
+  String get winOpenNewWindow;
+
   /// No description provided for @libDropHint.
   ///
   /// In it, this message translates to:

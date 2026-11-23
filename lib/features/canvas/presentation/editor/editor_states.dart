@@ -66,9 +66,27 @@ class NotebookPreviewBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final preview = ref.watch(notebookPreviewProvider);
-    if (preview == null) return const SizedBox.shrink();
+    final mirror = ref.watch(windowMirrorProvider);
+    if (preview == null && mirror == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
+    if (preview == null) {
+      return Material(
+        color: scheme.secondaryContainer,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(children: [
+            Icon(Icons.visibility_outlined,
+                size: 18, color: scheme.onSecondaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(l10n.winMirrorBanner,
+                  style: TextStyle(color: scheme.onSecondaryContainer)),
+            ),
+          ]),
+        ),
+      );
+    }
     return Material(
       color: scheme.secondaryContainer,
       child: Padding(

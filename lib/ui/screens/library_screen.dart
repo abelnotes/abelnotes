@@ -26,6 +26,7 @@ import 'package:abelnotes/features/canvas/presentation/canvas_screen.dart';
 import 'package:abelnotes/features/canvas/presentation/notebook_preview.dart';
 import 'package:abelnotes/core/services/sync_thrift.dart';
 import 'package:abelnotes/core/platform/io.dart';
+import 'package:abelnotes/core/services/app_windows.dart';
 
 import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/features/import/data/import_models.dart';
@@ -111,6 +112,7 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       // A cold start opened via file association already has its request
       // queued; ref.listen only reports later changes.
       _consumePendingFileOpen();
+      unawaited(_openLaunchNotebook());
       // Best-effort retry of pending uploads on cold boot.
       await Future.delayed(const Duration(seconds: 2));
       if (!mounted) return;
@@ -208,6 +210,16 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
   }
 
   bool _fileOpenWaiting = false;
+
+  /// A window opened from "Open in a new window" goes straight to its
+  /// notebook.
+  Future<void> _openLaunchNotebook() async {
+    final id = await AppWindows.takeLaunchNotebook();
+    if (id == null) return;
+    final all = await _notebooksWhenLoaded();
+    final entry = all.where((e) => e.metadata.id == id).firstOrNull;
+    if (entry != null && mounted) await _openNotebook(entry);
+  }
 
   Future<void> _waitForLibraryThenOpen() async {
     while (mounted && ModalRoute.of(context)?.isCurrent != true) {
@@ -1462,6 +1474,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
       messenger.showSnackBar(SnackBar(content: Text(l10n.libFreeSpaceOpenNotebook)));
       return;
     }
+    if (await AppWindows.heldElsewhere(entry.metadata.id)) {
+      messenger.showSnackBar(SnackBar(content: Text(l10n.winOpenElsewhere)));
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1548,6 +1564,8 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
                         ? l10n.pgtCardMoveHere(tray.count)
                         : l10n.pgtCardPasteHere(tray.count),
                     'trayPaste'),
+              if (AppWindows.supported)
+                _menuItem(ctx, 'pages', l10n.winOpenNewWindow, 'newWindow'),
               _menuItem(
                   ctx,
                   'star',
@@ -1592,6 +1610,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           await ref
               .read(pagesTrayProvider.notifier)
               .pasteIntoClosed(entry.metadata.id);
+          break;
+        case 'newWindow':
+          await AppWindows.openInNewWindow(entry.metadata.id);
           break;
         case 'fav':
           ref
@@ -1649,6 +1670,10 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
           }
           break;
         case 'delete':
+          if (await AppWindows.heldElsewhere(entry.metadata.id)) {
+            _toast(l10n.winOpenElsewhere);
+            break;
+          }
           // No copy left on this device and nobody to ask for one: there is
           // nothing to put in the trash, so the dialog must not promise it.
           final orphan = ref.read(remoteStoreProvider) == null &&
@@ -1692,7 +1717,9 @@ class _LibraryScreenV2State extends ConsumerState<LibraryScreenV2>
         SnackBar(
             content: Text(e is NoCopyForTrashException
                 ? l10n.qlDeleteNeedsCopy
-                : l10n.libErrorGeneric(e.toString()))),
+                : e is NotebookOpenElsewhereException
+                    ? l10n.winOpenElsewhere
+                    : l10n.libErrorGeneric(e.toString()))),
       );
     }
   }

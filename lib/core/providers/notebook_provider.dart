@@ -14,6 +14,7 @@ import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart'
     show CanvasNotifier, canvasProvider;
 import 'package:abelnotes/core/providers/offline_providers.dart';
+import 'package:abelnotes/core/services/app_windows.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
@@ -186,6 +187,12 @@ class NotebookListNotifier
 
   bool isDeletedHere(String id) => _deletedHere.containsKey(id);
 
+  /// Open in an editor, this window's or another's (Android multi-window):
+  /// that editor owns the local copy and its sync.
+  Future<bool> _ownedByEditor(String id) async =>
+      _ref.read(canvasProvider)?.metadata.id == id ||
+      await AppWindows.heldElsewhere(id);
+
   /// Deleted here and gone from the server. Dropped from [_deletedHere] by
   /// the first listing that started after: until then a listing taken
   /// before the delete could bring it back, and after it a restore from
@@ -295,6 +302,8 @@ class NotebookListNotifier
       final syncService = _ref.read(syncServiceProvider);
       final webdav = _ref.read(remoteStoreProvider);
       if (syncService == null || webdav == null) return;
+      // One window syncs the library; the others read the shared database.
+      if (!await AppWindows.isLeader()) return;
 
       await _syncWithServer(syncService, webdav, fileService);
       if (mounted) serverUnreachable.value = false;
@@ -443,8 +452,7 @@ class NotebookListNotifier
       // hydrated then vanished" bug).
       if (localRow != null) {
         final lrId = localRow['id'] as String?;
-        final canvasOpenId = _ref.read(canvasProvider)?.metadata.id;
-        if (lrId != null && canvasOpenId == lrId) {
+        if (lrId != null && await _ownedByEditor(lrId)) {
           debugPrint('[Library] Skipping .ncnote download for $remotePath '
               '(notebook is open in canvas, which owns the local copy)');
           continue;
@@ -645,7 +653,6 @@ class NotebookListNotifier
     //
     // Also: never touch a notebook that's currently open in the canvas.
     // Deleting its files out from under the user mid-edit is catastrophic.
-    final openIdForRemoval = _ref.read(canvasProvider)?.metadata.id;
     for (final row in localRows) {
       final rp = row['remote_path'] as String? ?? '';
       final syncStatus = row['sync_status'] as String? ?? '';
@@ -655,7 +662,7 @@ class NotebookListNotifier
       // normal state, not proof the user deleted it elsewhere.
       if ((row['local_only'] as int? ?? 0) == 1) continue;
       if (seenRemotePaths.contains(AppConfig.notebookStem(rp))) continue;
-      if (id == openIdForRemoval) {
+      if (await _ownedByEditor(id)) {
         debugPrint('[Library] Skipping remote-delete cleanup for $id — notebook is currently open');
         continue;
       }
@@ -787,7 +794,7 @@ class NotebookListNotifier
   Future<void> _mirrorMetaLocally(
       FileService fileService, NotebookMetadata remote) async {
     // The open editor owns its copy and merges the change itself.
-    if (_ref.read(canvasProvider)?.metadata.id == remote.id) return;
+    if (await _ownedByEditor(remote.id)) return;
     try {
       final f = File(
           p.join(fileService.notebookStoreDir(remote.id), AppConfig.metadataFile));
@@ -1467,8 +1474,11 @@ class NotebookListNotifier
   /// the notebook again. Never touches the remote or the trash. Returns the
   /// bytes freed. Throws [StateError] when the remote isn't known to hold
   /// everything (unsynced changes, or a local-only notebook).
-  Future<int> evictLocalCopy(NotebookEntry entry) {
+  Future<int> evictLocalCopy(NotebookEntry entry) async {
     final id = entry.metadata.id;
+    if (await AppWindows.heldElsewhere(id)) {
+      throw NotebookOpenElsewhereException();
+    }
     return _ref.read(fileServiceProvider).evictLocalCopy(id);
   }
 
@@ -1488,6 +1498,9 @@ class NotebookListNotifier
     final fileService = _ref.read(fileServiceProvider);
     final thumbs = _ref.read(thumbnailServiceProvider);
     final id = entry.metadata.id;
+    if (await AppWindows.heldElsewhere(id)) {
+      throw NotebookOpenElsewhereException();
+    }
 
     // Not on this device: fetch it first, or the trash gets nothing while
     // the server copy (permanent on Drive) is deleted below.
@@ -1852,6 +1865,7 @@ class NotebookListNotifier
     // Local-only mode: nothing to upload, and every server probe would just
     // throw. Bail before the loop instead of throwing once per notebook.
     if (syncService == null || syncService.isOffline) return;
+    if (!await AppWindows.isLeader()) return;
 
     await _retryPendingRemoteDeletes();
     await _uploadPendingRoots(syncService, fileService);
@@ -1878,7 +1892,7 @@ class NotebookListNotifier
       SyncService syncService, FileService fileService, String id) async {
     final keys = await fileService.dirtyPagesOf(id);
     if (keys.isEmpty) return;
-    if (_ref.read(canvasProvider)?.metadata.id == id) return; // editor owns it
+    if (await _ownedByEditor(id)) return; // an editor owns it
     final local = await syncService
         .loadLooseStoreFromDisk(fileService.notebookStoreDir(id));
     if (local == null) return;

@@ -3796,6 +3796,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get refZoomOut => 'Reducir';
 
   @override
+  String get winMirrorBanner =>
+      'Solo lectura: este cuaderno también está abierto en la otra ventana. Se actualiza solo.';
+
+  @override
+  String get winOpenElsewhere =>
+      'Este cuaderno está abierto en otra ventana. Ciérralo allí e inténtalo de nuevo.';
+
+  @override
+  String get winOpenNewWindow => 'Abrir en una ventana nueva';
+
+  @override
   String get libDropHint => 'Suelta para importar';
 
   @override

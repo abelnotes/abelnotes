@@ -3808,6 +3808,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get refZoomOut => 'Réduire';
 
   @override
+  String get winMirrorBanner =>
+      'Lecture seule : ce carnet est aussi ouvert dans l\'autre fenêtre. Il se met à jour tout seul.';
+
+  @override
+  String get winOpenElsewhere =>
+      'Ce carnet est ouvert dans une autre fenêtre. Fermez-le là-bas et réessayez.';
+
+  @override
+  String get winOpenNewWindow => 'Ouvrir dans une nouvelle fenêtre';
+
+  @override
   String get libDropHint => 'Déposez pour importer';
 
   @override

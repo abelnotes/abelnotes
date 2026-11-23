@@ -3807,6 +3807,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get refZoomOut => 'Verkleinern';
 
   @override
+  String get winMirrorBanner =>
+      'Nur lesen: Dieses Notizbuch ist auch im anderen Fenster geöffnet. Es aktualisiert sich von selbst.';
+
+  @override
+  String get winOpenElsewhere =>
+      'Dieses Notizbuch ist in einem anderen Fenster geöffnet. Schließe es dort und versuche es erneut.';
+
+  @override
+  String get winOpenNewWindow => 'In neuem Fenster öffnen';
+
+  @override
   String get libDropHint => 'Zum Importieren loslassen';
 
   @override

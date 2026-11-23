@@ -3775,6 +3775,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get refZoomOut => 'Zoom out';
 
   @override
+  String get winMirrorBanner =>
+      'Read-only: this notebook is also open in the other window. It updates by itself.';
+
+  @override
+  String get winOpenElsewhere =>
+      'This notebook is open in another window. Close it there and try again.';
+
+  @override
+  String get winOpenNewWindow => 'Open in a new window';
+
+  @override
   String get libDropHint => 'Drop to import';
 
   @override

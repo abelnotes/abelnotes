@@ -3795,6 +3795,17 @@ class AppLocalizationsPt extends AppLocalizations {
   String get refZoomOut => 'Reduzir';
 
   @override
+  String get winMirrorBanner =>
+      'Somente leitura: este caderno também está aberto na outra janela. Ele se atualiza sozinho.';
+
+  @override
+  String get winOpenElsewhere =>
+      'Este caderno está aberto em outra janela. Feche-o lá e tente de novo.';
+
+  @override
+  String get winOpenNewWindow => 'Abrir em uma nova janela';
+
+  @override
   String get libDropHint => 'Solte para importar';
 
   @override

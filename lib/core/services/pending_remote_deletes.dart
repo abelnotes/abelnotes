@@ -12,6 +12,8 @@ class PendingRemoteDeletes {
 
   static Future<Map<String, String>> load() async {
     final prefs = await SharedPreferences.getInstance();
+    // Another app window (Android) may have written since this one cached.
+    await prefs.reload();
     final raw = prefs.getString(_prefsKey);
     if (raw == null) return {};
     try {
@@ -30,6 +32,8 @@ class PendingRemoteDeletes {
 
   static Future<void> _update(void Function(Map<String, String>) change) async {
     final prefs = await SharedPreferences.getInstance();
+    // Another app window (Android) may have written since this one cached.
+    await prefs.reload();
     final map = await load();
     change(map);
     await prefs.setString(_prefsKey, jsonEncode(map));

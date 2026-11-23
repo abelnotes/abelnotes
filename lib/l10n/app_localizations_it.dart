@@ -3800,6 +3800,17 @@ class AppLocalizationsIt extends AppLocalizations {
   String get refZoomOut => 'Riduci';
 
   @override
+  String get winMirrorBanner =>
+      'Sola lettura: questo taccuino è aperto anche nell\'altra finestra. Si aggiorna da solo.';
+
+  @override
+  String get winOpenElsewhere =>
+      'Questo taccuino è aperto in un\'altra finestra. Chiudilo lì e riprova.';
+
+  @override
+  String get winOpenNewWindow => 'Apri in una nuova finestra';
+
+  @override
   String get libDropHint => 'Rilascia per importare';
 
   @override

@@ -11,6 +11,8 @@ class PendingRootUploads {
 
   static Future<Set<String>> load() async {
     final prefs = await SharedPreferences.getInstance();
+    // Another app window (Android) may have written since this one cached.
+    await prefs.reload();
     return (prefs.getStringList(_prefsKey) ?? const <String>[]).toSet();
   }
 
@@ -21,6 +23,8 @@ class PendingRootUploads {
 
   static Future<void> _update(void Function(Set<String>) change) async {
     final prefs = await SharedPreferences.getInstance();
+    // Another app window (Android) may have written since this one cached.
+    await prefs.reload();
     final set = (prefs.getStringList(_prefsKey) ?? const <String>[]).toSet();
     change(set);
     await prefs.setStringList(_prefsKey, set.toList());

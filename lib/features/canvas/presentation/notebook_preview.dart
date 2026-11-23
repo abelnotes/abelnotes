@@ -18,3 +18,7 @@ class NotebookPreview {
 /// Set while the editor shows a [NotebookPreview].
 final notebookPreviewProvider =
     StateProvider<NotebookPreview?>((ref) => null);
+
+/// Set while the editor shows another window's notebook read-only (Android
+/// multi-window): the id of the notebook it mirrors.
+final windowMirrorProvider = StateProvider<String?>((ref) => null);
