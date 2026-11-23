@@ -314,12 +314,6 @@ abstract class AppLocalizations {
   /// **'Modifiche non salvate'**
   String get csUnsavedChangesTitle;
 
-  /// No description provided for @csUnsavedChangesBody.
-  ///
-  /// In it, this message translates to:
-  /// **'Vuoi salvare prima di uscire?'**
-  String get csUnsavedChangesBody;
-
   /// No description provided for @csLocalSaveFailed.
   ///
   /// In it, this message translates to:
@@ -445,12 +439,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'PDF importato: {count, plural, one{{count} pagina} other{{count} pagine}}'**
   String csPdfImported(int count);
-
-  /// No description provided for @csPdfImportError.
-  ///
-  /// In it, this message translates to:
-  /// **'Errore importazione PDF: {error}'**
-  String csPdfImportError(String error);
 
   /// No description provided for @csNoNotebookOpen.
   ///
@@ -1388,23 +1376,11 @@ abstract class AppLocalizations {
   /// **'Inserisci un intervallo valido (es. 1–10).'**
   String get csInvalidRangeError;
 
-  /// No description provided for @csPdfStartOutOfRange.
-  ///
-  /// In it, this message translates to:
-  /// **'Il PDF ha circa {count} pagine. Inizio fuori range.'**
-  String csPdfStartOutOfRange(int count);
-
   /// No description provided for @csImportPdfTitle.
   ///
   /// In it, this message translates to:
   /// **'Importa PDF'**
   String get csImportPdfTitle;
-
-  /// No description provided for @csPdfEstimatedPages.
-  ///
-  /// In it, this message translates to:
-  /// **'Il PDF ha circa {count} pagine.'**
-  String csPdfEstimatedPages(int count);
 
   /// No description provided for @csAllPagesWithCount.
   ///
@@ -2516,12 +2492,6 @@ abstract class AppLocalizations {
   /// **'Nessun taccuino da esportare.'**
   String get setExportLibraryEmpty;
 
-  /// No description provided for @setExportLibraryInProgress.
-  ///
-  /// In it, this message translates to:
-  /// **'Esportazione in corso…'**
-  String get setExportLibraryInProgress;
-
   /// No description provided for @setExportLibraryDone.
   ///
   /// In it, this message translates to:
@@ -2756,59 +2726,17 @@ abstract class AppLocalizations {
   /// **'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.'**
   String get onbTagline;
 
-  /// No description provided for @onbTryNowTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Prova subito'**
-  String get onbTryNowTitle;
-
   /// No description provided for @onbTryNowSubtitle.
   ///
   /// In it, this message translates to:
   /// **'Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.'**
   String get onbTryNowSubtitle;
 
-  /// No description provided for @onbConnectNextcloudTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Connetti il tuo Nextcloud'**
-  String get onbConnectNextcloudTitle;
-
-  /// No description provided for @onbConnectNextcloudSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Sincronizza sul tuo server WebDAV / Nextcloud personale e accedi da tutti i dispositivi.'**
-  String get onbConnectNextcloudSubtitle;
-
   /// No description provided for @onbManagedServerTitle.
   ///
   /// In it, this message translates to:
   /// **'Server gestito AbelNotes'**
   String get onbManagedServerTitle;
-
-  /// No description provided for @onbManagedServerSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Non hai un server? Presto potrai usare il nostro, senza configurare nulla.'**
-  String get onbManagedServerSubtitle;
-
-  /// No description provided for @onbComingSoonBadge.
-  ///
-  /// In it, this message translates to:
-  /// **'In arrivo'**
-  String get onbComingSoonBadge;
-
-  /// No description provided for @onbDriveTitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Sincronizza con Google Drive'**
-  String get onbDriveTitle;
-
-  /// No description provided for @onbDriveSubtitle.
-  ///
-  /// In it, this message translates to:
-  /// **'Niente da configurare: i tuoi quaderni si sincronizzano nel tuo Google Drive.'**
-  String get onbDriveSubtitle;
 
   /// No description provided for @driveSignInFailed.
   ///
@@ -3056,12 +2984,6 @@ abstract class AppLocalizations {
   /// **'Tenuto solo su questo dispositivo.'**
   String get libLocalOnlyDone;
 
-  /// No description provided for @libSyncResumedDone.
-  ///
-  /// In it, this message translates to:
-  /// **'Questo quaderno tornerà a sincronizzarsi.'**
-  String get libSyncResumedDone;
-
   /// No description provided for @syncLocalOnlyTooltip.
   ///
   /// In it, this message translates to:
@@ -3163,12 +3085,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Aprendo l\'app accetti la licenza AGPL-3.0. \"AbelNotes\" è un marchio del progetto.'**
   String get onbLicenseNote;
-
-  /// No description provided for @logConnectionFailed.
-  ///
-  /// In it, this message translates to:
-  /// **'Impossibile connettersi. Verifica URL, username e password.'**
-  String get logConnectionFailed;
 
   /// No description provided for @logConnectionError.
   ///
@@ -3578,24 +3494,6 @@ abstract class AppLocalizations {
   /// **'Dimensione'**
   String get chromeSizeSection;
 
-  /// No description provided for @chromeSizeSmall.
-  ///
-  /// In it, this message translates to:
-  /// **'S'**
-  String get chromeSizeSmall;
-
-  /// No description provided for @chromeSizeMedium.
-  ///
-  /// In it, this message translates to:
-  /// **'M'**
-  String get chromeSizeMedium;
-
-  /// No description provided for @chromeSizeLarge.
-  ///
-  /// In it, this message translates to:
-  /// **'L'**
-  String get chromeSizeLarge;
-
   /// No description provided for @chromePresetOverwrite.
   ///
   /// In it, this message translates to:
@@ -3662,23 +3560,11 @@ abstract class AppLocalizations {
   /// **'Applica'**
   String get chromeApply;
 
-  /// No description provided for @pmNone.
-  ///
-  /// In it, this message translates to:
-  /// **'Nessuno'**
-  String get pmNone;
-
   /// No description provided for @pmCreateChapterFirst.
   ///
   /// In it, this message translates to:
   /// **'Crea prima almeno un capitolo.'**
   String get pmCreateChapterFirst;
-
-  /// No description provided for @pmAssignChapterCount.
-  ///
-  /// In it, this message translates to:
-  /// **'Assegna capitolo ({count} pag.)'**
-  String pmAssignChapterCount(int count);
 
   /// No description provided for @pmDeletePagesConfirm.
   ///
@@ -3704,77 +3590,17 @@ abstract class AppLocalizations {
   /// **'Elimina'**
   String get pmDelete;
 
-  /// No description provided for @pmPagesCut.
-  ///
-  /// In it, this message translates to:
-  /// **'{count, plural, one{1 pagina tagliata. Apri il taccuino di destinazione per incollare.} other{{count} pagine tagliate. Apri il taccuino di destinazione per incollare.}}'**
-  String pmPagesCut(int count);
-
-  /// No description provided for @pmPagesCutSkipped.
-  ///
-  /// In it, this message translates to:
-  /// **'{count} pagine tagliate ({skipped} non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.'**
-  String pmPagesCutSkipped(int count, int skipped);
-
   /// No description provided for @pmSelectedCount.
   ///
   /// In it, this message translates to:
   /// **'{count, plural, one{1 selezionata} other{{count} selezionate}}'**
   String pmSelectedCount(int count);
 
-  /// No description provided for @pmSelectAllButton.
-  ///
-  /// In it, this message translates to:
-  /// **'Tutte'**
-  String get pmSelectAllButton;
-
-  /// No description provided for @pmClearSelection.
-  ///
-  /// In it, this message translates to:
-  /// **'Annulla selezione'**
-  String get pmClearSelection;
-
-  /// No description provided for @pmPagesCount.
-  ///
-  /// In it, this message translates to:
-  /// **'Pagine ({count})'**
-  String pmPagesCount(int count);
-
-  /// No description provided for @pmPagesFilteredCount.
-  ///
-  /// In it, this message translates to:
-  /// **'Pagine ({visible}/{total})'**
-  String pmPagesFilteredCount(int visible, int total);
-
   /// No description provided for @pmGoToPageTooltip.
   ///
   /// In it, this message translates to:
   /// **'Vai alla pagina…'**
   String get pmGoToPageTooltip;
-
-  /// No description provided for @pmExitSelection.
-  ///
-  /// In it, this message translates to:
-  /// **'Esci dalla selezione'**
-  String get pmExitSelection;
-
-  /// No description provided for @pmSelectPages.
-  ///
-  /// In it, this message translates to:
-  /// **'Seleziona pagine'**
-  String get pmSelectPages;
-
-  /// No description provided for @pmPastePages.
-  ///
-  /// In it, this message translates to:
-  /// **'Incolla pagine'**
-  String get pmPastePages;
-
-  /// No description provided for @pmPagesPasted.
-  ///
-  /// In it, this message translates to:
-  /// **'{count, plural, one{1 pagina incollata.} other{{count} pagine incollate.}}'**
-  String pmPagesPasted(int count);
 
   /// No description provided for @pmAddPage.
   ///
@@ -3866,24 +3692,6 @@ abstract class AppLocalizations {
   /// **'OK'**
   String get pmOk;
 
-  /// No description provided for @pmCountPagesShort.
-  ///
-  /// In it, this message translates to:
-  /// **'{count} pag.'**
-  String pmCountPagesShort(int count);
-
-  /// No description provided for @pmChapter.
-  ///
-  /// In it, this message translates to:
-  /// **'Capitolo'**
-  String get pmChapter;
-
-  /// No description provided for @pmCut.
-  ///
-  /// In it, this message translates to:
-  /// **'Taglia'**
-  String get pmCut;
-
   /// No description provided for @pmInsertBefore.
   ///
   /// In it, this message translates to:
@@ -3925,12 +3733,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Capitolo…'**
   String get pmChapterEllipsis;
-
-  /// No description provided for @pmPageChapterLabel.
-  ///
-  /// In it, this message translates to:
-  /// **'{number} • {chapter}'**
-  String pmPageChapterLabel(int number, String chapter);
 
   /// No description provided for @pmCorruptAssetTooltip.
   ///
@@ -5659,18 +5461,6 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Incolla qui {count, plural, one{1 pagina} other{{count} pagine}}'**
   String pgtCardPasteHere(int count);
-
-  /// No description provided for @pgtCardEndOfChapter.
-  ///
-  /// In it, this message translates to:
-  /// **'In fondo a {chapter}'**
-  String pgtCardEndOfChapter(String chapter);
-
-  /// No description provided for @pgtCardAtEnd.
-  ///
-  /// In it, this message translates to:
-  /// **'In fondo'**
-  String get pgtCardAtEnd;
 
   /// No description provided for @pgtWhereStart.
   ///

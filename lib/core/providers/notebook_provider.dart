@@ -1637,18 +1637,6 @@ class NotebookListNotifier
     );
   }
 
-  Future<void> updateNotebookTags(NotebookEntry entry, List<String> tags) async {
-    // Normalize: trim, drop empties, dedup while preserving order.
-    final seen = <String>{};
-    final cleanTags = <String>[];
-    for (final t in tags.map((e) => e.trim())) {
-      if (t.isEmpty) continue;
-      if (seen.add(t.toLowerCase())) cleanTags.add(t);
-    }
-    await _editNotebookMetadata(
-        entry, (m) => m.copyWith(tags: cleanTags), 'Tags');
-  }
-
   /// Applies [edit] to a notebook's metadata, persists it, flips the row to
   /// `modified` and pushes it (best-effort).
   ///
@@ -2223,5 +2211,4 @@ class NotebookListNotifier
       }
     }
   }
-
 }

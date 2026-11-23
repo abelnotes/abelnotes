@@ -80,8 +80,6 @@
   "@csClose": {},
   "csUnsavedChangesTitle": "Modifiche non salvate",
   "@csUnsavedChangesTitle": {},
-  "csUnsavedChangesBody": "Vuoi salvare prima di uscire?",
-  "@csUnsavedChangesBody": {},
   "csLocalSaveFailed": "Non riesco a salvare su questo dispositivo. Riprovo da solo: non chiudere l'app.",
   "@csLocalSaveFailed": {},
   "csLocalSaveFailedNoSpace": "Spazio esaurito su questo dispositivo: le ultime modifiche non sono salvate. Libera spazio, riprovo da solo.",
@@ -136,14 +134,6 @@
     "placeholders": {
       "count": {
         "type": "int"
-      }
-    }
-  },
-  "csPdfImportError": "Errore importazione PDF: {error}",
-  "@csPdfImportError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
       }
     }
   },
@@ -693,24 +683,8 @@
   "@csShapeArrow": {},
   "csInvalidRangeError": "Inserisci un intervallo valido (es. 1–10).",
   "@csInvalidRangeError": {},
-  "csPdfStartOutOfRange": "Il PDF ha circa {count} pagine. Inizio fuori range.",
-  "@csPdfStartOutOfRange": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "csImportPdfTitle": "Importa PDF",
   "@csImportPdfTitle": {},
-  "csPdfEstimatedPages": "Il PDF ha circa {count} pagine.",
-  "@csPdfEstimatedPages": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "csAllPagesWithCount": "Tutte le pagine ({count})",
   "@csAllPagesWithCount": {
     "placeholders": {
@@ -1232,8 +1206,6 @@
   "@setExport": {},
   "setExportLibraryEmpty": "Nessun taccuino da esportare.",
   "@setExportLibraryEmpty": {},
-  "setExportLibraryInProgress": "Esportazione in corso…",
-  "@setExportLibraryInProgress": {},
   "setExportLibraryDone": "{count, plural, one{Esportato {count} taccuino} other{Esportati {count} taccuini}}.",
   "@setExportLibraryDone": {
     "placeholders": {
@@ -1387,24 +1359,10 @@
   "@setContributeOpen": {},
   "onbTagline": "Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.",
   "@onbTagline": {},
-  "onbTryNowTitle": "Prova subito",
-  "@onbTryNowTitle": {},
   "onbTryNowSubtitle": "Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.",
   "@onbTryNowSubtitle": {},
-  "onbConnectNextcloudTitle": "Connetti il tuo Nextcloud",
-  "@onbConnectNextcloudTitle": {},
-  "onbConnectNextcloudSubtitle": "Sincronizza sul tuo server WebDAV / Nextcloud personale e accedi da tutti i dispositivi.",
-  "@onbConnectNextcloudSubtitle": {},
   "onbManagedServerTitle": "Server gestito AbelNotes",
   "@onbManagedServerTitle": {},
-  "onbManagedServerSubtitle": "Non hai un server? Presto potrai usare il nostro, senza configurare nulla.",
-  "@onbManagedServerSubtitle": {},
-  "onbComingSoonBadge": "In arrivo",
-  "@onbComingSoonBadge": {},
-  "onbDriveTitle": "Sincronizza con Google Drive",
-  "@onbDriveTitle": {},
-  "onbDriveSubtitle": "Niente da configurare: i tuoi quaderni si sincronizzano nel tuo Google Drive.",
-  "@onbDriveSubtitle": {},
   "driveSignInFailed": "L'accesso a Google non è andato a buon fine. Non è stato cambiato nulla.",
   "@driveSignInFailed": {},
   "driveSignInCancelled": "Accesso annullato.",
@@ -1520,8 +1478,6 @@
   "@libKeepOnDeviceConfirm": {},
   "libLocalOnlyDone": "Tenuto solo su questo dispositivo.",
   "@libLocalOnlyDone": {},
-  "libSyncResumedDone": "Questo quaderno tornerà a sincronizzarsi.",
-  "@libSyncResumedDone": {},
   "syncLocalOnlyTooltip": "Tenuto solo su questo dispositivo",
   "@syncLocalOnlyTooltip": {},
   "libFreeSpace": "Libera spazio su questo dispositivo",
@@ -1562,8 +1518,6 @@
   "@onbDriveUnavailable": {},
   "onbLicenseNote": "Aprendo l'app accetti la licenza AGPL-3.0. \"AbelNotes\" è un marchio del progetto.",
   "@onbLicenseNote": {},
-  "logConnectionFailed": "Impossibile connettersi. Verifica URL, username e password.",
-  "@logConnectionFailed": {},
   "logConnectionError": "Errore di connessione: {error}",
   "@logConnectionError": {
     "placeholders": {
@@ -1721,12 +1675,6 @@
   "@chromeEraserPerStroke": {},
   "chromeSizeSection": "Dimensione",
   "@chromeSizeSection": {},
-  "chromeSizeSmall": "S",
-  "@chromeSizeSmall": {},
-  "chromeSizeMedium": "M",
-  "@chromeSizeMedium": {},
-  "chromeSizeLarge": "L",
-  "@chromeSizeLarge": {},
   "chromePresetOverwrite": "Sovrascrivi con corrente",
   "@chromePresetOverwrite": {},
   "chromePresetReset": "Ripristina predefinita",
@@ -1770,18 +1718,8 @@
   "@chromeCancel": {},
   "chromeApply": "Applica",
   "@chromeApply": {},
-  "pmNone": "Nessuno",
-  "@pmNone": {},
   "pmCreateChapterFirst": "Crea prima almeno un capitolo.",
   "@pmCreateChapterFirst": {},
-  "pmAssignChapterCount": "Assegna capitolo ({count} pag.)",
-  "@pmAssignChapterCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "pmDeletePagesConfirm": "{count, plural, one{Eliminare 1 pagina?} other{Eliminare {count} pagine?}}",
   "@pmDeletePagesConfirm": {
     "placeholders": {
@@ -1796,25 +1734,6 @@
   "@pmCancel": {},
   "pmDelete": "Elimina",
   "@pmDelete": {},
-  "pmPagesCut": "{count, plural, one{1 pagina tagliata. Apri il taccuino di destinazione per incollare.} other{{count} pagine tagliate. Apri il taccuino di destinazione per incollare.}}",
-  "@pmPagesCut": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "pmPagesCutSkipped": "{count} pagine tagliate ({skipped} non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.",
-  "@pmPagesCutSkipped": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "skipped": {
-        "type": "int"
-      }
-    }
-  },
   "pmSelectedCount": "{count, plural, one{1 selezionata} other{{count} selezionate}}",
   "@pmSelectedCount": {
     "placeholders": {
@@ -1823,45 +1742,8 @@
       }
     }
   },
-  "pmSelectAllButton": "Tutte",
-  "@pmSelectAllButton": {},
-  "pmClearSelection": "Annulla selezione",
-  "@pmClearSelection": {},
-  "pmPagesCount": "Pagine ({count})",
-  "@pmPagesCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "pmPagesFilteredCount": "Pagine ({visible}/{total})",
-  "@pmPagesFilteredCount": {
-    "placeholders": {
-      "visible": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "pmGoToPageTooltip": "Vai alla pagina…",
   "@pmGoToPageTooltip": {},
-  "pmExitSelection": "Esci dalla selezione",
-  "@pmExitSelection": {},
-  "pmSelectPages": "Seleziona pagine",
-  "@pmSelectPages": {},
-  "pmPastePages": "Incolla pagine",
-  "@pmPastePages": {},
-  "pmPagesPasted": "{count, plural, one{1 pagina incollata.} other{{count} pagine incollate.}}",
-  "@pmPagesPasted": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "pmAddPage": "Aggiungi pagina",
   "@pmAddPage": {},
   "pmClose": "Chiudi",
@@ -1910,18 +1792,6 @@
   "@pmGo": {},
   "pmOk": "OK",
   "@pmOk": {},
-  "pmCountPagesShort": "{count} pag.",
-  "@pmCountPagesShort": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "pmChapter": "Capitolo",
-  "@pmChapter": {},
-  "pmCut": "Taglia",
-  "@pmCut": {},
   "pmInsertBefore": "Inserisci prima",
   "@pmInsertBefore": {},
   "pmInsertAfter": "Inserisci dopo",
@@ -1936,17 +1806,6 @@
   "@pmMoveToPage": {},
   "pmChapterEllipsis": "Capitolo…",
   "@pmChapterEllipsis": {},
-  "pmPageChapterLabel": "{number} • {chapter}",
-  "@pmPageChapterLabel": {
-    "placeholders": {
-      "number": {
-        "type": "int"
-      },
-      "chapter": {
-        "type": "String"
-      }
-    }
-  },
   "pmCorruptAssetTooltip": "Asset corrotto sul server (troncato). Ri-importa il PDF originale per recuperare",
   "@pmCorruptAssetTooltip": {},
   "pmLoadingImageTooltip": "Caricamento immagine dal server…",
@@ -2979,16 +2838,6 @@
       }
     }
   },
-  "pgtCardEndOfChapter": "In fondo a {chapter}",
-  "@pgtCardEndOfChapter": {
-    "placeholders": {
-      "chapter": {
-        "type": "String"
-      }
-    }
-  },
-  "pgtCardAtEnd": "In fondo",
-  "@pgtCardAtEnd": {},
   "pgtWhereStart": "all'inizio",
   "@pgtWhereStart": {},
   "pgtWhereAfter": "dopo la pagina {page}",

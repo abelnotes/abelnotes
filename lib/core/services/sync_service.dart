@@ -221,7 +221,6 @@ class SyncService {
     }
 
     return Uint8List.fromList(ZipEncoder().encode(archive)!);
-
   }
 
   /// Parsa un archivio .ncnote scaricato.
@@ -258,18 +257,6 @@ class SyncService {
   /// Used by the library to read from local cache.
   ({NotebookMetadata metadata, DocumentStructure document})
       parseNcnoteMetadata(Uint8List data) => _parseNcnoteArchive(data);
-
-  /// Lightweight metadata-only extraction: validates ZIP and returns metadata
-  /// in a single decode pass (no double decode).
-  NotebookMetadata parseNcnoteMetadataOnly(Uint8List data) {
-    final archive = ZipDecoder().decodeBytes(data);
-    final metadataFile = archive.findFile(AppConfig.metadataFile);
-    if (metadataFile == null) {
-      throw CorruptedArchiveException('Missing ${AppConfig.metadataFile}');
-    }
-    final json = jsonDecode(utf8.decode(metadataFile.content as List<int>));
-    return NotebookMetadata.fromJson(json as Map<String, dynamic>);
-  }
 
   /// Parse .ncnote metadata off the main thread using compute().
   static Future<NotebookMetadata> parseNcnoteMetadataIsolate(Uint8List data) {
@@ -376,38 +363,6 @@ class SyncService {
     } catch (e) {
       if (e is CorruptedArchiveException) rethrow;
       // Non-critical: size check failed but upload itself succeeded
-      debugPrint('[Sync] Could not verify upload size: $e');
-    }
-
-    return etag;
-  }
-
-  /// Upload a pre-built, pre-validated .ncnote package directly.
-  /// Skips redundant ZIP creation and validation — the caller already did it
-  /// (e.g. via a background isolate).
-  Future<String?> uploadRawPackage(String remotePath, Uint8List package) async {
-    debugPrint('[Sync] Uploading pre-built package: '
-        '${package.length} bytes → $remotePath');
-
-    final etag = await _remote.uploadFile(remotePath, package);
-
-    // Post-upload size verification
-    try {
-      final remoteSize = await _remote.getContentLength(remotePath);
-      if (remoteSize != null && remoteSize != package.length) {
-        debugPrint('[Sync] WARNING: Upload size mismatch: '
-            'local=${package.length}, remote=$remoteSize — deleting corrupted upload!');
-        try {
-          await _remote.delete(remotePath);
-        } catch (_) {}
-        throw CorruptedArchiveException(
-          'Upload size mismatch: expected ${package.length} bytes, '
-          'server has $remoteSize bytes. Upload corrupted and removed.',
-        );
-      }
-      debugPrint('[Sync] Upload verified: $remoteSize bytes on server.');
-    } catch (e) {
-      if (e is CorruptedArchiveException) rethrow;
       debugPrint('[Sync] Could not verify upload size: $e');
     }
 
@@ -1112,17 +1067,6 @@ class SyncService {
     }
   }
 
-  /// Gets the ETag of the remote .ncnote ZIP file (fallback change-detection).
-  /// Uses HEAD request — faster than PROPFIND.
-  Future<String?> getNcnoteEtag(String remotePath) async {
-    try {
-      return await _remote.getVersionFast(remotePath)
-          ?? await _remote.getVersion(remotePath);
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// Gets both ETag + Last-Modified of the remote .ncnote in one PROPFIND.
   /// Returns null on any error or if the file doesn't exist.
   Future<({String? etag, DateTime? lastModified})?> getNcnoteInfo(
@@ -1545,16 +1489,6 @@ class SyncService {
     return pages;
   }
 
-  /// Extract all pages on a background isolate for large archives.
-  ///
-  /// Decoding a ZIP + parsing every page JSON on the UI isolate jank-locks
-  /// notebooks with dozens of pages. This variant hops off onto a worker via
-  /// [compute] and awaits the decoded map. Use it when the notebook is known
-  /// to be heavy (see [AppConfig] and call sites in [library_screen]).
-  Future<Map<String, PageData>> extractAllPagesIsolated(Uint8List data) {
-    return compute(_extractAllPagesInIsolate, data);
-  }
-
   /// Single-pass extraction of pages + assets + symbol libraries.
   ///
   /// One `ZipDecoder().decodeBytes` walk instead of the three separate
@@ -1649,12 +1583,6 @@ class SyncService {
       }
     }
     return assets;
-  }
-
-  /// Background-isolate version of [extractAllAssets].
-  /// Hop off the UI thread for large notebooks that contain many images.
-  Future<Map<String, Uint8List>> extractAllAssetsIsolated(Uint8List data) {
-    return compute(_extractAllAssetsInIsolate, data);
   }
 
   /// Background-isolate version of [buildPackageBytes].
@@ -1973,39 +1901,6 @@ NcnoteContents _extractContentsImpl(Uint8List data) {
     }
   }
   return (pages: pages, assets: assets, symbolLibraries: symbols);
-}
-
-/// Top-level entry point for [SyncService.extractAllPagesIsolated].
-///
-/// Must live at the top level (not inside the class) so it can be passed to
-/// [compute], which uses a pure function pointer.
-Map<String, PageData> _extractAllPagesInIsolate(Uint8List data) {
-  final archive = ZipDecoder().decodeBytes(data);
-  final pages = <String, PageData>{};
-  const prefix = '${AppConfig.pagesDir}/';
-  for (final file in archive.files) {
-    if (file.name.startsWith(prefix) && file.name.endsWith('.json')) {
-      final fileName = file.name.split('/').last;
-      pages[fileName] = decodePageBytes(file.content as List<int>);
-    }
-  }
-  return pages;
-}
-
-/// Top-level entry point for [SyncService.extractAllAssetsIsolated].
-Map<String, Uint8List> _extractAllAssetsInIsolate(Uint8List data) {
-  final archive = ZipDecoder().decodeBytes(data);
-  final assets = <String, Uint8List>{};
-  const prefix = '${AppConfig.assetsDir}/';
-  for (final file in archive.files) {
-    if (file.name.startsWith(prefix) && file.isFile) {
-      final fileName = file.name.substring(prefix.length);
-      if (fileName.isNotEmpty) {
-        assets[fileName] = Uint8List.fromList(file.content as List<int>);
-      }
-    }
-  }
-  return assets;
 }
 
 /// Top-level entry point for [SyncService.buildPackageBytesIsolated].

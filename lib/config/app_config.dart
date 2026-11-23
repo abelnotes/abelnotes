@@ -47,12 +47,6 @@ class AppConfig {
   /// fully streamed in over a Tailscale link.  10 minutes covers the worst
   /// realistic case (≈100 KB/s sustained).
   static const int webdavLargeDownloadTimeoutSeconds = 600;
-  static const int maxRetries = 3;
-
-  // ── Sync ──
-  static const Duration syncDebounce = Duration(seconds: 5);
-  static const Duration syncInterval = Duration(minutes: 5);
-  static const int maxConcurrentSyncs = 3;
 
   // ── Delta Sync ──
   /// How often the canvas checks for remote page changes from other devices.
@@ -74,10 +68,6 @@ class AppConfig {
   // SharedPreferences, so each tool keeps its last chosen size across
   // restarts.
   static const double defaultStrokeWidth = 1.5;
-  static const double minStrokeWidth = 0.5;
-  static const double maxStrokeWidth = 20.0;
-  static const double pressureSensitivity = 1.0;
-  static const int catmullRomSegments = 4; // punti interpolati tra 2 raw
   static const double defaultPageWidth = 595.0; // A4 in punti (72dpi)
   static const double defaultPageHeight = 842.0;
 
@@ -143,11 +133,6 @@ class AppConfig {
   /// supported release reads it: an older app would take a binary page for
   /// a corrupt one.
   static const bool writeBinaryPages = false;
-
-  // ── Cache ──
-  static const int maxCachedPages = 10; // pagine in memoria
-  static const Duration cacheExpiry = Duration(hours: 24);
-  static const int maxThumbnailCacheSize = 50; // MB
 
   // ── Database ──
   static const String dbName = 'abelnotes.db';

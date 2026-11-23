@@ -476,26 +476,6 @@ class ActiveStrokeNotifier extends ChangeNotifier {
     _lazyBrush = false;
     notifyListeners();
   }
-
-  /// Resume tracking with the provided history. Used to recover from
-  /// spurious PointerUp+PointerDown sequences on iPad where the pen
-  /// never actually lifted — without this, each segment would commit
-  /// as its own stroke and the user would see a mid-letter break.
-  ///
-  /// The synth-pressure / desktop flags are preserved (they were set
-  /// by the original [start] call and survive [clear]); _synthEma is
-  /// re-anchored to the last point's pressure so width modulation
-  /// continues smoothly across the seam.
-  void restoreActive(List<StrokePoint> previousPoints) {
-    _points.clear();
-    _display = null;
-    if (previousPoints.isNotEmpty) {
-      _points.addAll(previousPoints);
-      _synthEma = previousPoints.last.pressure.clamp(0.30, 0.85).toDouble();
-    }
-    _active = true;
-    notifyListeners();
-  }
 }
 
 /// Live transform of an existing lasso selection (drag offset / rotation /

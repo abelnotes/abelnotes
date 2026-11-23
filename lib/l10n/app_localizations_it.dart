@@ -116,9 +116,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get csUnsavedChangesTitle => 'Modifiche non salvate';
 
   @override
-  String get csUnsavedChangesBody => 'Vuoi salvare prima di uscire?';
-
-  @override
   String get csLocalSaveFailed =>
       'Non riesco a salvare su questo dispositivo. Riprovo da solo: non chiudere l\'app.';
 
@@ -200,11 +197,6 @@ class AppLocalizationsIt extends AppLocalizations {
       one: '$count pagina',
     );
     return 'PDF importato: $_temp0';
-  }
-
-  @override
-  String csPdfImportError(String error) {
-    return 'Errore importazione PDF: $error';
   }
 
   @override
@@ -827,17 +819,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Inserisci un intervallo valido (es. 1–10).';
 
   @override
-  String csPdfStartOutOfRange(int count) {
-    return 'Il PDF ha circa $count pagine. Inizio fuori range.';
-  }
-
-  @override
   String get csImportPdfTitle => 'Importa PDF';
-
-  @override
-  String csPdfEstimatedPages(int count) {
-    return 'Il PDF ha circa $count pagine.';
-  }
 
   @override
   String csAllPagesWithCount(int count) {
@@ -1497,9 +1479,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get setExportLibraryEmpty => 'Nessun taccuino da esportare.';
 
   @override
-  String get setExportLibraryInProgress => 'Esportazione in corso…';
-
-  @override
   String setExportLibraryDone(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1667,35 +1646,11 @@ class AppLocalizationsIt extends AppLocalizations {
       'Appunti e disegno a mano libera, sincronizzati sul TUO server. Scegli come iniziare: puoi cambiare in seguito.';
 
   @override
-  String get onbTryNowTitle => 'Prova subito';
-
-  @override
   String get onbTryNowSubtitle =>
       'Inizia a scrivere ora. I taccuini restano su questo dispositivo: nessun account, nessun server.';
 
   @override
-  String get onbConnectNextcloudTitle => 'Connetti il tuo Nextcloud';
-
-  @override
-  String get onbConnectNextcloudSubtitle =>
-      'Sincronizza sul tuo server WebDAV / Nextcloud personale e accedi da tutti i dispositivi.';
-
-  @override
   String get onbManagedServerTitle => 'Server gestito AbelNotes';
-
-  @override
-  String get onbManagedServerSubtitle =>
-      'Non hai un server? Presto potrai usare il nostro, senza configurare nulla.';
-
-  @override
-  String get onbComingSoonBadge => 'In arrivo';
-
-  @override
-  String get onbDriveTitle => 'Sincronizza con Google Drive';
-
-  @override
-  String get onbDriveSubtitle =>
-      'Niente da configurare: i tuoi quaderni si sincronizzano nel tuo Google Drive.';
 
   @override
   String get driveSignInFailed =>
@@ -1871,9 +1826,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get libLocalOnlyDone => 'Tenuto solo su questo dispositivo.';
 
   @override
-  String get libSyncResumedDone => 'Questo quaderno tornerà a sincronizzarsi.';
-
-  @override
   String get syncLocalOnlyTooltip => 'Tenuto solo su questo dispositivo';
 
   @override
@@ -1930,10 +1882,6 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get onbLicenseNote =>
       'Aprendo l\'app accetti la licenza AGPL-3.0. \"AbelNotes\" è un marchio del progetto.';
-
-  @override
-  String get logConnectionFailed =>
-      'Impossibile connettersi. Verifica URL, username e password.';
 
   @override
   String logConnectionError(String error) {
@@ -2159,15 +2107,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromeSizeSection => 'Dimensione';
 
   @override
-  String get chromeSizeSmall => 'S';
-
-  @override
-  String get chromeSizeMedium => 'M';
-
-  @override
-  String get chromeSizeLarge => 'L';
-
-  @override
   String get chromePresetOverwrite => 'Sovrascrivi con corrente';
 
   @override
@@ -2207,15 +2146,7 @@ class AppLocalizationsIt extends AppLocalizations {
   String get chromeApply => 'Applica';
 
   @override
-  String get pmNone => 'Nessuno';
-
-  @override
   String get pmCreateChapterFirst => 'Crea prima almeno un capitolo.';
-
-  @override
-  String pmAssignChapterCount(int count) {
-    return 'Assegna capitolo ($count pag.)';
-  }
 
   @override
   String pmDeletePagesConfirm(int count) {
@@ -2239,23 +2170,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get pmDelete => 'Elimina';
 
   @override
-  String pmPagesCut(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          '$count pagine tagliate. Apri il taccuino di destinazione per incollare.',
-      one: '1 pagina tagliata. Apri il taccuino di destinazione per incollare.',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String pmPagesCutSkipped(int count, int skipped) {
-    return '$count pagine tagliate ($skipped non ancora caricate, saltate). Apri il taccuino di destinazione per incollare.';
-  }
-
-  @override
   String pmSelectedCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2267,43 +2181,7 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
-  String get pmSelectAllButton => 'Tutte';
-
-  @override
-  String get pmClearSelection => 'Annulla selezione';
-
-  @override
-  String pmPagesCount(int count) {
-    return 'Pagine ($count)';
-  }
-
-  @override
-  String pmPagesFilteredCount(int visible, int total) {
-    return 'Pagine ($visible/$total)';
-  }
-
-  @override
   String get pmGoToPageTooltip => 'Vai alla pagina…';
-
-  @override
-  String get pmExitSelection => 'Esci dalla selezione';
-
-  @override
-  String get pmSelectPages => 'Seleziona pagine';
-
-  @override
-  String get pmPastePages => 'Incolla pagine';
-
-  @override
-  String pmPagesPasted(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count pagine incollate.',
-      one: '1 pagina incollata.',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get pmAddPage => 'Aggiungi pagina';
@@ -2357,17 +2235,6 @@ class AppLocalizationsIt extends AppLocalizations {
   String get pmOk => 'OK';
 
   @override
-  String pmCountPagesShort(int count) {
-    return '$count pag.';
-  }
-
-  @override
-  String get pmChapter => 'Capitolo';
-
-  @override
-  String get pmCut => 'Taglia';
-
-  @override
   String get pmInsertBefore => 'Inserisci prima';
 
   @override
@@ -2387,11 +2254,6 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get pmChapterEllipsis => 'Capitolo…';
-
-  @override
-  String pmPageChapterLabel(int number, String chapter) {
-    return '$number • $chapter';
-  }
 
   @override
   String get pmCorruptAssetTooltip =>
@@ -3610,14 +3472,6 @@ class AppLocalizationsIt extends AppLocalizations {
     );
     return 'Incolla qui $_temp0';
   }
-
-  @override
-  String pgtCardEndOfChapter(String chapter) {
-    return 'In fondo a $chapter';
-  }
-
-  @override
-  String get pgtCardAtEnd => 'In fondo';
 
   @override
   String get pgtWhereStart => 'all\'inizio';

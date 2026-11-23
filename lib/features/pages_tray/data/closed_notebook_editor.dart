@@ -76,19 +76,6 @@ class ClosedNotebookEditor {
 
   Uint8List _json(Object o) => Uint8List.fromList(utf8.encode(jsonEncode(o)));
 
-  /// Document page ids of the notebook as stored, null if unreadable.
-  Future<Set<String>?> storedPageIds(String id) async {
-    try {
-      final doc = DocumentStructure.fromJson(jsonDecode(await File(p.join(
-                  files.notebookStoreDir(id), AppConfig.documentFile))
-              .readAsString())
-          as Map<String, dynamic>);
-      return {for (final e in doc.pages) e.pageId};
-    } catch (_) {
-      return null;
-    }
-  }
-
   /// True when [pageIds] are in the stored document and their files exist.
   Future<bool> storesPages(String id, Set<String> pageIds) async {
     try {

@@ -6,12 +6,9 @@ import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
 
-import 'package:archive/archive.dart';
 import 'dart:typed_data';
 
 import 'package:abelnotes/config/app_config.dart';
-import 'package:abelnotes/core/providers/canvas_provider.dart'
-    show decodePageBytes;
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -49,15 +46,6 @@ class ThumbnailService {
   Future<bool> hasThumbnail(String notebookId) async {
     if (!_initialized) await init();
     return File(thumbnailPath(notebookId)).exists();
-  }
-
-  /// Returns the age of the cached thumbnail, or null if missing.
-  Future<Duration?> thumbnailAge(String notebookId) async {
-    if (!_initialized) await init();
-    final file = File(thumbnailPath(notebookId));
-    if (!await file.exists()) return null;
-    final stat = await file.stat();
-    return DateTime.now().difference(stat.modified);
   }
 
   /// Renders [page] offscreen and writes the PNG to disk.
@@ -250,69 +238,6 @@ class ThumbnailService {
       return data?.buffer.asUint8List();
     } catch (e) {
       debugPrint('[ThumbnailService] Render failed: $e');
-      return null;
-    }
-  }
-
-  /// Lazy thumbnail generation from the local .ncnote bytes.
-  /// Used when the library screen shows a notebook that never had a
-  /// thumbnail cached (downloaded from the server, imported, or created
-  /// before thumbnails existed).
-  /// No-op if a thumbnail already exists.
-  Future<String?> ensureFromNcnoteBytes(
-    String notebookId,
-    Uint8List ncnoteBytes,
-  ) async {
-    if (!_initialized) await init();
-    final file = File(thumbnailPath(notebookId));
-    if (await file.exists()) return file.path;
-    try {
-      // Minimal parse: find the first page JSON under pages/ and decode it.
-      final archive = ZipDecoder().decodeBytes(ncnoteBytes);
-      ArchiveFile? firstPageFile;
-      const pagesPrefix = '${AppConfig.pagesDir}/';
-      for (final f in archive.files) {
-        if (f.name.startsWith(pagesPrefix) && f.name.endsWith('.json')) {
-          if (firstPageFile == null || f.name.compareTo(firstPageFile.name) < 0) {
-            firstPageFile = f;
-          }
-        }
-      }
-      if (firstPageFile == null) return null;
-      final page = decodePageBytes(firstPageFile.content as List<int>);
-
-      // Collect only the asset bytes referenced by this first page so the
-      // thumbnail renders image elements instead of blank rectangles.
-      final neededRefs = <String>{};
-      for (final el in page.layers.content) {
-        el.map(unknown: (_) {},
-          stroke: (_) {},
-          text: (_) {},
-          shape: (_) {},
-          math: (_) {},
-          image: (img) {
-            final path = img.data.assetPath;
-            if (path.isNotEmpty) neededRefs.add(path);
-          },
-        );
-      }
-      final assetBytes = <String, Uint8List>{};
-      if (neededRefs.isNotEmpty) {
-        const assetsPrefix = '${AppConfig.assetsDir}/';
-        for (final f in archive.files) {
-          if (!f.isFile) continue;
-          if (!f.name.startsWith(assetsPrefix)) continue;
-          final ref = f.name.substring(assetsPrefix.length);
-          if (ref.isEmpty) continue;
-          if (!neededRefs.contains(ref)) continue;
-          assetBytes[ref] =
-              Uint8List.fromList(f.content as List<int>);
-        }
-      }
-
-      return renderAndCache(notebookId, page, assetBytes: assetBytes);
-    } catch (e) {
-      debugPrint('[ThumbnailService] Lazy render failed for $notebookId: $e');
       return null;
     }
   }

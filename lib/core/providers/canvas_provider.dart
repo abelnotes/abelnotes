@@ -1256,7 +1256,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// FIRST entry only — subsequent visits restore whatever the user
   /// last set inside highlighter mode.
   final Map<CanvasTool, ToolSettings> _toolPrefs = {};
-  ToolSettings? toolPrefFor(CanvasTool tool) => _toolPrefs[tool];
 
   CanvasNotifier(this._ref) : super(null) {
     // Restore per-tool preferences from SharedPreferences ASAP so the
@@ -1871,7 +1870,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Access-time map for LRU tracking. Key: assetId, value: monotonic
   /// counter bumped on every render access.
   final Map<String, int> _imageAccessTime = {};
-  int _imageAccessCounter = 0;
 
   /// Compute the union of asset refs across pages in [center ± radius].
   Set<String> _assetRefsForWindow(
@@ -1952,11 +1950,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       imageCacheVersion.value++;
       _logMemoryStats('evict($evicted)');
     }
-  }
-
-  /// Record an access to an asset for LRU. Called by render paths.
-  void touchImageAsset(String assetId) {
-    _imageAccessTime[assetId] = ++_imageAccessCounter;
   }
 
   /// Log a one-line memory snapshot on mobile so we can tell, from the
@@ -3148,11 +3141,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     } catch (_) {/* non-critical */}
   }
 
-  void toggleToolOptions() {
-    if (state == null) return;
-    state = state!.copyWith(showToolOptions: !state!.showToolOptions);
-  }
-
   void setToolSettings(ToolSettings settings) {
     if (state == null) return;
     state = state!.copyWith(toolSettings: settings);
@@ -3172,15 +3160,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       strokeWidth: preset.strokeWidth,
       opacity: preset.opacity,
     ));
-  }
-
-  void setColor(int color) {
-    if (state == null) return;
-    if (state!.toolSettings.color == color) return;
-    state = state!.copyWith(
-      toolSettings: state!.toolSettings.copyWith(color: color),
-    );
-    _rememberToolPref();
   }
 
   /// Snapshot the current toolSettings into the per-tool memory and
@@ -3216,15 +3195,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
-  void setStrokeWidth(double width) {
-    if (state == null) return;
-    if (state!.toolSettings.strokeWidth == width) return;
-    state = state!.copyWith(
-      toolSettings: state!.toolSettings.copyWith(strokeWidth: width),
-    );
-    _rememberToolPref();
-  }
-
   void setEraserSize(EraserSize size) {
     if (state == null) return;
     final ts = state!.toolSettings;
@@ -3245,15 +3215,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           : ts.copyWith(eraserDiameterPt: pt),
     );
     _rememberToolPref();
-  }
-
-  void toggleShapeRecognition() {
-    if (state == null) return;
-    state = state!.copyWith(
-      toolSettings: state!.toolSettings.copyWith(
-        shapeRecognition: !state!.toolSettings.shapeRecognition,
-      ),
-    );
   }
 
   // ── Paper type ──
@@ -4539,74 +4500,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
-  void moveSelection(Offset delta) {
-    if (state == null || state!.lassoSelection == null) return;
-    state = state!.copyWith(
-      lassoSelection: state!.lassoSelection!.copyWith(
-        dragOffset: state!.lassoSelection!.dragOffset + delta,
-      ),
-    );
-  }
-
-  void resizeSelection(double scaleFactor) {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-    final center = sel.bounds.center;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!sel.selectedIds.contains(id)) return element;
-      return _scaleElement(element, center, scaleFactor);
-    }).toList();
-
-    final newBounds = Rect.fromCenter(
-      center: center,
-      width: sel.bounds.width * scaleFactor,
-      height: sel.bounds.height * scaleFactor,
-    );
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-      lassoSelection: LassoSelection(selectedIds: sel.selectedIds, bounds: newBounds),
-    );
-  }
-
-  void rotateSelection(double angle) {
-    if (state == null || state!.lassoSelection == null) return;
-    state = state!.copyWith(
-      lassoSelection: state!.lassoSelection!.copyWith(
-        rotation: state!.lassoSelection!.rotation + angle,
-      ),
-    );
-  }
-
-  void scaleSelectionPreview(double scale) {
-    if (state == null || state!.lassoSelection == null) return;
-    state = state!.copyWith(
-      lassoSelection: state!.lassoSelection!.copyWith(scale: scale),
-    );
-  }
-
   /// Apply the full transform (drag/rotation/scale) atomically. Used by
   /// the UI when committing a locally-tracked LassoTransformNotifier on
   /// pointer-up, so Riverpod fires a single state update per gesture
@@ -5742,11 +5635,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
-  /// Move a page to a different chapter.
-  void movePageToChapter(int pageIndex, String? chapterId) {
-    assignPageToChapter(pageIndex, chapterId);
-  }
-
   void addChapter(String title) {
     if (state == null) return;
     final s = state!;
@@ -5868,12 +5756,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   void _bumpInteract() {
     _lastInteractAt = DateTime.now();
     _wakePullFromIdle();
-  }
-
-  void setZoom(double zoom) {
-    if (state == null) return;
-    _bumpInteract();
-    state = state!.copyWith(zoom: zoom.clamp(0.25, 5.0));
   }
 
   void setPanOffset(Offset offset) {
@@ -6931,23 +6813,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }).toList();
 
     _updatePageContent(s, page, fileName, updatedContent, s.undoStack);
-  }
-
-  bool isImageLocked(String elementId) {
-    if (state == null) return false;
-    final page = state!.currentPage;
-    if (page == null) return false;
-    for (final el in page.layers.content) {
-      final id = el.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) continue;
-      return el.map(unknown: (_) => false,
-        stroke: (_) => false, text: (_) => false,
-        image: (e) => e.data.locked,
-        shape: (_) => false,
-        math: (_) => false,
-      );
-    }
-    return false;
   }
 
   void _updatePageContent(CanvasState s, PageData page, String fileName, List<ContentElement> content, List<UndoEntry> undoStack) {
@@ -8063,24 +7928,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     _publishSymbols();
   }
 
-  // Legacy: keep for backward compatibility
-  void deleteSymbol(String symbolId) {
-    if (state == null) return;
-    _deletedSymbolIds.add(symbolId);
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) =>
-          l.copyWith(symbols: l.symbols.where((s) => s.id != symbolId).toList())
-      ).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
-
-  void setPendingSymbol(ReusableSymbol symbol) {
-    if (state == null) return;
-    state = state!.copyWith(pendingSymbol: symbol);
-  }
-
   void clearPendingSymbol() {
     if (state == null) return;
     state = state!.copyWith(clearPendingSymbol: true);
@@ -8219,18 +8066,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     print('[Canvas] repairMissingPageData: restored ${entry.fileName} '
         'as blank at index $docIndex');
     return true;
-  }
-
-  /// Count how many PageEntries in the current document reference a
-  /// fileName whose PageData is missing from [state.pages].
-  int missingPageCount() {
-    final s = state;
-    if (s == null) return 0;
-    var count = 0;
-    for (final entry in s.document.pages) {
-      if (!s.pages.containsKey(entry.fileName)) count++;
-    }
-    return count;
   }
 
   /// Heal every missing page in [goneFromServer]. Returns the number of
@@ -8558,38 +8393,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       metadata: s.metadata.copyWith(pageCount: pageNum, modifiedAt: now),
       isDirty: true,
     );
-  }
-
-  void reorderPage(int oldIndex, int newIndex) {
-    if (state == null) return;
-    final s = state!;
-    final pages = List<PageEntry>.from(s.document.pages);
-    if (oldIndex < 0 || oldIndex >= pages.length) return;
-    final entry = pages.removeAt(oldIndex);
-    pages.insert(newIndex.clamp(0, pages.length), entry);
-
-    // Renumber
-    for (int i = 0; i < pages.length; i++) {
-      pages[i] = pages[i].copyWith(pageNumber: i + 1);
-    }
-
-    final updatedDoc = DocumentStructure(
-      notebookId: s.document.notebookId,
-      formatVersion: s.document.formatVersion,
-      pages: pages,
-    );
-
-    // Adjust current page index to follow the page that was being viewed
-    int newCurrentIndex = s.currentPageIndex;
-    if (s.currentPageIndex == oldIndex) {
-      newCurrentIndex = newIndex;
-    } else if (oldIndex < s.currentPageIndex && newIndex >= s.currentPageIndex) {
-      newCurrentIndex--;
-    } else if (oldIndex > s.currentPageIndex && newIndex <= s.currentPageIndex) {
-      newCurrentIndex++;
-    }
-
-    state = s.copyWith(document: updatedDoc, currentPageIndex: newCurrentIndex, isDirty: true);
   }
 
   /// Move a set of pages (possibly non-contiguous) so that the first moved

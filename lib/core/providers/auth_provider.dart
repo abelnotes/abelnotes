@@ -27,21 +27,6 @@ class NextcloudCredentials {
     this.serverType = WebDavServerType.nextcloud,
     this.certFingerprint,
   });
-
-  Map<String, String> toMap() => {
-        'serverUrl': serverUrl,
-        'username': username,
-        'password': password,
-        'serverType': serverType.name,
-      };
-
-  factory NextcloudCredentials.fromMap(Map<String, String> map) =>
-      NextcloudCredentials(
-        serverUrl: map['serverUrl']!,
-        username: map['username']!,
-        password: map['password']!,
-        serverType: WebDavServerType.fromName(map['serverType']),
-      );
 }
 
 /// Provider per le credenziali salvate.

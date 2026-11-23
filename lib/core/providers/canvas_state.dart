@@ -583,11 +583,6 @@ class CanvasState {
     return result;
   }
 
-  int get filteredPageCount => filteredPageIndices.length;
-
-  /// Position of currentPageIndex within the filtered list (-1 if not found).
-  int get currentFilteredIndex => filteredPageIndices.indexOf(currentPageIndex);
-
   const CanvasState({
     required this.metadata,
     required this.document,

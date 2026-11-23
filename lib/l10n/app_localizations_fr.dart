@@ -116,10 +116,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get csUnsavedChangesTitle => 'Modifications non enregistrées';
 
   @override
-  String get csUnsavedChangesBody =>
-      'Voulez-vous enregistrer avant de quitter ?';
-
-  @override
   String get csLocalSaveFailed =>
       'Impossible d\'enregistrer sur cet appareil. Nouvel essai automatique. Ne fermez pas l\'app.';
 
@@ -201,11 +197,6 @@ class AppLocalizationsFr extends AppLocalizations {
       one: '$count page',
     );
     return 'PDF importé : $_temp0';
-  }
-
-  @override
-  String csPdfImportError(String error) {
-    return 'Erreur d\'import du PDF : $error';
   }
 
   @override
@@ -829,17 +820,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Saisissez un intervalle valide (par ex. 1–10).';
 
   @override
-  String csPdfStartOutOfRange(int count) {
-    return 'Le PDF contient environ $count pages. Le début est hors intervalle.';
-  }
-
-  @override
   String get csImportPdfTitle => 'Importer un PDF';
-
-  @override
-  String csPdfEstimatedPages(int count) {
-    return 'Le PDF contient environ $count pages.';
-  }
 
   @override
   String csAllPagesWithCount(int count) {
@@ -1498,9 +1479,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get setExportLibraryEmpty => 'Aucun carnet à exporter.';
 
   @override
-  String get setExportLibraryInProgress => 'Export en cours…';
-
-  @override
   String setExportLibraryDone(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1670,35 +1648,11 @@ class AppLocalizationsFr extends AppLocalizations {
       'Notes manuscrites et dessin à main levée, synchronisés sur VOTRE serveur. Choisissez comment commencer : vous pourrez changer plus tard.';
 
   @override
-  String get onbTryNowTitle => 'Essayer tout de suite';
-
-  @override
   String get onbTryNowSubtitle =>
       'Commencez à écrire maintenant. Les carnets restent sur cet appareil : pas de compte, pas de serveur.';
 
   @override
-  String get onbConnectNextcloudTitle => 'Connecter votre Nextcloud';
-
-  @override
-  String get onbConnectNextcloudSubtitle =>
-      'Synchronisez sur votre propre serveur WebDAV / Nextcloud et accédez-y depuis tous vos appareils.';
-
-  @override
   String get onbManagedServerTitle => 'Serveur géré AbelNotes';
-
-  @override
-  String get onbManagedServerSubtitle =>
-      'Pas de serveur ? Vous pourrez bientôt utiliser le nôtre, sans rien configurer.';
-
-  @override
-  String get onbComingSoonBadge => 'Bientôt';
-
-  @override
-  String get onbDriveTitle => 'Synchroniser avec Google Drive';
-
-  @override
-  String get onbDriveSubtitle =>
-      'Rien à configurer : vos carnets se synchronisent via votre propre Google Drive.';
 
   @override
   String get driveSignInFailed =>
@@ -1877,9 +1831,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get libLocalOnlyDone => 'Gardé uniquement sur cet appareil.';
 
   @override
-  String get libSyncResumedDone => 'Ce carnet sera à nouveau synchronisé.';
-
-  @override
   String get syncLocalOnlyTooltip => 'Gardé uniquement sur cet appareil';
 
   @override
@@ -1936,10 +1887,6 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get onbLicenseNote =>
       'En ouvrant l\'application, vous acceptez la licence AGPL-3.0. « AbelNotes » est une marque du projet.';
-
-  @override
-  String get logConnectionFailed =>
-      'Connexion impossible. Vérifiez l\'URL, le nom d\'utilisateur et le mot de passe.';
 
   @override
   String logConnectionError(String error) {
@@ -2167,15 +2114,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromeSizeSection => 'Taille';
 
   @override
-  String get chromeSizeSmall => 'S';
-
-  @override
-  String get chromeSizeMedium => 'M';
-
-  @override
-  String get chromeSizeLarge => 'L';
-
-  @override
   String get chromePresetOverwrite => 'Remplacer par l\'actuel';
 
   @override
@@ -2215,15 +2153,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chromeApply => 'Appliquer';
 
   @override
-  String get pmNone => 'Aucun';
-
-  @override
   String get pmCreateChapterFirst => 'Créez d\'abord au moins un chapitre.';
-
-  @override
-  String pmAssignChapterCount(int count) {
-    return 'Attribuer un chapitre ($count p.)';
-  }
 
   @override
   String pmDeletePagesConfirm(int count) {
@@ -2246,23 +2176,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pmDelete => 'Supprimer';
 
   @override
-  String pmPagesCut(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          '$count pages coupées. Ouvrez le carnet de destination pour coller.',
-      one: '1 page coupée. Ouvrez le carnet de destination pour coller.',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String pmPagesCutSkipped(int count, int skipped) {
-    return '$count pages coupées ($skipped pas encore chargées, ignorées). Ouvrez le carnet de destination pour coller.';
-  }
-
-  @override
   String pmSelectedCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2274,43 +2187,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get pmSelectAllButton => 'Toutes';
-
-  @override
-  String get pmClearSelection => 'Annuler la sélection';
-
-  @override
-  String pmPagesCount(int count) {
-    return 'Pages ($count)';
-  }
-
-  @override
-  String pmPagesFilteredCount(int visible, int total) {
-    return 'Pages ($visible/$total)';
-  }
-
-  @override
   String get pmGoToPageTooltip => 'Aller à la page…';
-
-  @override
-  String get pmExitSelection => 'Quitter la sélection';
-
-  @override
-  String get pmSelectPages => 'Sélectionner des pages';
-
-  @override
-  String get pmPastePages => 'Coller les pages';
-
-  @override
-  String pmPagesPasted(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count pages collées.',
-      one: '1 page collée.',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get pmAddPage => 'Ajouter une page';
@@ -2364,17 +2241,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pmOk => 'OK';
 
   @override
-  String pmCountPagesShort(int count) {
-    return '$count p.';
-  }
-
-  @override
-  String get pmChapter => 'Chapitre';
-
-  @override
-  String get pmCut => 'Couper';
-
-  @override
   String get pmInsertBefore => 'Insérer avant';
 
   @override
@@ -2394,11 +2260,6 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get pmChapterEllipsis => 'Chapitre…';
-
-  @override
-  String pmPageChapterLabel(int number, String chapter) {
-    return '$number • $chapter';
-  }
 
   @override
   String get pmCorruptAssetTooltip =>
@@ -3619,14 +3480,6 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return 'Coller $_temp0 ici';
   }
-
-  @override
-  String pgtCardEndOfChapter(String chapter) {
-    return 'À la fin de $chapter';
-  }
-
-  @override
-  String get pgtCardAtEnd => 'À la fin';
 
   @override
   String get pgtWhereStart => 'au début';

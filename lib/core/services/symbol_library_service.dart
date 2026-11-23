@@ -40,9 +40,6 @@ class SymbolCollection {
   bool get isEmpty =>
       libraries.isEmpty && deletedSymbolIds.isEmpty && deletedLibraryIds.isEmpty;
 
-  int get symbolCount =>
-      libraries.fold(0, (n, l) => n + l.symbols.length);
-
   Map<String, dynamic> toJson() => {
         'version': formatVersion,
         'libraries': libraries.map((l) => l.toJson()).toList(),

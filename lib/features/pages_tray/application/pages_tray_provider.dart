@@ -70,18 +70,6 @@ class TrayToast {
       this.canUndo = false,
       this.showNotebookId,
       this.landingIds = const {}});
-
-  bool get isProblem => const {
-        TrayEvent.tooMany,
-        TrayEvent.nothingToTake,
-        TrayEvent.trayNotSaved,
-        TrayEvent.pastePagesGone,
-        TrayEvent.pasteTrayDamaged,
-        TrayEvent.pasteDestFailed,
-        TrayEvent.pasteDestUnavailable,
-        TrayEvent.moveSourceFailed,
-        TrayEvent.undoFailed,
-      }.contains(event);
 }
 
 /// Pages that just landed; the grid highlights them for a moment.

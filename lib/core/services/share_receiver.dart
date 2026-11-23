@@ -13,17 +13,6 @@ class SharedImport {
   final List<SharedMediaFile> files;
 
   const SharedImport(this.files);
-
-  /// Whether every file is application/pdf.
-  bool get allPdf {
-    for (final f in files) {
-      final path = f.path.toLowerCase();
-      final isPdf = path.endsWith('.pdf') ||
-          (f.mimeType?.toLowerCase() == 'application/pdf');
-      if (!isPdf) return false;
-    }
-    return files.isNotEmpty;
-  }
 }
 
 /// Emits a [SharedImport] every time the OS hands us one or more files

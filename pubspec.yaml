@@ -15,7 +15,6 @@ dependencies:
 
   # State Management
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
   
   # Immutable Data Models
   freezed_annotation: ^2.4.1
@@ -24,6 +23,7 @@ dependencies:
   # Local Storage
   sqflite: ^2.3.2
   sqflite_common_ffi: ^2.3.3
+  sqflite_common: ^2.5.14
   path_provider: ^2.1.2
   path: ^1.9.0
   
@@ -57,10 +57,8 @@ dependencies:
   crypto: ^3.0.3
   
   # UI
-  cupertino_icons: ^1.0.8
   uuid: ^4.3.3
   intl: ^0.20.2
-  collection: ^1.18.0
 
   # Typeset LaTeX math elements — pure-Dart TeX layout (no platform
   # channels), rasterized offscreen to a ui.Image and drawn on the canvas.
@@ -115,11 +113,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Tests replace the path provider and mark fakes as platform interfaces.
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
   flutter_lints: ^4.0.0
   build_runner: ^2.4.8
   freezed: ^2.4.7
   json_serializable: ^6.7.1
-  riverpod_generator: ^2.4.0
   flutter_launcher_icons: ^0.14.4
   msix: ^3.18.0
 

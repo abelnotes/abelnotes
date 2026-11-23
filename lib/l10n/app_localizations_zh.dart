@@ -115,9 +115,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csUnsavedChangesTitle => '有未保存的更改';
 
   @override
-  String get csUnsavedChangesBody => '离开前要保存吗？';
-
-  @override
   String get csLocalSaveFailed => '无法在此设备上保存。正在自动重试，请勿关闭应用。';
 
   @override
@@ -194,11 +191,6 @@ class AppLocalizationsZh extends AppLocalizations {
       one: '$count 页',
     );
     return 'PDF 已导入：$_temp0';
-  }
-
-  @override
-  String csPdfImportError(String error) {
-    return 'PDF 导入出错：$error';
   }
 
   @override
@@ -803,17 +795,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csInvalidRangeError => '请输入有效的范围（例如 1–10）。';
 
   @override
-  String csPdfStartOutOfRange(int count) {
-    return '该 PDF 大约有 $count 页。起始页超出范围。';
-  }
-
-  @override
   String get csImportPdfTitle => '导入 PDF';
-
-  @override
-  String csPdfEstimatedPages(int count) {
-    return '该 PDF 大约有 $count 页。';
-  }
 
   @override
   String csAllPagesWithCount(int count) {
@@ -1455,9 +1437,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get setExportLibraryEmpty => '没有可导出的笔记本。';
 
   @override
-  String get setExportLibraryInProgress => '正在导出…';
-
-  @override
   String setExportLibraryDone(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1619,32 +1598,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get onbTagline => '手写笔记和自由绘图，同步到你自己的服务器。选择怎么开始，之后随时可以改。';
 
   @override
-  String get onbTryNowTitle => '立即试用';
-
-  @override
   String get onbTryNowSubtitle => '现在就开始写。笔记本只留在这台设备上，不用账号，也不用服务器。';
 
   @override
-  String get onbConnectNextcloudTitle => '连接你的 Nextcloud';
-
-  @override
-  String get onbConnectNextcloudSubtitle =>
-      '同步到你自己的 WebDAV / Nextcloud 服务器，在你的所有设备上都能用。';
-
-  @override
   String get onbManagedServerTitle => 'AbelNotes 托管服务器';
-
-  @override
-  String get onbManagedServerSubtitle => '没有服务器？很快你就可以用我们的，完全不用配置。';
-
-  @override
-  String get onbComingSoonBadge => '即将推出';
-
-  @override
-  String get onbDriveTitle => '用 Google Drive 同步';
-
-  @override
-  String get onbDriveSubtitle => '无需配置：你的笔记本通过你自己的 Google Drive 同步。';
 
   @override
   String get driveSignInFailed => 'Google 登录没有完成。没有做任何更改。';
@@ -1808,9 +1765,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get libLocalOnlyDone => '已只保留在这台设备上。';
 
   @override
-  String get libSyncResumedDone => '这个笔记本会重新开始同步。';
-
-  @override
   String get syncLocalOnlyTooltip => '只保留在这台设备上';
 
   @override
@@ -1863,9 +1817,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get onbLicenseNote => '打开本应用即表示你接受 AGPL-3.0 许可证。“AbelNotes”是本项目的商标。';
-
-  @override
-  String get logConnectionFailed => '无法连接。请检查网址、用户名和密码。';
 
   @override
   String logConnectionError(String error) {
@@ -2084,15 +2035,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeSizeSection => '大小';
 
   @override
-  String get chromeSizeSmall => '小';
-
-  @override
-  String get chromeSizeMedium => '中';
-
-  @override
-  String get chromeSizeLarge => '大';
-
-  @override
   String get chromePresetOverwrite => '用当前设置覆盖';
 
   @override
@@ -2132,15 +2074,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chromeApply => '应用';
 
   @override
-  String get pmNone => '无';
-
-  @override
   String get pmCreateChapterFirst => '请先创建至少一个章节。';
-
-  @override
-  String pmAssignChapterCount(int count) {
-    return '指定章节（$count 页）';
-  }
 
   @override
   String pmDeletePagesConfirm(int count) {
@@ -2163,64 +2097,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pmDelete => '删除';
 
   @override
-  String pmPagesCut(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '已剪切 $count 页，打开目标笔记本即可粘贴。',
-      one: '已剪切 1 页，打开目标笔记本即可粘贴。',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String pmPagesCutSkipped(int count, int skipped) {
-    return '已剪切 $count 页（$skipped 页尚未加载，已跳过），打开目标笔记本即可粘贴。';
-  }
-
-  @override
   String pmSelectedCount(int count) {
     return '已选 $count 项';
   }
 
   @override
-  String get pmSelectAllButton => '全部';
-
-  @override
-  String get pmClearSelection => '清除选择';
-
-  @override
-  String pmPagesCount(int count) {
-    return '页面（$count）';
-  }
-
-  @override
-  String pmPagesFilteredCount(int visible, int total) {
-    return '页面（$visible/$total）';
-  }
-
-  @override
   String get pmGoToPageTooltip => '跳转到页面…';
-
-  @override
-  String get pmExitSelection => '退出选择';
-
-  @override
-  String get pmSelectPages => '选择页面';
-
-  @override
-  String get pmPastePages => '粘贴页面';
-
-  @override
-  String pmPagesPasted(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '已粘贴 $count 页。',
-      one: '已粘贴 1 页。',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get pmAddPage => '添加页面';
@@ -2274,17 +2156,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pmOk => '好';
 
   @override
-  String pmCountPagesShort(int count) {
-    return '$count 页';
-  }
-
-  @override
-  String get pmChapter => '章节';
-
-  @override
-  String get pmCut => '剪切';
-
-  @override
   String get pmInsertBefore => '在前面插入';
 
   @override
@@ -2304,11 +2175,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pmChapterEllipsis => '章节…';
-
-  @override
-  String pmPageChapterLabel(int number, String chapter) {
-    return '$number • $chapter';
-  }
 
   @override
   String get pmCorruptAssetTooltip => '服务器上的资源已损坏（被截断），重新导入原始 PDF 即可恢复';
@@ -3465,14 +3331,6 @@ class AppLocalizationsZh extends AppLocalizations {
     );
     return '在此粘贴 $_temp0';
   }
-
-  @override
-  String pgtCardEndOfChapter(String chapter) {
-    return '在 $chapter 末尾';
-  }
-
-  @override
-  String get pgtCardAtEnd => '在末尾';
 
   @override
   String get pgtWhereStart => '在开头';
