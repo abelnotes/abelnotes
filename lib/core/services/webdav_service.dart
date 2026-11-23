@@ -1332,6 +1332,13 @@ class WebDavService implements RemoteStore {
   /// Ottieni la dimensione di un file remoto (Content-Length).
   /// Returns null if the file doesn't exist or size can't be determined.
   @override
+  Future<String?> baselineIdentity() async {
+    final u = Uri.parse(_davUrl);
+    final dav = u.replace(scheme: u.scheme.toLowerCase(), host: u.host.toLowerCase());
+    return 'webdav|$dav|$basePath';
+  }
+
+  @override
   Future<int?> getContentLength(String remotePath) async {
     final request = http.Request('PROPFIND', Uri.parse(_fullUrl(remotePath)));
     request.headers.addAll({

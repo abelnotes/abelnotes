@@ -257,3 +257,55 @@ Tests: `test/stroke_ops_devices_test.dart` ("read on, write off") and
 - Before `write` goes on: make the orphan sweep need the page missing from
   two listings in a row, so a snapshot mid-replace is never read as a
   deleted page.
+
+## Pull baselines
+
+The meta ETag and the page ETags a device last saw decide what a pull
+downloads: an unknown page is fetched. They used to live only in
+shared_preferences, which are per install, while the notebooks folder is not:
+a native build and the flatpak on one PC both use `~/Documents/AbelNotes`, so
+the second one downloaded every page of a notebook the first had synced
+(735 pages, ~3.5 min).
+
+`SyncBaselines` (lib/core/services/sync_baselines.dart) keeps them in the
+store folder too, `notebooks/<id>/.sync_baseline.json`:
+
+```json
+{"v": 1, "backends": {"<key>": {"meta": "…", "pages": {"page_001.json": "…"}, "at": 1732190000000}}}
+```
+
+- Key: sha256 (first 32 hex) of what `RemoteStore.baselineIdentity` names:
+  WebDAV = DAV URL (scheme and host lowercased, user included) + remote root;
+  Drive = id of the root folder, unique per account and folder. A baseline
+  read on another server would keep stale pages, so an entry is only ever
+  used by the server that wrote it. At most 4 entries, oldest dropped.
+- It describes what is on this disk, so it is written where the prefs were,
+  after the local write; writes are tmp + rename under a per-file lock.
+  Missing, corrupt or another `v`: no baseline, the pull fetches every page
+  (as on a fresh install). The store folder is never created for it, so a
+  library stub stays a stub.
+- Read order: the file's entry, else this install's prefs, which are then
+  copied into the file. Prefs are still written: older builds after a
+  downgrade read them, and they are the fallback when the key is unknown
+  (Drive offline at open, no remote).
+- Never leaves the device: `assembleZipFromLooseStore` lists the files it
+  packs, snapshots skip it, an archive entry with this name is ignored when a
+  package is exploded (no planting through an import), and a rebuild of the
+  store (rename, cover, restore) carries it over as prefs did. Search,
+  folder sync and library scanning only read named files.
+- Forgetting: a disconnect or backend switch drops the entry of the remote
+  being left in every notebook (all entries when it can't be named); entries
+  of other servers belong to other installs on the same folder. Per-notebook
+  forgets (deleted elsewhere, rebuild on the server) drop the current
+  server's entry; the settings "re-download" drops the whole file.
+- Not moved: pending deletes, the pending metadata commit and the unpushed
+  merge base. They are this install's queued work, paired with its own
+  retry state, and two installs replaying them is not obviously safe.
+- Web: same code over the IndexedDB-backed file layer (`io_web.dart`).
+- Windows: `File.rename` replaces an existing target (documented for every
+  platform), but fails while another process holds it open (a second
+  install, an indexer, a sync client). The write then deletes the target and
+  renames again: a crash in between leaves no file, i.e. a full pull.
+- The editor's first pull waits for the baseline to load
+  (`SyncSession.baselineLoad`); before, a fast server could win that race
+  and diff against an empty map.

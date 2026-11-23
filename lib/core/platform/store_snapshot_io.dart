@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 
+import 'package:abelnotes/config/app_config.dart';
+
 /// Writes every file under [args] `[storeDir, destPath]` into a ZIP at
 /// destPath, with paths relative to the store. Assets are stored, the JSON
 /// deflated. Top-level so it can run in a background isolate.
@@ -15,6 +17,7 @@ Future<void> zipStoreToFile(List<String> args) async {
     for (final e in entries) {
       if (e is! File || e.path.endsWith('.tmp')) continue;
       final rel = p.split(p.relative(e.path, from: storeDir)).join('/');
+      if (rel == AppConfig.syncBaselineFile) continue; // device-local
       final binary = !rel.endsWith('.json');
       await encoder.addFile(
           e, rel, binary ? ZipFileEncoder.STORE : ZipFileEncoder.GZIP);

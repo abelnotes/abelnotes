@@ -12,6 +12,7 @@ import 'package:abelnotes/core/services/google_oauth.dart';
 import 'package:abelnotes/core/services/google_sign_in_desktop.dart';
 import 'package:abelnotes/core/services/native_google_auth.dart';
 import 'package:abelnotes/core/services/secure_google_token_storage.dart';
+import 'package:abelnotes/core/services/sync_baselines.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
 
 /// Whether this platform can run the Drive sign-in.
@@ -45,6 +46,9 @@ Future<bool> connectDrive(BuildContext context, WidgetRef ref) async {
   // the old remote stop updating. Discovering that three months later, with
   // a stale server copy they thought was a backup, is how trust is lost.
   if (!await _confirmSwitch(context, ref)) return false;
+  // The remote being left, named while its client is still the active one.
+  final leaving =
+      await SyncBaselines.identityOf(ref.read(remoteStoreProvider));
 
   try {
     if (useNativeGoogleSignIn) {
@@ -67,6 +71,7 @@ Future<bool> connectDrive(BuildContext context, WidgetRef ref) async {
       files: ref.read(fileServiceProvider),
       settings: ref.read(appSettingsProvider.notifier),
       backend: SyncBackend.drive,
+      leaving: leaving,
     );
     say(l10n.driveConnectedTitle);
     return true;
@@ -117,6 +122,9 @@ Future<bool> _confirmSwitch(BuildContext context, WidgetRef ref) async {
 /// them in a folder the user can see, and deleting someone's files because
 /// they unlinked an account would be indefensible.
 Future<void> disconnectDrive(WidgetRef ref) async {
+  // Before sign-out: afterwards the folder id can't be looked up.
+  final leaving =
+      await SyncBaselines.identityOf(ref.read(remoteStoreProvider));
   if (useNativeGoogleSignIn) {
     await ref.read(nativeGoogleAuthProvider).signOut();
   } else {
@@ -126,6 +134,7 @@ Future<void> disconnectDrive(WidgetRef ref) async {
     files: ref.read(fileServiceProvider),
     settings: ref.read(appSettingsProvider.notifier),
     backend: null,
+    leaving: leaving,
   );
 }
 
@@ -145,8 +154,10 @@ Future<void> applySyncBackend({
   required FileService files,
   required AppSettingsNotifier settings,
   required String? backend,
+  String? leaving,
 }) async {
   await files.markAllNotebooksLocal();
-  await RemoteBaselines.forgetAll();
+  await RemoteBaselines.forgetAll(
+      notebooksRoot: files.notebooksDir, leaving: leaving);
   settings.setSyncBackend(backend);
 }

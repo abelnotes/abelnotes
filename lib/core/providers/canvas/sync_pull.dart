@@ -8,7 +8,8 @@ import 'package:abelnotes/core/providers/canvas/canvas_core.dart';
 import 'package:abelnotes/core/providers/canvas/pdf_sources.dart';
 import 'package:abelnotes/core/providers/canvas/sync_session.dart';
 import 'package:abelnotes/core/providers/canvas_state.dart';
-import 'package:abelnotes/core/providers/notebook_provider.dart' show syncServiceProvider;
+import 'package:abelnotes/core/providers/notebook_provider.dart'
+    show syncServiceProvider;
 import 'package:abelnotes/core/services/crash_logger.dart';
 import 'package:abelnotes/core/services/remote_store.dart'
     show RemoteStoreException;
@@ -79,6 +80,7 @@ class SyncPull {
   void _alive() {
     if (_core.isDisposed) throw const _PullAborted();
   }
+
   final PdfSources _pdfSources;
   final AssetCache _assets;
   final bool Function() _isPreview;
@@ -129,7 +131,8 @@ class SyncPull {
   /// silently overwriting.
   Future<void> pullRemoteChanges() async {
     if (_isPreview()) return;
-    if (_sync.isPulling || _state == null || _core.bulkOperationInProgress) return;
+    if (_sync.isPulling || _state == null || _core.bulkOperationInProgress)
+      return;
     // Don't pull while user is resolving conflicts or reviewing pending
     // remote changes — avoids overwriting with a fresh pull.
     if (_state!.pendingConflicts.isNotEmpty) return;
@@ -175,6 +178,8 @@ class SyncPull {
     final pullNotebookId = _state!.metadata.id;
     // Nothing to pull for a notebook that was never meant to leave.
     if (await _isLocalOnly(pullNotebookId)) return null;
+    // A diff against a baseline still loading would fetch every page.
+    await _sync.baselineLoad;
     _alive();
     // closeNotebook may have nulled state (or switched notebooks) during the await.
     if (_state == null || _state!.metadata.id != pullNotebookId) return null;
@@ -206,12 +211,11 @@ class SyncPull {
     // out to ~40 min. The wall-clock anchor caps the worst case at
     // [_propfindSafetyNetMaxAge].
     final now = DateTime.now();
-    final mustDoSafetyNet =
-        ++_sync.pagePropfindCounter >= propfindSafetyNetEvery ||
+    final mustDoSafetyNet = ++_sync.pagePropfindCounter >=
+            propfindSafetyNetEvery ||
         now.difference(_sync.lastFullPropfindAt) >= _propfindSafetyNetMaxAge;
     try {
-      fastMetaEtag =
-          await syncService.getDeltaMetaEtag(pullNotebookId);
+      fastMetaEtag = await syncService.getDeltaMetaEtag(pullNotebookId);
     } catch (e) {
       unawaited(CrashLogger.append('[Pull] meta-HEAD failed: $e'));
       return null;
@@ -248,9 +252,9 @@ class SyncPull {
     }
     if (metaMoved || mustDoSafetyNet || _sync.remoteMetaEtag == null) {
       try {
-        remoteState =
-            await syncService.getRemoteChangeState(pullNotebookId);
-      } on RemoteStoreException catch (e) { // WebDAV and Drive alike
+        remoteState = await syncService.getRemoteChangeState(pullNotebookId);
+      } on RemoteStoreException catch (e) {
+        // WebDAV and Drive alike
         if (e.statusCode == 404) {
           if (await _remoteNotebookGone(syncService)) {
             await _onRemoteNotebookGone();
@@ -307,11 +311,12 @@ class SyncPull {
     final serverInconsistent = fullStateFetched &&
         (remoteState!.pageEtags.length > s0.document.pages.length ||
             (_sync.lastPageEtags.isNotEmpty &&
-                remoteState.pageEtags.keys.any((k) => !_sync.lastPageEtags.containsKey(k))) ||
+                remoteState.pageEtags.keys
+                    .any((k) => !_sync.lastPageEtags.containsKey(k))) ||
             (_sync.lastPageEtags.isNotEmpty &&
-                remoteState.pageEtags.entries.any(
-                    (e) => _sync.lastPageEtags[e.key] != null &&
-                           _sync.lastPageEtags[e.key] != e.value)));
+                remoteState.pageEtags.entries.any((e) =>
+                    _sync.lastPageEtags[e.key] != null &&
+                    _sync.lastPageEtags[e.key] != e.value)));
     if (fastMetaEtag != null &&
         _sync.remoteMetaEtag != null &&
         fastMetaEtag == _sync.remoteMetaEtag &&
@@ -392,7 +397,6 @@ class SyncPull {
     return (sync: syncService, notebookId: pullNotebookId);
   }
 
-
   /// Stage 2: under the sync lock, fetch the change state, pull what moved and
   /// advance the cached ETag when that left the notebook whole.
   Future<void> _pullUnderLock(
@@ -418,7 +422,8 @@ class SyncPull {
       final s = _state!;
 
       // Fetch metadata ETag + page ETags in parallel (only on change path)
-      final changeState = await syncService.getRemoteChangeState(pullNotebookId);
+      final changeState =
+          await syncService.getRemoteChangeState(pullNotebookId);
       _alive();
 
       // Guard: did the user switch notebooks while we were awaiting the
@@ -453,11 +458,12 @@ class SyncPull {
       final innerInconsistent = localDataMissing ||
           changeState.pageEtags.length > s.document.pages.length ||
           (_sync.lastPageEtags.isNotEmpty &&
-              changeState.pageEtags.keys.any((k) => !_sync.lastPageEtags.containsKey(k))) ||
+              changeState.pageEtags.keys
+                  .any((k) => !_sync.lastPageEtags.containsKey(k))) ||
           (_sync.lastPageEtags.isNotEmpty &&
-              changeState.pageEtags.entries.any(
-                  (e) => _sync.lastPageEtags[e.key] != null &&
-                         _sync.lastPageEtags[e.key] != e.value));
+              changeState.pageEtags.entries.any((e) =>
+                  _sync.lastPageEtags[e.key] != null &&
+                  _sync.lastPageEtags[e.key] != e.value));
       if (changeState.metaEtag != null &&
           (changeState.metaEtag != _sync.remoteMetaEtag || innerInconsistent)) {
         // Real work detected → reset idle counter so the next ticks
@@ -495,7 +501,9 @@ class SyncPull {
         // _pullFromDelta flips it only when real pages/assets will
         // actually be fetched.
         await _pullFromDelta(
-          s, syncService, changeState.pageEtags,
+          s,
+          syncService,
+          changeState.pageEtags,
         );
         await _advanceMetaEtag(changeState.metaEtag, pullNotebookId);
       }
@@ -528,10 +536,10 @@ class SyncPull {
     }
   }
 
-
   /// Stage 3: moves the cached meta ETag on only when the pull fully hydrated
   /// the notebook that is still open.
   Future<void> _advanceMetaEtag(String? metaEtag, String pullNotebookId) async {
+    if (_sync.pullAbandoned) return; // closing, nothing was merged
     // Only advance _sync.remoteMetaEtag if the notebook is STILL open and
     // still the same one we started the pull for. If the user closed
     // or switched mid-pull, the merge aborted and the pulled pages
@@ -624,7 +632,6 @@ class SyncPull {
     }
   }
 
-
   /// Pull changed pages from the exploded _delta/ folder.
   /// Uses per-page WebDAV ETags to detect which pages actually changed.
   /// Returns true if any pages were merged.
@@ -634,7 +641,8 @@ class SyncPull {
     SyncService syncService,
     Map<String, String> remotePageEtags,
   ) async {
-    print('[Canvas] Remote has ${remotePageEtags.length} pages, local cache has ${_sync.lastPageEtags.length} ETags');
+    print(
+        '[Canvas] Remote has ${remotePageEtags.length} pages, local cache has ${_sync.lastPageEtags.length} ETags');
     final plan = _planPull(s, remotePageEtags);
     if (plan == null) return false;
     final (:pagesToPull, :preKnownCorrupt, :deletedRemotelyByEtag) = plan;
@@ -643,7 +651,9 @@ class SyncPull {
     // be corrupt at this very ETag. Nothing to network-fetch, but we still
     // need to push the heal save so the server gets fresh bytes — fall
     // through to the download path so the heal scheduling fires.
-    if (pagesToPull.isEmpty && deletedRemotelyByEtag.isEmpty && preKnownCorrupt.isEmpty) {
+    if (pagesToPull.isEmpty &&
+        deletedRemotelyByEtag.isEmpty &&
+        preKnownCorrupt.isEmpty) {
       return _syncMetadataOnly(s, syncService, remotePageEtags);
     }
 
@@ -663,7 +673,11 @@ class SyncPull {
     isPullingFromRemote.value = true;
     try {
       return await _pullFromDeltaDownload(
-        s, syncService, remotePageEtags, pagesToPull, deletedRemotelyByEtag,
+        s,
+        syncService,
+        remotePageEtags,
+        pagesToPull,
+        deletedRemotelyByEtag,
         preKnownCorrupt,
       );
     } finally {
@@ -832,23 +846,19 @@ class SyncPull {
         final finalDoc = merged.document;
         final finalMeta =
             merged.metadata.copyWith(pageCount: finalDoc.pages.length);
-        final changed = documentStructurallyDiffers(
-                finalDoc, live.document) ||
-            metadataStructurallyDiffers(
-                finalMeta, live.metadata);
+        final changed = documentStructurallyDiffers(finalDoc, live.document) ||
+            metadataStructurallyDiffers(finalMeta, live.metadata);
         if (changed) {
           // Mark dirty only when our merge differs from what the server has
           // (local-side edits to push) AND the document is internally
           // consistent — pushing while data-less entries remain would just
           // trip PRE-SAVE GUARD #2 → abort → pull → hot loop. Defer until the
           // ghost-prune / hydration makes it consistent.
-          final docConsistent = finalDoc.pages
-              .every((e) => live.pages.containsKey(e.fileName));
+          final docConsistent =
+              finalDoc.pages.every((e) => live.pages.containsKey(e.fileName));
           final needsPush = docConsistent &&
-              (documentStructurallyDiffers(
-                      finalDoc, remoteMeta.document) ||
-                  metadataStructurallyDiffers(
-                      finalMeta, remoteMeta.metadata));
+              (documentStructurallyDiffers(finalDoc, remoteMeta.document) ||
+                  metadataStructurallyDiffers(finalMeta, remoteMeta.metadata));
           _state = live.copyWith(
             metadata: finalMeta,
             document: finalDoc,
@@ -911,8 +921,10 @@ class SyncPull {
     _startMetaDownload(run);
     await _downloadPages(run);
     _alive();
+    if (_sync.pullAbandoned) return _abandon(run);
     if (!await _awaitRemoteMeta(run)) return false;
     _alive();
+    if (_sync.pullAbandoned) return _abandon(run);
     _dropUnreceivedEtags(run);
     await _downloadAssets(run);
     _alive();
@@ -944,10 +956,15 @@ class SyncPull {
       _mergeIntoState(run, deletionConflicts);
     }
     _sync.lastPageEtags = Map.of(run.remotePageEtags);
-    // Await — if we only 'unawait' this, a notebook close fires right
-    // after a successful pull race the SharedPreferences write and the
-    // next open wakes up with _sync.lastPageEtags={} → forces a full N-page
-    // re-sync even though nothing on the server changed.
+    // The stored baseline must describe the disk: a kill before the pulled
+    // pages' local save landed left it claiming versions the disk lacked.
+    final pulledSave = _sync.pendingPulledLocalSave;
+    if (pulledSave != null) {
+      try {
+        await pulledSave;
+      } catch (_) {}
+    }
+    // Awaited: a close right after the pull must not lose the baseline.
     await _persistLastPageEtags(s.metadata.id);
     return run.anyPageChanged;
   }
@@ -965,12 +982,21 @@ class SyncPull {
   /// Stage 0: starts the document and metadata download, in parallel with the pages.
   void _startMetaDownload(_PullRun run) {
     final s = run.s;
-    run.metaFuture = run.syncService
-        .downloadDeltaMetaVersioned(s.metadata.id)
-        .then((r) {
+    run.metaFuture =
+        run.syncService.downloadDeltaMetaVersioned(s.metadata.id).then((r) {
       _sync.pendingDocVersion = r.docVersion;
       return (metadata: r.metadata, document: r.document);
     });
+  }
+
+  /// The notebook is closing: nothing is merged, so its ETags stay and the
+  /// next open fetches the same pages again.
+  Future<bool> _abandon(_PullRun run) async {
+    _sync.pullHadFailures = true;
+    try {
+      await run.metaFuture;
+    } catch (_) {}
+    return false;
   }
 
   /// Stage 1: the changed pages, with retries, cooldown and corruption handling.
@@ -1082,8 +1108,8 @@ class SyncPull {
           // too. We bail out of the retry loop immediately and let the
           // outer code reroute this page through the heal-via-reupload
           // path instead of the network-failure path.
-          final isCorruption = e is FormatException ||
-              e.toString().contains('FormatException');
+          final isCorruption =
+              e is FormatException || e.toString().contains('FormatException');
           if (isCorruption) {
             corruptedPages.add(pageFileName);
             // Reset any prior cooldown — corruption is a one-shot
@@ -1105,10 +1131,10 @@ class SyncPull {
           }
           if (attempt == maxAttempts - 1) break;
           // Exponential backoff: 200 ms, 600 ms, 1.8 s.
-          await Future.delayed(
-              Duration(milliseconds: 200 * (1 << attempt)));
+          await Future.delayed(Duration(milliseconds: 200 * (1 << attempt)));
           // Abort all further attempts if the notebook was closed.
           if (_core.isDisposed || _state?.metadata.id != s.metadata.id) return;
+          if (_sync.pullAbandoned) return;
         }
       }
       failedPages.add(pageFileName);
@@ -1140,13 +1166,14 @@ class SyncPull {
     Future<void> worker() async {
       while (queue.isNotEmpty) {
         if (_core.isDisposed || _state?.metadata.id != s.metadata.id) return;
+        if (_sync.pullAbandoned) return;
         final fn = queue.removeLast();
         await pullOne(fn);
       }
     }
+
     final workers = List.generate(
-        batchSize < queue.length ? batchSize : queue.length,
-        (_) => worker());
+        batchSize < queue.length ? batchSize : queue.length, (_) => worker());
     await Future.wait(workers);
     // A corrupt server page this device never had cannot be healed by a
     // re-upload: healing marked the notebook dirty and rewrote its metadata
@@ -1222,7 +1249,9 @@ class SyncPull {
     // local-good copy) is followed by a pull that DOES re-fetch the
     // freshly-correct bytes — leaving the corrupt etag in our cache
     // would make the post-heal pull skip them.
-    if (failedPages.isNotEmpty || cooledDown.isNotEmpty || corruptedPages.isNotEmpty) {
+    if (failedPages.isNotEmpty ||
+        cooledDown.isNotEmpty ||
+        corruptedPages.isNotEmpty) {
       run.remotePageEtags = Map.of(run.remotePageEtags);
       for (final fn in failedPages) {
         // Keep the previous ETag we had (if any) so the "changed" comparison
@@ -1238,7 +1267,6 @@ class SyncPull {
         run.remotePageEtags.remove(fn);
       }
     }
-
   }
 
   /// Stage 4: the assets the pulled pages need, current page first.
@@ -1262,12 +1290,14 @@ class SyncPull {
     final missingAssets = <String>{};
     bool needsHeal(String ref) =>
         !_knownAbsent(ref) &&
-        (!updatedAssets.containsKey(ref) || _assets.corruptAssetIds.contains(ref));
+        (!updatedAssets.containsKey(ref) ||
+            _assets.corruptAssetIds.contains(ref));
     for (final page in updatedPages.values) {
       // Only what an image element draws: assetReferences is append-only and
       // keeps ids of deleted images, which were fetched (404) on every pull.
       for (final el in page.layers.content) {
-        el.map(unknown: (_) {},
+        el.map(
+          unknown: (_) {},
           stroke: (_) {},
           text: (_) {},
           shape: (_) {},
@@ -1304,15 +1334,15 @@ class SyncPull {
     // the .ncnote zip. The ETag can advance as soon as page commit + local
     // save complete, independent of asset progress.
     if (missingAssets.isNotEmpty) {
-      final maxAssetConcurrency = (defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.android)
-          ? 4
-          : 6;
+      final maxAssetConcurrency =
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+                  defaultTargetPlatform == TargetPlatform.android)
+              ? 4
+              : 6;
       final notebookId = s.metadata.id;
       final curPageRefs =
           _assets.refsForPage(s.currentPageIndex, s.document, updatedPages);
-      final priorityList =
-          missingAssets.where(curPageRefs.contains).toList();
+      final priorityList = missingAssets.where(curPageRefs.contains).toList();
       final backgroundList =
           missingAssets.where((r) => !curPageRefs.contains(r)).toList();
 
@@ -1333,8 +1363,7 @@ class SyncPull {
               break;
             }
             if (attempt == maxAttempts - 1) break;
-            await Future.delayed(
-                Duration(milliseconds: 200 * (1 << attempt)));
+            await Future.delayed(Duration(milliseconds: 200 * (1 << attempt)));
             if (_core.isDisposed || _state?.metadata.id != notebookId) {
               return (ref, null, lastError);
             }
@@ -1391,12 +1420,9 @@ class SyncPull {
           final bgDownloaded = <String, Uint8List>{};
           int bgOk = 0;
           int bgFailed = 0;
-          for (var i = 0;
-              i < backgroundList.length;
-              i += maxAssetConcurrency) {
+          for (var i = 0; i < backgroundList.length; i += maxAssetConcurrency) {
             if (_core.isDisposed || _state?.metadata.id != notebookId) break;
-            final batch =
-                backgroundList.skip(i).take(maxAssetConcurrency);
+            final batch = backgroundList.skip(i).take(maxAssetConcurrency);
             final batchResults = await Future.wait(batch.map(pullOneAsset));
             for (final (ref, data, err) in batchResults) {
               if (data != null) {
@@ -1458,10 +1484,9 @@ class SyncPull {
             localPage != _sync.lastSyncedPages[fileName];
         if (locallyEdited) {
           // Conflict: local edit vs remote deletion — let user decide
-          final pageIndex = s.document.pages.indexWhere(
-              (e) => e.fileName == fileName);
-          final pageEntry = pageIndex >= 0
-              ? s.document.pages[pageIndex] : null;
+          final pageIndex =
+              s.document.pages.indexWhere((e) => e.fileName == fileName);
+          final pageEntry = pageIndex >= 0 ? s.document.pages[pageIndex] : null;
           final chapterName = chapterNameForPage(pageEntry, s.metadata);
           deletionConflicts.add(PageConflict(
             fileName: fileName,
@@ -1473,7 +1498,8 @@ class SyncPull {
             remoteImageCache: const {},
             isDeletion: true,
           ));
-          print('[Canvas] CONFLICT: $fileName edited locally but deleted remotely');
+          print(
+              '[Canvas] CONFLICT: $fileName edited locally but deleted remotely');
         } else {
           // Safe deletion — auto-remove
           updatedPages.remove(fileName);
@@ -1486,7 +1512,11 @@ class SyncPull {
   }
 
   /// Stage 6a: which pulled pages merge silently and which clash with local edits.
-  ({List<PageConflict> conflicts, Set<String> safePages, Set<String> autoMergeable}) _classifyPageChanges(_PullRun run, List<PageConflict> deletionConflicts) {
+  ({
+    List<PageConflict> conflicts,
+    Set<String> safePages,
+    Set<String> autoMergeable
+  }) _classifyPageChanges(_PullRun run, List<PageConflict> deletionConflicts) {
     final s = run.s;
     final pagesToPull = run.pagesToPull;
     final updatedPages = run.updatedPages;
@@ -1525,13 +1555,16 @@ class SyncPull {
       // gets a false conflict prompt for their own pending work.
       // Compare without modifiedAt so a sync-induced timestamp change on
       // otherwise-identical content doesn't register as edited.
-      final lastSynced = _sync.lastSyncedPages[fileName];
+      final remoteNorm = remotePage.copyWith(modifiedAt: null);
+      // Our failed upload landed after all: its bytes are the real baseline.
+      final echo = _sync.isOwnEcho(fileName, remotePage);
+      if (echo) print('[Canvas] Pull: $fileName is our own lost-reply upload');
+      final lastSynced = echo ? remotePage : _sync.lastSyncedPages[fileName];
       final lastSyncedNorm = lastSynced?.copyWith(modifiedAt: null);
       final locallyEdited = localPage != null &&
           lastSynced != null &&
           localPage.copyWith(modifiedAt: null) != lastSyncedNorm;
-      final remoteEdited = lastSynced != null &&
-          remotePage.copyWith(modifiedAt: null) != lastSyncedNorm;
+      final remoteEdited = lastSynced != null && remoteNorm != lastSyncedNorm;
       if (locallyEdited && remoteEdited) {
         // Before prompting, try an element-level 3-way merge: if the two
         // sides touched DIFFERENT strokes/images/shapes/text, we can fold
@@ -1549,12 +1582,12 @@ class SyncPull {
           safePages.add(fileName);
           print('[Canvas] Auto-mergeable (disjoint element edits): $fileName');
         } else {
-          final pageIndex = remoteMeta.document.pages.indexWhere(
-              (e) => e.fileName == fileName);
-          final pageEntry = pageIndex >= 0
-              ? remoteMeta.document.pages[pageIndex]
-              : null;
-          final chapterName = chapterNameForPage(pageEntry, remoteMeta.metadata);
+          final pageIndex = remoteMeta.document.pages
+              .indexWhere((e) => e.fileName == fileName);
+          final pageEntry =
+              pageIndex >= 0 ? remoteMeta.document.pages[pageIndex] : null;
+          final chapterName =
+              chapterNameForPage(pageEntry, remoteMeta.metadata);
           conflicts.add(PageConflict(
             fileName: fileName,
             pageNumber: remotePage.pageNumber,
@@ -1585,11 +1618,16 @@ class SyncPull {
       }
     }
 
-    return (conflicts: conflicts, safePages: safePages, autoMergeable: autoMergeable);
+    return (
+      conflicts: conflicts,
+      safePages: safePages,
+      autoMergeable: autoMergeable
+    );
   }
 
   /// Stage 6b: the per-page change list the user is told about.
-  ({List<PageChangeDetail> details, int newCount, int modCount}) _describeChanges(_PullRun run, Set<String> safePages) {
+  ({List<PageChangeDetail> details, int newCount, int modCount})
+      _describeChanges(_PullRun run, Set<String> safePages) {
     final s = run.s;
     final updatedPages = run.updatedPages;
     final remoteMeta = run.remoteMeta;
@@ -1615,8 +1653,10 @@ class SyncPull {
       } else {
         modCount++;
       }
-      final pageIndex = remoteMeta.document.pages.indexWhere((e) => e.fileName == fileName);
-      final pageEntry = pageIndex >= 0 ? remoteMeta.document.pages[pageIndex] : null;
+      final pageIndex =
+          remoteMeta.document.pages.indexWhere((e) => e.fileName == fileName);
+      final pageEntry =
+          pageIndex >= 0 ? remoteMeta.document.pages[pageIndex] : null;
       final chapterName = chapterNameForPage(pageEntry, remoteMeta.metadata);
       final localCounts = elementCounts(localPage);
       final remoteCounts = elementCounts(remotePage);
@@ -1626,10 +1666,14 @@ class SyncPull {
         pageIndex: pageIndex >= 0 ? pageIndex : 0,
         chapterName: chapterName,
         changeType: isNew ? PageChangeType.added : PageChangeType.modified,
-        localStrokeCount: localCounts.$1, remoteStrokeCount: remoteCounts.$1,
-        localImageCount: localCounts.$2, remoteImageCount: remoteCounts.$2,
-        localShapeCount: localCounts.$3, remoteShapeCount: remoteCounts.$3,
-        localTextCount: localCounts.$4, remoteTextCount: remoteCounts.$4,
+        localStrokeCount: localCounts.$1,
+        remoteStrokeCount: remoteCounts.$1,
+        localImageCount: localCounts.$2,
+        remoteImageCount: remoteCounts.$2,
+        localShapeCount: localCounts.$3,
+        remoteShapeCount: remoteCounts.$3,
+        localTextCount: localCounts.$4,
+        remoteTextCount: remoteCounts.$4,
       ));
     }
 
@@ -1637,7 +1681,8 @@ class SyncPull {
   }
 
   /// Stage 6c: the remote page list with local-only pages kept and orphans healed.
-  ({DocumentStructure mergedDocument, List<PageEntry> orphanSynthEntries}) _healedDocument(_PullRun run) {
+  ({DocumentStructure mergedDocument, List<PageEntry> orphanSynthEntries})
+      _healedDocument(_PullRun run) {
     final s = run.s;
     final deletedRemotelyByEtag = run.deletedRemotelyByEtag;
     final updatedPages = run.updatedPages;
@@ -1663,8 +1708,9 @@ class SyncPull {
     // reports 'Nessuna pagina' for the ghost entry and every subsequent
     // pull loops forever at 'pages=N-1 < doc=N, state still mismatch'.
     final localOnlyEntries = s.document.pages
-        .where((p) => !remoteFileNames.contains(p.fileName) &&
-                       !deletedRemotelyByEtag.contains(p.fileName))
+        .where((p) =>
+            !remoteFileNames.contains(p.fileName) &&
+            !deletedRemotelyByEtag.contains(p.fileName))
         .toList();
 
     // ── Self-heal corrupted server document.json ──
@@ -1748,8 +1794,8 @@ class SyncPull {
     // here. Only sort the orphan-synth set internally so its members
     // appear deterministically across devices when the heal actually
     // recovers something.
-    orphanSynthEntries.sort((a, b) =>
-        _filenameNum(a.fileName).compareTo(_filenameNum(b.fileName)));
+    orphanSynthEntries.sort(
+        (a, b) => _filenameNum(a.fileName).compareTo(_filenameNum(b.fileName)));
     // Pages only this device lists go back where they were locally,
     // after their local predecessor; appending them moved a page added
     // or kept offline to the end of the notebook.
@@ -1767,20 +1813,32 @@ class SyncPull {
     for (var i = 0; i < combinedEntries.length; i++) {
       combinedEntries[i] = combinedEntries[i].copyWith(pageNumber: i + 1);
     }
-    final mergedDocument = (localOnlyEntries.isEmpty &&
-            orphanSynthEntries.isEmpty)
-        ? remoteMeta.document
-        : DocumentStructure(
-            notebookId: remoteMeta.document.notebookId,
-            formatVersion: remoteMeta.document.formatVersion,
-            pages: combinedEntries,
-          );
+    final mergedDocument =
+        (localOnlyEntries.isEmpty && orphanSynthEntries.isEmpty)
+            ? remoteMeta.document
+            : DocumentStructure(
+                notebookId: remoteMeta.document.notebookId,
+                formatVersion: remoteMeta.document.formatVersion,
+                pages: combinedEntries,
+              );
 
-    return (mergedDocument: mergedDocument, orphanSynthEntries: orphanSynthEntries);
+    return (
+      mergedDocument: mergedDocument,
+      orphanSynthEntries: orphanSynthEntries
+    );
   }
 
   /// Stage 7: puts the pulled changes into the state, or raises the prompt.
-  void _applyPulled(_PullRun run, List<PageConflict> deletionConflicts, List<PageConflict> conflicts, List<PageChangeDetail> details, int newCount, int modCount, Set<String> autoMergeable, DocumentStructure mergedDocument, List<PageEntry> orphanSynthEntries) {
+  void _applyPulled(
+      _PullRun run,
+      List<PageConflict> deletionConflicts,
+      List<PageConflict> conflicts,
+      List<PageChangeDetail> details,
+      int newCount,
+      int modCount,
+      Set<String> autoMergeable,
+      DocumentStructure mergedDocument,
+      List<PageEntry> orphanSynthEntries) {
     final s = run.s;
     final deletedRemotelyByEtag = run.deletedRemotelyByEtag;
     final updatedPages = run.updatedPages;
@@ -1789,7 +1847,8 @@ class SyncPull {
     final missingAssets = run.missingAssets;
     final remoteMeta = run.remoteMeta;
     // Count safe deletions (auto-removed, not conflicting)
-    final safeDeleteCount = deletedRemotelyByEtag.length - deletionConflicts.length;
+    final safeDeleteCount =
+        deletedRemotelyByEtag.length - deletionConflicts.length;
 
     // Show conflicts if any, plus non-conflicting changes banner.
     // Also trigger the pending/accept flow when the server document was
@@ -1806,7 +1865,10 @@ class SyncPull {
         safeDeleteCount > 0 ||
         needsHeal ||
         needsCorruptionHeal) {
-      final pending = (details.isNotEmpty || safeDeleteCount > 0 || needsHeal || needsCorruptionHeal)
+      final pending = (details.isNotEmpty ||
+              safeDeleteCount > 0 ||
+              needsHeal ||
+              needsCorruptionHeal)
           ? PendingRemoteChanges(
               metadata: remoteMeta.metadata,
               document: mergedDocument,
@@ -1964,7 +2026,8 @@ class SyncPull {
 
   Duration pullIntervalForIdle() {
     if (_sync.consecutiveFailedPulls >= _failedPullsBackoff) {
-      final shift = (_sync.consecutiveFailedPulls - _failedPullsBackoff).clamp(0, 10);
+      final shift =
+          (_sync.consecutiveFailedPulls - _failedPullsBackoff).clamp(0, 10);
       final ms = AppConfig.deltaPullInterval.inMilliseconds * (2 << shift);
       return Duration(
           milliseconds: ms.clamp(0, _failedPullMaxInterval.inMilliseconds));
@@ -1973,9 +2036,7 @@ class SyncPull {
       return AppConfig.deltaPullInterval;
     }
     final maxIntervalMs = _sync.idlePullCount >= deepIdleThreshold
-        ? (SyncThrift.thrifty
-                ? _deepIdleThriftyInterval
-                : _deepIdleMaxInterval)
+        ? (SyncThrift.thrifty ? _deepIdleThriftyInterval : _deepIdleMaxInterval)
             .inMilliseconds
         : _idlePullMaxInterval.inMilliseconds;
     // Exponential backoff: idle=3 → 4s, 4 → 8s, 5 → 16s, 6+ → 30s,
@@ -1990,7 +2051,8 @@ class SyncPull {
   }
 
   /// Resolve chapter name for a page entry.
-  static String? chapterNameForPage(PageEntry? pageEntry, NotebookMetadata meta) {
+  static String? chapterNameForPage(
+      PageEntry? pageEntry, NotebookMetadata meta) {
     if (pageEntry == null || pageEntry.chapterId == null) return null;
     final idx = meta.chapters.indexWhere((c) => c.id == pageEntry.chapterId);
     return idx >= 0 ? meta.chapters[idx].title : null;
@@ -2001,7 +2063,8 @@ class SyncPull {
     if (page == null) return (0, 0, 0, 0);
     var strokes = 0, images = 0, shapes = 0, texts = 0;
     for (final el in page.layers.content) {
-      el.map(unknown: (_) => 0,
+      el.map(
+        unknown: (_) => 0,
         stroke: (_) => strokes++,
         image: (_) => images++,
         shape: (_) => shapes++,
@@ -2034,8 +2097,10 @@ class _PullRun {
 
   late final Future<({NotebookMetadata metadata, DocumentStructure document})>
       metaFuture;
-  late final ({NotebookMetadata metadata, DocumentStructure document})
-      remoteMeta;
+  late final ({
+    NotebookMetadata metadata,
+    DocumentStructure document
+  }) remoteMeta;
   late final List<String> completed;
   late final List<String> failedPages;
   late final List<String> corruptedPages;

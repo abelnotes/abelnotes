@@ -94,6 +94,7 @@ class EditorHarness {
     String? paperType,
     void Function(ProviderContainer container)? beforeShow,
     List<Override> overrides = const [],
+    bool overLibrary = false,
   }) async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -104,7 +105,9 @@ class EditorHarness {
     PathProviderPlatform.instance = _TempPaths(tmp!.path);
     final files = FileService();
     await tester.runAsync(files.init);
-    final remote = FakeRemoteStore();
+    // No identity: baselines stay in (fake) prefs; real file IO inside the
+    // pull lock would stall under the fake clock.
+    final remote = FakeRemoteStore(identity: null);
     final container = ProviderContainer(overrides: [
       fileServiceProvider.overrideWithValue(files),
       remoteStoreProvider.overrideWithValue(remote),
@@ -146,10 +149,14 @@ class EditorHarness {
           variant: HwThemeVariant.light,
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const CanvasScreen(),
+        home: overLibrary ? const LibraryStub() : const CanvasScreen(),
       ),
     ));
     await tester.pump(const Duration(milliseconds: 50));
+    if (overLibrary) {
+      await tester.pumpAndSettle();
+      expect(find.byType(CanvasScreen), findsOneWidget);
+    }
     final h = EditorHarness._(tester, container, files, remote, tmp);
     // Tests run as a touch platform, which starts on the hand tool.
     h.notifier.setTool(CanvasTool.pen);
@@ -204,4 +211,27 @@ class EditorHarness {
 
   /// Raw pixel size, for tests that need to place the pointer precisely.
   ui.Size get surface => tester.view.physicalSize / tester.view.devicePixelRatio;
+}
+
+/// Stands in for the library: pushes the editor over itself, so leaving the
+/// editor has somewhere to go.
+class LibraryStub extends StatefulWidget {
+  const LibraryStub({super.key});
+  @override
+  State<LibraryStub> createState() => _LibraryStubState();
+}
+
+class _LibraryStubState extends State<LibraryStub> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.of(context).push(
+          MaterialPageRoute<Object?>(builder: (_) => const CanvasScreen()));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text('library')));
 }

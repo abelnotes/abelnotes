@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:abelnotes/shared/models/ncnote_format.dart';
+import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// What the open notebook's sync knows about the server and about what is
 /// still to be pushed or pulled: baselines, ETags, queues, retry and pull
@@ -61,6 +64,55 @@ class SyncSession {
   /// different object than `_lastSyncedPages[fileName]`, it was edited.
   Map<String, PageData> lastSyncedPages = {};
 
+  /// Digests of pages from failed uploads that may still have landed (lost
+  /// reply). Kept in prefs so a reopen still knows them.
+  final Map<String, List<String>> attemptedPages = {};
+
+  static String pageDigest(PageData p) => sha256
+      .convert(utf8.encode(jsonEncode(p.copyWith(modifiedAt: null).toJson())))
+      .toString();
+
+  static String _attemptedKey(String id) => 'attempted_pages_$id';
+
+  bool isOwnEcho(String fileName, PageData remote) {
+    final l = attemptedPages[fileName];
+    return l != null && l.contains(pageDigest(remote));
+  }
+
+  Future<void> noteAttempted(String id, Map<String, PageData> pages) async {
+    for (final e in pages.entries) {
+      final l = attemptedPages.putIfAbsent(e.key, () => []);
+      final d = pageDigest(e.value);
+      if (l.contains(d)) continue;
+      l.add(d);
+      if (l.length > 4) l.removeAt(0);
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_attemptedKey(id), jsonEncode(attemptedPages));
+    } catch (_) {}
+  }
+
+  Future<void> restoreAttempted(String id) async {
+    attemptedPages.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_attemptedKey(id));
+      if (raw == null) return;
+      (jsonDecode(raw) as Map<String, dynamic>).forEach((k, v) {
+        attemptedPages[k] = [for (final d in v as List) d as String];
+      });
+    } catch (_) {}
+  }
+
+  Future<void> clearAttempted(String id) async {
+    attemptedPages.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_attemptedKey(id));
+    } catch (_) {}
+  }
+
   /// Last-synced common ancestor for the document structure (page order +
   /// chapter assignments) and notebook metadata (title/chapters/paper/cover).
   /// These are the "base" side of a 3-way merge on pull: comparing the live
@@ -110,12 +162,19 @@ class SyncSession {
   /// Per-page WebDAV ETags from the last pull — used to detect which pages changed.
   Map<String, String> lastPageEtags = {};
 
+  /// Loading of the two above at open: pulls wait for it.
+  Future<void>? baselineLoad;
+
   /// Server version of document.json that `lastSyncedDocument` came from;
   /// the push writes the page list only over it. Null = unknown, write as is.
   String? remoteDocVersion;
 
   /// Version of the document a pull downloaded, adopted on accept.
   String? pendingDocVersion;
+
+  /// The notebook is closing: a running pull stops fetching and merges
+  /// nothing, so the next open does not wait for its downloads.
+  bool pullAbandoned = false;
 
   /// Which notebook the ETag caches above belong to. Guards against cross-
   /// contamination when the user switches notebooks: notebook-A's ETag set

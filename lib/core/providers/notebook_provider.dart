@@ -23,6 +23,7 @@ import 'package:abelnotes/core/services/pending_root_uploads.dart';
 import 'package:abelnotes/core/services/search_service.dart';
 import 'package:abelnotes/features/search/search_indexer.dart';
 import 'package:abelnotes/features/search/region_route.dart' show regionRouterAsset;
+import 'package:abelnotes/core/services/sync_baselines.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/unpushed_guard.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -1123,7 +1124,8 @@ class NotebookListNotifier
       createdAt: r.metadata.createdAt,
     );
     await fileService.setNotebookDownloadSkipped(id, false);
-    await CanvasNotifier.seedPageEtags(id, r.pageEtags);
+    final t = await _baselineTarget(fileService, id);
+    await CanvasNotifier.seedPageEtags(t.dir, id, t.identity, r.pageEtags);
     // The preview must show the downloaded sketch, not an older local one.
     if (!kIsWeb &&
         r.metadata.paperType == AppConfig.infinitePaperType &&
@@ -1915,7 +1917,9 @@ class NotebookListNotifier
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    final known = prefs.getString('delta_meta_etag_$id');
+    final t = await _baselineTarget(fileService, id);
+    final base = await SyncBaselines.read(t.dir, id, t.identity);
+    final known = base.metaEtag;
     final remote = await syncService.getDeltaMetaEtag(id);
     if (known == null || remote == null) {
       unawaited(CrashLogger.append(
@@ -1924,7 +1928,7 @@ class NotebookListNotifier
     }
     final serverMoved = remote != known;
     if (serverMoved && !await _serverMoveIsDisjoint(
-        syncService, prefs, id, keys, local)) {
+        syncService, prefs, id, keys, local, base.pageEtags)) {
       needsOpenToUpload.value = {...needsOpenToUpload.value, id};
       unawaited(CrashLogger.append(
           '[Unpushed] $id left for the editor (server moved)'));
@@ -1944,11 +1948,7 @@ class NotebookListNotifier
         prefs.getStringList('pending_page_deletes_$id') ?? const <String>[];
     final assetDeletes =
         prefs.getStringList('pending_asset_deletes_$id') ?? const <String>[];
-    final knownRaw = prefs.getString('page_etags_$id');
-    final knownPageEtags = knownRaw == null
-        ? const <String, String>{}
-        : (jsonDecode(knownRaw) as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, v as String));
+    final knownPageEtags = base.pageEtags;
     final ({
       String? metaEtag,
       Map<String, String> pageEtags,
@@ -1974,7 +1974,8 @@ class NotebookListNotifier
       );
     } on RemotePagesChangedException catch (e) {
       // Another device edited the same pages: only the editor can merge.
-      await _recordPushedPageEtags(prefs, id, e.uploadedEtags);
+      await SyncBaselines.write(t.dir, id, t.identity,
+          pushedPages: e.uploadedEtags);
       needsOpenToUpload.value = {...needsOpenToUpload.value, id};
       unawaited(CrashLogger.append(
           '[Unpushed] $id left for the editor (${e.fileNames.length} pages '
@@ -1991,13 +1992,13 @@ class NotebookListNotifier
     if (serverMoved) {
       // Other devices' changes are still to be pulled: keep the old meta etag
       // so the editor sees them, and only record the pages sent here.
-      await _recordPushedPageEtags(prefs, id, res.pageEtags);
+      await SyncBaselines.write(t.dir, id, t.identity,
+          pushedPages: res.pageEtags);
     } else {
-      // Same key the editor reads, so its first pull knows this is ours.
-      final etag = res.metaEtag;
-      if (etag != null && etag.isNotEmpty) {
-        await prefs.setString('delta_meta_etag_$id', etag);
-      }
+      // The baseline the editor reads, so its first pull knows this is ours:
+      // without the pages it re-downloaded (or re-sent) what it just sent.
+      await SyncBaselines.write(t.dir, id, t.identity,
+          metaEtag: res.metaEtag, pushedPages: res.pageEtags);
     }
     await fileService.clearDirtyPages(id);
     if (mounted) {
@@ -2013,13 +2014,9 @@ class NotebookListNotifier
       SharedPreferences prefs,
       String id,
       Set<String> keys,
-      LooseStoreContents local) async {
+      LooseStoreContents local,
+      Map<String, String> knownPages) async {
     try {
-      final knownRaw = prefs.getString('page_etags_$id');
-      final knownPages = knownRaw == null
-          ? <String, String>{}
-          : (jsonDecode(knownRaw) as Map<String, dynamic>)
-              .map((k, v) => MapEntry(k, v as String));
       final baseDocRaw = prefs.getString('unpushed_base_doc_$id');
       final baseMetaRaw = prefs.getString('unpushed_base_meta_$id');
       final server = await syncService.downloadDeltaMeta(id);
@@ -2048,35 +2045,28 @@ class NotebookListNotifier
   /// without them the editor's first pull downloads every page again.
   Future<void> _recordFullUploadEtags(
       String id, String? metaEtag, Map<String, String> pageEtags) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (metaEtag != null && metaEtag.isNotEmpty) {
-      await prefs.setString('delta_meta_etag_$id', metaEtag);
-    }
-    await prefs.setString('page_etags_$id', jsonEncode(pageEtags));
+    final t = await _baselineTarget(_ref.read(fileServiceProvider), id);
+    await SyncBaselines.write(t.dir, id, t.identity,
+        metaEtag: metaEtag, pageEtags: pageEtags);
   }
 
-  Future<void> _recordPushedPageEtags(SharedPreferences prefs, String id,
-      Map<String, String> pushed) async {
-    if (pushed.isEmpty) return;
-    Map<String, String> known = {};
-    try {
-      final raw = prefs.getString('page_etags_$id');
-      if (raw != null) {
-        known = (jsonDecode(raw) as Map<String, dynamic>)
-            .map((k, v) => MapEntry(k, v as String));
-      }
-    } catch (_) {}
-    await prefs.setString('page_etags_$id', jsonEncode({...known, ...pushed}));
-  }
+  /// Store folder of [id] and the server its baseline is for.
+  Future<({String dir, String? identity})> _baselineTarget(
+          FileService fileService, String id) async =>
+      (
+        dir: fileService.notebookStoreDir(id),
+        identity:
+            await SyncBaselines.identityOf(_ref.read(remoteStoreProvider)),
+      );
 
   /// True when the notebook was on the server and its folder and root file
   /// are both gone now. Throws if the server can't say.
   Future<bool> _deletedOnServer(SyncService syncService,
       FileService fileService, String id, Map<String, dynamic> row) async {
     if ((await PendingRootUploads.load()).contains(id)) return false;
-    final prefs = await SharedPreferences.getInstance();
-    final wasOnServer =
-        row['etag'] != null || prefs.getString('delta_meta_etag_$id') != null;
+    final t = await _baselineTarget(fileService, id);
+    final wasOnServer = row['etag'] != null ||
+        (await SyncBaselines.read(t.dir, id, t.identity)).metaEtag != null;
     if (!wasOnServer) return false;
     if (await syncService.deltaFolderExists(id, fresh: true)) return false;
     final root = row['remote_path'] as String? ?? '';
@@ -2086,9 +2076,8 @@ class NotebookListNotifier
   Future<void> _keepAfterRemoteDelete(FileService fileService, String id) async {
     await fileService.setNotebookLocalOnly(id, true);
     await fileService.clearDirtyPages(id);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('delta_meta_etag_$id');
-    await prefs.remove('page_etags_$id');
+    final t = await _baselineTarget(fileService, id);
+    await SyncBaselines.forget(t.dir, id, t.identity);
     unawaited(CrashLogger.append(
         '[Sync] $id deleted on the server: kept on this device only'));
     await noteDeletedElsewhere(id);
@@ -2133,9 +2122,8 @@ class NotebookListNotifier
           .loadLooseStoreFromDisk(fileService.notebookStoreDir(id));
       if (local == null) throw StateError('No local copy of $id');
       // A stale baseline would read the rebuilt pages as foreign changes.
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('delta_meta_etag_$id');
-      await prefs.remove('page_etags_$id');
+      final t = await _baselineTarget(fileService, id);
+      await SyncBaselines.forget(t.dir, id, t.identity);
       final res = await syncService.syncDelta(
         notebookId: id,
         metadata: local.metadata,

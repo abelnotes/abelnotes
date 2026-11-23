@@ -138,6 +138,8 @@ class DeviceStore implements RemoteStore {
   @override
   Future<int?> getContentLength(String p) =>
       _call(() => inner.getContentLength(p));
+  @override
+  Future<String?> baselineIdentity() => inner.baselineIdentity();
 }
 
 const kPageFile = 'page_001.json';

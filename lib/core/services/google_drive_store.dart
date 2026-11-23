@@ -386,6 +386,13 @@ class GoogleDriveStore implements RemoteStore {
     return size == null ? null : int.tryParse(size);
   }
 
+  /// The root folder's id: unique per account and folder, unlike its path.
+  @override
+  Future<String?> baselineIdentity() async {
+    final id = await _folderId(_asDir(basePath), createMissing: false);
+    return id == null ? null : 'drive|$id';
+  }
+
   // ── Path resolution ───────────────────────────────────────────────────
 
   Future<Map<String, dynamic>?> _metadata(String remotePath) async {

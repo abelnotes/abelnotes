@@ -22,6 +22,7 @@ import 'package:abelnotes/features/auth/login_screen.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/core/services/remote_baselines.dart';
+import 'package:abelnotes/core/services/sync_baselines.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/features/sync/drive_connect.dart';
 import 'package:abelnotes/features/modules/module_manifest.dart';
@@ -1052,8 +1053,11 @@ class _SyncSection extends ConsumerWidget {
     // DB records which server a row belongs to, so rows left as `synced`
     // would be hard-deleted by the library's remote-deletion cleanup the
     // moment a different account is connected. See markAllNotebooksLocal.
-    await ref.read(fileServiceProvider).markAllNotebooksLocal();
-    await RemoteBaselines.forgetAll();
+    final files = ref.read(fileServiceProvider);
+    await files.markAllNotebooksLocal();
+    await RemoteBaselines.forgetAll(
+        notebooksRoot: files.notebooksDir,
+        leaving: await SyncBaselines.identityOf(ref.read(remoteStoreProvider)));
     // Logout, then stay in the app in local-only mode instead of bouncing
     // to onboarding (the user still has their local notebooks).
     await ref.read(credentialsProvider.notifier).logout();
@@ -1592,12 +1596,9 @@ class _AdvancedSection extends ConsumerWidget {
 
       // Wipe the per-notebook sync caches so the next open re-runs the
       // delta diff from a clean slate (no stale ETags blocking refresh).
+      await SyncBaselines.forget(fileService.notebookStoreDir(notebookId),
+          notebookId, null);
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('delta_meta_etag_$notebookId');
-      // Must match _pageEtagsPrefsKey in canvas_provider.dart — previously
-      // wrote 'last_page_etags_…' which silently no-op'd, leaving the user's
-      // last-resort recovery only half-effective.
-      await prefs.remove('page_etags_$notebookId');
       // Also drain the persistent delete queue so a stale backlog from the
       // wedged session doesn't immediately re-poison the freshly reloaded
       // state.

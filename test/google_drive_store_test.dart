@@ -12,6 +12,7 @@ import 'package:http/testing.dart';
 
 import 'package:abelnotes/core/services/google_drive_store.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
+import 'package:abelnotes/core/services/sync_baselines.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 
 class _FixedAuth implements DriveAuth {
@@ -510,6 +511,31 @@ void main() {
         throwsA(isA<RemoteStoreException>()
             .having((e) => e.statusCode, 'statusCode', 412)),
       );
+    });
+  });
+
+  group('baseline identity', () {
+    test('is the root folder id: another account or folder is another key',
+        () async {
+      fake.reply({'files': [{'id': 'root-A'}]});
+      final s = store();
+      expect(await s.baselineIdentity(), 'drive|root-A');
+      expect(fake.seen.single.url.queryParameters['q'],
+          contains("'root' in parents"));
+      // Cached: no second lookup.
+      expect(await s.baselineIdentity(), 'drive|root-A');
+      expect(fake.seen, hasLength(1));
+
+      fake.reply({'files': [{'id': 'root-B'}]});
+      expect(await store().baselineIdentity(), 'drive|root-B');
+    });
+
+    test('a missing folder or an unreachable Drive gives no key', () async {
+      fake.reply({'files': <Object>[]});
+      expect(await store().baselineIdentity(), isNull);
+      expect(await SyncBaselines.identityOf(GoogleDriveStore(_FixedAuth(),
+              client: MockClient((_) async => throw http.ClientException('offline')))),
+          isNull);
     });
   });
 }

@@ -508,6 +508,9 @@ class FileService {
   String notebookStoreDir(String notebookId) =>
       p.join(_notebooksDir, notebookId);
 
+  /// Parent of every loose store.
+  String get notebooksDir => _notebooksDir;
+
   /// The device-wide symbol library, shared by every notebook.
   ///
   /// Symbols used to live only inside each notebook's loose store, so one
@@ -730,6 +733,8 @@ class FileService {
       final archive = decodeNotebookArchive(zipBytes);
       for (final f in archive.files) {
         if (!f.isFile) continue;
+        // Baselines describe this disk only: never taken from a package.
+        if (f.name == AppConfig.syncBaselineFile) continue;
         // Zip-slip guard: skip entries with absolute paths or `..` segments
         // that would escape the tmp dir (malicious/corrupt .ncnote).
         final entryPath = p.normalize(p.join(tmpDir, f.name));
@@ -753,6 +758,12 @@ class FileService {
           await into.create(recursive: true);
           await e.copy(target.path);
         }
+      }
+      // Rebuilds keep the pull baselines, as prefs did before they moved here.
+      final baseline = File(p.join(dir, AppConfig.syncBaselineFile));
+      if (await baseline.exists()) {
+        await Directory(tmpDir).create(recursive: true);
+        await baseline.copy(p.join(tmpDir, AppConfig.syncBaselineFile));
       }
       // Swap: park the old store, move the new one in, then drop the old.
       // A crash in between leaves `.olddir`, which init puts back.

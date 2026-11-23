@@ -174,4 +174,8 @@ abstract class RemoteStore {
 
   /// Size in bytes, null if unknown.
   Future<int?> getContentLength(String remotePath);
+
+  /// Names this server/account + [basePath] so a baseline recorded against
+  /// one remote is never trusted on another. Null when it can't be told now.
+  Future<String?> baselineIdentity();
 }

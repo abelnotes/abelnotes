@@ -156,6 +156,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   bool _isSaving = false;
   Future<void>? _saveInFlight;
   bool _closing = false;
+  /// Set while a Back is leaving, and for good once it popped: a second
+  /// Back would pop the library too (black screen).
+  bool _leaving = false;
+  bool _popped = false;
   /// One-shot latch for the auto-pop in [build]'s no-notebook fallback, so a
   /// second rebuild while the route is already animating out doesn't queue a
   /// second pop (which would take the library with it).
@@ -1395,6 +1399,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
   }
 
   Future<bool> _onWillPop() async {
+    if (_leaving) return false;
+    _leaving = true;
+    try {
+      return await _leave();
+    } finally {
+      if (!_popped) _leaving = false;
+    }
+  }
+
+  Future<bool> _leave() async {
     // Mark closing so didChangeAppLifecycleState doesn't fire a parallel
     // save if the OS backgrounds the app during the pop dialog.
     _closing = true;
@@ -1445,7 +1459,10 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     // stale "1 pagina" card), and the next notebook opens after it.
     final notifier = ref.read(canvasProvider.notifier);
     final closing = notifier.closeNotebook();
-    if (mounted) Navigator.of(context).pop(EditorExit(closing));
+    if (mounted) {
+      _popped = true;
+      Navigator.of(context).pop(EditorExit(closing));
+    }
     return false; // already popped above — don't pop again
   }
 

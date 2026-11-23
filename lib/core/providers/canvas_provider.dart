@@ -13,6 +13,7 @@ import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart'
     show remoteStoreProvider;
+import 'package:abelnotes/core/services/sync_baselines.dart';
 import 'package:abelnotes/core/services/sync_thrift.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
@@ -156,8 +157,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     reportReachable: _reportReachable,
     recomputeSyncStatus: _recomputeSyncStatus,
     pullRemoteChanges: () => _pull.pullRemoteChanges(),
-    deltaMetaEtagPrefsKey: _deltaMetaEtagPrefsKey,
-    pageEtagsPrefsKey: _pageEtagsPrefsKey,
+    forgetBaseline: _forgetBaseline,
   );
 
   // Pen diagnostics (CrashLogger.verboseEnabled): the last committed stroke,
@@ -439,12 +439,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
       await prefs.remove(_unpushedBaseDocKey(id));
       await prefs.remove(_unpushedBaseMetaKey(id));
     } catch (_) {}
+    await _sync.clearAttempted(id);
   }
 
   /// Pages and assets a previous session failed to upload: dropped from the
   /// baseline so the next save pushes them, and a save is scheduled.
   Future<void> _restoreUnpushed(
       String notebookId, Map<String, PageData> pages) async {
+    await _sync.restoreAttempted(notebookId);
     final Set<String> keys;
     try {
       keys = await _ref.read(fileServiceProvider).dirtyPagesOf(notebookId);
@@ -866,7 +868,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     // Pre-populate page ETags so the first pull doesn't see every page as
     // "changed" (empty cache vs all remote ETags → false positives).
     if (!_preview) {
-      _initPageEtags(metadata.id);
+      _sync.baselineLoad = _initPageEtags(metadata.id);
       _loadPendingDeletes(metadata.id);
       _startPullTimer();
     }
@@ -1050,15 +1052,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     }
   }
 
-  /// SharedPreferences key for a notebook's last-observed delta metadata
-  /// ETag.  Persisting this across app launches lets the first pull on
-  /// re-open short-circuit when nothing changed server-side, eliminating
-  /// the redundant "download all ETags + diff them" round-trip that made
-  /// re-opening feel like a fresh sync ("chiudo riapro e la sync
-  /// ricomincia").
-  static String _deltaMetaEtagPrefsKey(String notebookId) =>
-      'delta_meta_etag_$notebookId';
-
   /// Extract the numeric suffix from a `page_NNN.json` filename so we can
   /// sort pages by creation order — much more reliable than the
   /// `pageNumber` field stored inside each PageData JSON, which past bugs
@@ -1204,6 +1197,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   /// worker cache (same-origin proxy): stale content stored under fresh
   /// ETags. Forgetting every pull baseline once makes the next open
   /// download each page again; unpushed local edits go through the merge.
+  /// Baseline files need no reset: only builds that ran this write them.
   static Future<void> forgetWebPullBaselinesOnce() async {
     if (!kIsWeb) return;
     const done = 'web_pull_baselines_reset_v1';
@@ -1222,18 +1216,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
 
   /// Pull baseline for a notebook just downloaded whole: without it the
   /// editor's first pull fetched every page a second time.
-  static Future<void> seedPageEtags(
-      String notebookId, Map<String, String> etags) async {
+  static Future<void> seedPageEtags(String storeDir, String notebookId,
+      String? identity, Map<String, String> etags) async {
     if (etags.isEmpty) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_pageEtagsPrefsKey(notebookId), jsonEncode(etags));
-    } catch (_) {}
+    await SyncBaselines.write(storeDir, notebookId, identity, pageEtags: etags);
   }
 
-  /// SharedPreferences key for the per-page ETag map of a notebook.
-  static String _pageEtagsPrefsKey(String notebookId) =>
-      'page_etags_$notebookId';
+  /// Store folder of [notebookId] and the server its baseline is for.
+  Future<({String dir, String? identity})> _baselineTarget(
+      String notebookId) async {
+    try {
+      final dir = _ref.read(fileServiceProvider).notebookStoreDir(notebookId);
+      final remote = _ref.read(remoteStoreProvider);
+      return (dir: dir, identity: await SyncBaselines.identityOf(remote));
+    } catch (_) {
+      return (dir: '', identity: null); // no store or disposed: prefs only
+    }
+  }
+
+  Future<void> _forgetBaseline(String notebookId) async {
+    final t = await _baselineTarget(notebookId);
+    await SyncBaselines.forget(t.dir, notebookId, t.identity);
+  }
 
   /// Restore [_sync.lastPageEtags] from disk. This MUST reflect the ETags of the
   /// page content we actually have locally — i.e. only ETags that were
@@ -1244,36 +1248,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   /// stale (the 'iPad wrote page_164 while PC was offline → PC opens but
   /// pull is no-op → local stays stale forever' bug).
   ///
-  /// Also primes [_sync.remoteMetaEtag] from SharedPreferences.
+  /// Also primes [_sync.remoteMetaEtag]. Both come from [SyncBaselines]:
+  /// the store's shared file, else this install's prefs.
   Future<void> _initPageEtags(String notebookId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final t = await _baselineTarget(notebookId);
+      final base = await SyncBaselines.read(t.dir, notebookId, t.identity);
 
-      // Load last-saved meta ETag so first-pull can skip cheaply when
-      // server state hasn't moved. Only use it if we don't already have
-      // one in memory (e.g. same notebook re-opened without notebook-switch).
-      if (_sync.remoteMetaEtag == null) {
-        final persisted = prefs.getString(_deltaMetaEtagPrefsKey(notebookId));
-        if (persisted != null && persisted.isNotEmpty) {
-          _sync.remoteMetaEtag = persisted;
-        }
+      // Last-saved meta ETag lets the first pull skip cheaply when the
+      // server hasn't moved. Kept if already in memory (same notebook).
+      if (_sync.remoteMetaEtag == null && base.metaEtag != null) {
+        _sync.remoteMetaEtag = base.metaEtag;
       }
 
-      // Load the persisted per-page ETag cache written by previous save/
-      // pull cycles. Empty map on fresh install: the first pull will then
-      // treat every page as potentially changed and download it.
-      final persistedPageEtags = prefs.getString(_pageEtagsPrefsKey(notebookId));
-      if (persistedPageEtags != null && persistedPageEtags.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(persistedPageEtags) as Map<String, dynamic>;
-          _sync.lastPageEtags = decoded.map((k, v) => MapEntry(k, v as String));
-          debugPrint('[Canvas] Loaded ${_sync.lastPageEtags.length} page ETags from disk');
-        } catch (_) {
-          _sync.lastPageEtags = {};
-        }
-      } else {
-        _sync.lastPageEtags = {};
-      }
+      // Empty on a fresh install with no shared baseline: the first pull
+      // then treats every page as potentially changed and downloads it.
+      _sync.lastPageEtags = base.pageEtags;
+      unawaited(CrashLogger.append('[Pull] baseline: '
+          '${base.pageEtags.length} page versions, '
+          'meta ${base.metaEtag != null ? "known" : "unknown"}'));
 
       // NOTE: we intentionally do NOT seed _sync.lastPageEtags from the server's
       // current state when prefs is empty. Seeding from live server state
@@ -1409,11 +1402,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   /// that updates the map so a cold restart resumes with the ETag state
   /// that matches our local .ncnote content.
   Future<void> _persistLastPageEtags(String notebookId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          _pageEtagsPrefsKey(notebookId), jsonEncode(_sync.lastPageEtags));
-    } catch (_) {}
+    final t = await _baselineTarget(notebookId);
+    await SyncBaselines.write(t.dir, notebookId, t.identity,
+        pageEtags: Map.of(_sync.lastPageEtags));
   }
 
   /// Persist the current [_sync.remoteMetaEtag] so next app launch can skip the
@@ -1429,10 +1420,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   Future<void> _persistRemoteMetaEtag(String notebookId) async {
     final etag = _sync.remoteMetaEtag;
     if (etag == null || etag.isEmpty) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_deltaMetaEtagPrefsKey(notebookId), etag);
-    } catch (_) {}
+    final t = await _baselineTarget(notebookId);
+    await SyncBaselines.write(t.dir, notebookId, t.identity, metaEtag: etag);
     // Mirror into the DB so BgSync's ETag comparison sees the current value.
     try {
       final fileService = _ref.read(fileServiceProvider);
@@ -1454,11 +1443,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   /// after exit because the pulled-save hadn't reached SQLite yet).
   /// With [compact], pages with stroke chunks are written whole first, so
   /// releases that read only snapshots see every stroke (closing).
-  Future<void> flushPendingWork({bool compact = false}) async {
+  Future<void> flushPendingWork(
+      {bool compact = false, bool abandonPull = false}) async {
     _thumbnails.flush();
     _sync.pullLoopOn = false;
     _sync.pullTimer?.cancel();
     _sync.pullTimer = null;
+    if (abandonPull) _sync.pullAbandoned = true;
     _saveLastPosition();
 
     final pendingPull = _sync.pendingPullFuture;
@@ -1524,7 +1515,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     // Drain first so pulled pages + metadata actually land on disk before
     // the notifier tears down (the "ci rientro ed è scomparso tutto" bug).
     final closingId = state?.metadata.id;
-    await flushPendingWork(compact: true);
+    await flushPendingWork(compact: true, abandonPull: true);
     // A day of edits gets one restorable copy.
     if (closingId != null && !_save.discardRequested && !_preview) {
       unawaited(_ref
@@ -3593,6 +3584,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   void _startPullTimer() {
     _sync.pullTimer?.cancel();
     if (_disposed) return;
+    _sync.pullAbandoned = false;
     // Immediate pull on notebook open — don't wait first interval.
     // Track the future so closeNotebook can await it.
     // _disposed guard avoids scheduling a pull whose continuation could

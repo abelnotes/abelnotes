@@ -9,7 +9,10 @@ import 'package:abelnotes/core/services/remote_store.dart';
 /// abstraction is genuinely backend-neutral and a Drive implementation has a
 /// shape to fit into.
 class FakeRemoteStore implements RemoteStore {
-  FakeRemoteStore({this.basePath = '/AbelNotes/'});
+  FakeRemoteStore({this.basePath = '/AbelNotes/', this.identity = 'fake'});
+
+  /// What [baselineIdentity] answers: a different value is another server.
+  String? identity;
 
   @override
   final String basePath;
@@ -69,7 +72,8 @@ class FakeRemoteStore implements RemoteStore {
       throw RemoteStoreException('rename target exists: $toPath', 412);
     }
     final data = files.remove(fromPath);
-    if (data == null) throw RemoteStoreException('no such file: $fromPath', 404);
+    if (data == null)
+      throw RemoteStoreException('no such file: $fromPath', 404);
     files[toPath] = data;
     final v = _versions.remove(fromPath);
     if (v != null) _versions[toPath] = v;
@@ -96,8 +100,15 @@ class FakeRemoteStore implements RemoteStore {
       throw RemoteStoreException('upload refused: $remotePath', 500);
     }
     files[remotePath] = data;
-    return _versions[remotePath] = 'v${++_version}';
+    final v = _versions[remotePath] = 'v${++_version}';
+    if (loseReply?.call(remotePath) ?? false) {
+      throw Exception('Connection closed before full header was received');
+    }
+    return v;
   }
+
+  /// The write lands but the reply is lost, as on a dropped connection.
+  bool Function(String path)? loseReply;
 
   /// Called just before a conditional upload checks its precondition: lets a
   /// test play "another device wrote in between".
@@ -108,7 +119,9 @@ class FakeRemoteStore implements RemoteStore {
 
   @override
   Future<String?> uploadFileConditional(String remotePath, Uint8List data,
-      {String? ifMatchVersion, bool ifAbsent = false, int? timeoutSeconds}) async {
+      {String? ifMatchVersion,
+      bool ifAbsent = false,
+      int? timeoutSeconds}) async {
     calls.add('upload-if $remotePath');
     beforeConditionalCheck?.call(remotePath);
     final exists = files.containsKey(remotePath);
@@ -124,8 +137,9 @@ class FakeRemoteStore implements RemoteStore {
   @override
   Future<String?> uploadFileAtomic(String remotePath, Uint8List data,
       {String? ifMatchVersion, int? timeoutSeconds}) async {
-    calls.add('${ifMatchVersion == null ? 'upload-atomic' : 'upload-atomic-if'} '
-        '$remotePath');
+    calls
+        .add('${ifMatchVersion == null ? 'upload-atomic' : 'upload-atomic-if'} '
+            '$remotePath');
     if (ifMatchVersion != null) {
       beforeConditionalCheck?.call(remotePath);
       if (!files.containsKey(remotePath) ||
@@ -179,6 +193,9 @@ class FakeRemoteStore implements RemoteStore {
     calls.add('size $remotePath');
     return files[remotePath]?.length;
   }
+
+  @override
+  Future<String?> baselineIdentity() async => identity;
 
   static String _parentOf(String path) {
     final trimmed =

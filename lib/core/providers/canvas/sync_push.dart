@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/providers/canvas/canvas_core.dart';
@@ -45,8 +44,7 @@ class SyncPush {
     required void Function(bool reachable) reportReachable,
     required void Function() recomputeSyncStatus,
     required Future<void> Function() pullRemoteChanges,
-    required String Function(String id) deltaMetaEtagPrefsKey,
-    required String Function(String id) pageEtagsPrefsKey,
+    required Future<void> Function(String id) forgetBaseline,
   })  : _save = save,
         _pdfSources = pdfSources,
         _isLocalOnly = isLocalOnly,
@@ -61,8 +59,7 @@ class SyncPush {
         _reportReachable = reportReachable,
         _recomputeSyncStatus = recomputeSyncStatus,
         _pullRemoteChanges = pullRemoteChanges,
-        _deltaMetaEtagPrefsKey = deltaMetaEtagPrefsKey,
-        _pageEtagsPrefsKey = pageEtagsPrefsKey;
+        _forgetBaseline = forgetBaseline;
 
   final CanvasCore _core;
   final SyncSession _sync;
@@ -81,8 +78,7 @@ class SyncPush {
   final void Function(bool reachable) _reportReachable;
   final void Function() _recomputeSyncStatus;
   final Future<void> Function() _pullRemoteChanges;
-  final String Function(String id) _deltaMetaEtagPrefsKey;
-  final String Function(String id) _pageEtagsPrefsKey;
+  final Future<void> Function(String id) _forgetBaseline;
 
   /// An upload is running: isDirty is cleared before it starts, so without
   /// this the pill read "synced" for the whole upload.
@@ -130,7 +126,8 @@ class SyncPush {
   /// The server answered: the offline state is over, push what is waiting.
   void onRemoteReachable() {
     _reportReachable(true);
-    final wasFailing = _sync.consecutiveSyncFailures > 0 || _sync.pullUnreachable;
+    final wasFailing =
+        _sync.consecutiveSyncFailures > 0 || _sync.pullUnreachable;
     _sync.pullUnreachable = false;
     if (_sync.consecutiveSyncFailures > 0) {
       _sync.consecutiveSyncFailures = 0;
@@ -150,8 +147,9 @@ class SyncPush {
   /// link is presumably still bad).
   void scheduleMetaCommitRetry() {
     if (_sync.pendingMetaCommitTimer != null || _core.isDisposed) return;
-    final delayMs = (_metaRetryBaseMs * (1 << _sync.metaRetryAttempts.clamp(0, 8)))
-        .clamp(_metaRetryBaseMs, _metaRetryMaxMs);
+    final delayMs =
+        (_metaRetryBaseMs * (1 << _sync.metaRetryAttempts.clamp(0, 8)))
+            .clamp(_metaRetryBaseMs, _metaRetryMaxMs);
     _sync.pendingMetaCommitTimer = Timer(
       Duration(milliseconds: delayMs),
       () {
@@ -198,7 +196,8 @@ class SyncPush {
     } catch (e) {
       // Bump attempt count, schedule next with exponential delay.
       _sync.metaRetryAttempts++;
-      debugPrint('[Canvas] Pending metadata commit retry #${_sync.metaRetryAttempts} '
+      debugPrint(
+          '[Canvas] Pending metadata commit retry #${_sync.metaRetryAttempts} '
           'failed: $e — next try in '
           '${(_metaRetryBaseMs * (1 << _sync.metaRetryAttempts.clamp(0, 8))).clamp(_metaRetryBaseMs, _metaRetryMaxMs) ~/ 1000}s');
       scheduleMetaCommitRetry();
@@ -228,19 +227,19 @@ class SyncPush {
     return conflictHold
         ? Future<bool>.value(false)
         : _remoteSync(
-      syncService: syncService,
-      fileService: fileService,
-      updatedMeta: updatedMeta,
-      document: s.document,
-      dirtyPages: changedPages,
-      preEncodedPages: preEncodedDirty,
-      dirtyAssets: changedAssets.isNotEmpty ? changedAssets : null,
-      symbolLibraries: s.symbolLibraries.isNotEmpty
-          ? s.symbolLibraries.map((l) => l.toJson()).toList()
-          : null,
-      deletedPages: deletedPages.isNotEmpty ? deletedPages : null,
-      compactPages: plan.compactPages,
-    );
+            syncService: syncService,
+            fileService: fileService,
+            updatedMeta: updatedMeta,
+            document: s.document,
+            dirtyPages: changedPages,
+            preEncodedPages: preEncodedDirty,
+            dirtyAssets: changedAssets.isNotEmpty ? changedAssets : null,
+            symbolLibraries: s.symbolLibraries.isNotEmpty
+                ? s.symbolLibraries.map((l) => l.toJson()).toList()
+                : null,
+            deletedPages: deletedPages.isNotEmpty ? deletedPages : null,
+            compactPages: plan.compactPages,
+          );
   }
 
   /// Stage 4, push: hands the sync lock to a background task that waits for
@@ -303,6 +302,7 @@ class SyncPush {
         // hit a commit-phase failure, and the strokes stayed invisible
         // to other devices even though iPad's local file had them.
         _sync.lastSyncedPages = s.pages;
+        await _sync.clearAttempted(updatedMeta.id);
         // Advance the structure/metadata baselines to exactly what we just
         // uploaded (the `s` snapshot + the committed metadata), so the next
         // pull's 3-way merge treats THIS as the common ancestor.
@@ -354,6 +354,7 @@ class SyncPush {
         debugPrint('[Canvas] Remote sync: pages+document committed but '
             'metadata.json failed — staging for replay: $e');
         if (e.cause is RemoteStorageFullException) _reportStorageFull(true);
+        await _sync.noteAttempted(updatedMeta.id, changedPages);
         _sync.pendingMetaCommitBytes = e.metadataBytes;
         await _persistPendingMetaCommit(updatedMeta.id, e.metadataBytes);
         scheduleMetaCommitRetry();
@@ -387,6 +388,7 @@ class SyncPush {
           return;
         }
         debugPrint('[Canvas] Remote sync deferred (offline?): $e');
+        await _sync.noteAttempted(updatedMeta.id, changedPages);
         if (e is RemoteStorageFullException) _reportStorageFull(true);
         _sync.consecutiveSyncFailures++;
         _recomputeSyncStatus();
@@ -432,7 +434,8 @@ class SyncPush {
   Future<void> _ensureServerUnchanged(
       SyncService sync, String id, List<String> dirtyFns) async {
     if (_sync.movedChecks >= _maxMovedChecks) return;
-    final known = dirtyFns.where((fn) => _sync.lastPageEtags[fn] != null).toList();
+    final known =
+        dirtyFns.where((fn) => _sync.lastPageEtags[fn] != null).toList();
     if (known.isEmpty && _sync.remoteMetaEtag == null) {
       // Never pushed from here: if the server held it before, it is gone now.
       if (await remoteNotebookGone(sync)) throw _RemoteGoneException();
@@ -474,7 +477,8 @@ class SyncPush {
     unawaited(() async {
       await Future<void>.delayed(Duration(milliseconds: ms));
       if (_core.isDisposed || state == null) return;
-      _sync.pagePropfindCounter = SyncPull.propfindSafetyNetEvery; // force a full listing
+      _sync.pagePropfindCounter =
+          SyncPull.propfindSafetyNetEvery; // force a full listing
       await _pullRemoteChanges();
       retryUnpushed();
     }());
@@ -483,7 +487,8 @@ class SyncPush {
   /// This device has seen the notebook on the server: a delta ETag, or the
   /// root file's ETag recorded when it was downloaded or uploaded.
   Future<bool> _wasOnServer(String id) async {
-    if (_sync.remoteMetaEtag != null || _sync.lastPageEtags.isNotEmpty) return true;
+    if (_sync.remoteMetaEtag != null || _sync.lastPageEtags.isNotEmpty)
+      return true;
     try {
       final row = await _core.ref.read(fileServiceProvider).getNotebookMeta(id);
       return row?['etag'] != null;
@@ -537,11 +542,7 @@ class SyncPush {
     await _persistPendingDeletes(id);
     await _persistPendingMetaCommit(id, null);
     await _clearUnpushedBase(id);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_deltaMetaEtagPrefsKey(id));
-      await prefs.remove(_pageEtagsPrefsKey(id));
-    } catch (_) {}
+    await _forgetBaseline(id);
     unawaited(CrashLogger.append('[Sync] $id deleted on the server: kept '
         'on this device only'));
     _core.ref.read(notebookListProvider.notifier).noteDeletedElsewhere(id);
@@ -574,7 +575,8 @@ class SyncPush {
       _sync.pendingPageDeletes.removeWhere((fn) => dirtyPages.containsKey(fn));
     }
     if (dirtyAssets != null && dirtyAssets.isNotEmpty) {
-      _sync.pendingAssetDeletes.removeWhere((id) => dirtyAssets.containsKey(id));
+      _sync.pendingAssetDeletes
+          .removeWhere((id) => dirtyAssets.containsKey(id));
     }
 
     // Pending sets carry every delete request — both this save's and any
@@ -627,10 +629,10 @@ class SyncPush {
         preEncodedPages: preEncodedPages,
         dirtyAssets: dirtyAssets,
         symbolLibraries: symbolLibraries,
-        deletedPageFileNames: mergedDeletedPages.isNotEmpty
-            ? mergedDeletedPages : null,
-        deletedAssetFileNames: mergedDeletedAssets.isNotEmpty
-            ? mergedDeletedAssets : null,
+        deletedPageFileNames:
+            mergedDeletedPages.isNotEmpty ? mergedDeletedPages : null,
+        deletedAssetFileNames:
+            mergedDeletedAssets.isNotEmpty ? mergedDeletedAssets : null,
         // Each page only lands over the server version it was edited from:
         // a blind PUT replaced another device's strokes, and its next pull
         // then read them as deleted here.
@@ -654,7 +656,8 @@ class SyncPush {
       _sync.lastPageEtags.addAll(e.uploadedEtags);
       // The page list moved: force the next pull to fetch and merge it even
       // if metadata.json (written after it) hasn't moved yet.
-      if (e.fileNames.contains(AppConfig.documentFile)) _sync.remoteMetaEtag = null;
+      if (e.fileNames.contains(AppConfig.documentFile))
+        _sync.remoteMetaEtag = null;
       unawaited(CrashLogger.append('[Sync] ${e.fileNames.length} files '
           'changed on the server under this upload: merging first'));
       throw _ServerMovedException();

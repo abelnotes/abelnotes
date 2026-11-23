@@ -124,6 +124,9 @@ class AppConfig {
   }
   static const String metadataFile = 'metadata.json';
   static const String documentFile = 'document.json';
+
+  /// Per-device pull baselines in a store folder; never leaves this disk.
+  static const String syncBaselineFile = '.sync_baseline.json';
   static const String pagesDir = 'pages';
   static const String assetsDir = 'assets';
   static const String thumbnailsDir = 'thumbnails';

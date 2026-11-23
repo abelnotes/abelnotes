@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:abelnotes/core/services/sync_baselines.dart';
+
 /// Per-notebook records of what one server held. After a disconnect or a
 /// backend switch they describe a server that is gone from this device.
 class RemoteBaselines {
@@ -12,10 +14,15 @@ class RemoteBaselines {
   /// Read as "this notebook was on the server", the next server's lack of
   /// it looked like a deletion elsewhere and stopped it syncing. Paired with
   /// [FileService.markAllNotebooksLocal], which clears the same in the DB.
-  static Future<void> forgetAll() async {
+  /// The shared baseline files lose [leaving]'s entry (every entry if null);
+  /// other servers' entries belong to other installs on this folder.
+  static Future<void> forgetAll({String? notebooksRoot, String? leaving}) async {
     final prefs = await SharedPreferences.getInstance();
     for (final key in prefs.getKeys().toList()) {
       if (prefixes.any(key.startsWith)) await prefs.remove(key);
+    }
+    if (notebooksRoot != null) {
+      await SyncBaselines.forgetEverywhere(notebooksRoot, leaving);
     }
   }
 }
