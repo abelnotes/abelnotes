@@ -17,6 +17,7 @@ import 'package:abelnotes/core/providers/remote_store_provider.dart';
 import 'package:abelnotes/core/providers/auth_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
+import 'package:abelnotes/core/services/thumbnail_service.dart';
 import 'package:abelnotes/core/services/file_open_receiver.dart';
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart'
@@ -3301,7 +3302,7 @@ class _SketchTile extends StatelessWidget {
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: _SketchPreview(entry: entry, dots: p.paperEdge),
+                    child: SketchPreview(entry: entry, dots: p.paperEdge),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -3342,18 +3343,20 @@ class _SketchTile extends StatelessWidget {
 
 /// The sketch's own ink (its saved thumbnail, framed on the content), or
 /// the dotted placeholder while there is none.
-class _SketchPreview extends ConsumerStatefulWidget {
+@visibleForTesting
+class SketchPreview extends ConsumerStatefulWidget {
   final NotebookEntry entry;
   final Color dots;
-  const _SketchPreview({required this.entry, required this.dots});
+  const SketchPreview({super.key, required this.entry, required this.dots});
 
   @override
-  ConsumerState<_SketchPreview> createState() => _SketchPreviewState();
+  ConsumerState<SketchPreview> createState() => SketchPreviewState();
 }
 
-class _SketchPreviewState extends ConsumerState<_SketchPreview> {
+class SketchPreviewState extends ConsumerState<SketchPreview> {
   Uint8List? _png;
   DateTime? _loadedFor;
+  bool? _loadedStub;
 
   @override
   void initState() {
@@ -3362,26 +3365,45 @@ class _SketchPreviewState extends ConsumerState<_SketchPreview> {
   }
 
   @override
-  void didUpdateWidget(_SketchPreview old) {
-    super.didUpdateWidget(old);
-    if (widget.entry.metadata.modifiedAt != _loadedFor) _load();
+  void didUpdateWidget(SketchPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.entry.metadata.modifiedAt != _loadedFor ||
+        widget.entry.notOnDevice != _loadedStub) {
+      _load();
+    }
+  }
+
+  /// The saved thumbnail when it is the landscape sketch framing; older
+  /// sketch thumbnails framed the whole sheet (portrait, ink a speck).
+  Future<Uint8List?> _landscapeThumb(ThumbnailService thumbs, String id) async {
+    if (!await thumbs.hasThumbnail(id)) return null;
+    final bytes = await File(thumbs.thumbnailPath(id)).readAsBytes();
+    if (bytes.length < 24) return null;
+    final d = ByteData.sublistView(bytes);
+    return d.getUint32(16) > d.getUint32(20) ? bytes : null;
   }
 
   Future<void> _load() async {
     if (kIsWeb) return;
     final at = widget.entry.metadata.modifiedAt;
+    final stub = widget.entry.notOnDevice;
     _loadedFor = at;
+    _loadedStub = stub;
+    final id = widget.entry.metadata.id;
     final thumbs = ref.read(thumbnailServiceProvider);
+    final files = ref.read(fileServiceProvider);
     try {
-      if (!await thumbs.hasThumbnail(widget.entry.metadata.id)) return;
-      final bytes =
-          await File(thumbs.thumbnailPath(widget.entry.metadata.id)).readAsBytes();
-      // Older sketch thumbnails framed the whole sheet (portrait, ink a
-      // speck): keep the dots until the next save writes a landscape one.
-      if (bytes.length < 24) return;
-      final d = ByteData.sublistView(bytes);
-      if (d.getUint32(16) <= d.getUint32(20)) return;
-      if (mounted && _loadedFor == at) setState(() => _png = bytes);
+      var bytes = await _landscapeThumb(thumbs, id);
+      // Thumbnails are per device: a sketch drawn elsewhere, or saved before
+      // the landscape framing, is rendered here from its own data.
+      if (bytes == null && !stub && await files.ensureLooseStore(id)) {
+        if (await thumbs.renderSketchFromStore(id, files.notebookStoreDir(id))) {
+          bytes = await _landscapeThumb(thumbs, id);
+        }
+      }
+      if (bytes != null && mounted && _loadedFor == at) {
+        setState(() => _png = bytes);
+      }
     } catch (_) {}
   }
 

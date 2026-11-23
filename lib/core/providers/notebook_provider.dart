@@ -1114,6 +1114,19 @@ class NotebookListNotifier
     );
     await fileService.setNotebookDownloadSkipped(id, false);
     await CanvasNotifier.seedPageEtags(id, r.pageEtags);
+    // The preview must show the downloaded sketch, not an older local one.
+    if (!kIsWeb &&
+        r.metadata.paperType == AppConfig.infinitePaperType &&
+        r.document.pages.isNotEmpty) {
+      final first = r.pages[r.document.pages.first.fileName];
+      if (first != null) {
+        try {
+          await _ref
+              .read(thumbnailServiceProvider)
+              .renderAndCache(id, first, assetBytes: r.assets);
+        } catch (_) {}
+      }
+    }
   }
 
   bool _prefetching = false;

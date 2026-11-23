@@ -1298,6 +1298,24 @@ abstract class AppLocalizations {
   /// **'Pentagramma'**
   String get csPaperMusic;
 
+  /// No description provided for @csPaperApplyTo.
+  ///
+  /// In it, this message translates to:
+  /// **'Applica a'**
+  String get csPaperApplyTo;
+
+  /// No description provided for @csPaperThisPage.
+  ///
+  /// In it, this message translates to:
+  /// **'Questa pagina'**
+  String get csPaperThisPage;
+
+  /// No description provided for @csPaperAllPages.
+  ///
+  /// In it, this message translates to:
+  /// **'Tutte le pagine'**
+  String get csPaperAllPages;
+
   /// No description provided for @csLineSpacing.
   ///
   /// In it, this message translates to:

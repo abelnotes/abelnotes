@@ -775,6 +775,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get csPaperMusic => 'Portée musicale';
 
   @override
+  String get csPaperApplyTo => 'Appliquer à';
+
+  @override
+  String get csPaperThisPage => 'Cette page';
+
+  @override
+  String get csPaperAllPages => 'Toutes les pages';
+
+  @override
   String get csLineSpacing => 'Espacement';
 
   @override

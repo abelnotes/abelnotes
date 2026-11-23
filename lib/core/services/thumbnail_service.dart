@@ -1,7 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:abelnotes/core/platform/io.dart';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/rendering.dart';
 import 'package:path/path.dart' as p;
 import 'package:abelnotes/core/platform/app_dirs.dart';
@@ -9,6 +12,7 @@ import 'package:abelnotes/core/platform/app_dirs.dart';
 import 'dart:typed_data';
 
 import 'package:abelnotes/config/app_config.dart';
+import 'package:abelnotes/core/notebook/page_codec.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
@@ -85,6 +89,65 @@ class ThumbnailService {
     } catch (e) {
       debugPrint('[ThumbnailService] Write failed for $notebookId: $e');
       return null;
+    }
+  }
+
+  Future<void> _sketchQueue = Future.value();
+  final Map<String, Future<bool>> _sketchJobs = {};
+  final Set<String> _sketchFailed = {};
+
+  /// Renders the sketch thumbnail of [notebookId] from its loose store at
+  /// [storeDir], for a tile whose thumbnail is missing or the old portrait one.
+  /// One at a time; a notebook that fails is not tried again this session.
+  Future<bool> renderSketchFromStore(String notebookId, String storeDir) {
+    if (_sketchFailed.contains(notebookId)) return Future.value(false);
+    return _sketchJobs[notebookId] ??= () async {
+      final turn = _sketchQueue;
+      final done = Completer<void>();
+      _sketchQueue = done.future;
+      try {
+        await turn;
+        final ok = await _renderSketchFromStore(notebookId, storeDir);
+        if (!ok) _sketchFailed.add(notebookId);
+        // Breathing room so a library full of sketches never janks scrolling.
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        return ok;
+      } catch (e) {
+        _sketchFailed.add(notebookId);
+        return false;
+      } finally {
+        _sketchJobs.remove(notebookId);
+        done.complete();
+      }
+    }();
+  }
+
+  Future<bool> _renderSketchFromStore(String id, String dir) async {
+    try {
+      final doc = DocumentStructure.fromJson(jsonDecode(await File(
+                  p.join(dir, AppConfig.documentFile))
+              .readAsString())
+          as Map<String, dynamic>);
+      if (doc.pages.isEmpty) return false;
+      final bytes = await File(
+              p.join(dir, AppConfig.pagesDir, doc.pages.first.fileName))
+          .readAsBytes();
+      final page = await compute(decodePageBytes, bytes);
+      if (page.width < AppConfig.scratchPageSize) return false;
+      final assets = <String, Uint8List>{};
+      for (final ref in {
+        ...page.assetReferences,
+        for (final el in page.layers.content)
+          if (el is ImageElement && el.data.assetPath.isNotEmpty)
+            el.data.assetPath,
+      }) {
+        final f = File(p.join(dir, AppConfig.assetsDir, ref));
+        if (await f.exists()) assets[ref] = await f.readAsBytes();
+      }
+      return await renderAndCache(id, page, assetBytes: assets) != null;
+    } catch (e) {
+      debugPrint('[ThumbnailService] Sketch render failed for $id: $e');
+      return false;
     }
   }
 

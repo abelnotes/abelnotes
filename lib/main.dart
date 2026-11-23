@@ -138,14 +138,17 @@ class AbelNotesApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(appSettingsProvider).themeMode;
+    final themeMode = ref.watch(appSettingsProvider.select((s) => s.themeMode));
+    final themeChoice =
+        ref.watch(appSettingsProvider.select((s) => s.themeChoice));
     final localeOverride =
         ref.watch(appSettingsProvider.select((s) => s.localeOverride));
     // Before any page paints, thumbnails included (see the canvas screen
     // for the repaint of an open notebook).
     CanvasRenderEngine.speedWidth =
         ref.watch(appSettingsProvider.select((s) => s.speedWidth));
-    final variant = _variantFor(themeMode, MediaQuery.platformBrightnessOf(context));
+    final variant = resolveThemeVariant(
+        themeMode, themeChoice, MediaQuery.platformBrightnessOf(context));
     final palette = switch (variant) {
       HwThemeVariant.paper => HwPalette.paper,
       HwThemeVariant.light => HwPalette.light,
@@ -204,20 +207,6 @@ class AbelNotesApp extends ConsumerWidget {
         );
       },
     );
-  }
-
-  HwThemeVariant _variantFor(ThemeMode mode, Brightness platform) {
-    switch (mode) {
-      case ThemeMode.light:
-        return HwThemeVariant.light;
-      case ThemeMode.dark:
-        return HwThemeVariant.dark;
-      case ThemeMode.system:
-        // System default → "paper" feel for light, "dark" for dark.
-        return platform == Brightness.dark
-            ? HwThemeVariant.dark
-            : HwThemeVariant.paper;
-    }
   }
 }
 

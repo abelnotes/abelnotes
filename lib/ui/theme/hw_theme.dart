@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:abelnotes/core/config/japanese_font.dart';
+import 'package:abelnotes/core/providers/app_settings_provider.dart';
 
 /// AbelNotes theme tokens: logo blue/teal accent, slate ink, chalk/paper
 /// neutrals. Three variants: paper (warm, default light), light, dark.
@@ -195,6 +196,28 @@ class HwPalette {
 }
 
 enum HwThemeVariant { paper, light, dark }
+
+/// The look to show: an explicit choice wins, else the legacy mode
+/// (system = paper on a light OS, dark on a dark one).
+HwThemeVariant resolveThemeVariant(
+    ThemeMode mode, ThemeChoice? choice, Brightness platform) {
+  switch (choice) {
+    case ThemeChoice.light:
+      return HwThemeVariant.light;
+    case ThemeChoice.paper:
+      return HwThemeVariant.paper;
+    case ThemeChoice.dark:
+      return HwThemeVariant.dark;
+    case null:
+      return switch (mode) {
+        ThemeMode.light => HwThemeVariant.light,
+        ThemeMode.dark => HwThemeVariant.dark,
+        ThemeMode.system => platform == Brightness.dark
+            ? HwThemeVariant.dark
+            : HwThemeVariant.paper,
+      };
+  }
+}
 
 /// InheritedWidget that exposes the active HwPalette to descendants.
 class HwThemeScope extends InheritedWidget {

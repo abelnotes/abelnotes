@@ -59,6 +59,7 @@ import 'package:abelnotes/features/canvas/presentation/page_manager_sheet.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
 import 'package:abelnotes/ui/editor/hw_editor_chrome.dart';
 import 'package:abelnotes/ui/primitives/file_drop_zone.dart';
+import 'package:abelnotes/ui/primitives/hw_segmented.dart';
 import 'package:abelnotes/ui/primitives/page_size_picker.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 import 'package:abelnotes/ui/theme/hw_icons.dart';
@@ -3411,6 +3412,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 (page != null && hasFullPageBackground(page));
             final paper = live.currentPaperType;
             final notifier = ref.read(canvasProvider.notifier);
+            final allPages = notifier.paperAllPages && live.pageCount > 1;
             final spacingPt = bg != null && bg.lineSpacing > 0
                 ? bg.lineSpacing
                 : paperTypeLineSpacing(paper);
@@ -3424,6 +3426,34 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 Text(l10n.csPaperType,
                     style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
+                if (live.pageCount > 1)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Row(
+                      children: [
+                        Text(l10n.csPaperApplyTo,
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerRight,
+                            child: HwSegmented<bool>(
+                              key: const Key('paperScope'),
+                              segments: [
+                                HwSegment(false, l10n.csPaperThisPage),
+                                HwSegment(true, l10n.csPaperAllPages),
+                              ],
+                              selected: allPages,
+                              onChanged: (v) => setSheetState(
+                                  () => notifier.paperAllPages = v),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 for (final t in PaperType.values)
                   ListTile(
                     leading: Icon(
@@ -3435,7 +3465,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                           : null,
                     ),
                     title: Text(_paperTypeLabel(l10n, t)),
-                    onTap: () => notifier.setPaperType(t),
+                    onTap: () =>
+                        notifier.setPaperType(t, allPages: allPages),
                   ),
                 if (paper != PaperType.blank && !isPdf)
                   Padding(
@@ -3466,12 +3497,20 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                           onChanged: (v) =>
                               setSheetState(() => dragSpacingMm = v),
                           onChangeEnd: (v) {
-                            notifier.setLineSpacing(v * ptPerMm);
+                            notifier.setLineSpacing(v * ptPerMm,
+                                allPages: allPages);
                             setSheetState(() => dragSpacingMm = null);
                           },
                         ),
                       ],
                     ),
+                  ),
+                // Page size stays per page: set apart from the scoped rows.
+                if (page != null && !live.isScratch && !isPdf &&
+                    live.pageCount > 1)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Divider(height: 1),
                   ),
                 if (page != null && !live.isScratch && !isPdf)
                   Padding(

@@ -476,7 +476,7 @@ List<UndoEntry> rebaseHistoryOnMerge(List<UndoEntry> stack,
               layers: RenderingLayers(
                   background: d.background ?? page.layers.background,
                   content: content));
-        }())
+        }(), group: entry.group)
       else
         entry,
   ];

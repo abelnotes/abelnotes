@@ -776,6 +776,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get csPaperMusic => 'Notenlinien';
 
   @override
+  String get csPaperApplyTo => 'Anwenden auf';
+
+  @override
+  String get csPaperThisPage => 'Diese Seite';
+
+  @override
+  String get csPaperAllPages => 'Alle Seiten';
+
+  @override
   String get csLineSpacing => 'Abstand';
 
   @override

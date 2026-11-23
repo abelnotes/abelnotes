@@ -774,6 +774,15 @@ class AppLocalizationsPt extends AppLocalizations {
   String get csPaperMusic => 'Pauta musical';
 
   @override
+  String get csPaperApplyTo => 'Aplicar a';
+
+  @override
+  String get csPaperThisPage => 'Esta página';
+
+  @override
+  String get csPaperAllPages => 'Todas as páginas';
+
+  @override
   String get csLineSpacing => 'Espaçamento';
 
   @override

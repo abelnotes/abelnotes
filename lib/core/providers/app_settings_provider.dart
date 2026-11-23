@@ -125,6 +125,8 @@ class AppSettings {
   final bool favoritesFirst;
   final bool libraryGridView;
   final ThemeMode themeMode;
+  /// The look picked explicitly in Settings; null = follow [themeMode].
+  final ThemeChoice? themeChoice;
   /// OneNote-style preset rail, independent per ink tool — keyed by
   /// CanvasTool.name (pen/ballpoint/brush/highlighter each get their own
   /// 3 slots so saving or clearing one tool's preset never touches
@@ -207,6 +209,7 @@ class AppSettings {
     this.favoritesFirst = true,
     this.libraryGridView = true,
     this.themeMode = ThemeMode.system,
+    this.themeChoice,
     this.toolPresets = const {},
     this.toolDock = const ToolDockConfig(),
     this.mouseDraws = false,
@@ -252,6 +255,7 @@ class AppSettings {
     bool? favoritesFirst,
     bool? libraryGridView,
     ThemeMode? themeMode,
+    ThemeChoice? themeChoice,
     Map<String, List<PenPreset?>>? toolPresets,
     ToolDockConfig? toolDock,
     bool? mouseDraws,
@@ -284,6 +288,7 @@ class AppSettings {
         favoritesFirst: favoritesFirst ?? this.favoritesFirst,
         libraryGridView: libraryGridView ?? this.libraryGridView,
         themeMode: themeMode ?? this.themeMode,
+        themeChoice: themeChoice ?? this.themeChoice,
         toolPresets: toolPresets ?? this.toolPresets,
         toolDock: toolDock ?? this.toolDock,
         mouseDraws: mouseDraws ?? this.mouseDraws,
@@ -302,6 +307,9 @@ class AppSettings {
         localeCode: localeCode ?? this.localeCode,
       );
 }
+
+/// The three looks offered in Settings > theme.
+enum ThemeChoice { light, paper, dark }
 
 class AppSettingsNotifier extends StateNotifier<AppSettings> {
   static const _prefsKey = 'app_settings_v1';
@@ -338,6 +346,10 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         (m) => m.name == (map['theme'] as String?),
         orElse: () => ThemeMode.system,
       );
+      final themeChoiceName = map['theme_choice'] as String?;
+      final themeChoice = ThemeChoice.values
+          .where((c) => c.name == themeChoiceName)
+          .firstOrNull;
 
       final toolPresetsRaw =
           (map['tool_presets'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -388,6 +400,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         favoritesFirst: favFirst,
         libraryGridView: map['grid_view'] as bool? ?? true,
         themeMode: theme,
+        themeChoice: themeChoice,
         toolPresets: toolPresets,
         toolDock: dock,
         mouseDraws: map['mouse_draws'] as bool? ?? false,
@@ -429,6 +442,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
         'fav_first': state.favoritesFirst,
         'grid_view': state.libraryGridView,
         'theme': state.themeMode.name,
+        if (state.themeChoice != null) 'theme_choice': state.themeChoice!.name,
         'tool_presets': state.toolPresets.map((toolName, list) => MapEntry(
             toolName, list.map((p) => p?.toJson()).toList(growable: false))),
         'dock': state.toolDock.toJson(),
@@ -584,6 +598,19 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
   void setThemeMode(ThemeMode mode) {
     state = state.copyWith(themeMode: mode);
+    _persist();
+  }
+
+  /// An explicit look; [themeMode] is kept in step for older builds.
+  void setThemeChoice(ThemeChoice choice) {
+    state = state.copyWith(
+      themeChoice: choice,
+      themeMode: switch (choice) {
+        ThemeChoice.dark => ThemeMode.dark,
+        ThemeChoice.light => ThemeMode.light,
+        ThemeChoice.paper => ThemeMode.system,
+      },
+    );
     _persist();
   }
 

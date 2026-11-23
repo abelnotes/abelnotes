@@ -743,5 +743,7 @@ class CanvasState {
 class UndoEntry {
   final String pageFileName;
   final PageData pageData;
-  UndoEntry(this.pageFileName, this.pageData);
+  /// Entries sharing a group are one user step across pages (all-pages edits).
+  final int? group;
+  UndoEntry(this.pageFileName, this.pageData, {this.group});
 }

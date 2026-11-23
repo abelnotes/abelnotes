@@ -752,6 +752,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get csPaperMusic => '五线谱';
 
   @override
+  String get csPaperApplyTo => '应用于';
+
+  @override
+  String get csPaperThisPage => '当前页';
+
+  @override
+  String get csPaperAllPages => '所有页面';
+
+  @override
   String get csLineSpacing => '间距';
 
   @override

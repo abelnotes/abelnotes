@@ -49,6 +49,7 @@ import 'package:abelnotes/core/providers/canvas/tool_prefs.dart';
 import 'package:abelnotes/core/notebook/page_codec.dart';
 import 'package:abelnotes/features/canvas/data/element_geometry.dart';
 import 'package:abelnotes/features/canvas/data/pdf_text_carry.dart';
+import 'package:abelnotes/features/canvas/data/pdf_export.dart' show hasFullPageBackground;
 import 'package:abelnotes/core/sync/page_merge.dart' as page_merge;
 import 'package:abelnotes/core/sync/stroke_ops.dart' show StrokeOps, splitPageVersion;
 import 'package:abelnotes/core/sync/page_merge.dart'
@@ -1692,34 +1693,89 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
 
   // ── Paper type ──
 
-  void setPaperType(PaperType type) {
+  /// Paper sheet scope for this session: true applies to every ruled page.
+  bool paperAllPages = true;
+
+  /// Undo group ids: an all-pages paper change is one step across pages.
+  int _undoGroupSeq = 0;
+
+  static PageData _withPaperType(PageData page, PaperType type) =>
+      carryPdfTextLayer(page, PageData(
+        pageId: page.pageId,
+        pageNumber: page.pageNumber,
+        width: page.width,
+        height: page.height,
+        layers: RenderingLayers(
+          background: BackgroundLayer(
+            type: paperTypeToString(type),
+            color: page.layers.background.color,
+            lineSpacing: paperTypeLineSpacing(type),
+            lineColor: page.layers.background.lineColor,
+          ),
+          content: page.layers.content,
+        ),
+        assetReferences: page.assetReferences,
+        createdAt: page.createdAt,
+        modifiedAt: DateTime.now(),
+      ));
+
+  static PageData _withLineSpacing(PageData page, double spacing) =>
+      page.copyWith(
+        layers: page.layers.copyWith(
+          background: page.layers.background.copyWith(lineSpacing: spacing),
+        ),
+        modifiedAt: DateTime.now(),
+      );
+
+  /// True when [page]'s background is ruled paper, not a PDF or image.
+  static bool isRuledPaperPage(PageData page) =>
+      page.layers.background.pdfAsset == null && !hasFullPageBackground(page);
+
+  /// Applies [edit] to every ruled page in memory as one undo step.
+  /// Pages without local data yet have nothing to edit and are skipped.
+  void _editAllRuledPages(PageData? Function(PageData page) edit,
+      {CanvasState Function(CanvasState)? alsoState}) {
+    final s = state!;
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    final group = ++_undoGroupSeq;
+    var undo = s.undoStack;
+    for (final entry in s.document.pages) {
+      final page = s.pages[entry.fileName];
+      if (page == null || !isRuledPaperPage(page)) continue;
+      final after = edit(page);
+      if (after == null) continue;
+      updatedPages[entry.fileName] = after;
+      undo = [...undo, UndoEntry(entry.fileName, page, group: group)];
+    }
+    if (identical(undo, s.undoStack) && alsoState == null) return;
+    final next = s.copyWith(
+        pages: updatedPages,
+        undoStack: _trimUndo(undo),
+        redoStack: [],
+        isDirty: true);
+    state = alsoState == null ? next : alsoState(next);
+  }
+
+  /// Sets the paper type of the current page, or with [allPages] of every
+  /// ruled page (PDF and image pages keep theirs).
+  void setPaperType(PaperType type, {bool allPages = false}) {
     if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
+    final bgType = paperTypeToString(type);
+
+    if (allPages) {
+      // metadata.paperType: Library cover swatch and the default for new pages.
+      _editAllRuledPages((p) => _withPaperType(p, type),
+          alsoState: (n) => n.copyWith(
+              metadata: s.metadata
+                  .copyWith(paperType: bgType, modifiedAt: DateTime.now())));
+      return;
+    }
 
     final fileName = s.currentPageFileName;
-    final bgType = paperTypeToString(type);
-    final lineSpacing = paperTypeLineSpacing(type);
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId,
-      pageNumber: page.pageNumber,
-      width: page.width,
-      height: page.height,
-      layers: RenderingLayers(
-        background: BackgroundLayer(
-          type: bgType,
-          color: page.layers.background.color,
-          lineSpacing: lineSpacing,
-          lineColor: page.layers.background.lineColor,
-        ),
-        content: page.layers.content,
-      ),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt,
-      modifiedAt: DateTime.now(),
-    ));
+    final updatedPage = _withPaperType(page, type);
 
     // metadata.paperType only drives the Library cover's texture swatch and
     // the default for newly added pages — keep it in sync with page 1 so
@@ -1733,25 +1789,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
         undoOf: page, alsoState: (n) => n.copyWith(metadata: metadata));
   }
 
-  /// Sets the gap between the current page's lines, grid squares or dots,
-  /// in points. New pages copy it from the page they're added after.
-  void setLineSpacing(double spacing) {
+  /// Gap between lines, grid squares or dots in points, on the current page
+  /// or with [allPages] every ruled page. New pages copy the page before.
+  void setLineSpacing(double spacing, {bool allPages = false}) {
     if (state == null || _preview || _loadingSnapshotId != null) return;
     final s = state!;
     final page = s.currentPage;
     if (page == null) return;
-    final bg = page.layers.background;
-    if (bg.lineSpacing == spacing) return;
 
-    final fileName = s.currentPageFileName;
-    final updatedPage = page.copyWith(
-      layers: page.layers.copyWith(
-        background: bg.copyWith(lineSpacing: spacing),
-      ),
-      modifiedAt: DateTime.now(),
-    );
+    if (allPages) {
+      _editAllRuledPages((p) => p.layers.background.lineSpacing == spacing
+          ? null
+          : _withLineSpacing(p, spacing));
+      return;
+    }
 
-    commitPageEdit(s, fileName, updatedPage, undoOf: page);
+    if (page.layers.background.lineSpacing == spacing) return;
+    commitPageEdit(s, s.currentPageFileName, _withLineSpacing(page, spacing),
+        undoOf: page);
   }
 
   /// Resizes the current page. What's drawn keeps its place from the top
@@ -2369,21 +2424,48 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     final s = state!;
     final idx = _lastEntryFor(s.undoStack, fileName);
     if (idx < 0) return;
-    final entry = s.undoStack[idx];
-    final newUndo = List<UndoEntry>.from(s.undoStack)..removeAt(idx);
-    final currentPage = s.pages[fileName];
-    final newRedo = [
-      ...s.redoStack,
-      if (currentPage != null) UndoEntry(fileName, currentPage),
-    ];
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = entry.pageData;
+    final h = _stepHistory(s, s.undoStack, s.redoStack, idx);
     state = s.copyWith(
-        pages: updatedPages,
-        document: _withEntrySize(s.document, fileName, entry.pageData),
-        undoStack: newUndo,
-        redoStack: newRedo,
+        pages: h.pages,
+        document: _withEntrySize(s.document, fileName, h.pages[fileName]!),
+        undoStack: h.from,
+        redoStack: h.to,
         isDirty: true);
+  }
+
+  /// Moves the step at [idx] of [from] onto [to]. A grouped step takes every
+  /// page whose latest entry is in the group; pages edited since keep theirs.
+  static ({Map<String, PageData> pages, List<UndoEntry> from, List<UndoEntry> to})
+      _stepHistory(CanvasState s, List<UndoEntry> from, List<UndoEntry> to,
+          int idx) {
+    final entry = from[idx];
+    final picked = <int>[idx];
+    final group = entry.group;
+    if (group != null) {
+      final latest = <String>{entry.pageFileName};
+      for (var i = from.length - 1; i >= 0; i--) {
+        final e = from[i];
+        if (!latest.add(e.pageFileName)) continue;
+        if (e.group == group) picked.add(i);
+      }
+    }
+    picked.sort();
+    final pages = Map<String, PageData>.from(s.pages);
+    final newTo = [...to];
+    for (final i in picked) {
+      final e = from[i];
+      final current = s.pages[e.pageFileName];
+      if (current != null) {
+        newTo.add(UndoEntry(e.pageFileName, current, group: group));
+      }
+      pages[e.pageFileName] = e.pageData;
+    }
+    final pickedSet = picked.toSet();
+    final newFrom = [
+      for (var i = 0; i < from.length; i++)
+        if (!pickedSet.contains(i)) from[i],
+    ];
+    return (pages: pages, from: newFrom, to: newTo);
   }
 
   void redo() {
@@ -2394,20 +2476,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     final s = state!;
     final idx = _lastEntryFor(s.redoStack, fileName);
     if (idx < 0) return;
-    final entry = s.redoStack[idx];
-    final newRedo = List<UndoEntry>.from(s.redoStack)..removeAt(idx);
-    final currentPage = s.pages[fileName];
-    final newUndo = [
-      ...s.undoStack,
-      if (currentPage != null) UndoEntry(fileName, currentPage),
-    ];
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = entry.pageData;
+    final h = _stepHistory(s, s.redoStack, s.undoStack, idx);
     state = s.copyWith(
-        pages: updatedPages,
-        document: _withEntrySize(s.document, fileName, entry.pageData),
-        undoStack: newUndo,
-        redoStack: newRedo,
+        pages: h.pages,
+        document: _withEntrySize(s.document, fileName, h.pages[fileName]!),
+        undoStack: h.to,
+        redoStack: h.from,
         isDirty: true);
   }
 
@@ -2629,12 +2703,21 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
     // exceed the cap, otherwise just append. Using sublist + add avoids
     // the O(N) removeAt(0) the previous code paid on every push past
     // 50 entries.
-    final List<UndoEntry> stack;
-    if (source.length >= _undoStackCap) {
-      stack = source.sublist(source.length - _undoStackCap + 1)
-        ..add(UndoEntry(fileName, page));
-    } else {
-      stack = [...source, UndoEntry(fileName, page)];
+    if (source.length < _undoStackCap) {
+      return [...source, UndoEntry(fileName, page)];
+    }
+    return _trimUndo([...source, UndoEntry(fileName, page)]);
+  }
+
+  /// [stack] capped at [_undoStackCap] steps; a grouped step counts once.
+  static List<UndoEntry> _trimUndo(List<UndoEntry> stack) {
+    var steps = 0;
+    final seen = <int>{};
+    for (var i = stack.length - 1; i >= 0; i--) {
+      final g = stack[i].group;
+      if (g == null || seen.add(g)) steps++;
+      // stack[i] opens the oldest step past the cap: keep what follows it.
+      if (steps > _undoStackCap) return stack.sublist(i + 1);
     }
     return stack;
   }
@@ -4313,6 +4396,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
         pageCount: metadata.pageCount,
         createdAt: metadata.createdAt,
       );
+      // A sketch edited elsewhere: its library preview shows this device's copy.
+      final live = state;
+      if (!kIsWeb &&
+          live != null &&
+          live.metadata.id == id &&
+          metadata.paperType == AppConfig.infinitePaperType &&
+          document.pages.isNotEmpty &&
+          toWrite.containsKey(document.pages.first.fileName)) {
+        _thumbnails.refresh(live, id);
+      }
       print('[Canvas] Saved pulled changes locally (incremental): '
           '${encoded.length} pages, ${newAssets.length} assets, '
           '${deleted.length} deleted');

@@ -293,4 +293,92 @@ void main() {
     expect(onDisk(), contains(id));
     expect(h.state.isDirty, isFalse);
   });
+
+  group('paper sheet scope', () {
+    Map<String, PageData> gridPages() => {
+          for (var i = 1; i <= 3; i++)
+            'p$i.json': PageData(
+              pageId: 'p$i',
+              pageNumber: i,
+              width: 595,
+              height: 842,
+              layers: const RenderingLayers(
+                  background: BackgroundLayer(type: 'grid', lineSpacing: 20)),
+            ),
+        };
+    double spacing(EditorHarness h, String f) =>
+        h.state.pages[f]!.layers.background.lineSpacing;
+
+    // Saves in real time now: an autosave on fake timers would hold the
+    // sync lock past teardown.
+    Future<void> save(EditorHarness h) async {
+      await h.tester.runAsync(h.notifier.flushPendingWork);
+      await h.tester.pump();
+    }
+
+    Future<void> openSheet(EditorHarness h) async {
+      await h.tester.tap(find.byTooltip('More'));
+      await h.tester.pumpAndSettle();
+      await h.tester.tap(find.text('Change paper type'));
+      await h.tester.pumpAndSettle();
+    }
+
+    Future<void> dragSlider(EditorHarness h, double dx) async {
+      final slider = find.byType(Slider);
+      await h.tester.ensureVisible(slider);
+      await h.tester.pumpAndSettle();
+      await h.tester.drag(slider, Offset(dx, 0));
+      await h.tester.pump();
+      await save(h);
+      await h.tester.pumpAndSettle();
+    }
+
+    for (final size in const [Size(1280, 800), Size(400, 800)]) {
+      testEditor('at ${size.width.toInt()} px the slider changes every page, '
+          'then "This page" only the current one', (h) async {
+        await openSheet(h);
+        final scope = find.byKey(const Key('paperScope'));
+        Finder inScope(String t) =>
+            find.descendant(of: scope, matching: find.text(t));
+        expect(inScope('All pages'), findsOneWidget);
+        expect(inScope('This page'), findsOneWidget);
+        // The scope row lines up with the spacing row below it.
+        expect(h.tester.getTopLeft(find.text('Apply to')).dx,
+            h.tester.getTopLeft(find.text('Spacing')).dx);
+        await dragSlider(h, 80);
+        final all = spacing(h, 'p1.json');
+        expect(all, greaterThan(20));
+        expect(spacing(h, 'p2.json'), all);
+        expect(spacing(h, 'p3.json'), all);
+
+        await h.tester.ensureVisible(scope);
+        await h.tester.pumpAndSettle();
+        await h.tester.tap(inScope('This page'));
+        await h.tester.pumpAndSettle();
+        await dragSlider(h, -60); // a drag starts from the track's centre
+        expect(spacing(h, 'p1.json'), lessThan(all));
+        expect(spacing(h, 'p2.json'), all);
+        expect(spacing(h, 'p3.json'), all);
+
+        // One undo step brings the all-pages change back too.
+        Navigator.of(h.tester.element(find.text('Apply to'))).pop();
+        await h.tester.pumpAndSettle();
+        h.notifier.undo();
+        h.notifier.undo();
+        await h.tester.pump();
+        for (final f in ['p1.json', 'p2.json', 'p3.json']) {
+          expect(spacing(h, f), 20, reason: f);
+        }
+        h.remote.calls.clear();
+        await save(h);
+        // Every page goes up, like any edit.
+        final uploads = h.remote.calls.join('\n');
+        for (final f in ['p1.json', 'p2.json', 'p3.json']) {
+          expect(uploads, contains(f), reason: f);
+        }
+        expect(h.state.isDirty, isFalse);
+        h.notifier.paperAllPages = true;
+      }, pages: gridPages(), size: size);
+    }
+  });
 }

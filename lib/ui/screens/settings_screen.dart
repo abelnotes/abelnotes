@@ -490,14 +490,12 @@ class _GeneralSection extends ConsumerWidget {
                     Expanded(
                       child: GestureDetector(
                         onTap: () {
-                          // Map our variant onto Flutter's ThemeMode for
-                          // persistence; the wrapper picks the actual palette.
-                          ref.read(appSettingsProvider.notifier).setThemeMode(
-                                t.$4 == HwThemeVariant.dark
-                                    ? ThemeMode.dark
-                                    : t.$4 == HwThemeVariant.paper
-                                        ? ThemeMode.system
-                                        : ThemeMode.light,
+                          ref.read(appSettingsProvider.notifier).setThemeChoice(
+                                switch (t.$4) {
+                                  HwThemeVariant.dark => ThemeChoice.dark,
+                                  HwThemeVariant.paper => ThemeChoice.paper,
+                                  HwThemeVariant.light => ThemeChoice.light,
+                                },
                               );
                         },
                         child: Container(

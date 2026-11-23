@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:abelnotes/core/providers/canvas_state.dart';
 import 'package:abelnotes/l10n/app_localizations.dart';
+import 'package:abelnotes/ui/primitives/hw_segmented.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
 
 /// The section's [label] with a portrait/landscape toggle at its right, then
@@ -90,46 +91,17 @@ class PageSizePicker extends StatelessWidget {
     );
   }
 
-  /// Two-segment icon toggle, the same height as a chip's text line.
+  /// Portrait/landscape toggle.
   Widget _orientation(
-      BuildContext context, AppLocalizations l10n, bool landscape) {
-    final p = HwThemeScope.of(context);
-    Widget segment(IconData icon, String name, bool selected) => Tooltip(
-          message: name,
-          child: Semantics(
-            button: true,
-            selected: selected,
-            label: name,
-            child: GestureDetector(
-              onTap: selected ? null : () => onChanged(size.flipped),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: selected ? p.ink0 : null,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Icon(icon,
-                    size: 18, color: selected ? p.paper0 : p.ink1),
-              ),
-            ),
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: p.paper2,
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          segment(Icons.crop_portrait, l10n.pageSizePortrait, !landscape),
-          segment(Icons.crop_landscape, l10n.pageSizeLandscape, landscape),
+          BuildContext context, AppLocalizations l10n, bool landscape) =>
+      HwSegmented<bool>(
+        segments: [
+          HwSegment(false, l10n.pageSizePortrait, icon: Icons.crop_portrait),
+          HwSegment(true, l10n.pageSizeLandscape, icon: Icons.crop_landscape),
         ],
-      ),
-    );
-  }
+        selected: landscape,
+        onChanged: (_) => onChanged(size.flipped),
+      );
 
   Widget _chip(
       BuildContext context, String label, bool selected, VoidCallback onTap) {

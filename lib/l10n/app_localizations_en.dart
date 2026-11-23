@@ -773,6 +773,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get csPaperMusic => 'Music staff';
 
   @override
+  String get csPaperApplyTo => 'Apply to';
+
+  @override
+  String get csPaperThisPage => 'This page';
+
+  @override
+  String get csPaperAllPages => 'All pages';
+
+  @override
   String get csLineSpacing => 'Spacing';
 
   @override

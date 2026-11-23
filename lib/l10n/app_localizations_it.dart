@@ -775,6 +775,15 @@ class AppLocalizationsIt extends AppLocalizations {
   String get csPaperMusic => 'Pentagramma';
 
   @override
+  String get csPaperApplyTo => 'Applica a';
+
+  @override
+  String get csPaperThisPage => 'Questa pagina';
+
+  @override
+  String get csPaperAllPages => 'Tutte le pagine';
+
+  @override
   String get csLineSpacing => 'Spaziatura';
 
   @override
