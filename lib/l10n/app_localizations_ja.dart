@@ -115,9 +115,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get csUnsavedChangesTitle => '未保存の変更';
 
   @override
-  String get csUnsavedChangesBody => '閉じる前に変更を保存しますか？';
-
-  @override
   String get csLocalSaveFailed => 'この端末に保存できません。自動で再試行しています。アプリを閉じないでください。';
 
   @override
@@ -194,11 +191,6 @@ class AppLocalizationsJa extends AppLocalizations {
       other: '$countページ',
     );
     return 'PDFをインポートしました（$_temp0）';
-  }
-
-  @override
-  String csPdfImportError(String error) {
-    return 'PDFのインポートに失敗しました：$error';
   }
 
   @override
@@ -759,6 +751,15 @@ class AppLocalizationsJa extends AppLocalizations {
   String get csPaperMusic => '五線譜';
 
   @override
+  String get csPaperApplyTo => '適用先';
+
+  @override
+  String get csPaperThisPage => 'このページ';
+
+  @override
+  String get csPaperAllPages => 'すべてのページ';
+
+  @override
   String get csLineSpacing => '間隔';
 
   @override
@@ -802,17 +803,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get csInvalidRangeError => '有効なページ範囲を入力してください（例：1〜10）。';
 
   @override
-  String csPdfStartOutOfRange(int count) {
-    return 'PDFには約$countページあります。開始ページが範囲外です。';
-  }
-
-  @override
   String get csImportPdfTitle => 'PDFをインポート';
-
-  @override
-  String csPdfEstimatedPages(int count) {
-    return 'PDFには約$countページがあります。';
-  }
 
   @override
   String csAllPagesWithCount(int count) {
@@ -1454,9 +1445,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get setExportLibraryEmpty => 'エクスポートするノートブックがありません。';
 
   @override
-  String get setExportLibraryInProgress => 'エクスポート中…';
-
-  @override
   String setExportLibraryDone(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1597,6 +1585,13 @@ class AppLocalizationsJa extends AppLocalizations {
   String get setCopyLogDone => 'ログがクリップボードにコピーされました。';
 
   @override
+  String get setDetailedLog => '詳細ログ';
+
+  @override
+  String get setDetailedLogSub =>
+      '同期とペンの詳細も記録するため、コピーしたログで問題を説明しやすくなります。必要ないときはオフにしてください。';
+
+  @override
   String get setContribute => '認識精度の向上に協力';
 
   @override
@@ -1611,32 +1606,10 @@ class AppLocalizationsJa extends AppLocalizations {
       '手書きノートやスケッチを、自分のサーバーに同期できます。使い始める方法を選んでください。あとから変更できます。';
 
   @override
-  String get onbTryNowTitle => 'すぐに使う';
-
-  @override
   String get onbTryNowSubtitle => 'ノートブックはこの端末に保存されます。アカウントやサーバーの準備は不要です。';
 
   @override
-  String get onbConnectNextcloudTitle => 'Nextcloudに接続';
-
-  @override
-  String get onbConnectNextcloudSubtitle =>
-      '自分のWebDAV／Nextcloudサーバーに同期し、複数の端末からアクセスできます。';
-
-  @override
   String get onbManagedServerTitle => 'AbelNotesの管理サーバー';
-
-  @override
-  String get onbManagedServerSubtitle => 'サーバーをお持ちでない方向けに、設定不要の同期サービスを準備しています。';
-
-  @override
-  String get onbComingSoonBadge => '近日公開予定';
-
-  @override
-  String get onbDriveTitle => 'Google Driveと同期';
-
-  @override
-  String get onbDriveSubtitle => 'お使いのGoogle Driveでノートブックを同期できます。追加の設定は不要です。';
 
   @override
   String get driveSignInFailed => 'Googleへのサインインが完了しませんでした。変更は行われていません。';
@@ -1805,9 +1778,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get libLocalOnlyDone => 'この端末だけに保存する設定にしました。';
 
   @override
-  String get libSyncResumedDone => 'このノートブックは再び同期されます。';
-
-  @override
   String get syncLocalOnlyTooltip => 'この端末にのみ保存されます';
 
   @override
@@ -1862,9 +1832,6 @@ class AppLocalizationsJa extends AppLocalizations {
   @override
   String get onbLicenseNote =>
       'アプリを開くとAGPL-3.0ライセンスに同意したものとみなされます。「AbelNotes」はプロジェクトの商標です。';
-
-  @override
-  String get logConnectionFailed => '接続できません。 URL、ユーザー名、パスワードを確認してください。';
 
   @override
   String logConnectionError(String error) {
@@ -2084,15 +2051,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chromeSizeSection => 'サイズ';
 
   @override
-  String get chromeSizeSmall => 'S';
-
-  @override
-  String get chromeSizeMedium => 'M';
-
-  @override
-  String get chromeSizeLarge => 'L';
-
-  @override
   String get chromePresetOverwrite => '現在の設定で上書き';
 
   @override
@@ -2132,15 +2090,7 @@ class AppLocalizationsJa extends AppLocalizations {
   String get chromeApply => '適用';
 
   @override
-  String get pmNone => 'なし';
-
-  @override
   String get pmCreateChapterFirst => '先に章を1つ以上作成してください。';
-
-  @override
-  String pmAssignChapterCount(int count) {
-    return '章を割り当て（$countページ）';
-  }
 
   @override
   String pmDeletePagesConfirm(int count) {
@@ -2163,63 +2113,12 @@ class AppLocalizationsJa extends AppLocalizations {
   String get pmDelete => '削除';
 
   @override
-  String pmPagesCut(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$countページを切り取りました。貼り付け先のノートブックを開いてください。',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String pmPagesCutSkipped(int count, int skipped) {
-    return '$countページを切り取りました（未読み込みの$skippedページはスキップしました）。貼り付け先のノートブックを開いてください。';
-  }
-
-  @override
   String pmSelectedCount(int count) {
     return '$countページを選択中';
   }
 
   @override
-  String get pmSelectAllButton => 'すべて';
-
-  @override
-  String get pmClearSelection => '選択を解除';
-
-  @override
-  String pmPagesCount(int count) {
-    return 'ページ ($count)';
-  }
-
-  @override
-  String pmPagesFilteredCount(int visible, int total) {
-    return 'ページ ($visible/$total)';
-  }
-
-  @override
   String get pmGoToPageTooltip => 'ページに移動…';
-
-  @override
-  String get pmExitSelection => '選択を終了する';
-
-  @override
-  String get pmSelectPages => 'ページを選択';
-
-  @override
-  String get pmPastePages => 'ページを貼り付ける';
-
-  @override
-  String pmPagesPasted(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$countページが貼り付けられました。',
-      one: '1ページ貼り付けました。',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get pmAddPage => 'ページを追加';
@@ -2273,17 +2172,6 @@ class AppLocalizationsJa extends AppLocalizations {
   String get pmOk => 'OK';
 
   @override
-  String pmCountPagesShort(int count) {
-    return '$countページ';
-  }
-
-  @override
-  String get pmChapter => '章';
-
-  @override
-  String get pmCut => '切り取り';
-
-  @override
   String get pmInsertBefore => '前に挿入';
 
   @override
@@ -2303,11 +2191,6 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get pmChapterEllipsis => '章…';
-
-  @override
-  String pmPageChapterLabel(int number, String chapter) {
-    return '$number • $chapter';
-  }
 
   @override
   String get pmCorruptAssetTooltip =>
@@ -3481,14 +3364,6 @@ class AppLocalizationsJa extends AppLocalizations {
   }
 
   @override
-  String pgtCardEndOfChapter(String chapter) {
-    return '$chapterの末尾';
-  }
-
-  @override
-  String get pgtCardAtEnd => '末尾';
-
-  @override
   String get pgtWhereStart => '先頭';
 
   @override
@@ -3685,9 +3560,6 @@ class AppLocalizationsJa extends AppLocalizations {
       '選択した手書きの数式を認識し、編集可能な LaTeX に変換します。結果を確認してください。一部の記号が間違っている可能性があります。';
 
   @override
-  String get csRecognizeMath => 'LaTeXに変換';
-
-  @override
   String get csRecognizeMathFailed => '数式を認識できませんでした';
 
   @override
@@ -3719,6 +3591,53 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => '画像がまだ読み込まれていません';
+
+  @override
+  String get csRecognize => '認識';
+
+  @override
+  String get csRecognizedAsFormula => '数式として認識しました';
+
+  @override
+  String get csRecognizedAsCircuit => '回路として認識しました';
+
+  @override
+  String get csRecognizeChange => '変更';
+
+  @override
+  String get csRecognizeAs => '認識の種類';
+
+  @override
+  String get csRecognizeAsFormula => '数式';
+
+  @override
+  String get csRecognizeAsCircuit => '回路';
+
+  @override
+  String get csRecognizeAsText => 'テキスト';
+
+  @override
+  String get csRecognizeTextNotConverted => '手書き文字は検索できますが、入力テキストには変換されません';
+
+  @override
+  String get csRecognizeDrawing => '図のようです：認識するものはありません';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$moduleはオフです：設定 > モジュールでオンにしてください';
+  }
+
+  @override
+  String get imgConvertToInk => 'インクに変換';
+
+  @override
+  String get csPhotoInkBusy => '手書き文字を読み取り中…';
+
+  @override
+  String get csPhotoInkFailed => 'この画像に手書き文字が見つかりません';
+
+  @override
+  String get csInsertPhotoInk => 'ノートの写真をインクに';
 
   @override
   String shareImportTitle(String name) {
@@ -3778,6 +3697,16 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get refZoomOut => 'ズームアウト';
+
+  @override
+  String get winMirrorBanner => '読み取り専用：このノートブックは別のウィンドウでも開いています。自動で更新されます。';
+
+  @override
+  String get winOpenElsewhere =>
+      'このノートブックは別のウィンドウで開いています。そちらで閉じてからもう一度お試しください。';
+
+  @override
+  String get winOpenNewWindow => '新しいウィンドウで開く';
 
   @override
   String get libDropHint => 'ドロップしてインポート';
@@ -4146,4 +4075,61 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get donGuidedTabTitle => 'サンプル提供 · AbelNotes';
+
+  @override
+  String get srchSection => 'ノート内';
+
+  @override
+  String srchHitsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'ノート内で$count件一致',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String srchPageN(int page) {
+    return '$pageページ';
+  }
+
+  @override
+  String srchShowMore(int count) {
+    return 'さらに$count件表示';
+  }
+
+  @override
+  String get srchIndexing => 'ノートをインデックス中…';
+
+  @override
+  String srchNoMatch(String query) {
+    return '「$query」を含むノートはありません。';
+  }
+
+  @override
+  String get findHint => 'ノートブック内を検索…';
+
+  @override
+  String get findInNotebook => 'ノートブック内を検索';
+
+  @override
+  String get findInNotebookSub => '入力テキスト、数式、PDF';
+
+  @override
+  String findCount(int current, int total) {
+    return '$current / $total';
+  }
+
+  @override
+  String get findNone => '一致なし';
+
+  @override
+  String get findPrevious => '前の一致（Shift+Enter）';
+
+  @override
+  String get findNext => '次の一致（Enter）';
+
+  @override
+  String get findClose => '閉じる（Esc）';
 }
