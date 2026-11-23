@@ -10,11 +10,15 @@ import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/features/canvas/presentation/editor/editor_pointer_controller.dart';
+import 'package:abelnotes/features/canvas/presentation/editor/wheel_kind.dart';
 import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_text_selection.dart';
 
 /// Wraps the page in the listeners that feed [ptr]. Reads the live state on
 /// every event: pan and zoom change at pointer rate and never rebuild this.
+// One per app: a gesture's events arrive in order on one view.
+final _wheelKind = WheelKindClassifier(web: kIsWeb);
+
 class CanvasPointerSurface extends ConsumerWidget {
   const CanvasPointerSurface({
     super.key,
@@ -146,13 +150,10 @@ class CanvasPointerSurface extends ConsumerWidget {
         final live = ref.read(canvasProvider);
         if (live == null) return;
         if (event is PointerScrollEvent) {
-          // Trackpad two-finger scroll = scroll the document.
-          // Most platforms deliver it as a pan-zoom gesture
-          // (handled in ptr.onScaleUpdate), but when the engine
-          // reports it as a scroll event instead, kind is
-          // trackpad — pan here rather than zooming, which is
-          // reserved for the mouse wheel.
-          if (event.kind == PointerDeviceKind.trackpad) {
+          // Trackpad two-finger scroll pans; the mouse wheel zooms. On the
+          // web the engine may tag a swipe as a mouse (Firefox always does).
+          if (_wheelKind.isTrackpad(event,
+              devicePixelRatio: View.of(context).devicePixelRatio)) {
             ref
                 .read(canvasProvider.notifier)
                 .setPanOffset(live.panOffset - event.scrollDelta);
