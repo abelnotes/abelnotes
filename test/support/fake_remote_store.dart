@@ -17,6 +17,9 @@ class FakeRemoteStore implements RemoteStore {
   final Map<String, Uint8List> files = {};
   final Set<String> directories = {};
 
+  /// Modification times listings report, by path (absent: none reported).
+  final Map<String, DateTime> lastModified = {};
+
   /// Every call the engine made, in order — lets a test assert on the commit
   /// ORDER, which is where the sync engine's correctness lives.
   final List<String> calls = [];
@@ -53,6 +56,7 @@ class FakeRemoteStore implements RemoteStore {
         isDirectory: false,
         contentLength: entry.value.length,
         version: _versions[entry.key],
+        lastModified: lastModified[entry.key],
       ));
     }
     return out;

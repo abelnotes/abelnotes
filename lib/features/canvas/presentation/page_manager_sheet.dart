@@ -12,6 +12,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:abelnotes/shared/utils/text_controller_scope.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/features/canvas/presentation/page_grid.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -1059,32 +1060,12 @@ class _PageManagerSheetState extends ConsumerState<PageManagerSheet> {
     final filtered = s.filteredPageIndices;
     final maxN = filtered.isEmpty ? s.pageCount : filtered.length;
     if (maxN <= 1) return;
-    final controller = TextEditingController();
     final l10n = AppLocalizations.of(ctx);
-    final result = await showDialog<int>(
-      context: ctx,
-      builder: (dCtx) => AlertDialog(
-        title: Text(l10n.pmMoveToPage),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(hintText: l10n.pmPageRangeHint(maxN)),
-          onSubmitted: (v) => Navigator.pop(dCtx, int.tryParse(v)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: Text(l10n.pmCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx, int.tryParse(controller.text)),
-            child: Text(l10n.pmMove),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
+    final result = await promptPageNumber(ctx,
+        title: l10n.pmMoveToPage,
+        hint: l10n.pmPageRangeHint(maxN),
+        cancel: l10n.pmCancel,
+        ok: l10n.pmMove);
     if (result == null || !mounted) return;
     final clamped = (result - 1).clamp(0, maxN - 1);
     final targetPosition =
@@ -1098,37 +1079,12 @@ class _PageManagerSheetState extends ConsumerState<PageManagerSheet> {
     final filtered = s.filteredPageIndices;
     final maxN = filtered.isEmpty ? s.pageCount : filtered.length;
     if (maxN <= 0) return;
-    final controller = TextEditingController();
     final l10n = AppLocalizations.of(ctx);
-    final result = await showDialog<int>(
-      context: ctx,
-      builder: (dCtx) => AlertDialog(
-        title: Text(l10n.pmGoToPage),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            hintText: l10n.pmPageRangeHint(maxN),
-          ),
-          onSubmitted: (v) {
-            final n = int.tryParse(v);
-            Navigator.pop(dCtx, n);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx),
-            child: Text(l10n.pmCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dCtx, int.tryParse(controller.text)),
-            child: Text(l10n.pmGo),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
+    final result = await promptPageNumber(ctx,
+        title: l10n.pmGoToPage,
+        hint: l10n.pmPageRangeHint(maxN),
+        cancel: l10n.pmCancel,
+        ok: l10n.pmGo);
     if (result == null || !mounted) return;
     final clamped = (result - 1).clamp(0, maxN - 1);
     final target = filtered.isEmpty ? clamped : filtered[clamped];
@@ -1600,4 +1556,33 @@ class _DestCardState extends ConsumerState<_DestCard> {
       ),
     );
   }
+}
+
+/// Asks for a page number (move to / go to page). Null when cancelled.
+Future<int?> promptPageNumber(BuildContext ctx,
+    {required String title,
+    required String hint,
+    required String cancel,
+    required String ok}) async {
+  final result = await showDialog<int>(
+    context: ctx,
+    builder: (dCtx) => TextControllerScope(builder: (_, controller) => AlertDialog(
+      title: Text(title),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(hintText: hint),
+        onSubmitted: (v) => Navigator.pop(dCtx, int.tryParse(v)),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dCtx), child: Text(cancel)),
+        TextButton(
+          onPressed: () => Navigator.pop(dCtx, int.tryParse(controller.text)),
+          child: Text(ok),
+        ),
+      ],
+    )),
+  );
+  return result;
 }

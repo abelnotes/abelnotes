@@ -83,6 +83,14 @@ class MultiFingerTapDetector {
     if (_downAt.isEmpty) _start = null;
   }
 
+  /// Forgets the gesture in progress and the last pen contact.
+  void dispose() {
+    _downAt.clear();
+    _start = null;
+    _fingers = 0;
+    _lastPen = null;
+  }
+
   /// Rules out the gesture in progress, if any (pen on the glass, palm).
   void spoil() {
     if (_start != null) _spoiled = true;

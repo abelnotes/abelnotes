@@ -3,38 +3,27 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
-import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
-import 'package:abelnotes/core/platform/device_class.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:abelnotes/config/app_config.dart';
 import 'package:abelnotes/core/services/crash_logger.dart';
-import 'package:abelnotes/core/services/remote_store.dart'
-    show RemoteStorageFullException, RemoteStoreException;
 import 'package:abelnotes/core/providers/app_settings_provider.dart';
 import 'package:abelnotes/core/providers/cross_notebook_clipboard_provider.dart';
 import 'package:abelnotes/core/providers/notebook_provider.dart';
 import 'package:abelnotes/core/providers/offline_providers.dart';
 import 'package:abelnotes/core/providers/remote_store_provider.dart'
     show remoteStoreProvider;
-import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/sync_thrift.dart';
-import 'package:abelnotes/core/services/symbol_library_service.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart'
     show
         CanvasRenderEngine,
         ballpointWidthFactor,
         penWidthFactor,
-        shapeOutline,
         circleDragBox,
         circleResizeBox,
-        scaledShapeResizeBox,
-        shapeBodyContains,
-        shapeEllipseRect,
-        triangleCorners;
+        scaledShapeResizeBox;
 import 'package:abelnotes/features/canvas/data/math_rasterizer.dart';
 import 'package:abelnotes/features/pages_tray/domain/page_transfer.dart';
-import 'package:abelnotes/features/pages_tray/domain/pages_tray.dart' show TrayPage;
 import 'package:abelnotes/features/canvas/data/shape_recognizer.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'package:abelnotes/shared/utils/rich_paste.dart';
@@ -42,9 +31,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:abelnotes/core/providers/canvas_state.dart';
+import 'package:abelnotes/core/providers/canvas/canvas_core.dart';
+import 'package:abelnotes/core/providers/canvas/asset_cache.dart';
+import 'package:abelnotes/core/providers/canvas/clipboard_actions.dart';
+import 'package:abelnotes/core/providers/canvas/element_editor.dart';
+import 'package:abelnotes/core/providers/canvas/eraser_throttle.dart';
+import 'package:abelnotes/core/providers/canvas/notebook_save.dart';
+import 'package:abelnotes/core/providers/canvas/pages_and_chapters.dart';
+import 'package:abelnotes/core/providers/canvas/pdf_sources.dart';
+import 'package:abelnotes/core/providers/canvas/selection_actions.dart';
+import 'package:abelnotes/core/providers/canvas/sync_pull.dart';
+import 'package:abelnotes/core/providers/canvas/sync_push.dart';
+import 'package:abelnotes/core/providers/canvas/sync_session.dart';
+import 'package:abelnotes/core/providers/canvas/symbols_library.dart';
+import 'package:abelnotes/core/providers/canvas/thumbnails.dart';
+import 'package:abelnotes/core/providers/canvas/tool_prefs.dart';
+import 'package:abelnotes/core/notebook/page_codec.dart';
+import 'package:abelnotes/features/canvas/data/element_geometry.dart';
+import 'package:abelnotes/features/canvas/data/pdf_text_carry.dart';
+import 'package:abelnotes/core/sync/page_merge.dart' as page_merge;
+import 'package:abelnotes/core/sync/stroke_ops.dart' show StrokeOps, splitPageVersion;
+import 'package:abelnotes/core/sync/page_merge.dart'
+    hide rebaseHistoryOnMerge, placeByLocalOrder;
 // Re-export so all existing import canvas_provider.dart files keep getting
 // CanvasState, CanvasTool, PaperType, etc. without any change.
 export 'package:abelnotes/core/providers/canvas_state.dart';
+export 'package:abelnotes/core/notebook/page_codec.dart';
+export 'package:abelnotes/features/canvas/data/pdf_text_carry.dart';
 
 // ═══════════════════════════════════════════════════════════════
 //  CANVAS PROVIDER
@@ -69,31 +82,82 @@ final canvasProvider =
   return CanvasNotifier(ref);
 });
 
-/// Per-StrokeData bounding-box cache used by the eraser hit-test.
-/// Computed lazily on the first hit, persists for the lifetime of the
-/// underlying StrokeData reference (Expando = weak-keyed). Skipping
-/// even one stroke's 80-point loop per pointer event is the difference
-/// between a 200-element walk dominating the main thread and not.
-final Expando<Rect> _strokeBboxCache = Expando<Rect>();
-
-/// Keeps [before]'s PDF text layer on [after] while its source image is unchanged;
-/// a moved, cropped or deleted image would leave the text misaligned, so it goes.
-PageData carryPdfTextLayer(PageData before, PageData after) {
-  final layer = before.pdfTextLayer;
-  if (layer == null || after.pdfTextLayer != null) return after;
-  ImageData? source(PageData page) {
-    for (final e in page.layers.content) {
-      final data = e.mapOrNull(image: (i) => i.data);
-      if (data != null && data.assetPath == layer.sourceAssetPath) return data;
-    }
-    return null;
-  }
-  final kept = source(before);
-  return kept != null && kept == source(after) ? after.copyWith(pdfTextLayer: layer) : after;
-}
-
-class CanvasNotifier extends StateNotifier<CanvasState?> {
+class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   final Ref _ref;
+  @override
+  Ref get ref => _ref;
+  @override
+  bool get isDisposed => _disposed;
+  late final ToolPrefs _toolPrefs;
+  late final SyncSession _sync = SyncSession(isDisposed: () => _disposed);
+  late final SymbolsLibrary _symbolsLib = SymbolsLibrary(this);
+  late final AssetCache _assets = AssetCache(this);
+  late final PdfSources _pdfSources =
+      PdfSources(this, _allReferencedAssetIds);
+  late final EraserThrottle _eraser = EraserThrottle(this);
+  late final ElementEditor _elements = ElementEditor(this, _assets);
+  late final SelectionActions _selection = SelectionActions(this);
+  late final ClipboardActions _clip =
+      ClipboardActions(this, _assets, _selection.applySelectionTransform);
+  late final NotebookSave _save = NotebookSave(
+    this,
+    writeBlocked: () => _preview || _loadingSnapshotId != null,
+    persistUnpushedBase: _persistUnpushedBase,
+    encodePages: _encodePagesWithCache,
+    chaptersWithMembership: _chaptersWithMembership,
+    remoteMetaEtag: () => _sync.remoteMetaEtag,
+    persistRemoteMetaEtag: _persistRemoteMetaEtag,
+    persistLastPageEtags: _persistLastPageEtags,
+  );
+  late final PagesAndChapters _pages =
+      PagesAndChapters(this, _assets, _nextPageFileName);
+  late final Thumbnails _thumbnails = Thumbnails(this, _waitForQuietPointer);
+  late final SyncPull _pull = SyncPull(
+    this,
+    _sync,
+    isPullingFromRemote: isPullingFromRemote,
+    pullProgress: pullProgress,
+    pdfSources: _pdfSources,
+    assets: _assets,
+    isPreview: () => _preview,
+    isLocalOnly: _isLocalOnly,
+    acquireSyncLock: _sync.acquireLock,
+    releaseSyncLock: _sync.releaseLock,
+    persistLastPageEtags: _persistLastPageEtags,
+    persistRemoteMetaEtag: _persistRemoteMetaEtag,
+    savePulledChangesLocally: _savePulledChangesLocally,
+    onRemoteReachable: _push.onRemoteReachable,
+    remoteNotebookGone: _push.remoteNotebookGone,
+    onRemoteNotebookGone: _push.onRemoteNotebookGone,
+    reportReachable: _reportReachable,
+    recomputeSyncStatus: _recomputeSyncStatus,
+    save: save,
+    acceptRemoteChanges: acceptRemoteChanges,
+    filenameNum: _filenameNum,
+    chapterByPageId: _chapterByPageId,
+  );
+  late final SyncPush _push = SyncPush(
+    this,
+    _sync,
+    save: _save,
+    pdfSources: _pdfSources,
+    remoteSaveInFlight: remoteSaveInFlight,
+    keptLocal: keptLocal,
+    isLocalOnly: _isLocalOnly,
+    markLocalOnly: (id) => _localOnlyCache[id] = true,
+    persistUnpushedBase: _persistUnpushedBase,
+    clearUnpushedBase: _clearUnpushedBase,
+    persistPendingDeletes: _persistPendingDeletes,
+    persistPendingMetaCommit: _persistPendingMetaCommit,
+    persistRemoteMetaEtag: _persistRemoteMetaEtag,
+    persistLastPageEtags: _persistLastPageEtags,
+    reportStorageFull: _reportStorageFull,
+    reportReachable: _reportReachable,
+    recomputeSyncStatus: _recomputeSyncStatus,
+    pullRemoteChanges: () => _pull.pullRemoteChanges(),
+    deltaMetaEtagPrefsKey: _deltaMetaEtagPrefsKey,
+    pageEtagsPrefsKey: _pageEtagsPrefsKey,
+  );
 
   // Pen diagnostics (CrashLogger.verboseEnabled): the last committed stroke,
   // so a state write that drops it is logged with the writer's stack.
@@ -113,73 +177,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
     super.state = value;
   }
-  // Track whether we've pushed undo for the current eraser/drag gesture
-  bool _eraserUndoPushed = false;
-  // Same idea for a selection-width slider drag: one undo entry per
-  // gesture, not one per onChanged tick.
-  bool _selectionWidthUndoPushed = false;
   Size? _viewportSize;
 
-  // ── Eraser throttling state ──
-  // Erasing fired `state.copyWith(pages: Map.from(...))` per pointer
-  // event (60-120 Hz), each one cloning the 215-PageData map and
-  // invalidating the Picture cache (pageData reference changes). On a
-  // dense ink page that turned every eraser drag into 60 full Picture
-  // rebuilds per second.
-  //
-  // Now: _eraseAt computes the new page content into [_pendingErasePage]
-  // and only commits to `state` at most every 33 ms, or immediately on
-  // pointer-up via [_flushPendingErase]. Visual feedback at 30 Hz still
-  // feels responsive while the heavy state cascade fires ~3× less.
-  PageData? _pendingErasePage;
-  String? _pendingEraseFileName;
-  Timer? _eraseFlushTimer;
-  DateTime _lastEraseFlushAt =
-      DateTime.fromMillisecondsSinceEpoch(0);
-  // 16 ms = 60 Hz commit cap — one flush per vsync. Below 60 Hz the
-  // visual updates feel choppy regardless of the per-flush work
-  // (user perceives 20 fps eraser feedback even on a 1-stroke page
-  // because the canvas doesn't tick on every vsync). Each flush
-  // remains cheap thanks to the stroke-path Expando cache and the
-  // Picture cache walking only the current page's elements.
-  static const Duration _eraseFlushInterval = Duration(milliseconds: 16);
-
-  /// Last position where [_eraseAt] actually walked the content list.
-  /// Pointer events whose movement since this position is below
-  /// [_eraseRadiusFraction] × eraserRadius are skipped — at 120 Hz pen
-  /// on iPad the pointer reports many sub-millimetre samples that
-  /// cannot intersect any element a previous, denser sample didn't
-  /// already cover. Walking 200 elements × 80 points per skipped
-  /// sample dominated CPU on dense ink pages.
-  Offset _lastEraseAtPos = const Offset(-1e9, -1e9);
-
-  /// Wall-clock start of the current eraser gesture. Used by [_eraseAt]
-  /// to grow the effective radius after the user has been holding the
-  /// gesture for a while — same affordance as macOS Notes / Apple
-  /// Pencil's "press harder to erase faster", without needing pressure
-  /// data which finger/mouse don't have.
-  DateTime? _eraseGestureStart;
-  // 0.1 (was 0.3): the previous threshold was tuned for iPad 120 Hz
-  // dense sub-mm samples but blocked legitimate slow erase drags on
-  // graphics tablets (200-300 Hz) where each sample moves <1 page-unit.
-  // The eraser felt like it "stutters" at slow speeds because erase work
-  // only fired when the user accumulated ~30% of the eraser radius.
-  // 0.1 still skips obvious noise; the real per-event compute cost is
-  // bounded by the bbox-culled stroke walk and amortised by the 60 Hz
-  // _eraseFlushTimer batching state mutations.
-  static const double _eraseRadiusFraction = 0.1;
-
-  /// Mutex: serializes save() and _pullRemoteChanges() so they never
-  /// race each other. Only one can modify state at a time.
-  Completer<void>? _syncLock;
-  /// Generation token bumped on every acquire AND every force-release.
-  /// [_releaseSyncLock] takes the caller's token and only nulls
-  /// `_syncLock` if the token matches the current generation. Without
-  /// this, a slow holder timed out by force-release would later call
-  /// `_releaseSyncLock` and erase the NEW holder's lock, letting a third
-  /// caller race the new one — exactly the cross-stomp three audits
-  /// flagged.
-  int _syncLockGeneration = 0;
   bool _disposed = false;
 
   /// Incremented every time [openNotebook] runs. A deferred [closeNotebook]
@@ -189,194 +188,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// producing a stuck "Nessun notebook aperto" canvas.
   int _openGeneration = 0;
 
-   /// Tracks the in-flight remote save (launched fire-and-forget by save())
-  /// so [closeNotebook] can await it — otherwise we may null out state while
-  /// syncDelta is still mid-upload, abandoning the upload (PUT on the page
-  /// file happened, but metadata.json never lands → server has half a
-  /// commit which the next pull will try to reconcile).
-  Future<void>? _pendingRemoteSave;
-
-  /// Tracks the latest in-flight local save of pulled-from-remote changes.
-  /// Needed so [closeNotebook] can await it — otherwise the user can exit
-  /// fast enough after a pull that the merged state never hits disk, and
-  /// the next open reads a stale .ncnote (the "sync adds pages, exit,
-  /// re-enter, everything gone, re-sync" bug).
-  Future<void>? _pendingPulledLocalSave;
-
-  /// Tracks the in-flight local ZIP rebuild from save(). Runs in background
-  /// so save() returns quickly; closeNotebook awaits this so the ZIP lands
-  /// on disk before the notebook is torn down.
-  Future<bool>? _pendingLocalSave;
-
-  /// Tail of the local-write queue: every write to this notebook's store
-  /// (edits and pulled changes) runs after the previous one. Never held
-  /// across a network call, so a slow server cannot keep edits off disk.
-  Future<void> _localWriteTail = Future<void>.value();
-
-  /// The last local write's error, or null once one succeeds. The editor
-  /// shows it: a write that fails is retried, but the user must know.
-  final ValueNotifier<Object?> localSaveError = ValueNotifier<Object?>(null);
-  Timer? _localRetryTimer;
-  int _localFailures = 0;
-
-  /// Assets whose bytes changed since the local store last took them.
-  final Set<String> _localDirtyAssetKeys = <String>{};
-
-  /// Document, metadata and symbol objects last written to the local store.
-  DocumentStructure? _localStoreDoc;
-  NotebookMetadata? _localStoreMeta;
-  List<SymbolLibrary>? _localStoreSymbols;
-
-  /// Upload attempts in a row refused because the server moved.
-  int _serverMovedStreak = 0;
-
-  /// Acquire exclusive sync lock. Returns when lock available.
-  /// Returns false if notifier was disposed while waiting.
-  ///
-  /// Has a [timeout] to break deadlocks: if something awaited inside the
-  /// previous holder's critical section hangs (e.g. `compute()` stuck,
-  /// WebDAV socket frozen), we'd otherwise block every future save and
-  /// pull forever. On timeout we force-release the stale lock and grab
-  /// it ourselves so the notifier recovers instead of wedging the UI.
-  ///
-  /// The timeout must exceed the longest LEGITIMATE critical section: an
-  /// asset-heavy pull over a degraded link runs for minutes (the .ncnote
-  /// download alone is allowed webdavLargeDownloadTimeoutSeconds = 600 s).
-  /// The old 30 s default force-released the lock out from under such a
-  /// healthy pull, letting a concurrent save() mutate _lastSyncedPages /
-  /// _lastPageEtags in parallel and corrupt dirty-tracking. Every WebDAV
-  /// call inside a holder carries its own ≤600 s timeout and all holders
-  /// release in `finally`, so a wedged lock self-clears before this
-  /// last-resort force-release fires.
-  /// Acquire returns a generation TOKEN that must be passed back to
-  /// [_releaseSyncLock]. A token is only valid until either (a) the
-  /// matching release call, or (b) a force-release that bumps the
-  /// generation. Use the boolean-style helpers below for compatibility
-  /// with existing callers — internally they thread the token.
-  Future<int?> _acquireSyncLock({
-    Duration timeout = const Duration(minutes: 11),
-  }) async {
-    final deadline = DateTime.now().add(timeout);
-    while (_syncLock != null && !_disposed) {
-      final remaining = deadline.difference(DateTime.now());
-      if (remaining <= Duration.zero) {
-        print('[Canvas] _acquireSyncLock TIMEOUT after ${timeout.inSeconds}s '
-            '— force-releasing stuck lock to avoid UI deadlock');
-        _forceReleaseSyncLock();
-        break;
-      }
-      try {
-        await _syncLock!.future.timeout(remaining);
-      } on TimeoutException {
-        // Loop: next iteration re-checks the deadline and force-releases.
-        continue;
-      } catch (_) {
-        break;
-      }
-    }
-    if (_disposed) return null;
-    _syncLock = Completer<void>();
-    _syncLockGeneration++;
-    return _syncLockGeneration;
-  }
-
-  /// Release sync lock. Only releases when the caller's token matches
-  /// the current generation — a stale token (the prior holder timed out
-  /// and force-release bumped the gen) becomes a no-op so the new
-  /// holder's lock isn't erased.
-  void _releaseSyncLock(int token) {
-    if (token != _syncLockGeneration) return;
-    final lock = _syncLock;
-    _syncLock = null;
-    if (lock != null && !lock.isCompleted) lock.complete();
-  }
-
-  /// Force-release lock and bump generation, invalidating any in-flight
-  /// holder's release call. Used on close/dispose and on acquire timeout.
-  void _forceReleaseSyncLock() {
-    final lock = _syncLock;
-    _syncLock = null;
-    _syncLockGeneration++;
-    if (lock != null && !lock.isCompleted) lock.complete();
-  }
-
-  /// Asset keys modified since last sync (e.g. "images/foo.png").
-  final Set<String> _dirtyAssetKeys = {};
-
-  /// Asset keys that were successfully uploaded at least once during this
-  /// session (or seeded from a remote pull). Used by [_pruneOrphanAssets]
-  /// to decide whether an orphan should generate a server-side DELETE:
-  /// a local-only asset (created and orphaned without ever syncing) MUST
-  /// NOT produce a DELETE — the server has nothing to delete and a 404
-  /// loop or worse, a cross-device collision (another device created an
-  /// asset with the same id), would result. Persisted? No — re-seeded
-  /// each notebook open from the remote asset listing during the first
-  /// successful pull (every key in pulled `state.assetBytes` is by
-  /// definition server-confirmed at that moment).
-  final Set<String> _uploadedAssetKeys = <String>{};
-
-  /// Snapshot of page map references from the last sync.
-  /// Used for identity-based dirty detection: if `pages[fileName]` is a
-  /// different object than `_lastSyncedPages[fileName]`, it was edited.
-  Map<String, PageData> _lastSyncedPages = {};
-
-  /// Page objects known to be written in the local loose store, by identity.
-  /// The web pulled-save writes only pages that differ from these.
-  Map<String, PageData> _localStorePages = {};
-  Set<String> _localStoreAssets = {};
-
-  /// Last-synced common ancestor for the document structure (page order +
-  /// chapter assignments) and notebook metadata (title/chapters/paper/cover).
-  /// These are the "base" side of a 3-way merge on pull: comparing the live
-  /// local value against this baseline tells us whether the LOCAL device
-  /// changed order/chapters/metadata since the last sync, so a remote change
-  /// to a DIFFERENT field doesn't clobber the local edit (and vice-versa).
-  /// Null until the first successful sync/open; merge falls back to
-  /// remote-wins while null.
-  DocumentStructure? _lastSyncedDocument;
-  NotebookMetadata? _lastSyncedMetadata;
-
-  /// Strike counter for "ghost" document entries — pages listed in
-  /// document.json that have NO data locally AND are absent from the server's
-  /// page listing, so they can never be hydrated. Left in place they pin the
-  /// pull in a hot retry loop forever (the consistency gate `pages < doc` can
-  /// never be satisfied → meta-ETag never advances → ~50% CPU on a large
-  /// notebook). We prune such an entry only after [_ghostPruneThreshold]
-  /// consecutive confirmations so a single flaky/partial PROPFIND can't wrongly
-  /// drop a page that is really on the server. Keyed by fileName.
-  final Map<String, int> _ghostEntryStrikes = {};
-  static const int _ghostPruneThreshold = 3;
-
-  /// Asset ids whose decode failed AND whose server copy was confirmed to be
-  /// the same poisoned bytes (the 1024-aligned truncation incident). Persisted
-  /// across sessions so a notebook with permanently-truncated server assets
-  /// doesn't waste ~N GETs on every app launch re-attempting to heal them.
-  /// Cleared when a successful decode for the same id arrives (e.g. the
-  /// ZIP-aware recovery tool replaced the bytes), so genuine recoveries pick
-  /// up automatically. Kept in sync with [_healAttempted] (pre-seeds it on
-  /// open) so the proactive sweep AND the lazy decode path both skip.
-  final Set<String> _knownIncurableAssets = <String>{};
-
-  /// In-flight watchdog for the "Pull done but state still inconsistent" loop.
-  /// If we burn through more than [_maxInconsistentPulls] consecutive
-  /// inconsistent pulls inside [_inconsistentWindow], the slow-path's
-  /// `_idlePullCount = 0` reset is suppressed so adaptive backoff can engage
-  /// even while the document hasn't converged — defense-in-depth on top of
-  /// the ghost-prune (which itself converges in ~3 pulls). Reset on real
-  /// progress (state becomes consistent or a ghost ripens for pruning).
-  int _consecutiveInconsistentPulls = 0;
-  DateTime? _consecutiveInconsistentSince;
-  static const int _maxInconsistentPulls = 6;
-  static const Duration _inconsistentWindow = Duration(seconds: 60);
-
-  /// PRE-SAVE GUARD #2 abort rate-limit. Each abort triggers a pull; on
-  /// pathologically broken state that pull can't restore consistency,
-  /// re-firing forever. After [_maxPreSaveGuardAborts] aborts in
-  /// [_preSaveGuardWindow] we stop kicking pulls and let the next user
-  /// action retry instead — eliminating any chance of a save→abort→pull
-  /// CPU loop even if the upstream fixes regress.
-  int _preSaveGuardAborts = 0;
-  DateTime? _preSaveGuardSince;
   static const int _maxPreSaveGuardAborts = 3;
   static const Duration _preSaveGuardWindow = Duration(seconds: 10);
 
@@ -386,58 +197,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// notebooks where only one page changes per save, this avoids re-encoding
   /// every other page on every write.
   final Map<String, _CachedPageJson> _pageJsonCache = {};
-
-  /// ETag of the remote metadata.json — used to detect remote changes.
-  String? _remoteMetaEtag;
-
-  /// Per-page WebDAV ETags from the last pull — used to detect which pages changed.
-  Map<String, String> _lastPageEtags = {};
-
-  /// Server version of document.json that [_lastSyncedDocument] came from;
-  /// the push writes the page list only over it. Null = unknown, write as is.
-  String? _remoteDocVersion;
-
-  /// Version of the document a pull downloaded, adopted on accept.
-  String? _pendingDocVersion;
-
-  /// Which notebook the ETag caches above belong to. Guards against cross-
-  /// contamination when the user switches notebooks: notebook-A's ETag set
-  /// must never be used to diff notebook-B's remote state, or the first
-  /// pull on B either misses real changes or fakes false positives.
-  String? _etagNotebookId;
-
-  /// Set to true by [_pullFromDeltaDownload] when any page/asset download
-  /// failed in the current pull cycle. [_pullRemoteChanges] checks this flag
-  /// before advancing [_remoteMetaEtag] — advancing the meta ETag on a
-  /// partial pull would lie to the next sync ("already in sync") and those
-  /// missing pages would never be retried until the remote file changed
-  /// again.
-  bool _pullHadFailures = false;
-
-  /// Per-page consecutive failure count. Reset to 0 whenever a download
-  /// succeeds. Used by the cooldown logic in [_pullFromDeltaDownload] to
-  /// stop hammering the server with the same dead-end pages every 2 s.
-  final Map<String, int> _pageFailureCount = {};
-
-  /// Cooldown deadline per page. While `now() < deadline` the page is
-  /// excluded from `pagesToPull` so we don't spin the same 8 broken
-  /// downloads forever (~ every 5-10 s) burning battery and bandwidth.
-  /// Cleared once the deadline passes (one more attempt is allowed).
-  final Map<String, DateTime> _pageFailureCooldownUntil = {};
-
-  /// Server ETags that have already been confirmed corrupt (truncated
-  /// JSON / invalid UTF-8). Once a download produced FormatException
-  /// for a given (fileName, etag) tuple, every subsequent pull cycle
-  /// would hit the SAME bad bytes — there's no point re-issuing the GET
-  /// until either (a) save() finishes uploading the local-good copy and
-  /// the server returns a fresh ETag, or (b) some other device pushes a
-  /// different version. This map is the dedup: if the current remote
-  /// ETag for a page matches what we know is corrupt, skip the download
-  /// attempt and re-flag for heal directly. Entries are cleared after a
-  /// successful save() (server now has a new ETag for those pages) or
-  /// when the page disappears from the server listing.
-  final Map<String, String> _knownCorruptEtags = {};
-
 
   /// True while a multi-step bulk operation (e.g. PDF import) is in
   /// progress. Pull cycles are suppressed so an intervening network
@@ -451,7 +210,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Resume automatic remote pulls after a bulk operation.
   void endBulkOperation() => _bulkOperationInProgress = false;
 
-  @visibleForTesting
+  @override
   bool get bulkOperationInProgress => _bulkOperationInProgress;
 
   // ── Page filename helpers ────────────────────────────────────────────────
@@ -540,504 +299,27 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     );
   }
 
-  static bool _listEqStr(List<String> a, List<String> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
-
-  /// Records a strike for each ghost [candidates] fileName this pull and
-  /// returns those confirmed dead for [_ghostPruneThreshold] consecutive pulls
-  /// (i.e. safe to prune from the document). Candidates absent this cycle have
-  /// their strike count reset, so a page that reappears on the server before
-  /// ripening is never pruned.
-  Set<String> _updateGhostStrikes(Set<String> candidates) {
-    _ghostEntryStrikes.removeWhere((fn, _) => !candidates.contains(fn));
-    final ripe = <String>{};
-    for (final fn in candidates) {
-      final n = (_ghostEntryStrikes[fn] ?? 0) + 1;
-      _ghostEntryStrikes[fn] = n;
-      if (n >= _ghostPruneThreshold) ripe.add(fn);
-    }
-    return ripe;
-  }
-
-  /// Builds the set of fileNames the merged document should KEEP, applying the
-  /// ghost-prune policy. Starts from [withData] (pages that have page bytes)
-  /// and walks every current [docPages] entry that lacks data, classifying it:
-  ///   • a confirmed remote deletion ([remoteDeleted])  → drop (honour delete)
-  ///   • still on the server ([serverFileNames])        → keep (will hydrate)
-  ///   • otherwise a ghost → keep until it has accrued [_ghostPruneThreshold]
-  ///     strikes, then drop so the state can finally converge.
-  /// Ripe (pruned) ghosts are also evicted from the ETag cache so a later pull
-  /// doesn't resurrect them.
-  Set<String> _survivingFileNames({
-    required Iterable<String> withData,
-    required List<PageEntry> docPages,
-    required Set<String> serverFileNames,
-    required Set<String> remoteDeleted,
-  }) {
-    final keep = <String>{...withData};
-    final ghostCandidates = <String>{};
-    for (final e in docPages) {
-      final fn = e.fileName;
-      if (keep.contains(fn)) continue;
-      if (remoteDeleted.contains(fn)) continue; // honour confirmed deletion
-      if (serverFileNames.contains(fn)) {
-        keep.add(fn); // pending hydration — the page is on the server
-      } else {
-        ghostCandidates.add(fn);
-      }
-    }
-    final ripe = _updateGhostStrikes(ghostCandidates);
-    keep.addAll(ghostCandidates.where((fn) => !ripe.contains(fn)));
-    if (ripe.isNotEmpty) {
-      for (final fn in ripe) {
-        _lastPageEtags.remove(fn);
-      }
-      print('[Canvas] Pruning ${ripe.length} ghost document entr'
-          '${ripe.length == 1 ? "y" : "ies"} (no data locally or on server '
-          'for $_ghostPruneThreshold+ pulls): '
-          '${ripe.take(3).join(", ")}${ripe.length > 3 ? "…" : ""}');
-      unawaited(CrashLogger.append(
-          '[Pull] pruned ${ripe.length} ghost entries → state can converge'));
-    }
-    return keep;
-  }
-
-  /// True if two documents differ in page ORDER, the SET of pages, or any
-  /// per-page chapter assignment. Ignores pageNumber (a pure renumber is not
-  /// a meaningful change). Used to decide whether a merge produced something
-  /// the server doesn't have yet (→ needs an upload to converge).
-  static bool _documentStructurallyDiffers(
-      DocumentStructure a, DocumentStructure b) {
-    if (a.pages.length != b.pages.length) return true;
-    for (var i = 0; i < a.pages.length; i++) {
-      if (a.pages[i].fileName != b.pages[i].fileName) return true;
-      if (a.pages[i].chapterId != b.pages[i].chapterId) return true;
-    }
-    return false;
-  }
-
-  /// True if two metadata objects differ in any user-meaningful field
-  /// (title/cover/paper/tags/author/description/chapter list). Ignores
-  /// modifiedAt, pageCount, createdAt — those are derived/bookkeeping.
-  static bool _metadataStructurallyDiffers(
-      NotebookMetadata a, NotebookMetadata b) {
-    if (a.title != b.title ||
-        a.coverStyle != b.coverStyle ||
-        a.coverColor != b.coverColor ||
-        a.paperType != b.paperType ||
-        a.paperColor != b.paperColor ||
-        a.author != b.author ||
-        a.description != b.description) {
-      return true;
-    }
-    if (!_listEqStr(a.tags, b.tags)) return true;
-    if (a.chapters.length != b.chapters.length) return true;
-    for (var i = 0; i < a.chapters.length; i++) {
-      if (a.chapters[i].id != b.chapters[i].id) return true;
-      if (a.chapters[i].title != b.chapters[i].title) return true;
-    }
-    return false;
-  }
-
-  /// 3-way merge of notebook metadata + document structure on pull.
-  ///
-  /// `base` is the last-synced common ancestor (what we last knew the server
-  /// had); `local` is the LIVE local state at apply time (may include edits
-  /// the user made DURING the pull download window); `remote` is what the
-  /// server has now. Returns the merged metadata + document.
-  ///
-  /// Core principle that eliminates the cross-device clobber class: a change
-  /// made on ONE side to something the OTHER side left untouched is ALWAYS
-  /// kept. Only when both sides changed the SAME thing do we tie-break —
-  /// low-stakes structural fields (page order, per-page chapter, chapter
-  /// order) resolve to LOCAL (the device the user is holding, so their most
-  /// recent action sticks); scalar metadata tie-breaks by `modifiedAt`.
-  ///
-  /// `survivingFileNames` is the authoritative set of pages that have data in
-  /// the merged page map; the returned document lists exactly those, once.
-  ///
-  /// When `baseDoc`/`baseMeta` are null (first sync, no ancestor) we fall
-  /// back to remote-wins for ordering/scalars — matching legacy behaviour.
-  static ({NotebookMetadata metadata, DocumentStructure document}) _merge3Way({
-    required NotebookMetadata? baseMeta,
-    required NotebookMetadata localMeta,
-    required NotebookMetadata remoteMeta,
-    required DocumentStructure? baseDoc,
-    required DocumentStructure localDoc,
-    required DocumentStructure remoteDoc,
-    required Set<String> survivingFileNames,
-  }) {
-    final baseByFn = {
-      for (final e in (baseDoc?.pages ?? const <PageEntry>[])) e.fileName: e
-    };
-    final localByFn = {for (final e in localDoc.pages) e.fileName: e};
-    final remoteByFn = {for (final e in remoteDoc.pages) e.fileName: e};
-
-    List<String> fnOrder(List<PageEntry> p) =>
-        p.map((e) => e.fileName).toList();
-
-    // Did `side` reorder the pages it shares with the baseline? Compares the
-    // RELATIVE order of common pages, so pure adds/deletes don't read as a
-    // reorder.
-    bool reordered(List<PageEntry> side) {
-      if (baseDoc == null) return false;
-      final baseOrder = fnOrder(baseDoc.pages);
-      final sideOrder = fnOrder(side);
-      final sideSet = sideOrder.toSet();
-      final baseSet = baseOrder.toSet();
-      final a = baseOrder.where(sideSet.contains).toList();
-      final b = sideOrder.where(baseSet.contains).toList();
-      return !_listEqStr(a, b);
-    }
-
-    final localReordered = reordered(localDoc.pages);
-    final remoteReordered = reordered(remoteDoc.pages);
-    final List<String> spine;
-    if (localReordered && !remoteReordered) {
-      spine = fnOrder(localDoc.pages);
-    } else if (remoteReordered && !localReordered) {
-      spine = fnOrder(remoteDoc.pages);
-    } else if (localReordered && remoteReordered) {
-      spine = fnOrder(localDoc.pages); // both moved → device wins
-    } else {
-      spine = fnOrder(remoteDoc.pages); // neither → canonical/remote
-    }
-
-    // Final ordered fileName list: spine first, then any surviving fileName
-    // not in the spine (remote order, then local order, then bare orphans).
-    final seen = <String>{};
-    final orderedFns = <String>[];
-    void take(Iterable<String> fns) {
-      for (final fn in fns) {
-        if (survivingFileNames.contains(fn) && seen.add(fn)) orderedFns.add(fn);
-      }
-    }
-
-    take(spine);
-    take(fnOrder(remoteDoc.pages));
-    take(fnOrder(localDoc.pages));
-    take(survivingFileNames);
-
-    // Per-page chapterId 3-way.
-    String? mergeChapterId(String fn) {
-      final b = baseByFn[fn]?.chapterId;
-      // A side that no longer lists the page didn't move it to "no
-      // chapter": read its absence as unchanged, or a page resurrected
-      // from one side lost its chapter.
-      final l = localByFn.containsKey(fn) ? localByFn[fn]!.chapterId : b;
-      final r = remoteByFn.containsKey(fn) ? remoteByFn[fn]!.chapterId : b;
-      if (baseDoc == null) return r ?? l;
-      final lChanged = l != b;
-      final rChanged = r != b;
-      if (lChanged && !rChanged) return l;
-      if (rChanged && !lChanged) return r;
-      if (lChanged && rChanged) return l; // both → device wins
-      return r ?? l;
-    }
-
-    final mergedEntries = <PageEntry>[];
-    for (var i = 0; i < orderedFns.length; i++) {
-      final fn = orderedFns[i];
-      final src = remoteByFn[fn] ?? localByFn[fn];
-      final chapterId = mergeChapterId(fn);
-      if (src != null) {
-        mergedEntries.add(
-            src.copyWith(pageNumber: i + 1, fileName: fn, chapterId: chapterId));
-      } else {
-        // Pure orphan (page data exists but no entry on either side). Heal
-        // reconciles pageId from the page bytes; fileName is a safe stand-in.
-        mergedEntries.add(PageEntry(
-          pageId: fn,
-          pageNumber: i + 1,
-          fileName: fn,
-          chapterId: chapterId,
-        ));
-      }
-    }
-
-    final mergedDoc = DocumentStructure(
-      notebookId: remoteDoc.notebookId,
-      formatVersion: remoteDoc.formatVersion,
-      pages: mergedEntries,
-    );
-
-    // ── Metadata scalar fields (per-field 3-way) ──
-    final lMod = localMeta.modifiedAt;
-    final rMod = remoteMeta.modifiedAt;
-    T pick<T>(T? base, T local, T remote) {
-      if (baseMeta == null) return remote;
-      final lChanged = local != base;
-      final rChanged = remote != base;
-      if (lChanged && !rChanged) return local;
-      if (rChanged && !lChanged) return remote;
-      if (lChanged && rChanged) return rMod.isAfter(lMod) ? remote : local;
-      return remote;
-    }
-
-    // ── Chapters merged by id (union of adds, honour deletes, title 3-way) ──
-    final baseCh = {for (final c in (baseMeta?.chapters ?? const <Chapter>[])) c.id: c};
-    final localCh = {for (final c in localMeta.chapters) c.id: c};
-    final remoteCh = {for (final c in remoteMeta.chapters) c.id: c};
-
-    final survivingChIds = <String>{};
-    for (final id in {...localCh.keys, ...remoteCh.keys, ...baseCh.keys}) {
-      final b = baseCh[id];
-      final l = localCh[id];
-      final r = remoteCh[id];
-      if (b == null) {
-        if (l != null || r != null) survivingChIds.add(id); // new on a side
-      } else if (l != null && r != null) {
-        survivingChIds.add(id);
-      } else if (l != null && r == null) {
-        if (l != b) survivingChIds.add(id); // remote deleted, local edited → keep
-      } else if (l == null && r != null) {
-        if (r != b) survivingChIds.add(id); // local deleted, remote edited → keep
-      }
-      // else: deleted on both (or unchanged-deleted) → drop
-    }
-
-    // Chapter order: same spine logic as pages.
-    bool chReordered(List<Chapter> side) {
-      if (baseMeta == null) return false;
-      final baseOrder = baseMeta.chapters.map((c) => c.id).toList();
-      final sideOrder = side.map((c) => c.id).toList();
-      final ss = sideOrder.toSet();
-      final bs = baseOrder.toSet();
-      final a = baseOrder.where(ss.contains).toList();
-      final b = sideOrder.where(bs.contains).toList();
-      return !_listEqStr(a, b);
-    }
-
-    final List<String> chSpine;
-    final lChRe = chReordered(localMeta.chapters);
-    final rChRe = chReordered(remoteMeta.chapters);
-    if (lChRe && !rChRe) {
-      chSpine = localMeta.chapters.map((c) => c.id).toList();
-    } else if (rChRe && !lChRe) {
-      chSpine = remoteMeta.chapters.map((c) => c.id).toList();
-    } else if (lChRe && rChRe) {
-      chSpine = localMeta.chapters.map((c) => c.id).toList();
-    } else {
-      chSpine = remoteMeta.chapters.map((c) => c.id).toList();
-    }
-
-    Chapter mergeChapterObj(String id) {
-      final b = baseCh[id];
-      final l = localCh[id];
-      final r = remoteCh[id];
-      final fallback = (r ?? l ?? b)!;
-      final title = pick<String>(b?.title, l?.title ?? fallback.title,
-          r?.title ?? fallback.title);
-      return Chapter(id: id, title: title, pageIds: const []);
-    }
-
-    final chSeen = <String>{};
-    final mergedChapters = <Chapter>[];
-    void takeCh(Iterable<String> ids) {
-      for (final id in ids) {
-        if (survivingChIds.contains(id) && chSeen.add(id)) {
-          mergedChapters.add(mergeChapterObj(id));
-        }
-      }
-    }
-
-    takeCh(chSpine);
-    takeCh(remoteMeta.chapters.map((c) => c.id));
-    takeCh(localMeta.chapters.map((c) => c.id));
-
-    // Recompute each chapter's pageIds from the merged document so the backup
-    // membership list (used by the orphan-heal path) stays consistent with
-    // the authoritative PageEntry.chapterId.
-    final pageIdsByChapter = <String, List<String>>{};
-    for (final e in mergedDoc.pages) {
-      final cid = e.chapterId;
-      if (cid != null) (pageIdsByChapter[cid] ??= []).add(e.pageId);
-    }
-    final finalChapters = mergedChapters
-        .map((c) => c.copyWith(pageIds: pageIdsByChapter[c.id] ?? const []))
-        .toList();
-
-    final mergedMeta = remoteMeta.copyWith(
-      title: pick(baseMeta?.title, localMeta.title, remoteMeta.title),
-      coverStyle:
-          pick(baseMeta?.coverStyle, localMeta.coverStyle, remoteMeta.coverStyle),
-      coverColor:
-          pick(baseMeta?.coverColor, localMeta.coverColor, remoteMeta.coverColor),
-      paperType:
-          pick(baseMeta?.paperType, localMeta.paperType, remoteMeta.paperType),
-      paperColor:
-          pick(baseMeta?.paperColor, localMeta.paperColor, remoteMeta.paperColor),
-      tags: pick(baseMeta?.tags, localMeta.tags, remoteMeta.tags),
-      author: pick(baseMeta?.author, localMeta.author, remoteMeta.author),
-      description:
-          pick(baseMeta?.description, localMeta.description, remoteMeta.description),
-      chapters: finalChapters,
-      pageCount: mergedDoc.pages.length,
-      modifiedAt: rMod.isAfter(lMod) ? rMod : lMod,
-    );
-
-    return (metadata: mergedMeta, document: mergedDoc);
-  }
-
-  /// Attempts a 3-way element-level merge of ONE page so that two devices
-  /// editing DIFFERENT parts of the same page converge automatically instead
-  /// of being forced into a manual conflict. Elements (strokes/text/images/
-  /// shapes) carry stable ids, so we diff by id against the [base] (last-
-  /// synced) version:
-  ///   • added on one side only            → keep it
-  ///   • modified on one side only          → take that side
-  ///   • deleted on one side, untouched other → honour the deletion
-  ///   • identical on both                  → keep
-  ///   • SAME element changed on BOTH sides differently, OR edited on one
-  ///     side and deleted on the other      → real conflict ⇒ return null
-  ///     (caller falls back to the page-level conflict UI; nothing is lost).
-  /// The render engine paints by zIndex, so unioning the element lists is
-  /// visually correct regardless of list order.
-  static PageData? _mergePageElements({
-    required PageData base,
-    required PageData local,
-    required PageData remote,
-  }) {
-    String idOf(ContentElement e) => e.map(unknown: (u) => u.id,
-        stroke: (s) => s.id,
-        text: (t) => t.id,
-        image: (i) => i.id,
-        shape: (s) => s.id,
-        math: (m) => m.id);
-    int zOf(ContentElement e) => e.map(unknown: (u) => u.zIndex,
-        stroke: (s) => s.zIndex,
-        text: (t) => t.zIndex,
-        image: (i) => i.zIndex,
-        shape: (s) => s.zIndex,
-        math: (m) => m.zIndex);
-
-    final baseById = {for (final e in base.layers.content) idOf(e): e};
-    final localById = {for (final e in local.layers.content) idOf(e): e};
-    final remoteById = {for (final e in remote.layers.content) idOf(e): e};
-
-    final merged = <ContentElement>[];
-    for (final id in {...baseById.keys, ...localById.keys, ...remoteById.keys}) {
-      final b = baseById[id];
-      final l = localById[id];
-      final r = remoteById[id];
-      final inL = l != null, inR = r != null, inB = b != null;
-      if (inL && inR) {
-        if (l == r) {
-          merged.add(l);
-        } else if (inB && l == b) {
-          merged.add(r); // only remote changed
-        } else if (inB && r == b) {
-          merged.add(l); // only local changed
-        } else {
-          return null; // both changed the same element → conflict
-        }
-      } else if (inL && !inR) {
-        if (!inB) {
-          merged.add(l); // local-added
-        } else if (l == b) {
-          // remote deleted it, local untouched → honour deletion (drop)
-        } else {
-          return null; // remote deleted, local edited → conflict
-        }
-      } else if (!inL && inR) {
-        if (!inB) {
-          merged.add(r); // remote-added
-        } else if (r == b) {
-          // local deleted it, remote untouched → honour deletion (drop)
-        } else {
-          return null; // local deleted, remote edited → conflict
-        }
-      }
-      // else: absent on both live sides → dropped
-    }
-
-    // Background: same one-sided-change rule; both-changed-differently = conflict.
-    final bb = base.layers.background;
-    final lb = local.layers.background;
-    final rb = remote.layers.background;
-    final BackgroundLayer bg;
-    if (lb == rb) {
-      bg = lb;
-    } else if (lb == bb) {
-      bg = rb;
-    } else if (rb == bb) {
-      bg = lb;
-    } else {
-      return null; // both changed background differently → conflict
-    }
-
-    // Page size: the same rule, or a resize on one side is lost.
-    bool sameSize(PageData a, PageData b) =>
-        a.width == b.width && a.height == b.height;
-    final PageData sized;
-    if (sameSize(local, remote) || sameSize(local, base)) {
-      sized = remote;
-    } else if (sameSize(remote, base)) {
-      sized = local;
-    } else {
-      return null; // both resized differently → conflict
-    }
-
-    merged.sort((a, b) => zOf(a).compareTo(zOf(b)));
-    final lMod = local.modifiedAt;
-    final rMod = remote.modifiedAt;
-    return remote.copyWith(
-      width: sized.width,
-      height: sized.height,
-      layers: RenderingLayers(background: bg, content: merged),
-      modifiedAt: (rMod != null && lMod != null && rMod.isAfter(lMod))
-          ? rMod
-          : (lMod ?? rMod),
-    );
-  }
-
-  /// Every element of either side, local winning a same-id clash. Fallback
-  /// for when no base is known or [_mergePageElements] finds a conflict.
-  static PageData _unionPageElements({
-    required PageData local,
-    required PageData remote,
-  }) {
-    String idOf(ContentElement e) => e.map(unknown: (u) => u.id,
-        stroke: (s) => s.id,
-        text: (t) => t.id,
-        image: (i) => i.id,
-        shape: (s) => s.id,
-        math: (m) => m.id);
-    int zOf(ContentElement e) => e.map(unknown: (u) => u.zIndex,
-        stroke: (s) => s.zIndex,
-        text: (t) => t.zIndex,
-        image: (i) => i.zIndex,
-        shape: (s) => s.zIndex,
-        math: (m) => m.zIndex);
-    final byId = {
-      for (final e in remote.layers.content) idOf(e): e,
-      for (final e in local.layers.content) idOf(e): e,
-    };
-    final content = byId.values.toList()
-      ..sort((a, b) => zOf(a).compareTo(zOf(b)));
-    return local.copyWith(
-        layers: local.layers.copyWith(content: content));
-  }
 
   @visibleForTesting
   static PageData unionPageElementsForTest(
           {required PageData local, required PageData remote}) =>
-      _unionPageElements(local: local, remote: remote);
+      unionPageElements(local: local, remote: remote);
+
+  static List<UndoEntry> rebaseHistoryOnMerge(List<UndoEntry> stack,
+          Map<String, PageData> before, Map<String, PageData> after) =>
+      page_merge.rebaseHistoryOnMerge(stack, before, after);
+
+  @visibleForTesting
+  static List<PageEntry> placeByLocalOrder(List<PageEntry> base,
+          List<PageEntry> extras, List<PageEntry> localOrder) =>
+      page_merge.placeByLocalOrder(base, extras, localOrder);
 
   @visibleForTesting
   static PageData? mergePageElementsForTest(
           {required PageData base,
           required PageData local,
           required PageData remote}) =>
-      _mergePageElements(base: base, local: local, remote: remote);
-
-  /// Timer for pulling remote changes from other devices.
-  Timer? _pullTimer;
+      mergePageElements(base: base, local: local, remote: remote);
 
   /// True while a background pull from the server is fetching data for
   /// the currently-open notebook. The UI watches this to show a subtle
@@ -1052,246 +334,83 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   final ValueNotifier<({int done, int total})> pullProgress =
       ValueNotifier<({int done, int total})>((done: 0, total: 0));
 
-  /// Bumped whenever [CanvasState.imageCache] changes (decode lands,
-  /// asset eviction, pull merge). The painter listens to this notifier
-  /// for repaint instead of `ref.watch(canvasProvider.select(s.imageCache))`
-  /// — bypassing the Riverpod cascade lets a 78-page PDF import avoid
-  /// 78 full state.copyWith→consumer-walk rebuild cycles. The map ref
-  /// itself still travels through state.copyWith for back-compat with
-  /// the rest of the codebase; the painter just stops watching it
-  /// through Riverpod.
-  final ValueNotifier<int> imageCacheVersion = ValueNotifier<int>(0);
+  /// Bumped whenever [CanvasState.imageCache] changes (decode lands, eviction,
+  /// pull merge); the painter repaints on it instead of watching Riverpod.
+  ValueNotifier<int> get imageCacheVersion => _assets.imageCacheVersion;
 
-  // ── Typeset-math raster cache ──
-  /// LaTeX equations rasterized to ui.Images, keyed by [mathCacheKey].
-  /// Derived/ephemeral (NOT in CanvasState, never synced) — math elements
-  /// persist only their LaTeX source + style; pixels are re-creatable. Lives
-  /// on the notifier so it survives state.copyWith churn, mirroring how the
-  /// image decode pipeline bumps a version notifier instead of riding the
-  /// Riverpod cascade.
-  final Map<String, MathRaster> mathCache = {};
+  /// Typeset-math rasters (derived, never in CanvasState), read by the painter.
+  Map<String, MathRaster> get mathCache => _assets.mathCache;
 
-  /// Bumped when [mathCache]/[failedMathKeys] changes so the painter
-  /// repaints and the freshly-rasterized equation appears. Merged into the
-  /// canvas repaint listenable next to [imageCacheVersion].
-  final ValueNotifier<int> mathCacheVersion = ValueNotifier<int>(0);
+  /// Bumped when [mathCache]/[failedMathKeys] changes.
+  ValueNotifier<int> get mathCacheVersion => _assets.mathCacheVersion;
 
-  /// Bumped when source PDFs of imported pages arrive from the server.
-  final ValueNotifier<int> pdfSourcesVersion = ValueNotifier<int>(0);
-  bool _pdfSourcesDirty = true;
-  DateTime? _pdfSourcesCheckedAt;
-  bool _pdfSourcesRunning = false;
+  /// Cache keys whose rasterize permanently failed; drawn as a source fallback.
+  Set<String> get failedMathKeys => _assets.failedMathKeys;
 
-  /// Retires imports none of whose pages is left. Only imports older than a
-  /// week: a device that hasn't pulled a fresh import's pages yet must not
-  /// take them for deleted. Losing a source only costs the sharp zoom.
-  Future<bool> _retireUnusedPdfSources(
-      PdfSourceStore store, String notebookId) async {
-    final s = state;
-    if (s == null || s.metadata.id != notebookId || s.isDirty) return false;
-    if (s.pendingConflicts.isNotEmpty || s.pendingRemoteChanges != null) {
-      return false;
-    }
-    if (!s.document.pages.every((e) => s.pages.containsKey(e.fileName))) {
-      return false;
-    }
-    final used = _allReferencedAssetIds(s.document, s.pages);
-    final cutoff = DateTime.now()
-        .subtract(const Duration(days: 7))
-        .millisecondsSinceEpoch;
-    var retired = false;
-    for (final idx in await store.loadIndexes()) {
-      final t = idx.createdMs;
-      if (t == null || t > cutoff || idx.pages.keys.any(used.contains)) continue;
-      await store.retire(idx);
-      retired = true;
-    }
-    return retired;
-  }
+  void requestMathRaster(String latex, int colorArgb, double fontSize,
+          bool displayMode, double pixelRatio) =>
+      _assets.requestMathRaster(
+          latex, colorArgb, fontSize, displayMode, pixelRatio);
 
-  /// A PDF import wrote a source PDF: the next sync takes it to the server.
-  void notePdfSourcesChanged() => _pdfSourcesDirty = true;
-
-  /// Mirrors `sources/` with the server on open, after local changes and
-  /// every few minutes; its files never change, so this is cheap to skip.
-  /// [upToDate]: this copy matches the server, so unused imports may go.
-  Future<void> _syncPdfSourcesQuietly(SyncService sync, String notebookId,
-      {bool upToDate = false}) async {
-    if (_pdfSourcesRunning) return;
-    final last = _pdfSourcesCheckedAt;
-    if (!_pdfSourcesDirty &&
-        last != null &&
-        DateTime.now().difference(last) < const Duration(minutes: 5)) {
-      return;
-    }
-    _pdfSourcesRunning = true;
-    try {
-      final store = PdfSourceStore(
-          _ref.read(fileServiceProvider).notebookStoreDir(notebookId));
-      var arrived = await sync.syncPdfSources(notebookId, store);
-      if (upToDate && await _retireUnusedPdfSources(store, notebookId)) {
-        await sync.syncPdfSources(notebookId, store);
-        arrived = true;
-      }
-      _pdfSourcesDirty = false;
-      _pdfSourcesCheckedAt = DateTime.now();
-      if (arrived && state?.metadata.id == notebookId) pdfSourcesVersion.value++;
-    } catch (e) {
-      debugPrint('[Canvas] source PDF sync failed: $e');
-    } finally {
-      _pdfSourcesRunning = false;
-    }
-  }
-
-  /// Cache keys whose rasterize permanently failed (no implicit view /
-  /// pipeline error). Drawn as a source fallback, never retried, and
-  /// treated as "ready" by the static picture cache.
-  final Set<String> failedMathKeys = {};
-  final Set<String> _mathInFlight = {};
-
-  /// Soft cap on cached math rasters (each is a GPU texture). Oldest is
-  /// disposed + evicted past this; far above any realistic page's count.
-  static const int _mathCacheMax = 256;
-
-  /// Request an async rasterize for a math element after a paint cache
-  /// MISS (wired as CanvasRenderEngine.onMathCacheMiss). De-dupes against
-  /// in-flight + cached + failed keys. On completion stores the raster (or
-  /// records a permanent failure) and bumps [mathCacheVersion] so the
-  /// canvas repaints with the equation. Mirrors the async image-decode path.
-  void requestMathRaster(
-    String latex,
-    int colorArgb,
-    double fontSize,
-    bool displayMode,
-    double pixelRatio,
-  ) {
-    final pr = pixelRatio.clamp(1.0, 4.0);
-    final key = mathCacheKey(latex, colorArgb, fontSize, displayMode, pr);
-    if (mathCache.containsKey(key) ||
-        failedMathKeys.contains(key) ||
-        !_mathInFlight.add(key)) {
-      return;
-    }
-    () async {
-      final r = await MathRasterizer.rasterize(
-        latex: latex,
-        color: Color(colorArgb),
-        fontSize: fontSize,
-        displayMode: displayMode,
-        pixelRatio: pr,
-      );
-      _mathInFlight.remove(key);
-      if (_disposed) {
-        r?.image.dispose();
-        return;
-      }
-      if (r == null) {
-        failedMathKeys.add(key);
-      } else if (mathCache.containsKey(key)) {
-        // measureMath stored this key while we were rasterizing — keep the
-        // existing raster; overwriting would leak the prior ui.Image's
-        // GPU texture (nothing else holds a reference to dispose it).
-        r.image.dispose();
-      } else {
-        if (mathCache.length >= _mathCacheMax) {
-          final oldest = mathCache.keys.first;
-          mathCache.remove(oldest)?.image.dispose();
-        }
-        mathCache[key] = r;
-      }
-      mathCacheVersion.value++;
-    }();
-  }
-
-  /// Rasterize a math element to its INTRINSIC logical size (used at create
-  /// time so the element box matches the typeset shape). Returns null on
-  /// failure (caller falls back to an estimate). Also warms [mathCache].
+  /// Rasterize a math element to its intrinsic logical size, null on failure.
   Future<Size?> measureMath(
     String latex, {
     required int colorArgb,
     required double fontSize,
     required bool displayMode,
     double pixelRatio = 3.0,
-  }) async {
-    final pr = pixelRatio.clamp(1.0, 4.0);
-    final r = await MathRasterizer.rasterize(
-      latex: latex,
-      color: Color(colorArgb),
-      fontSize: fontSize,
-      displayMode: displayMode,
-      pixelRatio: pr,
-    );
-    if (r == null) return null;
-    if (_disposed) {
-      r.image.dispose();
-      return null;
-    }
-    final key = mathCacheKey(latex, colorArgb, fontSize, displayMode, pr);
-    if (!mathCache.containsKey(key)) {
-      // Same cap as requestMathRaster — without it long sessions with many
-      // unique formulas grow GPU textures unbounded.
-      if (mathCache.length >= _mathCacheMax) {
-        final oldest = mathCache.keys.first;
-        mathCache.remove(oldest)?.image.dispose();
-      }
-      mathCache[key] = r;
-      mathCacheVersion.value++;
-    } else {
-      r.image.dispose();
-    }
-    return mathCache[key]!.size;
-  }
+  }) =>
+      _assets.measureMath(latex,
+          colorArgb: colorArgb,
+          fontSize: fontSize,
+          displayMode: displayMode,
+          pixelRatio: pixelRatio);
+
+  /// Asset ids classified as corrupt (decode failed), for UI placeholders.
+  Set<String> get corruptAssetIds => _assets.corruptAssetIds;
+
+  /// Asset ids being fetched from the server right now (loading placeholder).
+  Set<String> get loadingAssetIds => _assets.loadingAssetIds;
+
+  /// Decode every image of the current page, fire-and-forget (PDF import end).
+  void ensureCurrentPageImagesDecoded() =>
+      _assets.ensureCurrentPageImagesDecoded();
+
+  /// Page manager hook: decode the asset behind a thumbnail on demand.
+  void ensureAssetDecodedForThumbnail(String assetId) =>
+      _assets.ensureAssetDecodedForThumbnail(assetId);
+
+  /// Dispose every GPU-backed image texture (called on `detached`).
+  void releaseImageCache() => _assets.releaseImageCache();
+
+  /// Bumped when source PDFs of imported pages arrive from the server.
+  ValueNotifier<int> get pdfSourcesVersion => _pdfSources.version;
+
+  /// A PDF import wrote a source PDF: the next sync takes it to the server.
+  void notePdfSourcesChanged() => _pdfSources.noteChanged();
 
   /// Last eraser sub-mode the user explicitly picked. Tapping the
   /// toolbar's eraser button restores THIS instead of always falling
   /// back to eraserStroke — fixes the bug where eraser-area → pen →
   /// eraser would reset back to eraser-stroke.
-  CanvasTool _lastEraserMode = CanvasTool.eraserStroke;
-  CanvasTool get lastEraserMode => _lastEraserMode;
-
-  /// Per-tool memory of (strokeWidth, color, opacity, eraserSize).
-  /// Restored when the user re-enters a tool, so changing tools no
-  /// longer resets the pen width back to the global default. Highlighter
-  /// has its own hardcoded defaults (12 px, 35% opacity, yellow) on
-  /// FIRST entry only — subsequent visits restore whatever the user
-  /// last set inside highlighter mode.
-  final Map<CanvasTool, ToolSettings> _toolPrefs = {};
+  CanvasTool get lastEraserMode => _toolPrefs.lastEraserMode;
 
   CanvasNotifier(this._ref) : super(null) {
     // Restore per-tool preferences from SharedPreferences ASAP so the
     // very first tool the user touches already shows the previous
     // session's width/color/eraser size.
-    _toolPrefsLoaded = _loadToolPrefs();
+    _toolPrefs = ToolPrefs(this);
     // A new client (re-login after a password change, reconnect) ends the
     // failure streak: push what is waiting instead of sleeping out the backoff.
     _ref.listen(remoteStoreProvider, (prev, next) {
       if (next == null || _disposed || state == null) return;
-      _consecutiveSyncFailures = 0;
-      _consecutiveFailedPulls = 0;
-      _pullUnreachable = false;
+      _sync.consecutiveSyncFailures = 0;
+      _sync.consecutiveFailedPulls = 0;
+      _sync.pullUnreachable = false;
       _recomputeSyncStatus();
-      _retryUnpushed();
+      _push.retryUnpushed();
     });
   }
-  late final Future<void> _toolPrefsLoaded;
-
-  /// Pen a freshly opened notebook starts with: the first saved pen preset,
-  /// else the pen as last left, else the defaults.
-  ToolSettings _startupPenSettings() {
-    final remembered = _toolPrefs[CanvasTool.pen] ?? const ToolSettings();
-    for (final p
-        in _ref.read(appSettingsProvider).presetsFor(CanvasTool.pen)) {
-      if (p != null) {
-        return remembered.copyWith(
-          color: p.color,
-          strokeWidth: p.strokeWidth,
-          opacity: p.opacity,
-        );
-      }
-    }
-    return remembered;
-  }
-
   static String _unpushedBaseDocKey(String id) => 'unpushed_base_doc_$id';
   static String _unpushedBaseMetaKey(String id) => 'unpushed_base_meta_$id';
 
@@ -1300,8 +419,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   Future<void> _persistUnpushedBase(String id) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final doc = _lastSyncedDocument;
-      final meta = _lastSyncedMetadata;
+      final doc = _sync.lastSyncedDocument;
+      final meta = _sync.lastSyncedMetadata;
       if (doc != null && !prefs.containsKey(_unpushedBaseDocKey(id))) {
         await prefs.setString(
             _unpushedBaseDocKey(id), jsonEncode(doc.toJson()));
@@ -1340,11 +459,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final doc = prefs.getString(_unpushedBaseDocKey(notebookId));
       final meta = prefs.getString(_unpushedBaseMetaKey(notebookId));
       if (doc != null) {
-        _lastSyncedDocument = DocumentStructure.fromJson(
+        _sync.lastSyncedDocument = DocumentStructure.fromJson(
             jsonDecode(doc) as Map<String, dynamic>);
       }
       if (meta != null) {
-        _lastSyncedMetadata = NotebookMetadata.fromJson(
+        _sync.lastSyncedMetadata = NotebookMetadata.fromJson(
             jsonDecode(meta) as Map<String, dynamic>);
       }
     } catch (_) {}
@@ -1352,7 +471,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Baseline for those pages: the page emptied. The server's real
     // baseline is unknown, and an empty one makes a page that another
     // device also edited merge as a union instead of being overwritten.
-    _lastSyncedPages = {
+    _sync.lastSyncedPages = {
       for (final e in pages.entries)
         e.key: pageKeys.contains(e.key)
             ? e.value.copyWith(
@@ -1361,13 +480,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             : e.value,
     };
     for (final k in keys) {
-      if (k.startsWith('asset:')) _dirtyAssetKeys.add(k.substring(6));
+      if (k.startsWith('asset:')) _sync.dirtyAssetKeys.add(k.substring(6));
     }
     unawaited(CrashLogger.append(
         '[Canvas] $notebookId reopening with ${keys.length} unpushed items'));
     // The editor autosaves on the transition to dirty; state does not exist
     // yet here, so flip it once the notebook is on screen.
     unawaited(Future<void>.delayed(const Duration(seconds: 2), () {
+      if (_disposed) return; // closed within the 2 s
       final st = state;
       // Kept on this device or offline: nothing can go up, a save would only
       // rewrite the files and bump the modified time on every open.
@@ -1399,7 +519,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             state = state!.copyWith(
               panOffset: state!.isScratch
                   ? _scratchCenterPan(state!.zoom)
-                  : _centeredPanOffset(state!.zoom),
+                  : centeredPanOffset(state!.zoom),
             );
           }
         });
@@ -1427,7 +547,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   /// Pan for [page] (default: the current one) at [zoom]: centred across,
   /// and down the screen centred when it fits, else top edge at the top.
-  Offset _centeredPanOffset(double zoom, [PageData? page]) {
+  @override
+  Offset centeredPanOffset(double zoom, [PageData? page]) {
     final vp = _viewportSize;
     if (vp == null) return Offset.zero;
     final p = page ?? state?.currentPage;
@@ -1446,13 +567,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final fitTop = (vp.height - page.height * fit) / 2;
     final top = max(0.0, (vp.height - page.height * fit * zoom) / 2);
     return Offset(dx, top - fitTop * zoom);
-  }
-
-  static PageData? _pageAt(
-      DocumentStructure document, Map<String, PageData> pages, int index) {
-    if (document.pages.isEmpty) return null;
-    return pages[document.pages[index.clamp(0, document.pages.length - 1)]
-        .fileName];
   }
 
   /// Pan that puts the centre of the big scratch page at the viewport centre.
@@ -1495,14 +609,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
     _openGeneration++;
     _preview = false;
-    await _toolPrefsLoaded;
+    await _toolPrefs.loaded;
     final isScratch = metadata.paperType == AppConfig.infinitePaperType;
     final zoom = isScratch ? 1.0 : 2.0;
     _loadingSnapshotId = metadata.id;
     pagesLoading.value = true;
     _disposed = false;
     state = CanvasState(
-      toolSettings: _startupPenSettings(),
+      toolSettings: _toolPrefs.startupPen(),
       metadata: metadata,
       document: document,
       pages: Map.of(pages),
@@ -1515,12 +629,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           ? Offset.zero
           : isScratch
               ? _scratchCenterPan(zoom)
-              : _centeredPanOffset(zoom, _pageAt(document, pages, pageIndex)),
+              : centeredPanOffset(zoom, PagesAndChapters.pageAt(document, pages, pageIndex)),
       currentTool: CanvasTool.pen,
     );
-    for (final id in _assetRefsForPage(pageIndex, document, pages)) {
+    for (final id in _assets.refsForPage(pageIndex, document, pages)) {
       final bytes = assets[id];
-      if (bytes != null) unawaited(_decodeAndCacheImage(id, bytes));
+      if (bytes != null) unawaited(_assets.decodeAndCache(id, bytes));
     }
   }
 
@@ -1544,8 +658,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // then saving) a newer-format notebook would strip data the newer app
     // wrote — with WebDAV multi-device sync, mixed app versions are normal
     // operation, not an edge case. Better a clear error than silent loss.
-    _pdfSourcesDirty = true;
-    _pdfSourcesCheckedAt = null;
+    _pdfSources.resetOnOpen();
     if (metadata.formatVersion > AppConfig.formatVersion) {
       throw FormatTooNewException(
           metadata.formatVersion, AppConfig.formatVersion);
@@ -1638,8 +751,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
             ? Offset.zero
             : isScratch
                 ? _scratchCenterPan(initialZoom)
-                : _centeredPanOffset(
-                    initialZoom, _pageAt(doc, pages, startPageIndex));
+                : centeredPanOffset(
+                    initialZoom, PagesAndChapters.pageAt(doc, pages, startPageIndex));
 
     // ── Self-healing: repair duplicate fileNames before first render ──
     // Two sessions running simultaneously can independently generate the
@@ -1654,14 +767,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // notebook. Awaited: the symbol panel must never open on a library that
     // is still loading.
     // A preview stays out of the device-wide library: it shows its own.
-    final mergedSymbols = _preview
-        ? null
-        : await _symbols.merge(
-            SymbolCollection(libraries: symbolLibraries ?? const []),
-          );
-    _deletedSymbolIds = {...?mergedSymbols?.deletedSymbolIds};
-    _deletedLibraryIds = {...?mergedSymbols?.deletedLibraryIds};
-    await _toolPrefsLoaded;
+    final mergedSymbols = await _symbolsLib.mergeOnOpen(symbolLibraries,
+        preview: _preview);
+    await _toolPrefs.loaded;
 
     // Images the opening page already decoded stay, so they do not blink.
     final carriedImages = _loadingSnapshotId == metadata.id &&
@@ -1672,7 +780,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       imageCache: carriedImages,
       // Starting on the const defaults, a switch away from the pen recorded
       // black 1.5 as the pen's memory and wiped the user's last pen.
-      toolSettings: _startupPenSettings(),
+      toolSettings: _toolPrefs.startupPen(),
       metadata: metadata,
       document: repaired.document,
       pages: Map.of(repaired.pages),
@@ -1690,63 +798,58 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Catch up with the other devices in the background. Deliberately not
     // awaited and deliberately NOT marking the notebook dirty: opening a
     // notebook must neither wait on the network nor schedule a save.
-    if (!_preview) unawaited(_symbols.reconcile());
+    if (!_preview) _symbolsLib.reconcileInBackground();
 
     // Initialize delta sync tracking
     _disposed = false;
-    _consecutiveSyncFailures = 0;
-    _consecutiveFailedPulls = 0;
-    _absentRemoteAssets.clear();
-    _pullUnreachable = false;
+    _sync.consecutiveSyncFailures = 0;
+    _sync.consecutiveFailedPulls = 0;
+    _sync.absentRemoteAssets.clear();
+    _sync.pullUnreachable = false;
     hasSyncFailure.value = false;
     remoteSaveInFlight.value = false;
     keptLocal.value = _preview ||
         (_ref.read(syncServiceProvider)?.isOffline ?? true) ||
         await _isLocalOnly(metadata.id);
-    // Hold the same ref — _lastSyncedPages is a dirty-detection sidetable
-    // (we only ever read identity via `identical(s.pages[k], _lastSyncedPages[k])`),
+    // Hold the same ref — _sync.lastSyncedPages is a dirty-detection sidetable
+    // (we only ever read identity via `identical(s.pages[k], _sync.lastSyncedPages[k])`),
     // and `pages` itself is treated as immutable: every edit replaces it
     // with a fresh map. So Map.of(...) was a defensive copy with no benefit.
-    _lastSyncedPages = repaired.pages;
-    _localStorePages = Map.of(repaired.pages);
-    _localStoreAssets = {...?assets?.keys};
-    _localDirtyAssetKeys.clear();
+    _sync.lastSyncedPages = repaired.pages;
     // The repair may have renamed pages: then the disk copy is behind.
-    _localStoreDoc =
-        identical(repaired.document, document) ? repaired.document : null;
-    _localStoreMeta = metadata;
-    _localStoreSymbols = state?.symbolLibraries;
-    _localFailures = 0;
-    _localRetryTimer?.cancel();
-    localSaveError.value = null;
-    _serverMovedStreak = 0;
+    _save.openedWith(
+      pages: Map.of(repaired.pages),
+      assets: {...?assets?.keys},
+      doc: identical(repaired.document, document) ? repaired.document : null,
+      meta: metadata,
+      symbols: state?.symbolLibraries,
+    );
+    _sync.serverMovedStreak = 0;
     // Seed the 3-way-merge baselines from the just-loaded on-disk state.
-    _lastSyncedDocument = repaired.document;
-    _remoteDocVersion = null;
-    _pendingDocVersion = null;
-    _lastSyncedMetadata = metadata;
-    _ghostEntryStrikes.clear();
-    _consecutiveInconsistentPulls = 0;
-    _consecutiveInconsistentSince = null;
-    _preSaveGuardAborts = 0;
-    _preSaveGuardSince = null;
-    _knownIncurableAssets.clear();
-    _healAttempted.clear();
-    unawaited(_loadIncurableAssets(metadata.id));
+    _sync.lastSyncedDocument = repaired.document;
+    _sync.remoteDocVersion = null;
+    _sync.pendingDocVersion = null;
+    _sync.lastSyncedMetadata = metadata;
+    _sync.ghostEntryStrikes.clear();
+    _sync.consecutiveInconsistentPulls = 0;
+    _sync.consecutiveInconsistentSince = null;
+    _sync.preSaveGuardAborts = 0;
+    _sync.preSaveGuardSince = null;
+    _assets.resetOnOpen(metadata.id);
     _assetsByLength.clear();
     _assetIndexBuilt = false;
     _pageJsonCache.clear();
-    _dirtyAssetKeys.clear();
+    _sync.dirtyAssetKeys.clear();
     if (!_preview) await _restoreUnpushed(metadata.id, repaired.pages);
     // If the cached ETags belong to a different notebook, flush them so
     // notebook-A's diff never bleeds into notebook-B's first pull.
-    if (_etagNotebookId != metadata.id) {
-      _remoteMetaEtag = null;
-      _lastPageEtags = {};
-      _pageFailureCount.clear();
-      _pageFailureCooldownUntil.clear();
-      _knownCorruptEtags.clear();
-      _etagNotebookId = metadata.id;
+    if (_sync.etagNotebookId != metadata.id) {
+      _sync.remoteMetaEtag = null;
+      _sync.lastPageEtags = {};
+      _sync.pageFailureCount.clear();
+      _sync.pageFailureCooldownUntil.clear();
+      _sync.knownCorruptEtags.clear();
+      _sync.etagNotebookId = metadata.id;
     }
 
     // ── Heal local document if it has fewer entries than pages map ──
@@ -1788,12 +891,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     //
     // Strategy (all platforms — desktop included since the 400-page
     // memory fix): decode only assets referenced by a **window** around
-    // the current page (current ± _assetWindow; wider on desktop). The
+    // the current page (current ± AssetCache.assetWindow; wider on desktop). The
     // rest are decoded lazily when the user navigates near them (see
     // [_ensureAssetsForCurrentWindow]) and far-away textures are
     // LRU-evicted past the platform cache cap.
     if (assets != null && assets.isNotEmpty) {
-      final initialRefs = _assetRefsForPage(startPageIndex, repaired.document, repaired.pages);
+      final initialRefs = _assets.refsForPage(startPageIndex, repaired.document, repaired.pages);
       // Phase 1: kick off decodes for the initial page. Missing-bytes
       // assets get routed through ensureAssetDecodedForThumbnail which
       // triggers a lazy fetch — so an incomplete .ncnote heals itself
@@ -1802,28 +905,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         if (carriedImages.containsKey(assetId)) continue;
         final bytes = assets[assetId];
         if (bytes != null) {
-          unawaited(_decodeAndCacheImage(assetId, bytes));
+          unawaited(_assets.decodeAndCache(assetId, bytes));
         } else {
           ensureAssetDecodedForThumbnail(assetId);
         }
       }
-      // Phase 2: decode only the ±_assetWindow page window — on EVERY
+      // Phase 2: decode only the ±AssetCache.assetWindow page window — on EVERY
       // platform. Desktop used to decode everything here, which on a
       // 400-page scan-heavy notebook meant minutes of background decode
       // churn and gigabytes of pinned textures. Distant pages now decode
       // on navigation via _ensureAssetsForCurrentWindow (same path
       // mobile has exercised since the iPad OOM fixes).
-      final windowRefs = _assetRefsForWindow(
-        startPageIndex, _assetWindow, repaired.document, repaired.pages,
+      final windowRefs = _assets.refsForWindow(
+        startPageIndex, AssetCache.assetWindow, repaired.document, repaired.pages,
       )..removeAll(initialRefs);
       final windowAssets = <String, Uint8List>{};
       for (final r in windowRefs) {
         final b = assets[r];
         if (b != null) windowAssets[r] = b;
       }
-      unawaited(_decodeAssetsThrottled(windowAssets, skip: const {}));
+      unawaited(_assets.decodeThrottled(windowAssets, skip: const {}));
     }
-    _logMemoryStats('openNotebook');
+    _assets.logMemoryStats('openNotebook');
 
     // Background self-heal: re-pull any locally-truncated assets from the
     // server (where the clean copy lives in the notebook itself). Deferred so
@@ -1833,170 +936,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final healGen = _openGeneration;
     Future.delayed(const Duration(seconds: 4), () {
       if (_disposed || _openGeneration != healGen) return;
-      _recoverTruncatedAssetsFromServer();
+      _assets.recoverTruncatedFromServer();
     });
-  }
-
-  /// Pages ahead/behind current to keep decoded in the imageCache on mobile.
-  /// A 70-page notebook with full-page PDF backgrounds can easily consume
-  /// 300 MB of texture memory if decoded in full. The window keeps a tight
-  /// working set so iOS jetsam doesn't kill the process.
-  static const int _mobileAssetWindow = 2;
-
-  /// Max imageCache entries on mobile before LRU eviction kicks in. Each
-  /// ui.Image holds native/GPU memory; unbounded growth is the #1 iPad OOM
-  /// cause in this app.
-  static const int _mobileImageCacheMax = 12;
-
-  /// Desktop counterparts. Desktop used to decode EVERY asset at open
-  /// with no eviction at all — a 400-page notebook of full-page scans
-  /// pinned gigabytes of texture memory for the whole session. A wider
-  /// window than mobile (more RAM, faster decode) keeps navigation
-  /// seamless while bounding the working set.
-  static const int _desktopAssetWindow = 6;
-  static const int _desktopImageCacheMax = 48;
-
-  // Web on a tablet counts as mobile: Safari's per-tab memory ceiling is
-  // tighter than the native app's, so it gets the small caches too.
-  static bool get _isMobilePlatform =>
-      isWebTouchDevice ||
-      defaultTargetPlatform == TargetPlatform.iOS ||
-      defaultTargetPlatform == TargetPlatform.android;
-  static int get _assetWindow =>
-      _isMobilePlatform ? _mobileAssetWindow : _desktopAssetWindow;
-  static int get _imageCacheMax =>
-      _isMobilePlatform ? _mobileImageCacheMax : _desktopImageCacheMax;
-
-  /// Access-time map for LRU tracking. Key: assetId, value: monotonic
-  /// counter bumped on every render access.
-  final Map<String, int> _imageAccessTime = {};
-
-  /// Compute the union of asset refs across pages in [center ± radius].
-  Set<String> _assetRefsForWindow(
-      int center, int radius, DocumentStructure doc, Map<String, PageData> pages) {
-    final lo = (center - radius).clamp(0, doc.pages.length - 1);
-    final hi = (center + radius).clamp(0, doc.pages.length - 1);
-    final refs = <String>{};
-    for (var i = lo; i <= hi; i++) {
-      refs.addAll(_assetRefsForPage(i, doc, pages));
-    }
-    return refs;
-  }
-
-  /// Ensure assets needed by pages in the current window are decoded, and
-  /// evict far-away ones (mobile only). Called after page navigation.
-  ///
-  /// Also triggers `ensureAssetDecodedForThumbnail` for any image element
-  /// on the CURRENT page whose bytes are missing — that routes through
-  /// the lazy-fetch path so the user doesn't have to navigate away and
-  /// back to make a missing image appear after sync completes.
-  void _ensureAssetsForCurrentWindow() {
-    final s = state;
-    if (s == null) return;
-    // Lazy-fetch missing assets on the current page (all platforms).
-    // ensureAssetDecodedForThumbnail is idempotent + race-free: if the
-    // asset is already loading/cached/corrupt it returns immediately.
-    final page = s.currentPage;
-    if (page != null) {
-      for (final el in page.layers.content) {
-        if (el is ImageElement) {
-          ensureAssetDecodedForThumbnail(el.data.assetPath);
-        }
-      }
-    }
-    // Windowed ensure + eviction on every platform (desktop included —
-    // it now shares the bounded-cache policy instead of holding every
-    // decoded texture for the whole session).
-    final needed = _assetRefsForWindow(
-        s.currentPageIndex, _assetWindow, s.document, s.pages);
-    // Decode missing ones that we already have bytes for.
-    for (final ref in needed) {
-      if (s.imageCache.containsKey(ref)) continue;
-      final bytes = s.assetBytes[ref];
-      if (bytes != null) {
-        unawaited(_decodeAndCacheImage(ref, bytes));
-      }
-    }
-    _evictDistantImages();
-  }
-
-  /// LRU-evict from imageCache when it grows beyond the platform cap.
-  /// Prefers to drop assets NOT referenced by pages in the current window.
-  void _evictDistantImages() {
-    final s = state;
-    if (s == null) return;
-    if (s.imageCache.length <= _imageCacheMax) return;
-    final protect = _assetRefsForWindow(
-        s.currentPageIndex, _assetWindow, s.document, s.pages);
-    // Candidates: everything not in the window. Sort oldest first.
-    final candidates = s.imageCache.keys
-        .where((k) => !protect.contains(k))
-        .toList()
-      ..sort((a, b) =>
-          (_imageAccessTime[a] ?? 0).compareTo(_imageAccessTime[b] ?? 0));
-    final toEvict = s.imageCache.length - _imageCacheMax;
-    if (toEvict <= 0 || candidates.isEmpty) return;
-    final newCache = Map<String, ui.Image>.from(s.imageCache);
-    var evicted = 0;
-    for (final key in candidates) {
-      if (evicted >= toEvict) break;
-      final img = newCache.remove(key);
-      img?.dispose();
-      _imageAccessTime.remove(key);
-      evicted++;
-    }
-    if (evicted > 0) {
-      state = s.copyWith(imageCache: newCache);
-      imageCacheVersion.value++;
-      _logMemoryStats('evict($evicted)');
-    }
-  }
-
-  /// Log a one-line memory snapshot on mobile so we can tell, from the
-  /// crash log after a jetsam kill, roughly how big the caches had grown.
-  void _logMemoryStats(String context) {
-    if (defaultTargetPlatform != TargetPlatform.iOS &&
-        defaultTargetPlatform != TargetPlatform.android) {
-      return;
-    }
-    final s = state;
-    if (s == null) return;
-    // Approximate GPU texture bytes: 4 * w * h per cached ui.Image.
-    var gpuBytes = 0;
-    for (final img in s.imageCache.values) {
-      gpuBytes += img.width * img.height * 4;
-    }
-    final rawAssetBytes = s.assetBytes.values
-        .fold<int>(0, (sum, b) => sum + b.length);
-    unawaited(CrashLogger.append(
-      '[Mem] $context: imageCache=${s.imageCache.length} '
-      '(~${(gpuBytes / (1024 * 1024)).toStringAsFixed(1)} MB GPU), '
-      'assetBytes=${s.assetBytes.length} '
-      '(~${(rawAssetBytes / (1024 * 1024)).toStringAsFixed(1)} MB raw), '
-      'pages=${s.pages.length}',
-    ));
-  }
-
-  /// Returns the set of asset keys referenced by a single page.
-  Set<String> _assetRefsForPage(
-      int pageIdx, DocumentStructure doc, Map<String, PageData> pages) {
-    if (pageIdx < 0 || pageIdx >= doc.pages.length) return {};
-    final entry = doc.pages[pageIdx];
-    final page = pages[entry.fileName];
-    if (page == null) return {};
-    final refs = <String>{...page.assetReferences};
-    for (final el in page.layers.content) {
-      el.map(unknown: (_) {},
-        stroke: (_) {},
-        text:   (_) {},
-        shape:  (_) {},
-        math:   (_) {},
-        image:  (img) {
-          if (img.data.assetPath.isNotEmpty) refs.add(img.data.assetPath);
-        },
-      );
-    }
-    return refs;
   }
 
   /// Returns the set of asset keys referenced by ANY page in the document.
@@ -2024,7 +965,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   /// Removes asset entries no longer referenced by any page from
   /// `state.assetBytes`, `state.imageCache`, and the local corrupt-id set.
-  /// Stages orphan IDs into [_pendingAssetDeletes] so the next save —
+  /// Stages orphan IDs into [_sync.pendingAssetDeletes] so the next save —
   /// even if this one's remote upload throws — will retry the server-side
   /// delete. Symbol assets (assetPath prefixed with `symbol_`) are kept as
   /// they live in `imageCache` only and are never stored in `assetBytes`
@@ -2054,13 +995,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     for (final id in orphans) {
       newAssets.remove(id);
       newCache.remove(id)?.dispose();
-      _corruptAssetIds.remove(id);
-      _dirtyAssetKeys.remove(id);
-      _onDemandDecodeQueued.remove(id);
+      _assets.forgetOrphan(id);
+      _sync.dirtyAssetKeys.remove(id);
     }
     for (final id in cacheOnlyOrphans) {
       newCache.remove(id)?.dispose();
-      _corruptAssetIds.remove(id);
+      _assets.forgetCacheOnlyOrphan(id);
     }
     state = s.copyWith(
       assetBytes: newAssets,
@@ -2074,31 +1014,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // never had can race a concurrent upload from another device that
     // happens to use the same id, or just spin in a 404 retry.
     final serverConfirmed =
-        orphans.where(_uploadedAssetKeys.contains).toList();
-    _pendingAssetDeletes.addAll(serverConfirmed);
+        orphans.where(_sync.uploadedAssetKeys.contains).toList();
+    _sync.pendingAssetDeletes.addAll(serverConfirmed);
     // Drop the no-longer-tracked orphan ids from the uploaded set so it
     // doesn't grow unbounded over a long session.
     for (final id in orphans) {
-      _uploadedAssetKeys.remove(id);
+      _sync.uploadedAssetKeys.remove(id);
     }
     print('[Canvas] Pruned ${orphans.length} orphan assets '
         '(${serverConfirmed.length} queued for server delete, '
         '${cacheOnlyOrphans.length} cache-only) — freeing storage');
-  }
-
-  /// Sequentially decodes [assets] that are NOT in [skip], waiting for each
-  /// to finish and yielding a ~16 ms frame gap between them so the UI stays
-  /// responsive and memory pressure stays bounded.
-  Future<void> _decodeAssetsThrottled(
-      Map<String, Uint8List> assets, {required Set<String> skip}) async {
-    for (final entry in assets.entries) {
-      if (_disposed) return;
-      if (skip.contains(entry.key)) continue;
-      await _decodeAndCacheImage(entry.key, entry.value);
-      // Yield one frame between images so we don't spike memory or block
-      // the raster thread for longer than a single vsync interval.
-      await Future.delayed(const Duration(milliseconds: 16));
-    }
   }
 
   /// Set by the canvas screen: returns true while a pen stroke is
@@ -2122,104 +1047,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       await Future<void>.delayed(const Duration(milliseconds: 50));
       waitedMs += 50;
     }
-  }
-
-  /// Apply a point transform to each vertex pair in [v] (length 6 = 3
-  /// vertices). Returns the input unchanged when empty. Used to keep
-  /// oblique-triangle vertices coherent under translate / scale / rotate
-  /// / flip operations on a shape — without this, transforms updated the
-  /// bbox + rotation field but the absolute-coord vertices stayed frozen
-  /// and the triangle rendered at the OLD position/orientation.
-  static List<double> _transformVertices(
-      List<double> v, Offset Function(Offset) fn) {
-    if (v.length != 6) return v;
-    final out = List<double>.filled(6, 0);
-    for (var i = 0; i < 6; i += 2) {
-      final p = fn(Offset(v[i], v[i + 1]));
-      out[i] = p.dx;
-      out[i + 1] = p.dy;
-    }
-    return out;
-  }
-
-  /// Tracks which on-demand thumbnail decodes are already queued so the
-  /// page manager doesn't fire the same decode N times when multiple
-  /// thumbnails share the same asset (or a thumbnail re-builds before
-  /// its decode lands).
-  final Set<String> _onDemandDecodeQueued = <String>{};
-
-  /// Decode every image asset referenced by the current page, fire-
-  /// and-forget. Called by the canvas screen at the end of a bulk
-  /// import (PDF) so the page the user lands on actually shows its
-  /// imagery — during the bulk import itself decoding is skipped to
-  /// keep GPU pressure bounded (every decoded `ui.Image` is ~3-5 MB
-  /// of GPU memory, which pegged the host at ~40-page mark on long
-  /// PDF imports).
-  void ensureCurrentPageImagesDecoded() {
-    if (state == null) return;
-    final page = state!.currentPage;
-    if (page == null) return;
-    for (final el in page.layers.content) {
-      if (el is ImageElement) {
-        ensureAssetDecodedForThumbnail(el.data.assetPath);
-      }
-    }
-  }
-
-  /// Public hook for the page manager / library: ensure the asset
-  /// behind a thumbnail is decoded, fire-and-forget. Cheap when the
-  /// asset is already cached; otherwise queues a single decode that
-  /// will land in `state.imageCache` on the next frame.
-  ///
-  /// On a 200-page notebook eagerly decoding every asset on open would
-  /// cost seconds of CPU and ~hundred-MB peak memory; this lets the
-  /// grid pull only the visible thumbnails' assets and progressively
-  /// fill in the rest as the user scrolls.
-  void ensureAssetDecodedForThumbnail(String assetId) {
-    if (state == null) return;
-    final s = state!;
-    if (s.imageCache.containsKey(assetId)) return;
-    if (_onDemandDecodeQueued.contains(assetId)) return;
-    final bytes = s.assetBytes[assetId];
-    if (bytes == null) {
-      // The asset is referenced by a page but its bytes aren't in
-      // memory. This commonly happens when the .ncnote ZIP cache was
-      // built from an incomplete state (a delta pull whose asset GETs
-      // were truncated by Tailscale and silently dropped) but the
-      // server actually has the bytes. Try a one-shot fetch from the
-      // delta folder before giving up — with the post-GET 1024-aligned
-      // verification in webdav_service.dart the fetched bytes are
-      // trustworthy. Only mark corrupt when the fetch genuinely fails
-      // (404 / network gone).
-      //
-      // Three exit gates in order:
-      //   1. Already in _loadingAssetIds: fetch is in flight — return
-      //      so a re-paint during the fetch doesn't race and prematurely
-      //      mark the asset corrupt (the original bug).
-      //   2. Already in _corruptAssetIds OR _healAttempted: an earlier
-      //      attempt landed (success → already decoded path; failure →
-      //      stay corrupt). Don't retry every paint frame.
-      //   3. Otherwise: kick off a new fetch.
-      if (_loadingAssetIds.contains(assetId)) return;
-      if (_corruptAssetIds.contains(assetId)) return;
-      if (_healAttempted.contains(assetId)) return;
-      _healAttempted.add(assetId);
-      _loadingAssetIds.add(assetId);
-      // Bump version so the UI repaints — the page render now sees
-      // loadingAssetIds.contains(assetId) and shows a "loading"
-      // placeholder instead of nothing.
-      imageCacheVersion.value++;
-      unawaited(_lazyFetchMissingAsset(assetId, s.metadata.id));
-      return;
-    }
-    _onDemandDecodeQueued.add(assetId);
-    () async {
-      try {
-        await _decodeAndCacheImage(assetId, bytes);
-      } finally {
-        _onDemandDecodeQueued.remove(assetId);
-      }
-    }();
   }
 
   /// SharedPreferences key for a notebook's last-observed delta metadata
@@ -2272,7 +1099,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     required DocumentStructure remoteDoc,
     required Set<String> survivingFileNames,
   }) =>
-          _merge3Way(
+          merge3Way(
               baseMeta: baseMeta,
               localMeta: localMeta,
               remoteMeta: remoteMeta,
@@ -2407,7 +1234,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   static String _pageEtagsPrefsKey(String notebookId) =>
       'page_etags_$notebookId';
 
-  /// Restore [_lastPageEtags] from disk. This MUST reflect the ETags of the
+  /// Restore [_sync.lastPageEtags] from disk. This MUST reflect the ETags of the
   /// page content we actually have locally — i.e. only ETags that were
   /// successfully downloaded or uploaded. Never pre-populate from live
   /// server state on open: the server may have moved while we were closed,
@@ -2416,7 +1243,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// stale (the 'iPad wrote page_164 while PC was offline → PC opens but
   /// pull is no-op → local stays stale forever' bug).
   ///
-  /// Also primes [_remoteMetaEtag] from SharedPreferences.
+  /// Also primes [_sync.remoteMetaEtag] from SharedPreferences.
   Future<void> _initPageEtags(String notebookId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -2424,10 +1251,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // Load last-saved meta ETag so first-pull can skip cheaply when
       // server state hasn't moved. Only use it if we don't already have
       // one in memory (e.g. same notebook re-opened without notebook-switch).
-      if (_remoteMetaEtag == null) {
+      if (_sync.remoteMetaEtag == null) {
         final persisted = prefs.getString(_deltaMetaEtagPrefsKey(notebookId));
         if (persisted != null && persisted.isNotEmpty) {
-          _remoteMetaEtag = persisted;
+          _sync.remoteMetaEtag = persisted;
         }
       }
 
@@ -2438,16 +1265,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       if (persistedPageEtags != null && persistedPageEtags.isNotEmpty) {
         try {
           final decoded = jsonDecode(persistedPageEtags) as Map<String, dynamic>;
-          _lastPageEtags = decoded.map((k, v) => MapEntry(k, v as String));
-          debugPrint('[Canvas] Loaded ${_lastPageEtags.length} page ETags from disk');
+          _sync.lastPageEtags = decoded.map((k, v) => MapEntry(k, v as String));
+          debugPrint('[Canvas] Loaded ${_sync.lastPageEtags.length} page ETags from disk');
         } catch (_) {
-          _lastPageEtags = {};
+          _sync.lastPageEtags = {};
         }
       } else {
-        _lastPageEtags = {};
+        _sync.lastPageEtags = {};
       }
 
-      // NOTE: we intentionally do NOT seed _lastPageEtags from the server's
+      // NOTE: we intentionally do NOT seed _sync.lastPageEtags from the server's
       // current state when prefs is empty. Seeding from live server state
       // is UNSAFE: if another device (iPad) has uploaded new page content
       // but the ordered commit didn't finish (metadata.json still stale),
@@ -2460,30 +1287,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // once. After that, the persisted cache kicks in and cross-device
       // sync works with 2 s latency. Correctness > bandwidth.
 
-      debugPrint('[Canvas] Initialized ${_lastPageEtags.length} page ETags '
-          '(persisted meta etag: ${_remoteMetaEtag != null})');
+      debugPrint('[Canvas] Initialized ${_sync.lastPageEtags.length} page ETags '
+          '(persisted meta etag: ${_sync.remoteMetaEtag != null})');
     } catch (e) {
       debugPrint('[Canvas] Could not init page ETags: $e');
     }
   }
-
-  /// Server-side deletes that the last sync attempt failed to commit
-  /// (e.g. Tailscale connection drop). Replayed on every subsequent save
-  /// until the server returns 404 or the delete succeeds, so an orphan
-  /// can never be "lost in transit" and stay on the server forever.
-  final Set<String> _pendingPageDeletes = <String>{};
-  final Set<String> _pendingAssetDeletes = <String>{};
-
-  /// Captured metadata.json bytes when [SyncService.syncDelta] reported
-  /// a half-commit ([MetadataCommitFailedException] — pages + document
-  /// landed on the server but the metadata commit-marker upload failed).
-  /// Replayed by [_retryPendingMetaCommit] on a periodic timer until
-  /// the upload succeeds. Without this, other devices would fast-path-
-  /// skip on the unchanged meta-ETag and never see the new content.
-  /// Persisted base64 in SharedPreferences so a process restart doesn't
-  /// drop the obligation.
-  Uint8List? _pendingMetaCommitBytes;
-  Timer? _pendingMetaCommitTimer;
 
   /// True when the most recent remote sync attempt(s) have failed
   /// OR there's a pending metadata-commit retry. Surfaced to the UI
@@ -2493,7 +1302,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// state.isDirty and state.pendingConflicts to pick the final
   /// HwSyncState (conflict > offline > pending > ok).
   final ValueNotifier<bool> hasSyncFailure = ValueNotifier<bool>(false);
-  int _consecutiveSyncFailures = 0;
 
   /// An upload is running: isDirty is cleared before it starts, so without
   /// this the pill read "synced" for the whole upload.
@@ -2501,42 +1309,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   /// The open notebook never syncs: kept on this device, or no server.
   final ValueNotifier<bool> keptLocal = ValueNotifier<bool>(false);
-
-  /// The pull's last probe failed for a notebook known to be on the server.
-  bool _pullUnreachable = false;
-  Timer? _remoteRetryTimer;
-
-  /// Anything this session holds that the server doesn't.
-  bool _hasUnpushed() {
-    final st = state;
-    if (st == null) return false;
-    if (_dirtyAssetKeys.isNotEmpty ||
-        _pendingPageDeletes.isNotEmpty ||
-        _pendingAssetDeletes.isNotEmpty) {
-      return true;
-    }
-    for (final e in st.pages.entries) {
-      if (!identical(e.value, _lastSyncedPages[e.key])) return true;
-    }
-    return false;
-  }
-
-  /// Re-runs the save for what a failed upload left behind. A failed save
-  /// clears isDirty, so nothing else would retry until the next edit.
-  void _retryUnpushed() {
-    _remoteRetryTimer?.cancel();
-    _remoteRetryTimer = null;
-    final st = state;
-    if (_disposed || st == null || st.isDirty || !_hasUnpushed()) return;
-    state = st.copyWith(isDirty: true); // the editor autosaves on this edge
-  }
-
-  void _scheduleRemoteRetry() {
-    _remoteRetryTimer?.cancel();
-    final secs = (15 * (1 << (_consecutiveSyncFailures - 1).clamp(0, 5)))
-        .clamp(15, 300);
-    _remoteRetryTimer = Timer(Duration(seconds: secs), _retryUnpushed);
-  }
 
   /// Drives the library's out-of-space notice, which only the library's own
   /// sync used to set and nothing ever cleared.
@@ -2556,18 +1328,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     } catch (_) {}
   }
 
-  /// The server answered: the offline state is over, push what is waiting.
-  void _onRemoteReachable() {
-    _reportReachable(true);
-    final wasFailing = _consecutiveSyncFailures > 0 || _pullUnreachable;
-    _pullUnreachable = false;
-    if (_consecutiveSyncFailures > 0) {
-      _consecutiveSyncFailures = 0;
-      _retryUnpushed();
-    }
-    if (wasFailing) _recomputeSyncStatus();
-  }
-
   static String _pendingPageDeletesPrefsKey(String notebookId) =>
       'pending_page_deletes_$notebookId';
   static String _pendingAssetDeletesPrefsKey(String notebookId) =>
@@ -2580,16 +1340,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final prefs = await SharedPreferences.getInstance();
       final p = prefs.getStringList(_pendingPageDeletesPrefsKey(notebookId));
       final a = prefs.getStringList(_pendingAssetDeletesPrefsKey(notebookId));
-      _pendingPageDeletes
+      _sync.pendingPageDeletes
         ..clear()
         ..addAll(p ?? const []);
-      _pendingAssetDeletes
+      _sync.pendingAssetDeletes
         ..clear()
         ..addAll(a ?? const []);
-      if (_pendingPageDeletes.isNotEmpty || _pendingAssetDeletes.isNotEmpty) {
+      if (_sync.pendingPageDeletes.isNotEmpty || _sync.pendingAssetDeletes.isNotEmpty) {
         debugPrint('[Canvas] Loaded pending deletes: '
-            '${_pendingPageDeletes.length} pages, '
-            '${_pendingAssetDeletes.length} assets');
+            '${_sync.pendingPageDeletes.length} pages, '
+            '${_sync.pendingAssetDeletes.length} assets');
       }
       // Pending metadata commit: a previous run may have left the server
       // half-committed (pages + document landed but metadata.json
@@ -2599,10 +1359,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final metaB64 = prefs.getString(_pendingMetaCommitPrefsKey(notebookId));
       if (metaB64 != null && metaB64.isNotEmpty) {
         try {
-          _pendingMetaCommitBytes = base64Decode(metaB64);
+          _sync.pendingMetaCommitBytes = base64Decode(metaB64);
           debugPrint('[Canvas] Loaded pending metadata commit: '
-              '${_pendingMetaCommitBytes!.length} bytes');
-          _scheduleMetaCommitRetry();
+              '${_sync.pendingMetaCommitBytes!.length} bytes');
+          _push.scheduleMetaCommitRetry();
         } catch (_) {
           await prefs.remove(_pendingMetaCommitPrefsKey(notebookId));
         }
@@ -2615,10 +1375,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
           _pendingPageDeletesPrefsKey(notebookId),
-          _pendingPageDeletes.toList());
+          _sync.pendingPageDeletes.toList());
       await prefs.setStringList(
           _pendingAssetDeletesPrefsKey(notebookId),
-          _pendingAssetDeletes.toList());
+          _sync.pendingAssetDeletes.toList());
     } catch (_) {}
   }
 
@@ -2636,94 +1396,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   void _recomputeSyncStatus() {
-    final next = _consecutiveSyncFailures > 0 ||
-        _pendingMetaCommitBytes != null ||
-        _pullUnreachable ||
-        _consecutiveFailedPulls >= _failedPullsShown;
+    final next = _sync.consecutiveSyncFailures > 0 ||
+        _sync.pendingMetaCommitBytes != null ||
+        _sync.pullUnreachable ||
+        _sync.consecutiveFailedPulls >= SyncPull.failedPullsShown;
     if (hasSyncFailure.value != next) hasSyncFailure.value = next;
   }
 
-  /// Backoff state for the metadata-commit retry. Exponential: 60s →
-  /// 120s → 240s → 480s → cap 1800s (30 min). Reset on success.
-  int _metaRetryAttempts = 0;
-  static const _metaRetryBaseMs = 60 * 1000;
-  static const _metaRetryMaxMs = 30 * 60 * 1000;
-
-  /// Schedule the next retry of the pending metadata.json commit with
-  /// exponential backoff. Idempotent: a scheduled timer is left in
-  /// place. Cancelled on success or notebook close. Skips firing the
-  /// immediate microtask retry that previously hammered the network
-  /// the moment a failure landed (it's the worst time to retry — the
-  /// link is presumably still bad).
-  void _scheduleMetaCommitRetry() {
-    if (_pendingMetaCommitTimer != null) return;
-    final delayMs = (_metaRetryBaseMs * (1 << _metaRetryAttempts.clamp(0, 8)))
-        .clamp(_metaRetryBaseMs, _metaRetryMaxMs);
-    _pendingMetaCommitTimer = Timer(
-      Duration(milliseconds: delayMs),
-      () {
-        _pendingMetaCommitTimer = null;
-        _retryPendingMetaCommit();
-      },
-    );
-  }
-
-  Future<void> _retryPendingMetaCommit() async {
-    final bytes = _pendingMetaCommitBytes;
-    if (bytes == null) {
-      _pendingMetaCommitTimer?.cancel();
-      _pendingMetaCommitTimer = null;
-      _metaRetryAttempts = 0;
-      return;
-    }
-    if (state == null || _disposed) return;
-    final notebookId = state!.metadata.id;
-    final syncService = _ref.read(syncServiceProvider);
-    if (syncService == null) {
-      _metaRetryAttempts++;
-      _scheduleMetaCommitRetry();
-      return;
-    }
-    try {
-      final etag = await syncService.replayMetadataCommit(
-        notebookId: notebookId,
-        metadataBytes: bytes,
-      );
-      // Success — clear the pending state and the backoff.
-      _pendingMetaCommitBytes = null;
-      _pendingMetaCommitTimer?.cancel();
-      _pendingMetaCommitTimer = null;
-      _metaRetryAttempts = 0;
-      await _persistPendingMetaCommit(notebookId, null);
-      if (etag != null && etag.isNotEmpty) {
-        _remoteMetaEtag = etag;
-        await _persistRemoteMetaEtag(notebookId);
-      }
-      _recomputeSyncStatus();
-      print('[Canvas] Pending metadata commit replayed successfully '
-          '(etag=$etag) — server is consistent again');
-    } catch (e) {
-      // Bump attempt count, schedule next with exponential delay.
-      _metaRetryAttempts++;
-      debugPrint('[Canvas] Pending metadata commit retry #$_metaRetryAttempts '
-          'failed: $e — next try in '
-          '${(_metaRetryBaseMs * (1 << _metaRetryAttempts.clamp(0, 8))).clamp(_metaRetryBaseMs, _metaRetryMaxMs) ~/ 1000}s');
-      _scheduleMetaCommitRetry();
-    }
-  }
-
-  /// Persist [_lastPageEtags] to disk. Called after every pull/save cycle
+  /// Persist [_sync.lastPageEtags] to disk. Called after every pull/save cycle
   /// that updates the map so a cold restart resumes with the ETag state
   /// that matches our local .ncnote content.
   Future<void> _persistLastPageEtags(String notebookId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-          _pageEtagsPrefsKey(notebookId), jsonEncode(_lastPageEtags));
+          _pageEtagsPrefsKey(notebookId), jsonEncode(_sync.lastPageEtags));
     } catch (_) {}
   }
 
-  /// Persist the current [_remoteMetaEtag] so next app launch can skip the
+  /// Persist the current [_sync.remoteMetaEtag] so next app launch can skip the
   /// redundant first pull when nothing changed on the server.
   ///
   /// Also mirrors the ETag into the SQLite notebooks row. Without that, the
@@ -2734,7 +1425,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// notebook the user currently has open ("0 new, 109 refresh" x every
   /// notebook in the library).
   Future<void> _persistRemoteMetaEtag(String notebookId) async {
-    final etag = _remoteMetaEtag;
+    final etag = _sync.remoteMetaEtag;
     if (etag == null || etag.isEmpty) return;
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -2749,38 +1440,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
   }
 
-  static String _incurableAssetsPrefsKey(String nbId) =>
-      'incurable_assets_$nbId';
-
-  Future<void> _loadIncurableAssets(String notebookId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_incurableAssetsPrefsKey(notebookId));
-      if (raw == null || raw.isEmpty) return;
-      final list = (jsonDecode(raw) as List).cast<String>();
-      _knownIncurableAssets
-        ..clear()
-        ..addAll(list);
-      // Pre-seed _healAttempted so the lazy decode path AND the proactive
-      // sweep both skip these on this session.
-      _healAttempted.addAll(list);
-      debugPrint('[Canvas] Loaded ${list.length} known-incurable assets '
-          'from disk (skipping heal re-fetch this session)');
-    } catch (_) {}
-  }
-
-  Future<void> _persistIncurableAssets(String notebookId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (_knownIncurableAssets.isEmpty) {
-        await prefs.remove(_incurableAssetsPrefsKey(notebookId));
-      } else {
-        await prefs.setString(_incurableAssetsPrefsKey(notebookId),
-            jsonEncode(_knownIncurableAssets.toList()));
-      }
-    } catch (_) {}
-  }
-
   /// Drain every in-flight pull / pulled-save / remote-save so the .ncnote +
   /// SQLite metadata are up to date on disk.  Keeps `state` alive so the UI
   /// doesn't flash the "Nessun notebook aperto" fallback while the caller is
@@ -2791,28 +1450,41 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// as soon as the pop begins and reads a stale SQLite row (the bug where a
   /// notebook syncs 31 pages on open but the library card stays at "1 pagina"
   /// after exit because the pulled-save hadn't reached SQLite yet).
-  Future<void> flushPendingWork() async {
-    _runThumbnail();
-    _pullLoopOn = false;
-    _pullTimer?.cancel();
-    _pullTimer = null;
+  /// With [compact], pages with stroke chunks are written whole first, so
+  /// releases that read only snapshots see every stroke (closing).
+  Future<void> flushPendingWork({bool compact = false}) async {
+    _thumbnails.flush();
+    _sync.pullLoopOn = false;
+    _sync.pullTimer?.cancel();
+    _sync.pullTimer = null;
     _saveLastPosition();
 
-    final pendingPull = _pendingPullFuture;
+    final pendingPull = _sync.pendingPullFuture;
     if (pendingPull != null) {
       try { await pendingPull; } catch (_) {}
     }
-    _pendingPullFuture = null;
+    _sync.pendingPullFuture = null;
 
-    final pendingSave = _pendingPulledLocalSave;
+    final pendingSave = _sync.pendingPulledLocalSave;
     if (pendingSave != null) {
       try { await pendingSave; } catch (_) {}
     }
-    _pendingPulledLocalSave = null;
+    _sync.pendingPulledLocalSave = null;
+
+    if (compact && StrokeOps.writing && !_save.discardRequested && state != null) {
+      final withChunks = [
+        for (final e in _sync.lastPageEtags.entries)
+          if (splitPageVersion(e.value).chunks.isNotEmpty) e.key,
+      ];
+      if (withChunks.isNotEmpty) {
+        _sync.compactNext.addAll(withChunks);
+        state = state!.copyWith(isDirty: true);
+      }
+    }
 
     // Edits since the last autosave go up as well, not only to disk:
     // leaving no longer waits for a "save before leaving?" answer.
-    if (!_discardRequested && (state?.isDirty ?? false)) {
+    if (!_save.discardRequested && (state?.isDirty ?? false)) {
       try { await save(); } catch (_) {}
     }
 
@@ -2820,70 +1492,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // — without this, exiting during an upload can leave a half-committed
     // delta folder on the server (pages written, metadata.json stale),
     // which another device will then see as a conflict.
-    final pendingRemoteSave = _pendingRemoteSave;
+    final pendingRemoteSave = _sync.pendingRemoteSave;
     if (pendingRemoteSave != null) {
       try { await pendingRemoteSave; } catch (_) {}
     }
-    _pendingRemoteSave = null;
+    _sync.pendingRemoteSave = null;
 
     // Await in-flight local ZIP rebuild (from save()'s background task).
     // Otherwise exit-after-stroke can leave the .ncnote without the very
     // last stroke, and a cold reopen would show pre-stroke content until
     // the next pull brings it back from the server.
-    final pendingLocalSave = _pendingLocalSave;
-    if (pendingLocalSave != null) {
-      try { await pendingLocalSave; } catch (_) {}
-    }
-    _pendingLocalSave = null;
+    await _save.awaitPendingWrite();
 
     // Last word to the disk: whatever the state holds and the store lacks,
     // then every queued local write.
-    if (!_discardRequested && state != null) {
-      try { await _persistLocal(); } catch (_) {}
+    if (!_save.discardRequested && state != null) {
+      try { await _save.persistLocal(); } catch (_) {}
     }
-    try { await _localWriteTail; } catch (_) {}
-  }
-
-  /// Refreshes the library thumbnail from the first page, off the pen's
-  /// path; failures are swallowed (tiles fall back to their placeholder).
-  void _refreshThumbnail(CanvasState s, String notebookId) {
-    _queueThumbnail(() async {
-      try {
-        // Rendering records a full page paint on the UI isolate: never
-        // while the pen is down.
-        await _waitForQuietPointer();
-        final thumbs = _ref.read(thumbnailServiceProvider);
-        final first = s.document.pages.isNotEmpty ? s.document.pages.first : null;
-        final page = first == null ? null : s.pages[first.fileName];
-        if (page == null) return;
-        // Raw asset bytes too: images the canvas has not decoded yet would
-        // otherwise render as blank rectangles.
-        await thumbs.renderAndCache(notebookId, page,
-            imageCache: s.imageCache, assetBytes: s.assetBytes);
-      } catch (e) {
-        debugPrint('[Canvas] Thumbnail cache failed: $e');
-      }
-    });
-  }
-
-  Timer? _thumbTimer;
-  Future<void> Function()? _thumbJob;
-
-  /// Cover thumbnail refresh. On web a PNG encode right after every save
-  /// is a visible hitch, so wait until saves stop; closing flushes it.
-  void _queueThumbnail(Future<void> Function() job) {
-    _thumbJob = job;
-    if (!kIsWeb) return _runThumbnail();
-    _thumbTimer?.cancel();
-    _thumbTimer = Timer(const Duration(milliseconds: 1500), _runThumbnail);
-  }
-
-  void _runThumbnail() {
-    _thumbTimer?.cancel();
-    _thumbTimer = null;
-    final job = _thumbJob;
-    _thumbJob = null;
-    if (job != null) unawaited(job());
+    await _save.awaitWriteQueue();
   }
 
   Future<void> closeNotebook() async {
@@ -2896,9 +1522,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Drain first so pulled pages + metadata actually land on disk before
     // the notifier tears down (the "ci rientro ed è scomparso tutto" bug).
     final closingId = state?.metadata.id;
-    await flushPendingWork();
+    await flushPendingWork(compact: true);
     // A day of edits gets one restorable copy.
-    if (closingId != null && !_discardRequested && !_preview) {
+    if (closingId != null && !_save.discardRequested && !_preview) {
       unawaited(_ref
           .read(fileServiceProvider)
           .snapshotIfDue(closingId, every: const Duration(hours: 24)));
@@ -2922,51 +1548,32 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     CanvasRenderEngine.disposeStaticCache();
     _disposed = true;
     _bulkOperationInProgress = false;
-    _discardPendingErase();
-    _isPulling = false;
+    _eraser.discard();
+    _sync.isPulling = false;
     isPullingFromRemote.value = false;
-    _pendingMetaCommitTimer?.cancel();
-    _pendingMetaCommitTimer = null;
-    _remoteRetryTimer?.cancel();
-    _remoteRetryTimer = null;
+    _sync.pendingMetaCommitTimer?.cancel();
+    _sync.pendingMetaCommitTimer = null;
+    _sync.remoteRetryTimer?.cancel();
+    _sync.remoteRetryTimer = null;
     remoteSaveInFlight.value = false;
-    _forceReleaseSyncLock();
-    _dirtyAssetKeys.clear();
-    _lastSyncedPages = {};
-    _localStorePages = {};
-    _localStoreAssets = {};
-    _localDirtyAssetKeys.clear();
-    _localStoreDoc = null;
-    _localStoreMeta = null;
-    _localStoreSymbols = null;
-    _localRetryTimer?.cancel();
-    _localRetryTimer = null;
-    _localFailures = 0;
-    localSaveError.value = null;
-    _discardRequested = false;
+    _sync.forceReleaseLock();
+    _sync.dirtyAssetKeys.clear();
+    _sync.lastSyncedPages = {};
+    _save.closed();
     _preview = false;
     _endLoadingSnapshot();
-    _lastSyncedDocument = null;
-    _lastSyncedMetadata = null;
-    _ghostEntryStrikes.clear();
-    _consecutiveInconsistentPulls = 0;
-    _consecutiveInconsistentSince = null;
-    _preSaveGuardAborts = 0;
-    _preSaveGuardSince = null;
-    _knownIncurableAssets.clear();
-    _healAttempted.clear();
+    _sync.lastSyncedDocument = null;
+    _sync.lastSyncedMetadata = null;
+    _sync.ghostEntryStrikes.clear();
+    _sync.consecutiveInconsistentPulls = 0;
+    _sync.consecutiveInconsistentSince = null;
+    _sync.preSaveGuardAborts = 0;
+    _sync.preSaveGuardSince = null;
+    _assets.resetOnClose();
     _assetsByLength.clear();
     _assetIndexBuilt = false;
     _pageJsonCache.clear();
-    // Reset the corrupt-asset blocklist: once the user closes the notebook,
-    // any "this asset failed to decode" state from this session is stale.
-    // After a settings "Ricarica" replaces the local .ncnote with fresh
-    // bytes from the server, re-entering the notebook must re-try decode
-    // — otherwise the orange broken-image badge stays on forever even
-    // though the underlying bytes are now valid.
-    _corruptAssetIds.clear();
-    _onDemandDecodeQueued.clear();
-    // Keep _remoteMetaEtag, _lastPageEtags across
+    // Keep _sync.remoteMetaEtag, _sync.lastPageEtags across
     // close/open to avoid re-pulling all pages on re-enter.
     state = null;
   }
@@ -3002,49 +1609,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final s = state!;
     final fromTool = s.currentTool;
 
-    // Persist the OUTGOING tool's settings so the next visit restores
-    // them. Lasso/text/image/pan/laser don't have user-tunable settings,
-    // so we skip recording for those.
-    if (_toolHasSettings(fromTool)) {
-      _toolPrefs[fromTool] = s.toolSettings;
-    }
+    // Persist the OUTGOING tool's settings so the next visit restores them.
+    _toolPrefs.rememberOutgoing(fromTool, s.toolSettings);
 
-    // Remember the eraser sub-mode the user just picked so the dock
-    // button restores it next time. Updated when the target is one of
-    // the eraser variants OR when leaving eraser (in which case the
-    // current value is already correct — no update needed).
+    // Remember the eraser sub-mode so the dock button restores it.
     if (tool == CanvasTool.eraserStandard || tool == CanvasTool.eraserStroke) {
-      _lastEraserMode = tool;
+      _toolPrefs.lastEraserMode = tool;
     }
 
-    // Resolve the INCOMING tool's settings:
-    //   1) per-tool memory if we have one
-    //   2) tool-specific first-visit defaults (highlighter yellow/12 px/35 %)
-    //   3) fall back to whatever the current toolSettings hold (rare —
-    //      happens only for lasso/text/etc. that don't track settings).
-    ToolSettings updatedSettings = s.toolSettings;
-    final remembered = _toolPrefs[tool];
-    if (remembered != null) {
-      updatedSettings = remembered;
-    } else if (tool == CanvasTool.highlighter) {
-      updatedSettings = s.toolSettings.copyWith(
-        color: 0xFFFFEB3B,
-        strokeWidth: 12.0,
-        opacity: 0.35,
-      );
-    } else if (_toolHasSettings(tool)) {
-      // First visit to a pen-class tool — start with the global default
-      // width and full opacity, keeping whatever colour the user had on
-      // a previous pen-class tool (so pen → ballpoint stays the same
-      // colour when ballpoint has never been touched before).
-      updatedSettings = s.toolSettings.copyWith(
-        strokeWidth: AppConfig.defaultStrokeWidth,
-        opacity: 1.0,
-        color: s.toolSettings.color == 0xFFFFEB3B
-            ? 0xFF000000  // coming from highlighter default — neutralise
-            : s.toolSettings.color,
-      );
-    }
+    final updatedSettings = _toolPrefs.settingsFor(tool, s.toolSettings);
 
     state = s.copyWith(
       currentTool: tool,
@@ -3059,92 +1632,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       clearRecognizedShape: true,
       isAdjustingRecognized: false,
     );
-    _persistToolPrefs();
-  }
-
-  /// Tools that have user-tunable settings worth remembering across
-  /// switches. Lasso/text/image/pan/laser/shape don't carry width/colour
-  /// state so they're omitted.
-  bool _toolHasSettings(CanvasTool t) {
-    return t == CanvasTool.pen ||
-        t == CanvasTool.ballpoint ||
-        t == CanvasTool.brush ||
-        t == CanvasTool.calligraphy ||
-        t == CanvasTool.highlighter ||
-        t == CanvasTool.eraserStandard ||
-        t == CanvasTool.eraserStroke;
-  }
-
-  Timer? _toolPrefsPersistDebounce;
-  /// Debounced persist of _toolPrefs to SharedPreferences. We don't need
-  /// to flush on every keystroke of the width slider — once the gesture
-  /// settles, write the JSON blob once.
-  void _persistToolPrefs() {
-    _toolPrefsPersistDebounce?.cancel();
-    _toolPrefsPersistDebounce =
-        Timer(const Duration(milliseconds: 600), () async {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final blob = <String, dynamic>{
-          'lastEraserMode': _lastEraserMode.name,
-          'tools': {
-            for (final e in _toolPrefs.entries)
-              e.key.name: {
-                'color': e.value.color,
-                'strokeWidth': e.value.strokeWidth,
-                'opacity': e.value.opacity,
-                'eraserSize': e.value.eraserSize.name,
-                if (e.value.eraserDiameterPt != null)
-                  'eraserDiameterPt': e.value.eraserDiameterPt,
-              },
-          },
-        };
-        await prefs.setString('canvas_tool_prefs_v1', jsonEncode(blob));
-      } catch (_) {/* non-critical */}
-    });
-  }
-
-  Future<void> _loadToolPrefs() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('canvas_tool_prefs_v1');
-      if (raw == null || raw.isEmpty) return;
-      final blob = jsonDecode(raw) as Map<String, dynamic>;
-      final lastEr = blob['lastEraserMode'] as String?;
-      if (lastEr != null) {
-        _lastEraserMode = CanvasTool.values.firstWhere(
-          (t) => t.name == lastEr,
-          orElse: () => CanvasTool.eraserStroke,
-        );
-      }
-      final tools = blob['tools'] as Map<String, dynamic>?;
-      if (tools != null) {
-        tools.forEach((toolName, settings) {
-          final tool = CanvasTool.values.firstWhere(
-            (t) => t.name == toolName,
-            orElse: () => CanvasTool.pen,
-          );
-          final s = settings as Map<String, dynamic>;
-          _toolPrefs[tool] = ToolSettings(
-            color: s['color'] as int? ?? 0xFF000000,
-            strokeWidth:
-                (s['strokeWidth'] as num?)?.toDouble() ?? AppConfig.defaultStrokeWidth,
-            opacity: (s['opacity'] as num?)?.toDouble() ?? 1.0,
-            eraserSize: EraserSize.values.firstWhere(
-              (e) => e.name == (s['eraserSize'] as String?),
-              orElse: () => EraserSize.medium,
-            ),
-            eraserDiameterPt: (s['eraserDiameterPt'] as num?)?.toDouble(),
-          );
-        });
-      }
-    } catch (_) {/* non-critical */}
+    _toolPrefs.persist();
   }
 
   void setToolSettings(ToolSettings settings) {
     if (state == null) return;
     state = state!.copyWith(toolSettings: settings);
-    _rememberToolPref();
+    _toolPrefs.rememberCurrent();
   }
 
   /// Apply a saved pen preset: injects the preset's (color, strokeWidth,
@@ -3162,31 +1656,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     ));
   }
 
-  /// Snapshot the current toolSettings into the per-tool memory and
-  /// schedule a persist. Called whenever the user tweaks width / color /
-  /// opacity / eraser size for the active tool so the next tool switch
-  /// (and the next app launch) can restore those exact values.
-  void _rememberToolPref() {
-    final s = state;
-    if (s == null) return;
-    if (!_toolHasSettings(s.currentTool)) return;
-    _toolPrefs[s.currentTool] = s.toolSettings;
-    _persistToolPrefs();
-  }
-
-  void _discardPendingErase() {
-    _eraseFlushTimer?.cancel();
-    _eraseFlushTimer = null;
-    _pendingErasePage = null;
-    _pendingEraseFileName = null;
-  }
-
   /// Cancel the current stroke without committing (e.g. when pinch-to-zoom starts)
   void cancelStroke() {
     if (state == null) return;
-    _discardPendingErase();
-    _eraserUndoPushed = false;
-    _eraseGestureStart = null;
+    _eraser.cancelGesture();
     state = state!.copyWith(
       activeStroke: [],
       clearShapeStart: true,
@@ -3202,7 +1675,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     state = state!.copyWith(
       toolSettings: ts.copyWith(eraserSize: size, clearEraserDiameter: true),
     );
-    _rememberToolPref();
+    _toolPrefs.rememberCurrent();
   }
 
   void setEraserDiameterPt(double? pt) {
@@ -3214,7 +1687,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
           ? ts.copyWith(clearEraserDiameter: true)
           : ts.copyWith(eraserDiameterPt: pt),
     );
-    _rememberToolPref();
+    _toolPrefs.rememberCurrent();
   }
 
   // ── Paper type ──
@@ -3228,8 +1701,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final fileName = s.currentPageFileName;
     final bgType = paperTypeToString(type);
     final lineSpacing = paperTypeLineSpacing(type);
-
-    final undoStack = _pushUndo(s, fileName, page);
 
     final updatedPage = carryPdfTextLayer(page, PageData(
       pageId: page.pageId,
@@ -3250,9 +1721,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       modifiedAt: DateTime.now(),
     ));
 
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
     // metadata.paperType only drives the Library cover's texture swatch and
     // the default for newly added pages — keep it in sync with page 1 so
     // the cover doesn't keep showing a stale paper type after the user
@@ -3261,13 +1729,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         ? s.metadata.copyWith(paperType: bgType, modifiedAt: DateTime.now())
         : s.metadata;
 
-    state = s.copyWith(
-      pages: updatedPages,
-      metadata: metadata,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
+    commitPageEdit(s, fileName, updatedPage,
+        undoOf: page, alsoState: (n) => n.copyWith(metadata: metadata));
   }
 
   /// Sets the gap between the current page's lines, grid squares or dots,
@@ -3281,7 +1744,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (bg.lineSpacing == spacing) return;
 
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
     final updatedPage = page.copyWith(
       layers: page.layers.copyWith(
         background: bg.copyWith(lineSpacing: spacing),
@@ -3289,14 +1751,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       modifiedAt: DateTime.now(),
     );
 
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(
-      pages: updatedPages,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
+    commitPageEdit(s, fileName, updatedPage, undoOf: page);
   }
 
   /// Resizes the current page. What's drawn keeps its place from the top
@@ -3310,21 +1765,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (page.width == width && page.height == height) return;
 
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
     final resized = page.copyWith(
       width: width,
       height: height,
       modifiedAt: DateTime.now(),
     );
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = resized;
-    state = s.copyWith(
-      pages: updatedPages,
-      document: _withEntrySize(s.document, fileName, resized),
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
+    commitPageEdit(s, fileName, resized,
+        undoOf: page,
+        alsoState: (n) =>
+            n.copyWith(document: _withEntrySize(s.document, fileName, resized)));
   }
 
   /// The document's page list also records each page's size: keep it in
@@ -3353,16 +1802,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (tool == CanvasTool.pan || tool == CanvasTool.text || tool == CanvasTool.image) return;
 
     if (tool == CanvasTool.lasso) {
-      _startLasso(position);
+      _selection.startLasso(position);
       return;
     }
 
     if (tool == CanvasTool.eraserStandard || tool == CanvasTool.eraserStroke) {
-      _eraserUndoPushed = false; // Reset at start of each eraser gesture
-      _lastEraseAtPos = const Offset(-1e9, -1e9); // unfreeze dist-throttle
-      _eraseGestureStart = DateTime.now(); // for progressive growth
+      _eraser.beginGesture();
       state = state!.copyWith(eraserCursorPos: position);
-      _eraseAt(position);
+      _eraser.eraseAt(position);
       return;
     }
 
@@ -3383,7 +1830,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final tool = state!.currentTool;
 
     if (tool == CanvasTool.lasso) {
-      _continueLasso(position);
+      _selection.continueLasso(position);
       return;
     }
 
@@ -3392,10 +1839,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // continueStroke fires at 60-120 Hz on Apple Pencil / mouse and
       // every state mutation triggers Riverpod fan-out to all
       // listeners (~7 selectors run their compute even if they don't
-      // re-fire). _eraseAt below updates the cursor position itself
+      // re-fire). eraseAt below updates the cursor position itself
       // alongside its own distance throttle so the cursor moves
       // visibly only when erase work happens.
-      _eraseAt(position);
+      _eraser.eraseAt(position);
       return;
     }
 
@@ -3429,14 +1876,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (state == null) return;
     final tool = state!.currentTool;
 
-    if (tool == CanvasTool.lasso) { _endLasso(); return; }
+    if (tool == CanvasTool.lasso) { _selection.endLasso(); return; }
     if (tool == CanvasTool.eraserStandard || tool == CanvasTool.eraserStroke) {
       // Force-commit any throttled erasures so the pointer-up state
       // matches what the user saw on screen during the drag.
-      if (_pendingErasePage != null) {
-        _flushPendingErase();
-      }
-      _eraseGestureStart = null; // reset progressive-growth timer
+      _eraser.endGesture();
       state = state!.copyWith(clearEraserCursor: true);
       return;
     }
@@ -3506,7 +1950,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // solid the moment the user adjusted it.
         updated = shape.copyWith(x2: snapped[0], y2: snapped[1]);
         break;
-      case 'circle' when _isRound(shape):
+      case 'circle' when isRound(shape):
         final box = circleResizeBox(
             Offset((shape.x1 + shape.x2) / 2, (shape.y1 + shape.y2) / 2),
             position);
@@ -3516,7 +1960,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         );
         break;
       case 'rectangle':
-        updated = _dragRectCorner(shape, position);
+        updated = dragRectCorner(shape, position);
         break;
       default:
         // Drag adjusts the bottom-right corner
@@ -3524,25 +1968,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         break;
     }
     state = state!.copyWith(recognizedShape: updated);
-  }
-
-  /// A circle whose box is square and unrotated (not a recognized oval).
-  static bool _isRound(ShapeData s) =>
-      s.rotation == 0 && ((s.x2 - s.x1).abs() - (s.y2 - s.y1).abs()).abs() < 1;
-
-  /// Moves the (x2,y2) corner of a possibly rotated rectangle to [cursor] on
-  /// the page, keeping the opposite corner where it is on the page.
-  static ShapeData _dragRectCorner(ShapeData s, Offset cursor) {
-    if (s.rotation == 0) return s.copyWith(x2: cursor.dx, y2: cursor.dy);
-    final c0 = Offset((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2);
-    final ca = cos(s.rotation), sa = sin(s.rotation);
-    Offset rot(Offset p, double c, double sn) =>
-        Offset(p.dx * c - p.dy * sn, p.dx * sn + p.dy * c);
-    final anchor = c0 + rot(Offset(s.x1, s.y1) - c0, ca, sa);
-    final u = rot(cursor - anchor, ca, -sa);
-    final c1 = anchor + rot(u / 2, ca, sa);
-    final a = c1 - u / 2, b = c1 + u / 2;
-    return s.copyWith(x1: a.dx, y1: a.dy, x2: b.dx, y2: b.dy);
   }
 
   /// For line shapes: keep x1,y1 fixed and move x2,y2 to [position].
@@ -3562,7 +1987,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (state == null || state!.recognizedShape == null) return;
     final s = state!.recognizedShape!;
 
-    if (s.shapeType == 'circle' && _isRound(s)) {
+    if (s.shapeType == 'circle' && isRound(s)) {
       final box = circleResizeBox(
           Offset((s.x1 + s.x2) / 2, (s.y1 + s.y2) / 2), position);
       state = state!.copyWith(
@@ -3586,7 +2011,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // Oblique triangles draw from absolute vertices: scale them with the box.
       final from = Rect.fromPoints(
           Offset(base.x1, base.y1), Offset(base.x2, base.y2));
-      final vertices = _transformVertices(
+      final vertices = transformVertices(
           base.vertices,
           (p) => Offset(
                 from.width <= 0
@@ -3609,7 +2034,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // x1,y1 is the anchor (opposite corner from pen at recognition time).
     state = state!.copyWith(
       recognizedShape: s.shapeType == 'rectangle'
-          ? _dragRectCorner(s, position)
+          ? dragRectCorner(s, position)
           : s.copyWith(x2: position.dx, y2: position.dy),
     );
   }
@@ -3636,7 +2061,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   void _addStrokeElement(CanvasState s) {
     final page = s.currentPage!;
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
 
     String toolType;
     bool isHighlighter = false;
@@ -3664,7 +2088,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final newElement = ContentElement.stroke(
       id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
+      zIndex: nextZIndex(page),
       data: StrokeData(
         points: smoothedPoints,
         toolType: toolType,
@@ -3676,26 +2100,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       ),
     );
 
-    final updatedPage = _pageWithNewElement(page, newElement);
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages,
-      activeStroke: [],
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
+    commitPageEdit(s, fileName, pageWithNewElement(page, newElement),
+        undoOf: page, alsoState: (n) => n.copyWith(activeStroke: []));
     if (CrashLogger.verboseEnabled) {
       _diagStrokeId = newElement.id;
       _diagStrokePage = fileName;
       CrashLogger.append('[StrokeDbg] COMMIT ${newElement.id} '
           'pts=${smoothedPoints.length} page=$fileName '
-          'undo=${undoStack.length}');
+          'undo=${state!.undoStack.length}');
     }
   }
-
 
   /// The width the ink of [points] is drawn at, on average, so a shape made
   /// from them matches the pen: the slider's width times the stroke's own
@@ -3726,25 +2140,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final s = state!;
     final page = s.currentPage!;
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
 
     final newElement = ContentElement.shape(
       id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
+      zIndex: nextZIndex(page),
       data: shapeData,
     );
 
-    final updatedPage = _pageWithNewElement(page, newElement);
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages,
-      activeStroke: [],
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
+    commitPageEdit(s, fileName, pageWithNewElement(page, newElement),
+        undoOf: page, alsoState: (n) => n.copyWith(activeStroke: []));
   }
 
   void _finalizeShape() {
@@ -3758,7 +2162,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final page = s.currentPage;
     if (page == null) return;
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
 
     // A circle stays a circle whatever the drag looked like: store the
     // squared box so the inscribed ellipse every consumer reads IS a circle.
@@ -3774,7 +2177,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final newElement = ContentElement.shape(
       id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
+      zIndex: nextZIndex(page),
       data: ShapeData(
         shapeType: s.toolSettings.shapeType,
         x1: x1, y1: y1,
@@ -3784,1129 +2187,50 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       ),
     );
 
-    final updatedPage = _pageWithNewElement(page, newElement);
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      clearShapeStart: true,
-      clearShapeEnd: true,
-    );
-  }
-
-  // ── Eraser ──
-
-  /// True if any sampled point of [sh]'s outline lies within [radius] of [p].
-  static bool _shapeOutlineWithin(ShapeData sh, Offset p, double radius) {
-    final r2 = radius * radius;
-    for (final edge in _shapeToSampledEdges(sh, radius * 0.5)) {
-      for (final pt in edge) {
-        final dx = pt.x - p.dx;
-        final dy = pt.y - p.dy;
-        if (dx * dx + dy * dy < r2) return true;
-      }
-    }
-    return false;
-  }
-
-  /// Convert a shape outline into sampled edge segments (list of point lists).
-  /// Each edge is densely sampled so point-by-point erasure works.
-  /// Points are in final (rotated) coordinates.
-  static List<List<StrokePoint>> _shapeToSampledEdges(ShapeData sh, double stepSize) {
-    final rawEdges = <List<Offset>>[];
-
-    switch (sh.shapeType) {
-      case 'line':
-      case 'arrow':
-        rawEdges.add([Offset(sh.x1, sh.y1), Offset(sh.x2, sh.y2)]);
-        break;
-      case 'rectangle':
-        final l = min(sh.x1, sh.x2), r = max(sh.x1, sh.x2);
-        final t = min(sh.y1, sh.y2), b = max(sh.y1, sh.y2);
-        rawEdges.addAll([
-          [Offset(l, t), Offset(r, t)],
-          [Offset(r, t), Offset(r, b)],
-          [Offset(r, b), Offset(l, b)],
-          [Offset(l, b), Offset(l, t)],
-        ]);
-        break;
-      case 'triangle':
-        final tc = triangleCorners(sh);
-        rawEdges.addAll([[tc[0], tc[1]], [tc[1], tc[2]], [tc[2], tc[0]]]);
-        break;
-      case 'rhombus':
-        final rl = min(sh.x1, sh.x2), rr = max(sh.x1, sh.x2);
-        final rt = min(sh.y1, sh.y2), rb = max(sh.y1, sh.y2);
-        final mx = (rl + rr) / 2, my = (rt + rb) / 2;
-        final top = Offset(mx, rt), right = Offset(rr, my);
-        final bottom = Offset(mx, rb), left = Offset(rl, my);
-        rawEdges.addAll([
-          [top, right],
-          [right, bottom],
-          [bottom, left],
-          [left, top],
-        ]);
-        break;
-      case 'circle':
-        // MUST match what the painter draws (the ellipse inscribed in the
-        // bbox). This used to sample a circle of half-DIAGONAL radius —
-        // ~1.41× the drawn outline on the square bbox recognition emits —
-        // so every sampled point sat well outside the ink and the eraser
-        // never hit a circle no matter where the user put it.
-        final oval = shapeEllipseRect(sh);
-        final rx = oval.width / 2, ry = oval.height / 2;
-        final cx = oval.center.dx, cy = oval.center.dy;
-        // Ramanujan's perimeter approximation → point count.
-        final sum = rx + ry;
-        final h = sum == 0 ? 0.0 : ((rx - ry) * (rx - ry)) / (sum * sum);
-        final perimeter = pi * sum * (1 + (3 * h) / (10 + sqrt(4 - 3 * h)));
-        final n = max(36, (perimeter / stepSize).ceil());
-        // Ellipse as one continuous edge of n+1 points
-        final pts = <Offset>[];
-        for (int i = 0; i <= n; i++) {
-          final a = 2 * pi * i / n;
-          pts.add(Offset(cx + rx * cos(a), cy + ry * sin(a)));
-        }
-        rawEdges.add(pts);
-        break;
-      default:
-        final l = min(sh.x1, sh.x2), r = max(sh.x1, sh.x2);
-        final t = min(sh.y1, sh.y2), b = max(sh.y1, sh.y2);
-        rawEdges.addAll([
-          [Offset(l, t), Offset(r, t)],
-          [Offset(r, t), Offset(r, b)],
-          [Offset(r, b), Offset(l, b)],
-          [Offset(l, b), Offset(l, t)],
-        ]);
-        break;
-    }
-
-    // Rotation transform
-    final cx = (sh.x1 + sh.x2) / 2;
-    final cy = (sh.y1 + sh.y2) / 2;
-    final hasRotation = sh.rotation != 0 && sh.shapeType != 'triangle';
-    final cosA = hasRotation ? cos(sh.rotation) : 1.0;
-    final sinA = hasRotation ? sin(sh.rotation) : 0.0;
-
-    Offset rotatePoint(Offset p) {
-      if (!hasRotation) return p;
-      final dx = p.dx - cx;
-      final dy = p.dy - cy;
-      return Offset(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA);
-    }
-
-    // Sample each edge and apply rotation
-    final result = <List<StrokePoint>>[];
-    for (final edge in rawEdges) {
-      final sampled = <StrokePoint>[];
-      // For multi-point edges (circles), sample between consecutive pairs
-      for (int i = 0; i < edge.length - 1; i++) {
-        final p1 = edge[i];
-        final p2 = edge[i + 1];
-        final dist = (p2 - p1).distance;
-        final count = max(2, (dist / stepSize).ceil() + 1);
-        // Don't duplicate the start point for interior segments
-        final startIdx = (i == 0) ? 0 : 1;
-        for (int j = startIdx; j < count; j++) {
-          final t = j / (count - 1);
-          final raw = Offset(p1.dx + (p2.dx - p1.dx) * t, p1.dy + (p2.dy - p1.dy) * t);
-          final rotated = rotatePoint(raw);
-          sampled.add(StrokePoint(x: rotated.dx, y: rotated.dy, pressure: 1.0));
-        }
-      }
-      if (sampled.length >= 2) result.add(sampled);
-    }
-    return result;
-  }
-
-  void _eraseAt(Offset position) {
-    if (state == null) return;
-    final s = state!;
-    // Base radius from the user's eraser-size pref, scaled up after a
-    // sustained gesture. Curve: starts at 1.0, ramps to ~2.5 over 5 s
-    // of continuous drawing, then caps. The user keeps moving →
-    // effective radius keeps growing, so "wipe everything in this
-    // region" works without flipping size from the popup.
-    final base = s.toolSettings.eraserRadius;
-    final startedAt = _eraseGestureStart;
-    double growth = 1.0;
-    if (startedAt != null) {
-      final secs = DateTime.now().difference(startedAt).inMilliseconds / 1000;
-      // Linear up to 5 s, capped at 2.5×. Gesture under ~0.8 s leaves
-      // growth ≈ 1.05 — imperceptible, doesn't surprise the user on
-      // quick taps.
-      growth = (1.0 + secs * 0.30).clamp(1.0, 2.5);
-    }
-    final eraseRadius = base * growth;
-    // Sub-radius movement check: any element a closer-spaced previous
-    // sample might erase is also reachable from this near-identical
-    // position, so skip the O(elements × points) scan entirely.
-    final dx = position.dx - _lastEraseAtPos.dx;
-    final dy = position.dy - _lastEraseAtPos.dy;
-    final movedSq = dx * dx + dy * dy;
-    final thresholdSq = (eraseRadius * _eraseRadiusFraction) *
-        (eraseRadius * _eraseRadiusFraction);
-    if (movedSq < thresholdSq) return;
-    _lastEraseAtPos = position;
-
-    // Now that we know we're going to do real erase work, push the
-    // cursor visualisation to state. Throttling this with the same
-    // dist-check as the erase compute means the cursor visibly moves
-    // ~30 Hz instead of 120 Hz, but only saves Riverpod fan-out work
-    // — at radius * 0.3 movement thresholds the cursor still tracks
-    // the pointer smoothly to the eye.
-    state = s.copyWith(eraserCursorPos: position);
-    final s2 = state!;
-
-    final fileName = s2.currentPageFileName;
-    // Use the in-progress pending page as base if we have one — otherwise
-    // each event would re-erase from the original (pre-gesture) page and
-    // wipe out earlier erasures within the throttle window.
-    final page =
-        (_pendingErasePage != null && _pendingEraseFileName == fileName)
-            ? _pendingErasePage!
-            : s.currentPage;
-    if (page == null) return;
-
-    final isStrokeEraser = s.currentTool == CanvasTool.eraserStroke;
-
-    final newContent = <ContentElement>[];
-    bool changed = false;
-
-    // Avoid `element.map(stroke:_, text:_, image:_, shape:_)` per
-    // element — that's 4 closure allocations per call, twice per
-    // element below = 8 closures × 200 elements × ~30 Hz ≈ 48 k
-    // closure allocs/sec of pure GC pressure during a drag. Replace
-    // with `is` checks on the runtime subtype which is zero-alloc.
-    for (final element in page.layers.content) {
-      bool shouldRemoveWhole = false;
-
-      // Check non-stroke elements (text, symbols, shapes).
-      //
-      // Text, symbols and typeset math are ATOMIC — there's no way to
-      // pixel-erase into them — so both erasers use the same test: the
-      // element goes when the cursor touches its box. The standard eraser
-      // used to test the box EDGES only, which meant scrubbing right
-      // across the middle of a paragraph did nothing at all and the user
-      // had to hunt for the border.
-      if (element is TextElement) {
-        final t = element.data;
-        final rect = Rect.fromLTWH(t.x, t.y, t.width, t.height);
-        if (rect.inflate(eraseRadius).contains(position)) {
-          shouldRemoveWhole = true;
-        }
-      } else if (element is ImageElement) {
-        final img = element.data;
-        if (img.assetPath.startsWith('symbol_')) {
-          final rect = Rect.fromLTWH(img.x, img.y, img.width, img.height);
-          if (rect.inflate(eraseRadius).contains(position)) {
-            shouldRemoveWhole = true;
-          }
-        }
-      } else if (element is ShapeElement && isStrokeEraser) {
-        final sh = element.data;
-        final rect = Rect.fromPoints(
-          Offset(sh.x1, sh.y1),
-          Offset(sh.x2, sh.y2),
-        );
-        // Bbox is only a cheap reject: a diagonal line's bbox is mostly
-        // empty space, so a bbox-contains test erased lines the cursor
-        // was nowhere near. Confirm the hit against the sampled outline.
-        // Rotated shapes skip the bbox gate — their outline can extend
-        // outside the axis-aligned x1..x2/y1..y2 rect.
-        if (sh.rotation != 0 ||
-            rect.inflate(eraseRadius).contains(position)) {
-          // A filled shape's interior is ink too: scrubbing anywhere
-          // inside it deletes the element, same as touching the outline.
-          shouldRemoveWhole =
-              (sh.fillColor != null && shapeBodyContains(sh, position)) ||
-                  _shapeOutlineWithin(sh, position, eraseRadius);
-        }
-      } else if (element is MathElement) {
-        // Typeset math is an atomic object (like text): delete the whole
-        // equation on hit; never pixel-erase into it.
-        final m = element.data;
-        final rect = Rect.fromLTWH(m.x, m.y, m.width, m.height);
-        if (rect.inflate(eraseRadius).contains(position)) {
-          shouldRemoveWhole = true;
-        }
-      }
-
-      if (shouldRemoveWhole) {
-        changed = true;
-        continue;
-      }
-
-      // For strokes: stroke eraser removes entire stroke, standard eraser
-      // splits it into segments by erasing only the touched points.
-      // For shapes (standard eraser only): decompose outline into sampled
-      // points and apply the same splitting logic, so only the touched
-      // portion is erased.
-      bool handled = false;
-      // Same closure-free pattern: replace `element.map(stroke:_, ...)`
-      // with a typed dispatch.
-      if (element is StrokeElement) {
-        final stroke = element;
-        handled = true;
-
-        // BBOX FAST PATH — most strokes on a dense page are nowhere
-        // near the eraser cursor, so walking all 80 points just to
-        // discover that is wasted work. Cache the stroke's bbox via
-        // Expando the first time we see it.
-        var bbox = _strokeBboxCache[stroke.data];
-        if (bbox == null) {
-          double minX = double.infinity, minY = double.infinity;
-          double maxX = -double.infinity, maxY = -double.infinity;
-          for (final p in stroke.data.points) {
-            if (p.x < minX) minX = p.x;
-            if (p.x > maxX) maxX = p.x;
-            if (p.y < minY) minY = p.y;
-            if (p.y > maxY) maxY = p.y;
-          }
-          if (minX == double.infinity) {
-            newContent.add(element);
-            continue;
-          }
-          bbox = Rect.fromLTRB(minX, minY, maxX, maxY);
-          _strokeBboxCache[stroke.data] = bbox;
-        }
-        if (!bbox.inflate(eraseRadius).contains(position)) {
-          newContent.add(element);
-          continue;
-        }
-
-        final r2 = eraseRadius * eraseRadius;
-        if (isStrokeEraser) {
-          bool hit = false;
-          for (final point in stroke.data.points) {
-            final dx = point.x - position.dx;
-            final dy = point.y - position.dy;
-            if (dx * dx + dy * dy < r2) {
-              hit = true;
-              break;
-            }
-          }
-          if (hit) {
-            changed = true;
-          } else {
-            newContent.add(element);
-          }
-        } else {
-          bool anyTouched = false;
-          for (final point in stroke.data.points) {
-            final dx = point.x - position.dx;
-            final dy = point.y - position.dy;
-            if (dx * dx + dy * dy < r2) {
-              anyTouched = true;
-              break;
-            }
-          }
-          if (!anyTouched) {
-            newContent.add(element);
-            continue;
-          }
-          final segments = <List<StrokePoint>>[];
-          var currentSegment = <StrokePoint>[];
-          for (final point in stroke.data.points) {
-            final dx = point.x - position.dx;
-            final dy = point.y - position.dy;
-            if (dx * dx + dy * dy < r2) {
-              if (currentSegment.length >= 2) {
-                segments.add(currentSegment);
-              }
-              currentSegment = [];
-              changed = true;
-            } else {
-              currentSegment.add(point);
-            }
-          }
-          if (currentSegment.length >= 2) {
-            segments.add(currentSegment);
-          }
-          if (segments.isEmpty) {
-            changed = true;
-            continue;
-          }
-          if (segments.length == 1 &&
-              segments[0].length == stroke.data.points.length) {
-            newContent.add(element);
-            continue;
-          }
-          for (final seg in segments) {
-            newContent.add(ContentElement.stroke(
-              id: const Uuid().v4(),
-              zIndex: stroke.zIndex,
-              data: StrokeData(
-                points: seg,
-                toolType: stroke.data.toolType,
-                color: stroke.data.color,
-                baseWidth: stroke.data.baseWidth,
-                isHighlighter: stroke.data.isHighlighter,
-                opacity: stroke.data.opacity,
-                timestamp: stroke.data.timestamp,
-              ),
-            ));
-          }
-        }
-      } else if (element is ShapeElement && !isStrokeEraser) {
-        final sh = element;
-        handled = true;
-
-        // BBOX FAST PATH — same reason as the stroke branch above: without
-        // it every shape on the page got its outline re-sampled (dozens to
-        // hundreds of points for an ellipse) on every erase event, however
-        // far from the cursor it was. Rotated shapes skip the gate; their
-        // outline can fall outside the axis-aligned x1..x2/y1..y2 rect.
-        final shBounds = Rect.fromPoints(
-          Offset(sh.data.x1, sh.data.y1),
-          Offset(sh.data.x2, sh.data.y2),
-        );
-        if (sh.data.rotation == 0 &&
-            !shBounds.inflate(eraseRadius).contains(position)) {
-          newContent.add(element);
-          continue;
-        }
-
-        // A filled shape can't be nibbled: the surviving pieces are plain
-        // strokes and there's nowhere to keep the fill, so grazing the
-        // border used to silently delete the whole filled area. Treat a
-        // filled shape as atomic for this eraser too — outline OR interior
-        // contact removes it, which is also what the user expects when
-        // scrubbing across a solid blob.
-        if (sh.data.fillColor != null) {
-          if (shapeBodyContains(sh.data, position) ||
-              _shapeOutlineWithin(sh.data, position, eraseRadius)) {
-            changed = true;
-            continue;
-          }
-          newContent.add(element);
-          continue;
-        }
-
-        final sampledEdges = _shapeToSampledEdges(sh.data, eraseRadius * 0.5);
-        bool anyErased = false;
-        final survivingStrokes = <ContentElement>[];
-
-        for (final edgePoints in sampledEdges) {
-          final segments = <List<StrokePoint>>[];
-          var currentSeg = <StrokePoint>[];
-
-          for (final point in edgePoints) {
-            final dx = point.x - position.dx;
-            final dy = point.y - position.dy;
-            if (dx * dx + dy * dy < eraseRadius * eraseRadius) {
-              if (currentSeg.length >= 2) segments.add(currentSeg);
-              currentSeg = [];
-              anyErased = true;
-            } else {
-              currentSeg.add(point);
-            }
-          }
-          if (currentSeg.length >= 2) segments.add(currentSeg);
-
-          for (final seg in segments) {
-            survivingStrokes.add(ContentElement.stroke(
-              id: const Uuid().v4(),
-              zIndex: sh.zIndex,
-              data: StrokeData(
-                points: seg,
-                // Carry the shape's ink type over. Hardcoding opaque
-                // ballpoint turned what was left of a highlighter-drawn
-                // shape into solid ink the moment the eraser touched it.
-                toolType:
-                    sh.data.isHighlighter ? 'highlighter' : 'ballpoint',
-                color: sh.data.strokeColor,
-                baseWidth: sh.data.strokeWidth,
-                isHighlighter: sh.data.isHighlighter,
-                opacity: 1.0,
-              ),
-            ));
-          }
-        }
-
-        if (anyErased) {
-          changed = true;
-          newContent.addAll(survivingStrokes);
-        } else {
-          newContent.add(element);
-        }
-      }
-
-      if (!handled) {
-        newContent.add(element);
-      }
-    }
-
-    if (!changed) return;
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: newContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    // Stash the latest computed page locally; commit to `state` at most
-    // every [_eraseFlushInterval] (or immediately on pointer-up via
-    // [_flushPendingErase]). This drops the ~60-120 Hz state cascade
-    // (Picture rebuild + chrome notify + Map<String,PageData>.from
-    // copy of 215 entries) down to ~30 Hz while keeping erase visually
-    // smooth.
-    _pendingErasePage = updatedPage;
-    _pendingEraseFileName = fileName;
-    final elapsed = DateTime.now().difference(_lastEraseFlushAt);
-    if (elapsed >= _eraseFlushInterval) {
-      _flushPendingErase();
-    } else {
-      _eraseFlushTimer?.cancel();
-      _eraseFlushTimer =
-          Timer(_eraseFlushInterval - elapsed, _flushPendingErase);
-    }
-  }
-
-  /// Apply the buffered eraser changes to `state`. Called from either
-  /// the throttle Timer in [_eraseAt] or directly on pointer-up by
-  /// [endStroke] so the final erase state always lands.
-  void _flushPendingErase() {
-    if (_disposed) return;
-    _eraseFlushTimer?.cancel();
-    _eraseFlushTimer = null;
-    final pending = _pendingErasePage;
-    final fn = _pendingEraseFileName;
-    if (pending == null || fn == null || state == null) {
-      _pendingErasePage = null;
-      _pendingEraseFileName = null;
-      return;
-    }
-    final s = state!;
-    if (s.currentPageFileName != fn) {
-      // User flipped pages mid-erase; drop the buffer.
-      _pendingErasePage = null;
-      _pendingEraseFileName = null;
-      return;
-    }
-
-    // Push undo only once per eraser gesture (first flush of the burst).
-    List<UndoEntry> undoStack;
-    if (!_eraserUndoPushed) {
-      // Use the original pre-gesture page from `s.pages[fn]`, NOT the
-      // pending page (which has erasures already applied).
-      final originalPage = s.pages[fn];
-      undoStack = originalPage == null
-          ? s.undoStack
-          : _pushUndo(s, fn, originalPage);
-      _eraserUndoPushed = true;
-    } else {
-      undoStack = s.undoStack;
-    }
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fn] = pending;
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-    );
-
-    _pendingErasePage = null;
-    _pendingEraseFileName = null;
-    _lastEraseFlushAt = DateTime.now();
+    final updatedPage = pageWithNewElement(page, newElement);
+    commitPageEdit(s, fileName, updatedPage,
+        undoOf: page,
+        alsoState: (n) => n.copyWith(clearShapeStart: true, clearShapeEnd: true));
   }
 
   // ── Lasso ──
 
-  void _startLasso(Offset position) {
-    if (state!.lassoSelection != null) {
-      final sel = state!.lassoSelection!;
-      final dragBounds = sel.bounds.translate(sel.dragOffset.dx, sel.dragOffset.dy);
-      // Wait, is it clicking inside the lasso to drag?
-      if (dragBounds.contains(position)) return;
-      applySelectionTransform(); // Bake if clicking outside
-      state = state!.copyWith(clearLasso: true, lassoPath: []);
-    }
-    state = state!.copyWith(lassoPath: [position]);
-  }
-
-  void clearLassoPath() {
-    if (state == null) return;
-    if (state!.lassoSelection != null) applySelectionTransform();
-    state = state!.copyWith(clearLasso: true, lassoPath: []);
-  }
+  void clearLassoPath() => _selection.clearLassoPath();
 
   /// Accept a locally-collected lasso path (from _LassoPathNotifier in the UI)
-  /// and run selection — bypasses per-point Riverpod updates entirely.
-  void commitLassoPath(List<Offset> path) {
-    if (state == null) return;
-    final s = state!;
-    if (path.length < 3) {
-      state = s.copyWith(lassoPath: [], clearLasso: true);
-      return;
-    }
-    // Reuse _endLasso logic by temporarily setting the path
-    state = s.copyWith(lassoPath: path);
-    _endLasso();
-  }
+  /// and run selection, bypassing per-point Riverpod updates.
+  void commitLassoPath(List<Offset> path) => _selection.commitLassoPath(path);
 
-  void _continueLasso(Offset position) {
-    if (state!.lassoPath.isEmpty) return;
-    state = state!.copyWith(lassoPath: [...state!.lassoPath, position]);
-  }
-
-  void _endLasso() {
-    if (state == null) return;
-    final s = state!;
-    if (s.lassoPath.length < 3) {
-      state = s.copyWith(lassoPath: [], clearLasso: true);
-      return;
-    }
-
-    final page = s.currentPage;
-    if (page == null) return;
-
-    // Build the lasso polygon for point-in-polygon testing
-    final lassoPolygon = s.lassoPath;
-
-    final selectedIds = <String>[];
-    Rect? selectionBounds;
-
-    for (final element in page.layers.content) {
-      // Skip PDF images from lasso selection — they are only selectable via double-tap
-      final isPdfImage = element.mapOrNull(
-        image: (img) => img.data.assetPath.contains('.pdf_p'),
-      ) ?? false;
-      if (isPdfImage) continue;
-
-      final elementBounds = _getElementBounds(element);
-      if (elementBounds == null) continue;
-
-      bool isSelected = false;
-
-      // Strokes and shapes are tested against their ACTUAL geometry, not
-      // the bounding box: a diagonal line's (or C-shaped stroke's) bbox
-      // center/corners are mostly empty space, so the old center+corner
-      // heuristic selected elements the lasso was nowhere near.
-      if (element is StrokeElement) {
-        for (final p in element.data.points) {
-          if (_pointInPolygon(Offset(p.x, p.y), lassoPolygon)) {
-            isSelected = true;
-            break;
-          }
-        }
-      } else if (element is ShapeElement) {
-        outer:
-        for (final edge in _shapeToSampledEdges(element.data, 8.0)) {
-          for (final p in edge) {
-            if (_pointInPolygon(Offset(p.x, p.y), lassoPolygon)) {
-              isSelected = true;
-              break outer;
-            }
-          }
-        }
-      } else {
-        // Solid rectangular elements (text, image, math): center or any
-        // corner inside the lasso counts.
-        if (_pointInPolygon(elementBounds.center, lassoPolygon)) {
-          isSelected = true;
-        }
-        if (!isSelected) {
-          final corners = [elementBounds.topLeft, elementBounds.topRight, elementBounds.bottomLeft, elementBounds.bottomRight];
-          for (final corner in corners) {
-            if (_pointInPolygon(corner, lassoPolygon)) {
-              isSelected = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (isSelected) {
-        final id = element.map(unknown: (u) => u.id,
-          stroke: (e) => e.id, text: (e) => e.id,
-          image: (e) => e.id, shape: (e) => e.id,
-          math: (e) => e.id,
-        );
-        selectedIds.add(id);
-        selectionBounds = selectionBounds == null
-            ? elementBounds
-            : selectionBounds.expandToInclude(elementBounds);
-      }
-    }
-
-    if (selectedIds.isEmpty || selectionBounds == null) {
-      state = s.copyWith(lassoPath: [], clearLasso: true);
-      return;
-    }
-
-    state = s.copyWith(
-      lassoPath: [],
-      lassoSelection: LassoSelection(selectedIds: selectedIds, bounds: selectionBounds),
-    );
-  }
-
-  /// Ray casting point-in-polygon test
-  bool _pointInPolygon(Offset point, List<Offset> polygon) {
-    bool inside = false;
-    int j = polygon.length - 1;
-    for (int i = 0; i < polygon.length; i++) {
-      if ((polygon[i].dy > point.dy) != (polygon[j].dy > point.dy) &&
-          point.dx < (polygon[j].dx - polygon[i].dx) * (point.dy - polygon[i].dy) / (polygon[j].dy - polygon[i].dy) + polygon[i].dx) {
-        inside = !inside;
-      }
-      j = i;
-    }
-    return inside;
-  }
-
-  Rect? _getElementBounds(ContentElement element) {
-    Rect getRotatedBounds(Rect rect, double rotation) {
-      if (rotation == 0.0) return rect;
-      final c = rect.center;
-      final cosA = cos(rotation);
-      final sinA = sin(rotation);
-      Offset r(Offset p) {
-        final dx = p.dx - c.dx;
-        final dy = p.dy - c.dy;
-        return Offset(c.dx + dx * cosA - dy * sinA, c.dy + dx * sinA + dy * cosA);
-      }
-      final pts = [r(rect.topLeft), r(rect.topRight), r(rect.bottomLeft), r(rect.bottomRight)];
-      final xs = pts.map((p) => p.dx);
-      final ys = pts.map((p) => p.dy);
-      return Rect.fromLTRB(xs.reduce(min), ys.reduce(min), xs.reduce(max), ys.reduce(max));
-    }
-
-    return element.map(unknown: (_) => null,
-      stroke: (e) {
-        if (e.data.points.isEmpty) return null;
-        final xs = e.data.points.map((p) => p.x);
-        final ys = e.data.points.map((p) => p.y);
-        final halfW = e.data.baseWidth / 2.0;
-        return Rect.fromLTRB(xs.reduce(min) - halfW, ys.reduce(min) - halfW, xs.reduce(max) + halfW, ys.reduce(max) + halfW);
-      },
-      text: (e) => Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height),
-      image: (e) {
-        final rect = Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height);
-        return getRotatedBounds(rect, e.data.rotation);
-      },
-      shape: (e) {
-        final halfW = e.data.strokeWidth / 2.0;
-        final baseRect = Rect.fromPoints(Offset(e.data.x1, e.data.y1), Offset(e.data.x2, e.data.y2)).inflate(halfW);
-        return getRotatedBounds(baseRect, e.data.rotation);
-      },
-      math: (e) => Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height),
-    );
-  }
-
-  /// Apply the full transform (drag/rotation/scale) atomically. Used by
-  /// the UI when committing a locally-tracked LassoTransformNotifier on
-  /// pointer-up, so Riverpod fires a single state update per gesture
-  /// instead of one per pointer-move.
+  /// Apply the full transform (drag/rotation/scale) atomically: the UI
+  /// commits a locally-tracked transform on pointer-up in one state update.
   void commitSelectionTransform({
     required Offset dragOffset,
     required double rotation,
     required double scale,
-  }) {
-    if (state == null || state!.lassoSelection == null) return;
-    // No-op tap on the bounds: avoid the state churn (a fresh
-    // LassoSelection + CanvasState allocation that would tickle every
-    // chrome consumer for nothing).
-    if (dragOffset == Offset.zero && rotation == 0.0 && scale == 1.0) {
-      return;
-    }
-    state = state!.copyWith(
-      lassoSelection: state!.lassoSelection!.copyWith(
-        dragOffset: dragOffset,
-        rotation: rotation,
-        scale: scale,
-      ),
-    );
-  }
+  }) =>
+      _selection.commitSelectionTransform(
+          dragOffset: dragOffset, rotation: rotation, scale: scale);
 
-  void applySelectionTransform() {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    if (sel.rotation == 0.0 && sel.dragOffset == Offset.zero && sel.scale == 1.0) return;
-
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-    final center = sel.bounds.center;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!sel.selectedIds.contains(id)) return element;
-      var updated = element;
-      if (sel.scale != 1.0) {
-        updated = _scaleElement(updated, center, sel.scale);
-      }
-      if (sel.rotation != 0.0) {
-        updated = _rotateElementAroundCenter(updated, center, sel.rotation);
-      }
-      if (sel.dragOffset != Offset.zero) {
-        updated = _translateElement(updated, sel.dragOffset);
-      }
-      return updated;
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    // Recalculate bounds from actual transformed element positions
-    Rect? newBounds;
-    for (final element in updatedContent) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!sel.selectedIds.contains(id)) continue;
-      final eb = _getElementBounds(element);
-      if (eb == null) continue;
-      newBounds = newBounds == null ? eb : newBounds.expandToInclude(eb);
-    }
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-      lassoSelection: LassoSelection(
-        selectedIds: sel.selectedIds,
-        bounds: newBounds ?? sel.bounds.translate(sel.dragOffset.dx, sel.dragOffset.dy),
-      ),
-    );
-  }
+  void applySelectionTransform() => _selection.applySelectionTransform();
 
   /// Mirror the current selection around its horizontal center axis (flip X).
-  void flipSelectionHorizontal() => _flipSelection(horizontal: true);
+  void flipSelectionHorizontal() => _selection.flipSelection(horizontal: true);
 
   /// Mirror the current selection around its vertical center axis (flip Y).
-  void flipSelectionVertical() => _flipSelection(horizontal: false);
+  void flipSelectionVertical() => _selection.flipSelection(horizontal: false);
 
-  void _flipSelection({required bool horizontal}) {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null || sel.selectedIds.isEmpty) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    // Bake any pending translate/scale/rotate first so the flip axis is the
-    // *visual* center the user sees, not the original bounds center.
-    if (sel.rotation != 0.0 || sel.dragOffset != Offset.zero || sel.scale != 1.0) {
-      applySelectionTransform();
-    }
-    final postState = state!;
-    final postSel = postState.lassoSelection!;
-    final postPage = postState.currentPage!;
-    final center = postSel.bounds.center;
-
-    double reflectX(double x) => horizontal ? 2 * center.dx - x : x;
-    double reflectY(double y) => horizontal ? y : 2 * center.dy - y;
-
-    final updatedContent = postPage.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!postSel.selectedIds.contains(id)) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => ContentElement.stroke(
-          id: e.id, zIndex: e.zIndex,
-          data: StrokeData(
-            points: e.data.points
-                .map((p) => StrokePoint(
-                      x: reflectX(p.x),
-                      y: reflectY(p.y),
-                      pressure: p.pressure,
-                      tilt: p.tilt,
-                      timestamp: p.timestamp,
-                    ))
-                .toList(),
-            toolType: e.data.toolType, color: e.data.color,
-            baseWidth: e.data.baseWidth, isHighlighter: e.data.isHighlighter,
-            opacity: e.data.opacity, timestamp: e.data.timestamp,
-          ),
-        ),
-        text: (e) => ContentElement.text(
-          id: e.id, zIndex: e.zIndex,
-          // copyWith preserves spans/fontFamily and every other field —
-          // mirror only moves the box (reflect top-left by element size).
-          data: e.data.copyWith(
-            x: horizontal ? 2 * center.dx - e.data.x - e.data.width : e.data.x,
-            y: horizontal ? e.data.y : 2 * center.dy - e.data.y - e.data.height,
-          ),
-        ),
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          // copyWith preserves flipHorizontal (and any future field) —
-          // a from-scratch ImageData silently dropped it on every mirror.
-          data: e.data.copyWith(
-            x: horizontal ? 2 * center.dx - e.data.x - e.data.width : e.data.x,
-            y: horizontal ? e.data.y : 2 * center.dy - e.data.y - e.data.height,
-            // Mirror rotation so the image visually stays aligned.
-            rotation: -e.data.rotation,
-          ),
-        ),
-        // copyWith preserves isHighlighter (and any other untouched
-        // field) — a from-scratch rebuild silently reset it to opaque.
-        shape: (e) => ContentElement.shape(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(
-            x1: reflectX(e.data.x1), y1: reflectY(e.data.y1),
-            x2: reflectX(e.data.x2), y2: reflectY(e.data.y2),
-            rotation: -e.data.rotation,
-            vertices: _transformVertices(e.data.vertices,
-                (p) => Offset(reflectX(p.dx), reflectY(p.dy))),
-          ),
-        ),
-        math: (e) => ContentElement.math(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(
-            x: horizontal ? 2 * center.dx - e.data.x - e.data.width : e.data.x,
-            y: horizontal ? e.data.y : 2 * center.dy - e.data.y - e.data.height,
-          ),
-        ),
-      );
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(postPage, PageData(
-      pageId: postPage.pageId, pageNumber: postPage.pageNumber,
-      width: postPage.width, height: postPage.height,
-      layers: RenderingLayers(background: postPage.layers.background, content: updatedContent),
-      assetReferences: postPage.assetReferences,
-      createdAt: postPage.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(postState.pages);
-    updatedPages[fileName] = updatedPage;
-
-    // Recompute selection bounds from mirrored elements.
-    Rect? newBounds;
-    for (final element in updatedContent) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!postSel.selectedIds.contains(id)) continue;
-      final eb = _getElementBounds(element);
-      if (eb == null) continue;
-      newBounds = newBounds == null ? eb : newBounds.expandToInclude(eb);
-    }
-
-    state = postState.copyWith(
-      pages: updatedPages,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoSelection: LassoSelection(
-        selectedIds: postSel.selectedIds,
-        bounds: newBounds ?? postSel.bounds,
-      ),
-    );
-  }
-
-  ContentElement _rotateElementAroundCenter(ContentElement element, Offset center, double angle) {
-    Offset rotatePoint(double x, double y) {
-      final cosA = cos(angle);
-      final sinA = sin(angle);
-      final dx = x - center.dx;
-      final dy = y - center.dy;
-      return Offset(center.dx + dx * cosA - dy * sinA, center.dy + dx * sinA + dy * cosA);
-    }
-
-    return element.map(unknown: (u) => u,
-      stroke: (e) => ContentElement.stroke(
-        id: e.id, zIndex: e.zIndex,
-        data: StrokeData(
-          points: e.data.points.map((p) {
-            final rp = rotatePoint(p.x, p.y);
-            return StrokePoint(x: rp.dx, y: rp.dy, pressure: p.pressure, tilt: p.tilt, timestamp: p.timestamp);
-          }).toList(),
-          toolType: e.data.toolType, color: e.data.color,
-          baseWidth: e.data.baseWidth, isHighlighter: e.data.isHighlighter,
-          opacity: e.data.opacity, timestamp: e.data.timestamp,
-        ),
-      ),
-      text: (e) {
-        final rp = rotatePoint(e.data.x, e.data.y);
-        return ContentElement.text(
-          id: e.id, zIndex: e.zIndex,
-          // copyWith preserves spans/fontFamily; rotation only moves the box.
-          data: e.data.copyWith(x: rp.dx, y: rp.dy),
-        );
-      },
-      image: (e) {
-        // Rotate only the element center around the selection center,
-        // then translate the bounding box by the center offset.
-        // The internal rotation is incremented to match the visual preview.
-        final oldCx = e.data.x + e.data.width / 2;
-        final oldCy = e.data.y + e.data.height / 2;
-        final rCenter = rotatePoint(oldCx, oldCy);
-        final dx = rCenter.dx - oldCx;
-        final dy = rCenter.dy - oldCy;
-        return ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          // copyWith preserves flipHorizontal (and any future field).
-          data: e.data.copyWith(
-            x: e.data.x + dx, y: e.data.y + dy,
-            rotation: e.data.rotation + angle,
-          ),
-        );
-      },
-      shape: (e) {
-        // Rotate only the element center around the selection center,
-        // then translate the bounding box by the center offset.
-        final oldCx = (e.data.x1 + e.data.x2) / 2;
-        final oldCy = (e.data.y1 + e.data.y2) / 2;
-        final rCenter = rotatePoint(oldCx, oldCy);
-        final dx = rCenter.dx - oldCx;
-        final dy = rCenter.dy - oldCy;
-        // For vertex triangles, rotate each vertex around the new bbox
-        // centre too — the bbox translation alone wouldn't carry the
-        // shape's orientation through.
-        final cosA = cos(angle);
-        final sinA = sin(angle);
-        final newCx = oldCx + dx;
-        final newCy = oldCy + dy;
-        final newVertices = _transformVertices(e.data.vertices, (p) {
-          final ddx = p.dx + dx - newCx;
-          final ddy = p.dy + dy - newCy;
-          return Offset(newCx + ddx * cosA - ddy * sinA,
-                        newCy + ddx * sinA + ddy * cosA);
-        });
-        return ContentElement.shape(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(
-            x1: e.data.x1 + dx, y1: e.data.y1 + dy,
-            x2: e.data.x2 + dx, y2: e.data.y2 + dy,
-            rotation: e.data.rotation + angle,
-            vertices: newVertices,
-          ),
-        );
-      },
-      math: (e) {
-        final rp = rotatePoint(e.data.x, e.data.y);
-        return ContentElement.math(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(x: rp.dx, y: rp.dy),
-        );
-      },
-    );
-  }
-
-  void deleteSelection() {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    final filteredContent = page.layers.content.where((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      return !sel.selectedIds.contains(id);
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: filteredContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-      clearLasso: true, lassoPath: [],
-    );
-  }
+  void deleteSelection() => _selection.deleteSelection();
 
   /// Selected ink as (element id, stroke): freehand strokes plus shapes
-  /// traced as their outline, as circuits use them (lines for wires, a
-  /// circle for a source ring, a rhombus for a controlled source).
-  List<(String, StrokeData)> selectedInk() {
-    final s = state;
-    final sel = s?.lassoSelection;
-    final page = s?.currentPage;
-    if (s == null || sel == null || page == null) return const [];
-    return [
-      for (final e in page.layers.content)
-        if (sel.selectedIds.contains(e.id))
-          if (e is StrokeElement)
-            (e.id, e.data)
-          else if (e is ShapeElement)
-            if (shapeOutline(e.data) case final outline?)
-              (
-                e.id,
-                StrokeData(
-                  points: [for (final p in outline) StrokePoint(x: p.dx, y: p.dy)],
-                  color: e.data.strokeColor,
-                  baseWidth: e.data.strokeWidth,
-                ),
-              ),
-    ];
-  }
+  /// traced as their outline, as circuits use them.
+  List<(String, StrokeData)> selectedInk() => _selection.selectedInk();
 
   /// Whether [selectedInk] would find anything, without building it.
-  bool get selectionHasInk {
-    final sel = state?.lassoSelection;
-    final page = state?.currentPage;
-    if (sel == null || page == null) return false;
-    return page.layers.content.any((e) =>
-        sel.selectedIds.contains(e.id) &&
-        (e is StrokeElement || (e is ShapeElement && shapeOutline(e.data) != null)));
-  }
+  bool get selectionHasInk => _selection.selectionHasInk;
 
   /// Selected ink for formula recognition: pen strokes plus line shapes
   /// (fraction bars, minus signs). Highlighter is left out.
-  List<(String, StrokeData)> selectedMathInk() {
-    final s = state;
-    final sel = s?.lassoSelection;
-    final page = s?.currentPage;
-    if (s == null || sel == null || page == null) return const [];
-    return [
-      for (final e in page.layers.content)
-        if (sel.selectedIds.contains(e.id))
-          if (e is StrokeElement && !e.data.isHighlighter && e.data.toolType != 'highlighter')
-            (e.id, e.data)
-          else if (e is ShapeElement && e.data.shapeType == 'line' && !e.data.isHighlighter)
-            if (shapeOutline(e.data) case final outline?)
-              (
-                e.id,
-                StrokeData(
-                  points: [for (final p in outline) StrokePoint(x: p.dx, y: p.dy)],
-                  color: e.data.strokeColor,
-                  baseWidth: e.data.strokeWidth,
-                ),
-              ),
-    ];
-  }
+  List<(String, StrokeData)> selectedMathInk() => _selection.selectedMathInk();
 
   /// Swaps the ink [removedIds] on page [fileName] for a formula typeset from
   /// [latex], fitted to that ink's box and centred on it, in one undo step.
@@ -4915,9 +2239,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     bool replaced(ContentElement e) => (e is StrokeElement || e is ShapeElement) && removedIds.contains(e.id);
     final ink = state?.pages[fileName]?.layers.content.where(replaced).toList() ?? const [];
     if (ink.isEmpty) return;
-    var bounds = _elementBounds(ink.first);
+    var bounds = elementBounds(ink.first);
     for (final e in ink.skip(1)) {
-      bounds = bounds.expandToInclude(_elementBounds(e));
+      bounds = bounds.expandToInclude(elementBounds(e));
     }
     // The colour of the ink it replaces, not of the pen held now.
     final first = ink.first;
@@ -4936,46 +2260,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (s == null || page == null || !page.layers.content.any(replaced)) return;
     final width = size?.width ?? bounds.width;
     final height = size?.height ?? bounds.height;
-    final undoStack = _pushUndo(s, fileName, page);
     final id = const Uuid().v4();
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId,
-      pageNumber: page.pageNumber,
-      width: page.width,
-      height: page.height,
-      layers: RenderingLayers(
-        background: page.layers.background,
-        content: [
-          ...page.layers.content.where((e) => !replaced(e)),
-          ContentElement.math(
-            id: id,
-            zIndex: _nextZIndex(page),
-            data: MathData(
-              x: bounds.center.dx - width / 2,
-              y: bounds.center.dy - height / 2,
-              width: width,
-              height: height,
-              latex: latex,
-              displayMode: false,
-              color: color,
-              fontSize: fontSize,
-            ),
-          ),
-        ],
+    final updatedPage = pageWithContent(page, [
+      ...page.layers.content.where((e) => !replaced(e)),
+      ContentElement.math(
+        id: id,
+        zIndex: nextZIndex(page),
+        data: MathData(
+          x: bounds.center.dx - width / 2,
+          y: bounds.center.dy - height / 2,
+          width: width,
+          height: height,
+          latex: latex,
+          displayMode: false,
+          color: color,
+          fontSize: fontSize,
+        ),
       ),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt,
-      modifiedAt: DateTime.now(),
-    ));
-    state = s.copyWith(
-      pages: Map<String, PageData>.from(s.pages)..[fileName] = updatedPage,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoPath: [],
-      clearLasso: true,
-      selectedElementId: id,
-    );
+    ]);
+    commitPageEdit(s, fileName, updatedPage,
+        undoOf: page,
+        alsoState: (n) => n.copyWith(
+            lassoPath: [], clearLasso: true, selectedElementId: id));
   }
 
   /// Swaps the elements [removedIds] on page [fileName] for [added], over
@@ -4989,166 +2295,40 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     bool replaced(ContentElement e) =>
         (e is StrokeElement || e is ShapeElement || e is ImageElement) && removedIds.contains(e.id);
     if (!page.layers.content.any(replaced)) return;
-    final undoStack = _pushUndo(s, fileName, page);
-    var z = _nextZIndex(page);
-    final dupId = image == null ? null : _findIdenticalAsset(image.png, s.assetBytes);
+    var z = nextZIndex(page);
+    final dupId = image == null ? null : findIdenticalAsset(image.png, s.assetBytes);
     final assetId = image == null ? null : dupId ?? '${const Uuid().v4()}_circuit_rest.png';
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId,
-      pageNumber: page.pageNumber,
-      width: page.width,
-      height: page.height,
-      layers: RenderingLayers(
-        background: page.layers.background,
-        content: [
-          ...page.layers.content.where((e) => !replaced(e)),
-          if (image != null)
-            ContentElement.image(id: const Uuid().v4(), zIndex: z++, data: image.data.copyWith(assetPath: assetId!)),
-          for (final data in added) ContentElement.stroke(id: const Uuid().v4(), zIndex: z++, data: data),
-        ],
-      ),
-      assetReferences: [...page.assetReferences, if (assetId != null) assetId],
-      createdAt: page.createdAt,
-      modifiedAt: DateTime.now(),
-    ));
+    final updatedPage = pageWithContent(page, [
+      ...page.layers.content.where((e) => !replaced(e)),
+      if (image != null)
+        ContentElement.image(id: const Uuid().v4(), zIndex: z++, data: image.data.copyWith(assetPath: assetId!)),
+      for (final data in added) ContentElement.stroke(id: const Uuid().v4(), zIndex: z++, data: data),
+    ], assetReferences: [...page.assetReferences, if (assetId != null) assetId]);
     var assetBytes = s.assetBytes;
     if (image != null && dupId == null) {
       assetBytes = {...s.assetBytes, assetId!: image.png};
       (_assetsByLength[image.png.length] ??= []).add(assetId);
-      _decodeAndCacheImage(assetId, image.png);
-      _markAssetDirty(assetId);
+      _assets.decodeAndCache(assetId, image.png);
+      markAssetDirty(assetId);
     }
-    state = s.copyWith(
-      pages: Map<String, PageData>.from(s.pages)..[fileName] = updatedPage,
-      assetBytes: assetBytes,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoPath: [],
-      clearLasso: true,
-    );
+    commitPageEdit(s, fileName, updatedPage,
+        undoOf: page,
+        alsoState: (n) => n.copyWith(
+            assetBytes: assetBytes, lassoPath: [], clearLasso: true));
   }
 
-  void clearSelection() {
-    if (state == null) return;
-    if (state!.lassoSelection != null) applySelectionTransform();
-    state = state!.copyWith(clearLasso: true, lassoPath: [], selectedElementId: null, clearSelectedElement: true);
-  }
+  void clearSelection() => _selection.clearSelection();
 
   /// Change the color of all selected strokes/shapes/text.
-  void changeSelectionColor(int newColor) {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
+  void changeSelectionColor(int newColor) => _selection.changeSelectionColor(newColor);
 
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!sel.selectedIds.contains(id)) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),
-        // Span colours would otherwise override the new base colour.
-        text: (e) => e.copyWith(
-          data: e.data.copyWith(
-            color: newColor,
-            spans: [
-              for (final sp in e.data.spans)
-                sp.color == null ? sp : sp.copyWith(color: null),
-            ],
-          ),
-        ),
-        image: (e) => e, // images don't have a stroke color
-        // A filled shape keeps its fill, re-tinted to the new ink.
-        shape: (e) => e.copyWith(
-          data: e.data.copyWith(
-            strokeColor: newColor,
-            fillColor:
-                e.data.fillColor == null ? null : shapeFillTint(newColor),
-          ),
-        ),
-        math: (e) => e.copyWith(data: e.data.copyWith(color: newColor)),
-      );
-    }).toList();
+  /// Sets the stroke/shape width of the selection; a slider drag pushes one
+  /// undo entry, closed by [endSelectionWidthEdit].
+  void changeSelectionStrokeWidth(double newWidth) =>
+      _selection.changeSelectionStrokeWidth(newWidth);
 
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-    );
-  }
-
-  /// Change the stroke/shape width of everything in the current
-  /// selection to an absolute value. Mirrors [changeSelectionColor], but
-  /// a width control is a slider — it fires many times per drag — so
-  /// only the first call of a gesture pushes an undo entry. The UI calls
-  /// [endSelectionWidthEdit] on release so the next drag starts fresh.
-  void changeSelectionStrokeWidth(double newWidth) {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    var undoStack = s.undoStack;
-    if (!_selectionWidthUndoPushed) {
-      undoStack = _pushUndo(s, fileName, page);
-      _selectionWidthUndoPushed = true;
-    }
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id, text: (e) => e.id,
-        image: (e) => e.id, shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      if (!sel.selectedIds.contains(id)) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e.copyWith(data: e.data.copyWith(baseWidth: newWidth)),
-        text: (e) => e, // text has no stroke width
-        image: (e) => e, // images don't have a stroke width
-        shape: (e) => e.copyWith(data: e.data.copyWith(strokeWidth: newWidth)),
-        math: (e) => e, // math has no stroke width
-      );
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-    );
-  }
-
-  /// Ends the current width-adjustment gesture so the next slider drag
-  /// starts its own undo entry instead of continuing the previous one.
-  void endSelectionWidthEdit() {
-    _selectionWidthUndoPushed = false;
-  }
+  /// Ends the width-adjustment gesture so the next drag starts a new undo entry.
+  void endSelectionWidthEdit() => _selection.endSelectionWidthEdit();
 
   // ── Undo / Redo ──
 
@@ -5231,86 +2411,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         isDirty: true);
   }
 
-  /// Folds into every undo/redo snapshot of a page what a sync merge changed
-  /// in it (elements added/removed/replaced by the other device), so undoing
-  /// a local step never rolls the other device's work back.
-  static List<UndoEntry> rebaseHistoryOnMerge(List<UndoEntry> stack,
-      Map<String, PageData> before, Map<String, PageData> after) {
-    if (stack.isEmpty) return stack;
-    String idOf(ContentElement e) => e.map(unknown: (u) => u.id,
-        stroke: (s) => s.id,
-        text: (t) => t.id,
-        image: (i) => i.id,
-        shape: (s) => s.id,
-        math: (m) => m.id);
-    final deltas = <String, ({
-      Set<String> removed,
-      List<ContentElement> added,
-      Map<String, ContentElement> changed,
-      BackgroundLayer? background,
-      Size? size,
-    })>{};
-    for (final fn in after.keys) {
-      final b = before[fn];
-      final a = after[fn];
-      if (b == null || a == null || identical(b, a)) continue;
-      final bById = {for (final e in b.layers.content) idOf(e): e};
-      final aById = {for (final e in a.layers.content) idOf(e): e};
-      final removed = bById.keys.where((id) => !aById.containsKey(id)).toSet();
-      final added = [
-        for (final e in a.layers.content)
-          if (!bById.containsKey(idOf(e))) e,
-      ];
-      final changed = {
-        for (final e in aById.entries)
-          if (bById[e.key] != null && bById[e.key] != e.value) e.key: e.value,
-      };
-      final bg = b.layers.background != a.layers.background
-          ? a.layers.background
-          : null;
-      final size = b.width != a.width || b.height != a.height
-          ? Size(a.width, a.height)
-          : null;
-      if (removed.isEmpty &&
-          added.isEmpty &&
-          changed.isEmpty &&
-          bg == null &&
-          size == null) {
-        continue;
-      }
-      deltas[fn] = (
-        removed: removed,
-        added: added,
-        changed: changed,
-        background: bg,
-        size: size,
-      );
-    }
-    if (deltas.isEmpty) return stack;
-    return [
-      for (final entry in stack)
-        if (deltas[entry.pageFileName] case final d?)
-          UndoEntry(entry.pageFileName, () {
-            final page = entry.pageData;
-            final ids = {for (final e in page.layers.content) idOf(e)};
-            final content = <ContentElement>[
-              for (final e in page.layers.content)
-                if (!d.removed.contains(idOf(e))) d.changed[idOf(e)] ?? e,
-              for (final e in d.added)
-                if (!ids.contains(idOf(e))) e,
-            ];
-            return page.copyWith(
-                width: d.size?.width ?? page.width,
-                height: d.size?.height ?? page.height,
-                layers: RenderingLayers(
-                    background: d.background ?? page.layers.background,
-                    content: content));
-          }())
-        else
-          entry,
-    ];
-  }
-
   bool get canUndo =>
       state != null &&
       state!.document.pages.isNotEmpty &&
@@ -5322,220 +2422,25 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   // ── Page management ──
 
-  void setActiveChapter(String? chapterId) {
-    if (state == null) return;
-    final s = state!;
-    if (chapterId == null) {
-      state = s.copyWith(clearActiveChapter: true);
-      return;
-    }
-    // True orphan only: chapterId not present in metadata.chapters at all
-    // (legacy pageId leak from a pre-cleanup migration). Selecting a ghost
-    // chip would leave a phantom selection. Fall back to all-pages.
-    //
-    // An EMPTY chapter (exists in metadata, 0 pages) is a legitimate user
-    // state — reachable by deleting all pages of a chapter via the page
-    // manager's multi-select. Previously this branch also caught that case
-    // and silently deselected the chip; the user couldn't enter their own
-    // empty chapter to add fresh pages to it.
-    final chapterExists = s.metadata.chapters.any((c) => c.id == chapterId);
-    if (!chapterExists) {
-      state = s.copyWith(clearActiveChapter: true, clearLasso: true, lassoPath: []);
-      return;
-    }
-    final firstIdx = s.document.pages.indexWhere((p) => p.chapterId == chapterId);
-    state = s.copyWith(
-      activeChapterId: chapterId,
-      // If the chapter has no pages, leave currentPageIndex alone — the page
-      // strip will show "0/0" and the user can add pages from the menu.
-      currentPageIndex: firstIdx >= 0 ? firstIdx : s.currentPageIndex,
-      clearLasso: true,
-      lassoPath: [],
-    );
-  }
+  void setActiveChapter(String? chapterId) => _pages.setActiveChapter(chapterId);
 
   /// Navigate to [index]. By default the user's zoom/pan is preserved so
   /// arrow-button and grid taps don't rip the viewport out from under them.
   /// Pass [resetViewport]=true for gestures where a fresh view is wanted
   /// (e.g. swipe-to-turn-page).
-  void goToPage(int index, {bool resetViewport = false}) {
-    if (state == null || index < 0 || index >= state!.pageCount) return;
-    final s = state!;
-    // Record the index we're leaving so the page nav bar can offer a
-    // one-tap jump back. Only update if the user is actually changing
-    // pages — re-navigating to the current page (e.g. through "Vai a
-    // pagina N") shouldn't trash the prior memory.
-    final prev = (s.currentPageIndex != index) ? s.currentPageIndex : s.previousPageIndex;
-    if (resetViewport) {
-      state = s.copyWith(
-        currentPageIndex: index,
-        previousPageIndex: prev,
-        activeStroke: [],
-        clearLasso: true,
-        lassoPath: [],
-        clearSelectedElement: true,
-        zoom: 2.0,
-        panOffset: _centeredPanOffset(2.0, _pageAt(s.document, s.pages, index)),
-      );
-    } else {
-      state = s.copyWith(
-        currentPageIndex: index,
-        previousPageIndex: prev,
-        activeStroke: [],
-        clearLasso: true,
-        lassoPath: [],
-        clearSelectedElement: true,
-      );
-    }
-    _ensureAssetsForCurrentWindow();
-  }
+  void goToPage(int index, {bool resetViewport = false}) =>
+      _pages.goToPage(index, resetViewport: resetViewport);
 
-  void nextPage({bool resetViewport = false}) {
-    if (state == null) return;
-    final s = state!;
-    final filtered = s.filteredPageIndices;
-    final pos = filtered.indexOf(s.currentPageIndex);
-    if (pos >= 0 && pos + 1 < filtered.length) {
-      goToPage(filtered[pos + 1], resetViewport: resetViewport);
-    }
-  }
+  void nextPage({bool resetViewport = false}) =>
+      _pages.nextPage(resetViewport: resetViewport);
 
-  void prevPage({bool resetViewport = false}) {
-    if (state == null) return;
-    final s = state!;
-    final filtered = s.filteredPageIndices;
-    final pos = filtered.indexOf(s.currentPageIndex);
-    if (pos > 0) {
-      goToPage(filtered[pos - 1], resetViewport: resetViewport);
-    }
-  }
+  void prevPage({bool resetViewport = false}) =>
+      _pages.prevPage(resetViewport: resetViewport);
 
-  void addPage() {
-    if (state == null) return;
-    final s = state!;
-    const uuid = Uuid();
-    final pageId = uuid.v4();
-    final now = DateTime.now();
-    final pageNum = s.pageCount + 1;
-    final fileName = _nextPageFileName(s);
-
-    final currentBg = s.currentPage?.layers.background;
-    final bgType = currentBg?.type ?? 'blank';
-    final lineSpacing = currentBg?.lineSpacing ?? 30.0;
-    // Inherit the current page's size so scratch (infinite) notebooks get
-    // another big sheet instead of a stray A4 page.
-    final pageW = s.currentPage?.width ?? AppConfig.defaultPageWidth;
-    final pageH = s.currentPage?.height ?? AppConfig.defaultPageHeight;
-
-    final newPage = PageData(
-      pageId: pageId, pageNumber: pageNum,
-      width: pageW, height: pageH,
-      layers: RenderingLayers(
-        background: BackgroundLayer(type: bgType, lineSpacing: lineSpacing),
-        content: const [],
-      ),
-      createdAt: now, modifiedAt: now,
-    );
-
-    // Auto-assign chapter if one is active
-    final newEntry = PageEntry(
-      pageId: pageId, pageNumber: pageNum, fileName: fileName,
-      width: pageW, height: pageH,
-      lastModified: now, chapterId: s.activeChapterId,
-    );
-
-    // Insert after current page position (not always at end)
-    // Clamp: a stale currentPageIndex (remote merge) must not make insert() throw.
-    final insertIndex = (s.currentPageIndex + 1).clamp(0, s.document.pages.length);
-    final pageList = List<PageEntry>.from(s.document.pages)..insert(insertIndex, newEntry);
-    // Renumber: inserting mid-document would otherwise leave pageNumber
-    // out of sync with position (search results sort on it).
-    for (int i = 0; i < pageList.length; i++) {
-      pageList[i] = pageList[i].copyWith(pageNumber: i + 1);
-    }
-
-    final updatedDoc = DocumentStructure(
-      notebookId: s.document.notebookId,
-      formatVersion: s.document.formatVersion,
-      pages: pageList,
-    );
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = newPage;
-
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(pageCount: pageNum, modifiedAt: now),
-      document: updatedDoc,
-      pages: updatedPages,
-      currentPageIndex: insertIndex,
-      zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0, newPage),
-      isDirty: true,
-    );
-  }
+  void addPage() => _pages.addPage();
 
   /// Insert a new blank page at a specific position (0-based index).
-  void insertPageAt(int index) {
-    if (state == null) return;
-    final s = state!;
-    const uuid = Uuid();
-    final pageId = uuid.v4();
-    final now = DateTime.now();
-    final pageNum = s.pageCount + 1;
-    final fileName = _nextPageFileName(s);
-
-    final currentBg = s.currentPage?.layers.background;
-    final bgType = currentBg?.type ?? 'blank';
-    final lineSpacing = currentBg?.lineSpacing ?? 30.0;
-    // Inherit the current page's size, like addPage.
-    final pageW = s.currentPage?.width ?? AppConfig.defaultPageWidth;
-    final pageH = s.currentPage?.height ?? AppConfig.defaultPageHeight;
-
-    final newPage = PageData(
-      pageId: pageId, pageNumber: pageNum,
-      width: pageW, height: pageH,
-      layers: RenderingLayers(
-        background: BackgroundLayer(type: bgType, lineSpacing: lineSpacing),
-        content: const [],
-      ),
-      createdAt: now, modifiedAt: now,
-    );
-
-    final insertIdx = index.clamp(0, s.document.pages.length);
-
-    // Inherit chapter from the page before the insert position
-    String? chapterId;
-    if (insertIdx > 0) {
-      chapterId = s.document.pages[insertIdx - 1].chapterId;
-    } else if (s.document.pages.isNotEmpty) {
-      chapterId = s.document.pages[0].chapterId;
-    }
-
-    final newEntry = PageEntry(
-      pageId: pageId, pageNumber: pageNum, fileName: fileName,
-      width: pageW, height: pageH,
-      lastModified: now, chapterId: chapterId,
-    );
-
-    final pageList = List<PageEntry>.from(s.document.pages)..insert(insertIdx, newEntry);
-    // Same renumber as addPage: keep pageNumber == position + 1.
-    for (int i = 0; i < pageList.length; i++) {
-      pageList[i] = pageList[i].copyWith(pageNumber: i + 1);
-    }
-    final updatedDoc = s.document.copyWith(pages: pageList);
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = newPage;
-
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(pageCount: pageNum, modifiedAt: now),
-      document: updatedDoc,
-      pages: updatedPages,
-      currentPageIndex: insertIdx,
-      zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0, newPage),
-      isDirty: true,
-    );
-  }
+  void insertPageAt(int index) => _pages.insertPageAt(index);
 
   /// Pastes [pages] into this notebook at [slot] (default: end of the last
   /// chapter) and returns the new page ids. Fresh ids and file names; the
@@ -5547,205 +2452,38 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     Map<String, Uint8List> assets = const {},
     PasteSlot? slot,
     List<String>? pageIds,
-  }) {
-    if (state == null) return const [];
-    final s = state!;
-    if (pages.isEmpty) return const [];
-
-    var newAssetBytes = s.assetBytes;
-    if (assets.isNotEmpty) {
-      final merged = Map<String, Uint8List>.from(s.assetBytes);
-      var changed = false;
-      for (final entry in assets.entries) {
-        if (!merged.containsKey(entry.key)) {
-          merged[entry.key] = entry.value;
-          (_assetsByLength[entry.value.length] ??= []).add(entry.key);
-          _markAssetDirty(entry.key);
-          changed = true;
-        }
-      }
-      if (changed) newAssetBytes = merged;
-    }
-
-    final now = DateTime.now();
-    final plan = planInsert(
-      document: s.document,
-      chapters: s.metadata.chapters,
-      pages: [
-        for (var i = 0; i < pages.length; i++) TrayPage(entries[i], pages[i]),
-      ],
-      slot: slot ?? appendSlot(s.metadata.chapters, s.document),
-      now: now,
-      pageIds: pageIds,
-    );
-    state = s.copyWith(
-      document: plan.document,
-      pages: {...s.pages, ...plan.newPages},
-      assetBytes: newAssetBytes,
-      currentPageIndex: plan.insertIndex,
-      metadata: s.metadata.copyWith(
-        pageCount: plan.document.pages.length,
-        modifiedAt: now,
-      ),
-      isDirty: true,
-    );
-    return plan.newPageIds;
-  }
+  }) =>
+      _pages.pastePages(
+          pages: pages,
+          entries: entries,
+          assets: assets,
+          slot: slot,
+          pageIds: pageIds);
 
   /// Deletes the pages with these ids (those not here are ignored).
-  void deletePagesById(Set<String> pageIds) {
-    final s = state;
-    if (s == null) return;
-    deletePages([
-      for (var i = 0; i < s.document.pages.length; i++)
-        if (pageIds.contains(s.document.pages[i].pageId)) i,
-    ]);
-  }
+  void deletePagesById(Set<String> pageIds) => _pages.deletePagesById(pageIds);
 
   /// Moves pages inside this notebook to [slot] (see [planMoveWithin]); the
   /// editor stays on the page it was showing.
-  void movePagesToSlot(Set<String> pageIds, PasteSlot slot) {
-    final s = state;
-    if (s == null) return;
-    final doc = planMoveWithin(
-        document: s.document,
-        chapters: s.metadata.chapters,
-        pageIds: pageIds,
-        slot: slot);
-    _applyStructure(s, doc);
-  }
+  void movePagesToSlot(Set<String> pageIds, PasteSlot slot) =>
+      _pages.movePagesToSlot(pageIds, slot);
 
   /// Page order and chapters back to [before] (Undo of [movePagesToSlot]).
-  void restorePageOrder(List<PageEntry> before) {
-    final s = state;
-    if (s == null) return;
-    _applyStructure(s, restoreOrder(s.document, before));
-  }
+  void restorePageOrder(List<PageEntry> before) =>
+      _pages.restorePageOrder(before);
 
-  void _applyStructure(CanvasState s, DocumentStructure doc) {
-    final cur = s.currentPageIndex < s.document.pages.length
-        ? s.document.pages[s.currentPageIndex].pageId
-        : null;
-    final idx = doc.pages.indexWhere((e) => e.pageId == cur);
-    state = s.copyWith(
-      document: doc,
-      currentPageIndex: idx >= 0 ? idx : s.currentPageIndex,
-      metadata: s.metadata.copyWith(modifiedAt: DateTime.now()),
-      isDirty: true,
-    );
-  }
+  void addChapter(String title) => _pages.addChapter(title);
 
-  void addChapter(String title) {
-    if (state == null) return;
-    final s = state!;
-    final now = DateTime.now();
-    final chapterId = const Uuid().v4();
-    const uuid = Uuid();
+  void renameChapter(String chapterId, String title) =>
+      _pages.renameChapter(chapterId, title);
 
-    // Create a new blank page for the chapter instead of reassigning the current page
-    final pageId = uuid.v4();
-    final pageNum = s.pageCount + 1;
-    final fileName = _nextPageFileName(s);
+  void reorderChapters(int oldIndex, int newIndex) =>
+      _pages.reorderChapters(oldIndex, newIndex);
 
-    final currentBg = s.currentPage?.layers.background;
-    final bgType = currentBg?.type ?? 'blank';
-    final lineSpacing = currentBg?.lineSpacing ?? 30.0;
-    // Inherit the current page's size (scratch chapters get big sheets).
-    final pageW = s.currentPage?.width ?? AppConfig.defaultPageWidth;
-    final pageH = s.currentPage?.height ?? AppConfig.defaultPageHeight;
+  void deleteChapter(String chapterId) => _pages.deleteChapter(chapterId);
 
-    final newPage = PageData(
-      pageId: pageId, pageNumber: pageNum,
-      width: pageW, height: pageH,
-      layers: RenderingLayers(
-        background: BackgroundLayer(type: bgType, lineSpacing: lineSpacing),
-        content: const [],
-      ),
-      createdAt: now, modifiedAt: now,
-    );
-
-    final newEntry = PageEntry(
-      pageId: pageId, pageNumber: pageNum, fileName: fileName,
-      width: pageW, height: pageH,
-      lastModified: now, chapterId: chapterId,
-    );
-
-    final chapter = Chapter(id: chapterId, title: title, pageIds: [pageId]);
-
-    // Insert the new page after current position
-    final insertIndex = (s.currentPageIndex + 1).clamp(0, s.document.pages.length);
-    final pageList = List<PageEntry>.from(s.document.pages)..insert(insertIndex, newEntry);
-    final updatedDoc = s.document.copyWith(pages: pageList);
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = newPage;
-
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(
-        chapters: [...s.metadata.chapters, chapter],
-        pageCount: pageNum,
-        modifiedAt: now,
-      ),
-      document: updatedDoc,
-      pages: updatedPages,
-      currentPageIndex: insertIndex,
-      activeChapterId: chapterId,
-      zoom: 2.0,
-      panOffset: _centeredPanOffset(2.0, newPage),
-      isDirty: true,
-    );
-  }
-
-  void renameChapter(String chapterId, String title) {
-    if (state == null) return;
-    final s = state!;
-    final chapters = s.metadata.chapters.map((c) => c.id == chapterId ? c.copyWith(title: title) : c).toList();
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(chapters: chapters, modifiedAt: DateTime.now()),
-      isDirty: true,
-    );
-  }
-
-  void reorderChapters(int oldIndex, int newIndex) {
-    if (state == null) return;
-    final s = state!;
-    final chapters = List<Chapter>.from(s.metadata.chapters);
-    if (oldIndex < 0 || oldIndex >= chapters.length) return;
-    if (newIndex < 0 || newIndex >= chapters.length) return;
-    final item = chapters.removeAt(oldIndex);
-    chapters.insert(newIndex, item);
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(chapters: chapters, modifiedAt: DateTime.now()),
-      isDirty: true,
-    );
-  }
-
-  void deleteChapter(String chapterId) {
-    if (state == null) return;
-    final s = state!;
-    final chapters = s.metadata.chapters.where((c) => c.id != chapterId).toList();
-    // Pages remain, but chapterId is cleared.
-    final pages = s.document.pages.map((p) => p.chapterId == chapterId ? p.copyWith(chapterId: null) : p).toList();
-    final document = s.document.copyWith(pages: pages);
-    // If deleted chapter was the active filter, clear the filter
-    final clearActiveChapter = s.activeChapterId == chapterId;
-    state = s.copyWith(
-      metadata: s.metadata.copyWith(chapters: chapters, modifiedAt: DateTime.now()),
-      document: document,
-      isDirty: true,
-      clearActiveChapter: clearActiveChapter,
-    );
-  }
-
-  void assignPageToChapter(int pageIndex, String? chapterId) {
-    if (state == null) return;
-    final s = state!;
-    if (pageIndex < 0 || pageIndex >= s.document.pages.length) return;
-    final pages = List<PageEntry>.from(s.document.pages);
-    pages[pageIndex] = pages[pageIndex].copyWith(chapterId: chapterId);
-    final document = s.document.copyWith(pages: pages);
-    state = s.copyWith(document: document, isDirty: true);
-  }
+  void assignPageToChapter(int pageIndex, String? chapterId) =>
+      _pages.assignPageToChapter(pageIndex, chapterId);
 
   // ── Zoom & Pan ──
 
@@ -5790,7 +2528,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (identical(page, _contentBoundsPage)) return _contentBoundsCache;
     Rect? acc;
     for (final el in page.layers.content) {
-      final b = _elementBounds(el);
+      final b = elementBounds(el);
       if (b == Rect.zero) continue;
       acc = acc == null ? b : acc.expandToInclude(b);
     }
@@ -5827,96 +2565,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
   // ── Text ──
 
-  /// How far a new text box lets its content run before wrapping. Doubles as
-  /// the legacy fixed box width — every text element used to be born exactly
-  /// this wide regardless of what it held.
-  static const double _kTextWrapWidth = 300;
-
-  /// The styled runs of a text block, shared by the width/height measures
-  /// so the two can never lay the same content out differently.
-  static TextSpan _textSpanFor(
-    String content,
-    List<TextSpanData> spans,
-    double baseFontSize,
-  ) {
-    final children = <TextSpan>[];
-    if (spans.isEmpty) {
-      children.add(TextSpan(
-          text: content, style: TextStyle(fontSize: baseFontSize)));
-    } else {
-      for (final sp in spans) {
-        children.add(TextSpan(
-          text: sp.text,
-          style: TextStyle(
-            fontSize: sp.fontSize ?? baseFontSize,
-            fontFamily: sp.fontFamily,
-            fontWeight: sp.bold ? FontWeight.bold : FontWeight.normal,
-            fontStyle: sp.italic ? FontStyle.italic : FontStyle.normal,
-          ),
-        ));
-      }
-    }
-    return TextSpan(children: children);
-  }
-
-  /// Measure the laid-out height of a text block so new/edited elements
-  /// fit their content instead of clipping at the legacy fixed 50 px.
-  static double _measureTextHeight(
-    String content,
-    List<TextSpanData> spans,
-    double baseFontSize,
-    double width,
-  ) {
-    final tp = TextPainter(
-      text: _textSpanFor(content, spans, baseFontSize),
-      textDirection: TextDirection.ltr,
-      maxLines: null,
-    )..layout(maxWidth: width);
-    final h = tp.height + 8; // breathing room for descenders
-    tp.dispose();
-    return h.clamp(30.0, 2000.0);
-  }
-
-  /// Width that actually hugs the text: the longest laid-out line, once the
-  /// content has wrapped at [maxWidth].
-  ///
-  /// New text boxes used to be born [kTextBoxMaxWidth] wide whatever they
-  /// held, so a one-word note carried a selection frame half the page across
-  /// — handles and action bar floating far from the glyphs they belong to.
-  /// Laying out at [maxWidth] first and taking the longest line keeps the line
-  /// breaks the wrap width produced (a line that fitted in [maxWidth] still
-  /// fits in the longest line), so this narrows the frame without ever
-  /// reflowing the text.
-  static double _measureTextWidth(
-    String content,
-    List<TextSpanData> spans,
-    double baseFontSize,
-    double maxWidth,
-  ) {
-    final tp = TextPainter(
-      text: _textSpanFor(content, spans, baseFontSize),
-      textDirection: TextDirection.ltr,
-      maxLines: null,
-    )..layout(maxWidth: maxWidth);
-    // TextPainter.width reports the CONSTRAINT it laid out against, not the
-    // ink — it would hand back maxWidth and fit nothing. The per-line metrics
-    // are the real extents.
-    final lines = tp.computeLineMetrics();
-    final longest = lines.isEmpty
-        ? tp.width
-        : lines.map((m) => m.width).reduce(max);
-    // Same breathing room the height gets: guards the last glyph, italic
-    // overhang, and the sub-pixel rounding of re-laying out at this width.
-    final w = longest + 8;
-    tp.dispose();
-    return w.clamp(40.0, maxWidth);
-  }
-
-  /// [width] is the WRAP width — how far the text may run before breaking,
-  /// not the width of the resulting box. The box is then fitted to the
-  /// longest line it actually produced, so a short note gets a frame around
-  /// its own glyphs instead of one stretching to the wrap limit. Drag the
-  /// side handles afterwards to widen it back out.
+  /// Adds a text box at [position] (see [ElementEditor.addTextElement]).
   void addTextElement(
     Offset position,
     String content, {
@@ -5924,173 +2573,30 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     List<TextSpanData> spans = const [],
     int? color,
     String alignment = 'left',
-    double width = _kTextWrapWidth,
-  }) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
+    double width = ElementEditor.textWrapWidth,
+  }) =>
+      _elements.addTextElement(position, content,
+          fontSize: fontSize,
+          spans: spans,
+          color: color,
+          alignment: alignment,
+          width: width);
 
-    final fittedWidth = _measureTextWidth(content, spans, fontSize, width);
-    final fittedHeight =
-        _measureTextHeight(content, spans, fontSize, fittedWidth);
-    // Keep a new box on the page (a tap near the right edge ran off it).
-    final x = s.isScratch
-        ? position.dx
-        : position.dx.clamp(0.0, max(0.0, page.width - fittedWidth)).toDouble();
-    final y = s.isScratch
-        ? position.dy
-        : position.dy.clamp(0.0, max(0.0, page.height - fittedHeight)).toDouble();
-
-    final newElement = ContentElement.text(
-      id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
-      data: TextData(
-        x: x, y: y,
-        width: fittedWidth,
-        height: fittedHeight,
-        content: content,
-        spans: spans,
-        fontSize: fontSize,
-        color: color ?? s.toolSettings.color,
-        alignment: alignment,
-      ),
-    );
-
-    final updatedPage = _pageWithNewElement(page, newElement);
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
-  }
-
-  /// Paste a parsed Markdown/LaTeX document ([parsePastedRich] output) as a
-  /// vertical stack of elements — styled text runs + typeset-math blocks —
-  /// in a SINGLE undo step, anchored at [anchor] (viewport centre) and
-  /// clamped within the page. Math blocks are pre-rasterized (async) to get
-  /// their intrinsic typeset size. The inserted element(s) are selected so
-  /// the user can immediately move them.
+  /// Pastes a parsed Markdown/LaTeX document as a stack of text and math
+  /// elements in one undo step, anchored at [anchor] and kept inside the page.
   Future<void> pasteRichBlocks(
     List<PastedBlock> blocks,
     Offset anchor, {
     int? color,
     double maxWidth = 360,
     double pixelRatio = 3.0,
-  }) async {
-    if (state == null || blocks.isEmpty) return;
-    var s = state!;
-    var page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final baseColor = color ?? 0xFF000000;
-    final colWidth = maxWidth.clamp(40.0, max(40.0, page.width - 24)).toDouble();
-    const gap = 10.0;
+  }) =>
+      _clip.pasteRichBlocks(blocks, anchor,
+          color: color,
+          maxWidth: maxWidth,
+          pixelRatio: pixelRatio);
 
-    // Pre-measure (math raster is async) so the y-cursor is exact.
-    final built = <ContentElement>[];
-    final x = anchor.dx;
-    var y = anchor.dy;
-    var z = _nextZIndex(page);
-    for (final b in blocks) {
-      if (b is PastedTextBlock) {
-        if (b.content.trim().isEmpty) continue;
-        final h = _measureTextHeight(b.content, b.spans, b.fontSize, colWidth);
-        built.add(ContentElement.text(
-          id: const Uuid().v4(),
-          zIndex: z++,
-          data: TextData(
-            x: x, y: y, width: colWidth, height: h,
-            content: b.content, spans: b.spans,
-            fontSize: b.fontSize, color: baseColor, alignment: b.alignment,
-          ),
-        ));
-        y += h + gap;
-      } else if (b is PastedMathBlock) {
-        if (b.latex.trim().isEmpty) continue;
-        final fontSize = b.display ? 26.0 : 20.0;
-        final size = await measureMath(b.latex,
-            colorArgb: baseColor, fontSize: fontSize, displayMode: b.display,
-            pixelRatio: pixelRatio);
-        final w = (size?.width ??
-                (b.latex.length * fontSize * 0.5).clamp(20.0, colWidth))
-            .toDouble();
-        final h = (size?.height ?? fontSize * 1.6).toDouble();
-        built.add(ContentElement.math(
-          id: const Uuid().v4(),
-          zIndex: z++,
-          data: MathData(
-            x: x, y: y, width: w, height: h, latex: b.latex,
-            displayMode: b.display, color: baseColor, fontSize: fontSize,
-          ),
-        ));
-        y += h + gap;
-      }
-    }
-    if (built.isEmpty) return;
-
-    // measureMath awaited — re-read state and bail if it changed underfoot.
-    if (_disposed) return;
-    s = state!;
-    // Re-read the ORIGINAL page by its fileName, not currentPage: if the
-    // user switched page during the (slow) math rasterization, committing
-    // currentPage's data under the old key would clobber the old page.
-    page = s.pages[fileName];
-    if (page == null) return;
-
-    // If the column overflows the page bottom, shift the whole stack up to
-    // fit (best-effort; very tall stacks just start near the top margin).
-    final totalH = y - anchor.dy;
-    var dy = 0.0;
-    if (anchor.dy + totalH > page.height - 12) {
-      dy = page.height - 12 - totalH - anchor.dy;
-      if (anchor.dy + dy < 12) dy = 12 - anchor.dy;
-    }
-    final placed = dy == 0
-        ? built
-        : built.map((e) => _translateElement(e, Offset(0, dy))).toList();
-
-    final undoStack = _pushUndo(s, fileName, page);
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(
-          background: page.layers.background,
-          content: [...page.layers.content, ...placed]),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    final ids = placed
-        .map((e) => e.map(unknown: (u) => u.id,
-            stroke: (x) => x.id, text: (x) => x.id, image: (x) => x.id,
-            shape: (x) => x.id, math: (x) => x.id))
-        .toList();
-
-    if (ids.length == 1) {
-      state = s.copyWith(
-        pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-        selectedElementId: ids.first, clearLasso: true, lassoPath: [],
-      );
-    } else {
-      var bounds = _elementBounds(placed.first);
-      for (final e in placed.skip(1)) {
-        bounds = bounds.expandToInclude(_elementBounds(e));
-      }
-      state = s.copyWith(
-        pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-        lassoSelection: LassoSelection(selectedIds: ids, bounds: bounds),
-        clearSelectedElement: true, lassoPath: [],
-      );
-    }
-  }
-
-  /// Replace content/style of an existing TextElement (rich editor's
-  /// "Modifica testo"). Keeps position and width; height re-measured to
-  /// fit the new content. No-op when the id isn't on the current page.
+  /// Replaces content and style of a text element, re-fitting its box.
   void updateTextElement(
     String elementId, {
     required String content,
@@ -6098,82 +2604,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     required double fontSize,
     required int color,
     required String alignment,
-  }) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    final idx = page.layers.content.indexWhere(
-        (e) => e is TextElement && e.id == elementId);
-    if (idx < 0) return;
-    final old = page.layers.content[idx] as TextElement;
-
-    final undoStack = _pushUndo(s, fileName, page);
-
-    // Does this box still have the width we gave it, or one the user set?
-    // Compare against what its OLD content measured to: if they agree the box
-    // is still auto-fitted and follows the new content. Any other width —
-    // dragged wider OR narrower — is a deliberate wrap setting and becomes
-    // the wrap limit instead of being overwritten.
-    //
-    // A box sitting at exactly [_kTextWrapWidth] also counts as auto: that is
-    // the fixed width every box was born with before they were fitted, so
-    // editing an old note is what finally trims its oversized frame.
-    final oldFitted = _measureTextWidth(
-        old.data.content, old.data.spans, old.data.fontSize, _kTextWrapWidth);
-    final isAutoWidth = (old.data.width - oldFitted).abs() <= 1.0 ||
-        (old.data.width - _kTextWrapWidth).abs() <= 0.5;
-    final newWidth = isAutoWidth
-        ? _measureTextWidth(content, spans, fontSize, _kTextWrapWidth)
-        : old.data.width;
-
-    final newData = old.data.copyWith(
-      content: content,
-      spans: spans,
-      fontSize: fontSize,
-      color: color,
-      alignment: alignment,
-      // Element-level bold/italic are legacy whole-block flags; the
-      // editor baked them into spans on load, so clear them here.
-      bold: false,
-      italic: false,
-      // Auto-fit the box to the new content, but keep a width the user had
-      // widened past its content — that width is a deliberate wrap setting,
-      // and re-hugging it on every edit would undo their layout. Same test
-      // the height uses below: a box still sitting at its own measured size
-      // was never resized by hand, so it is ours to re-fit.
-      width: newWidth,
-      // Auto-fit the box to the new content, but keep a height the user had
-      // previously extended past the content (a fixed/taller frame) so editing
-      // text doesn't collapse it back to hugging the text.
-      height: () {
-        final measured =
-            _measureTextHeight(content, spans, fontSize, newWidth);
-        final oldMeasured = _measureTextHeight(
-            old.data.content, old.data.spans, old.data.fontSize, old.data.width);
-        final wasExtended = old.data.height > oldMeasured + 1.0;
-        return wasExtended ? max(old.data.height, measured) : measured;
-      }(),
-    );
-    final newContent = List<ContentElement>.from(page.layers.content);
-    newContent[idx] = old.copyWith(data: newData);
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(
-          background: page.layers.background, content: newContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    state = s.copyWith(
-        pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
-  }
+  }) =>
+      _elements.updateTextElement(elementId,
+          content: content,
+          spans: spans,
+          fontSize: fontSize,
+          color: color,
+          alignment: alignment);
 
   // ── Helpers ──
 
@@ -6185,7 +2622,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// undoStack/redoStack refs to canUndo/canRedo booleans (perf_state
   /// 2.8) the per-stroke chrome rebuild churn is also gone.
   static const int _undoStackCap = 30;
-  List<UndoEntry> _pushUndo(CanvasState s, String fileName, PageData page) {
+  @override
+  List<UndoEntry> pushUndo(CanvasState s, String fileName, PageData page) {
     final source = s.undoStack;
     // Build the new list at the right capacity: drop the oldest if we'd
     // exceed the cap, otherwise just append. Using sublist + add avoids
@@ -6201,704 +2639,110 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     return stack;
   }
 
-  int _nextZIndex(PageData page) {
+  @override
+  int nextZIndex(PageData page) {
     int maxZ = -1;
     for (final e in page.layers.content) {
-      final z = e.map(unknown: (u) => u.zIndex, stroke: (s) => s.zIndex, text: (t) => t.zIndex, image: (i) => i.zIndex, shape: (s) => s.zIndex, math: (m) => m.zIndex);
+      final z = e.zIndex;
       if (z > maxZ) maxZ = z;
     }
     return maxZ + 1;
   }
 
-  PageData _pageWithNewElement(PageData page, ContentElement element) {
+  @override
+  PageData pageWithNewElement(PageData page, ContentElement element) {
+    return pageWithContent(page, [...page.layers.content, element]);
+  }
+
+  /// [page] with [content] (and optionally [assetReferences]) swapped in,
+  /// its PDF text layer carried over.
+  @override
+  PageData pageWithContent(PageData page, List<ContentElement> content,
+      {List<String>? assetReferences}) {
     return carryPdfTextLayer(page, PageData(
       pageId: page.pageId, pageNumber: page.pageNumber,
       width: page.width, height: page.height,
-      layers: RenderingLayers(
-        background: page.layers.background,
-        content: [...page.layers.content, element],
-      ),
-      assetReferences: page.assetReferences,
+      layers: RenderingLayers(background: page.layers.background, content: content),
+      assetReferences: assetReferences ?? page.assetReferences,
       createdAt: page.createdAt, modifiedAt: DateTime.now(),
     ));
   }
 
-  ContentElement _translateElement(ContentElement element, Offset offset) {
-    return element.map(unknown: (u) => u,
-      stroke: (e) => ContentElement.stroke(
-        id: e.id, zIndex: e.zIndex,
-        data: StrokeData(
-          points: e.data.points.map((p) => StrokePoint(
-            x: p.x + offset.dx, y: p.y + offset.dy,
-            pressure: p.pressure, tilt: p.tilt, timestamp: p.timestamp,
-          )).toList(),
-          toolType: e.data.toolType, color: e.data.color,
-          baseWidth: e.data.baseWidth, isHighlighter: e.data.isHighlighter,
-          opacity: e.data.opacity, timestamp: e.data.timestamp,
-        ),
-      ),
-      // copyWith preserves spans/fontFamily/flipHorizontal — a from-scratch
-      // rebuild dropped them on every move (and powers paste/duplicate).
-      text: (e) => ContentElement.text(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: e.data.x + offset.dx, y: e.data.y + offset.dy,
-        ),
-      ),
-      image: (e) => ContentElement.image(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: e.data.x + offset.dx, y: e.data.y + offset.dy,
-        ),
-      ),
-      // copyWith preserves isHighlighter (and any other untouched field)
-      // — a from-scratch rebuild silently reset it to opaque on every move.
-      shape: (e) => ContentElement.shape(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x1: e.data.x1 + offset.dx, y1: e.data.y1 + offset.dy,
-          x2: e.data.x2 + offset.dx, y2: e.data.y2 + offset.dy,
-          vertices: _transformVertices(
-              e.data.vertices, (p) => p + offset),
-        ),
-      ),
-      math: (e) => ContentElement.math(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: e.data.x + offset.dx, y: e.data.y + offset.dy,
-        ),
-      ),
-    );
-  }
-
-  Rect _elementBounds(ContentElement element) {
-    return element.map(unknown: (_) => Rect.zero,
-      stroke: (e) {
-        if (e.data.points.isEmpty) return Rect.zero;
-        double mnX = e.data.points.first.x, mxX = mnX, mnY = e.data.points.first.y, mxY = mnY;
-        for (final p in e.data.points) {
-          if (p.x < mnX) mnX = p.x; if (p.x > mxX) mxX = p.x;
-          if (p.y < mnY) mnY = p.y; if (p.y > mxY) mxY = p.y;
-        }
-        return Rect.fromLTRB(mnX, mnY, mxX, mxY);
-      },
-      text: (e) => Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height),
-      image: (e) => Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height),
-      shape: (e) => Rect.fromPoints(Offset(e.data.x1, e.data.y1), Offset(e.data.x2, e.data.y2)),
-      math: (e) => Rect.fromLTWH(e.data.x, e.data.y, e.data.width, e.data.height),
-    );
-  }
-
-  ContentElement _scaleElement(ContentElement element, Offset center, double scale) {
-    return element.map(unknown: (u) => u,
-      stroke: (e) => ContentElement.stroke(
-        id: e.id, zIndex: e.zIndex,
-        data: StrokeData(
-          points: e.data.points.map((p) => StrokePoint(
-            x: center.dx + (p.x - center.dx) * scale,
-            y: center.dy + (p.y - center.dy) * scale,
-            pressure: p.pressure, tilt: p.tilt, timestamp: p.timestamp,
-          )).toList(),
-          toolType: e.data.toolType, color: e.data.color,
-          baseWidth: e.data.baseWidth * scale, isHighlighter: e.data.isHighlighter,
-          opacity: e.data.opacity, timestamp: e.data.timestamp,
-        ),
-      ),
-      // copyWith preserves spans/fontFamily; scale also multiplies the
-      // element fontSize AND every per-span fontSize override so multi-size
-      // rich text scales uniformly instead of collapsing overridden runs.
-      text: (e) => ContentElement.text(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: center.dx + (e.data.x - center.dx) * scale,
-          y: center.dy + (e.data.y - center.dy) * scale,
-          width: e.data.width * scale, height: e.data.height * scale,
-          fontSize: e.data.fontSize * scale,
-          spans: e.data.spans
-              .map((sp) => sp.fontSize == null
-                  ? sp
-                  : sp.copyWith(fontSize: sp.fontSize! * scale))
-              .toList(),
-        ),
-      ),
-      image: (e) => ContentElement.image(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: center.dx + (e.data.x - center.dx) * scale,
-          y: center.dy + (e.data.y - center.dy) * scale,
-          width: e.data.width * scale, height: e.data.height * scale,
-        ),
-      ),
-      shape: (e) => ContentElement.shape(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x1: center.dx + (e.data.x1 - center.dx) * scale,
-          y1: center.dy + (e.data.y1 - center.dy) * scale,
-          x2: center.dx + (e.data.x2 - center.dx) * scale,
-          y2: center.dy + (e.data.y2 - center.dy) * scale,
-          strokeWidth: e.data.strokeWidth * scale,
-          vertices: _transformVertices(e.data.vertices,
-              (p) => Offset(
-                  center.dx + (p.dx - center.dx) * scale,
-                  center.dy + (p.dy - center.dy) * scale)),
-        ),
-      ),
-      math: (e) => ContentElement.math(
-        id: e.id, zIndex: e.zIndex,
-        data: e.data.copyWith(
-          x: center.dx + (e.data.x - center.dx) * scale,
-          y: center.dy + (e.data.y - center.dy) * scale,
-          width: e.data.width * scale, height: e.data.height * scale,
-          fontSize: e.data.fontSize * scale,
-        ),
-      ),
-    );
+  /// The one way to write an edited page back: [after] replaces [fileName]
+  /// and the notebook turns dirty. With [history] (default) redo is dropped
+  /// and, when [undoOf] is given, that page is pushed as one undo step;
+  /// `history: false` leaves undo and redo alone (drag follow-ups).
+  /// [alsoState] adds the caller's other fields to the same state write.
+  @override
+  void commitPageEdit(CanvasState s, String fileName, PageData after,
+      {PageData? undoOf,
+      bool history = true,
+      CanvasState Function(CanvasState)? alsoState}) {
+    final updatedPages = Map<String, PageData>.from(s.pages);
+    updatedPages[fileName] = after;
+    final next = history
+        ? s.copyWith(
+            pages: updatedPages,
+            undoStack: undoOf == null ? s.undoStack : pushUndo(s, fileName, undoOf),
+            redoStack: [],
+            isDirty: true)
+        : s.copyWith(pages: updatedPages, isDirty: true);
+    state = alsoState == null ? next : alsoState(next);
   }
 
   // ── Element selection & transform ──
 
-  void selectElement(String elementId) {
-    if (state == null) return;
-    if (state!.lassoSelection != null) applySelectionTransform();
-    state = state!.copyWith(selectedElementId: elementId, clearLasso: true, lassoPath: []);
-  }
+  void selectElement(String elementId) => _selection.selectElement(elementId);
 
-  void deselectElement() {
-    if (state == null) return;
-    state = state!.copyWith(clearSelectedElement: true);
-  }
+  void deselectElement() => _selection.deselectElement();
 
-  void moveElement(String elementId, Offset delta) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    // Push undo only on the first move (when not yet dirty from a drag)
-    // This avoids filling the undo stack with per-frame entries
-    final undoStack = s.undoStack;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return _translateElement(element, delta);
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(pages: updatedPages, undoStack: undoStack, isDirty: true);
-  }
+  void moveElement(String elementId, Offset delta) =>
+      _elements.moveElement(elementId, delta);
 
   /// Call this before starting a drag to push undo state once
-  void startDragElement(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-    state = s.copyWith(undoStack: undoStack, redoStack: []);
-  }
+  void startDragElement(String elementId) => _elements.startDragElement(elementId);
 
-  /// Smart resize for a TEXT element (GoodNotes/Keynote semantics).
-  ///
-  /// - Side handles → pass [width] only: re-wrap to the new width and
-  ///   auto-fit height. fontSize untouched.
-  /// - Corner handles → pass [fontScale] (uniform drag factor) AND the
-  ///   proportionally-scaled [width]: multiply the element fontSize and every
-  ///   per-span fontSize override by [fontScale], then auto-fit height.
-  ///
-  /// [topLeft] repositions the box (a left/top-edge drag moves the corner).
-  /// PRESERVES spans, fontFamily, color, bold, italic, alignment, content —
-  /// mutates via copyWith, never rebuilding TextData. No undo push here: the
-  /// gesture already pushed one on drag-start (matches resizeElement).
+  /// Smart resize of a text element: side handles pass [width], corner
+  /// handles [fontScale] and [width]; [topLeft] moves the box.
   void resizeTextElement(
     String elementId, {
     double? width,
     double? height,
     double? fontScale,
     Offset? topLeft,
-  }) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
+  }) =>
+      _elements.resizeTextElement(elementId,
+          width: width, height: height, fontScale: fontScale, topLeft: topLeft);
 
-    final idx = page.layers.content
-        .indexWhere((e) => e is TextElement && e.id == elementId);
-    if (idx < 0) return;
-    final old = page.layers.content[idx] as TextElement;
-    final d = old.data;
+  void resizeElement(String elementId, Rect newBounds) =>
+      _elements.resizeElement(elementId, newBounds);
 
-    final newWidth = (width ?? d.width).clamp(20.0, 100000.0).toDouble();
+  void rotateElement(String elementId, double deltaAngle) =>
+      _elements.rotateElement(elementId, deltaAngle);
 
-    var newFontSize = d.fontSize;
-    var newSpans = d.spans;
-    if (fontScale != null && fontScale > 0 && (fontScale - 1.0).abs() > 1e-6) {
-      newFontSize = (d.fontSize * fontScale).clamp(6.0, 200.0).toDouble();
-      if (d.spans.isNotEmpty) {
-        newSpans = d.spans
-            .map((sp) => sp.fontSize == null
-                ? sp
-                : sp.copyWith(
-                    fontSize: (sp.fontSize! * fontScale).clamp(6.0, 200.0)))
-            .toList();
-      }
-    }
+  void deleteElement(String elementId) => _elements.deleteElement(elementId);
 
-    // The text box is a frame (see [_measureTextHeight] for the content-fit
-    // measurement). `measured` is the height the content actually needs at the
-    // new width/font; the box may be TALLER (the user dragged a height handle)
-    // but never shorter — that would clip text.
-    final measured =
-        _measureTextHeight(d.content, newSpans, newFontSize, newWidth);
-    final double newHeight;
-    if (height != null) {
-      // Explicit frame height from a height/corner handle drag.
-      newHeight = max(height, measured);
-    } else {
-      // Width or font change with no explicit height: keep a box the user had
-      // previously extended past its content, otherwise auto-fit to content.
-      final oldMeasured =
-          _measureTextHeight(d.content, d.spans, d.fontSize, d.width);
-      final wasExtended = d.height > oldMeasured + 1.0;
-      newHeight = wasExtended ? max(d.height, measured) : measured;
-    }
+  void bringToFront(String elementId) => _elements.bringToFront(elementId);
 
-    final newData = d.copyWith(
-      x: topLeft?.dx ?? d.x,
-      y: topLeft?.dy ?? d.y,
-      width: newWidth,
-      height: newHeight,
-      fontSize: newFontSize,
-      spans: newSpans,
-    );
+  void sendToBack(String elementId) => _elements.sendToBack(elementId);
 
-    final newContent = List<ContentElement>.from(page.layers.content);
-    newContent[idx] = old.copyWith(data: newData);
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(
-          background: page.layers.background, content: newContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(pages: updatedPages, isDirty: true);
-  }
-
-  void resizeElement(String elementId, Rect newBounds) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement, // can't resize strokes this way
-        // Text resize from the smart-resize flow goes through
-        // resizeTextElement; this arm is the generic fallback. copyWith
-        // preserves spans/fontFamily, and height is re-fit to the new
-        // width rather than free-stretched (auto-fit owns height).
-        text: (e) => ContentElement.text(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(
-            x: newBounds.left, y: newBounds.top,
-            width: newBounds.width,
-            height: _measureTextHeight(
-                e.data.content, e.data.spans, e.data.fontSize, newBounds.width),
-          ),
-        ),
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(
-            x: newBounds.left, y: newBounds.top,
-            width: newBounds.width, height: newBounds.height,
-          ),
-        ),
-        shape: (e) {
-          // Triangles with explicit vertices: remap each vertex via the
-          // bbox→bbox affine so the shape stretches/translates with the
-          // new bbox while preserving relative geometry. Without this,
-          // resize would change the bbox but the absolute-coord vertices
-          // would stay frozen at the original position, producing a
-          // mismatched shape.
-          List<double> remappedVertices = e.data.vertices;
-          if (e.data.vertices.length == 6) {
-            final oldL = min(e.data.x1, e.data.x2);
-            final oldT = min(e.data.y1, e.data.y2);
-            final oldR = max(e.data.x1, e.data.x2);
-            final oldB = max(e.data.y1, e.data.y2);
-            final oldW = oldR - oldL;
-            final oldH = oldB - oldT;
-            final newW = newBounds.width;
-            final newH = newBounds.height;
-            double mapX(double x) => oldW <= 0
-                ? newBounds.left
-                : newBounds.left + (x - oldL) / oldW * newW;
-            double mapY(double y) => oldH <= 0
-                ? newBounds.top
-                : newBounds.top + (y - oldT) / oldH * newH;
-            final v = e.data.vertices;
-            remappedVertices = [
-              mapX(v[0]), mapY(v[1]),
-              mapX(v[2]), mapY(v[3]),
-              mapX(v[4]), mapY(v[5]),
-            ];
-          }
-          return ContentElement.shape(
-            id: e.id, zIndex: e.zIndex,
-            data: e.data.copyWith(
-              x1: newBounds.left, y1: newBounds.top,
-              x2: newBounds.right, y2: newBounds.bottom,
-              vertices: remappedVertices,
-            ),
-          );
-        },
-        math: (e) {
-          final s = e.data.width <= 0 ? 1.0 : newBounds.width / e.data.width;
-          return ContentElement.math(
-            id: e.id, zIndex: e.zIndex,
-            data: e.data.copyWith(
-              x: newBounds.left, y: newBounds.top,
-              width: newBounds.width, height: newBounds.height,
-              fontSize: (e.data.fontSize * s).clamp(6.0, 200.0),
-            ),
-          );
-        },
-      );
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(pages: updatedPages, isDirty: true);
-  }
-
-  void rotateElement(String elementId, double deltaAngle) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement,
-        text: (e) => e as ContentElement,
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(rotation: e.data.rotation + deltaAngle),
-        ),
-        shape: (e) {
-          // Vertex triangles ignore the rotation field (render path uses
-          // the absolute vertices). Apply the rotation directly to the
-          // vertices around the bbox center so the visible shape rotates.
-          final cx = (e.data.x1 + e.data.x2) / 2;
-          final cy = (e.data.y1 + e.data.y2) / 2;
-          final cosA = cos(deltaAngle);
-          final sinA = sin(deltaAngle);
-          final newVertices = _transformVertices(e.data.vertices, (p) {
-            final dx = p.dx - cx;
-            final dy = p.dy - cy;
-            return Offset(cx + dx * cosA - dy * sinA,
-                          cy + dx * sinA + dy * cosA);
-          });
-          return ContentElement.shape(
-            id: e.id, zIndex: e.zIndex,
-            data: e.data.copyWith(
-              rotation: e.data.rotation + deltaAngle,
-              vertices: newVertices,
-            ),
-          );
-        },
-        math: (e) => e as ContentElement,
-      );
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(pages: updatedPages, isDirty: true);
-  }
-
-  void deleteElement(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    final filteredContent = page.layers.content.where((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return id != elementId;
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: filteredContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(
-      pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true,
-      clearSelectedElement: true,
-    );
-  }
-
-  void bringToFront(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    final content = List<ContentElement>.from(page.layers.content);
-    final idx = content.indexWhere((e) =>
-        e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id) == elementId);
-    if (idx < 0 || idx == content.length - 1) return;
-    final element = content.removeAt(idx);
-    // Give it a zIndex higher than all others
-    final maxZ = content.fold<int>(0, (m, e) =>
-        max(m, e.map(unknown: (u) => u.zIndex, stroke: (s) => s.zIndex, text: (t) => t.zIndex, image: (i) => i.zIndex, shape: (s) => s.zIndex, math: (m) => m.zIndex)));
-    final updated = element.map(unknown: (u) => u.copyWith(zIndex: maxZ + 1),
-      stroke: (e) => ContentElement.stroke(id: e.id, zIndex: maxZ + 1, data: e.data),
-      text: (e) => ContentElement.text(id: e.id, zIndex: maxZ + 1, data: e.data),
-      image: (e) => ContentElement.image(id: e.id, zIndex: maxZ + 1, data: e.data),
-      shape: (e) => ContentElement.shape(id: e.id, zIndex: maxZ + 1, data: e.data),
-      math: (e) => ContentElement.math(id: e.id, zIndex: maxZ + 1, data: e.data),
-    );
-    content.add(updated);
-
-    _updatePageContent(s, page, fileName, content, undoStack);
-  }
-
-  void sendToBack(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    final content = List<ContentElement>.from(page.layers.content);
-    final idx = content.indexWhere((e) =>
-        e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id) == elementId);
-    if (idx <= 0) return;
-    final element = content.removeAt(idx);
-    // Give it a zIndex lower than all others
-    final minZ = content.fold<int>(999999, (m, e) =>
-        min(m, e.map(unknown: (u) => u.zIndex, stroke: (s) => s.zIndex, text: (t) => t.zIndex, image: (i) => i.zIndex, shape: (s) => s.zIndex, math: (m) => m.zIndex)));
-    final updated = element.map(unknown: (u) => u.copyWith(zIndex: minZ - 1),
-      stroke: (e) => ContentElement.stroke(id: e.id, zIndex: minZ - 1, data: e.data),
-      text: (e) => ContentElement.text(id: e.id, zIndex: minZ - 1, data: e.data),
-      image: (e) => ContentElement.image(id: e.id, zIndex: minZ - 1, data: e.data),
-      shape: (e) => ContentElement.shape(id: e.id, zIndex: minZ - 1, data: e.data),
-      math: (e) => ContentElement.math(id: e.id, zIndex: minZ - 1, data: e.data),
-    );
-    content.insert(0, updated);
-
-    _updatePageContent(s, page, fileName, content, undoStack);
-  }
-
-  void toggleImageLock(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement,
-        text: (e) => e as ContentElement,
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(locked: !e.data.locked),
-        ),
-        shape: (e) => e as ContentElement,
-        math: (e) => e as ContentElement,
-      );
-    }).toList();
-
-    _updatePageContent(s, page, fileName, updatedContent, s.undoStack);
-  }
+  void toggleImageLock(String elementId) => _elements.toggleImageLock(elementId);
 
   /// Toggles horizontal flip on an image element.
-  void flipImageElement(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
+  void flipImageElement(String elementId) => _elements.flipImageElement(elementId);
 
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement,
-        text: (e) => e as ContentElement,
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(flipHorizontal: !e.data.flipHorizontal),
-        ),
-        shape: (e) => e as ContentElement,
-        math: (e) => e as ContentElement,
-      );
-    }).toList();
-
-    _updatePageContent(s, page, fileName, updatedContent, s.undoStack);
-  }
-
-  void setImageComment(String elementId, String? comment) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement,
-        text: (e) => e as ContentElement,
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: e.data.copyWith(comment: comment),
-        ),
-        shape: (e) => e as ContentElement,
-        math: (e) => e as ContentElement,
-      );
-    }).toList();
-
-    _updatePageContent(s, page, fileName, updatedContent, s.undoStack);
-  }
-
-  void _updatePageContent(CanvasState s, PageData page, String fileName, List<ContentElement> content, List<UndoEntry> undoStack) {
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: content),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-    state = s.copyWith(pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
-  }
+  void setImageComment(String elementId, String? comment) =>
+      _elements.setImageComment(elementId, comment);
 
   // ── Image insertion ──
 
   /// Returns the asset id the image was stored under (`null` if no current
-  /// page). PDF import uses the returned id to tie an extracted text layer
-  /// back to its raster (see [setPageTextLayer]).
-  String? addImageElement(Offset position, String fileName, Uint8List bytes, double width, double height, {bool locked = false, ({double w, double h})? pdfSizePt}) {
-    if (state == null) return null;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return null;
-    final pageFileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, pageFileName, page);
-
-    // Content-dedup: reuse an existing identical-bytes asset instead of
-    // minting a fresh UUID. PDF (re-)import and page-duplicate otherwise store
-    // the same page render under a new id each time, bloating the notebook
-    // (observed: 62 duplicate groups / ~19 MB in one notebook).
-    final dupId = _findIdenticalAsset(bytes, s.assetBytes);
-    final assetId = dupId ?? '${const Uuid().v4()}_$fileName';
-
-    final newElement = ContentElement.image(
-      id: const Uuid().v4(),
-      zIndex: _nextZIndex(page),
-      data: ImageData(
-        x: position.dx, y: position.dy,
-        width: width, height: height,
-        assetPath: assetId,
-        locked: locked,
-        pdfWidthPt: pdfSizePt?.w,
-        pdfHeightPt: pdfSizePt?.h,
-      ),
-    );
-
-    final updatedPage = _pageWithNewElement(page, newElement).copyWith(
-      assetReferences: [...page.assetReferences, assetId],
-    );
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[pageFileName] = updatedPage;
-
-    // Store raw bytes for persistence and decode for rendering. When we reused
-    // an existing asset (dupId != null) the bytes are already present and
-    // already uploaded — only register/mark-dirty genuinely new content.
-    final newAssetBytes = Map<String, Uint8List>.from(s.assetBytes);
-    if (dupId == null) {
-      newAssetBytes[assetId] = bytes;
-      (_assetsByLength[bytes.length] ??= []).add(assetId);
-    }
-    // Skip eager decode during bulk operations (PDF import). Each
-    // decoded `ui.Image` lives on the GPU at ~3-5 MB; eagerly
-    // decoding 78 PDF pages while importing was the OOM that
-    // crashed the host. The thumbnail / current-page render path
-    // calls `ensureAssetDecodedForThumbnail` lazily for what's
-    // actually visible, so deferring is correct — the user is on
-    // ONE page during the import, and only that page's image needs
-    // to be decoded.
-    if (!_bulkOperationInProgress) {
-      _decodeAndCacheImage(assetId, newAssetBytes[assetId] ?? bytes);
-    }
-    if (dupId == null) _markAssetDirty(assetId);
-
-    state = s.copyWith(
-      pages: updatedPages,
-      assetBytes: newAssetBytes,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      selectedElementId: newElement.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id),
-      currentTool: CanvasTool.lasso,
-    );
-    return assetId;
-  }
+  /// page). PDF import uses it to tie an extracted text layer to its raster.
+  String? addImageElement(Offset position, String fileName, Uint8List bytes,
+          double width, double height,
+          {bool locked = false, ({double w, double h})? pdfSizePt}) =>
+      _elements.addImageElement(position, fileName, bytes, width, height,
+          locked: locked, pdfSizePt: pdfSizePt);
 
   /// Attach an extracted PDF text layer to an EXPLICIT page. Called during
   /// PDF import right after the page's raster image was added, so the layer's
@@ -6913,9 +2757,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final s = state!;
     final page = s.pages[pageFileName];
     if (page == null) return;
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[pageFileName] = page.copyWith(pdfTextLayer: layer);
-    state = s.copyWith(pages: updatedPages, isDirty: true);
+    commitPageEdit(s, pageFileName, page.copyWith(pdfTextLayer: layer), history: false);
   }
 
   /// Resize a page (and its document entry) and make its paper blank. PDF
@@ -6930,203 +2772,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final bg = blankPaper
         ? page.layers.background.copyWith(type: 'blank')
         : page.layers.background;
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[pageFileName] = page.copyWith(
-      width: width,
-      height: height,
-      layers: page.layers.copyWith(background: bg),
-    );
     final entries = [
       for (final e in s.document.pages)
         e.fileName == pageFileName ? e.copyWith(width: width, height: height) : e,
     ];
-    state = s.copyWith(
-      pages: updatedPages,
-      document: DocumentStructure(
-        notebookId: s.document.notebookId,
-        formatVersion: s.document.formatVersion,
-        pages: entries,
-      ),
-      isDirty: true,
+    final resized = page.copyWith(
+      width: width,
+      height: height,
+      layers: page.layers.copyWith(background: bg),
     );
-  }
-
-  /// Asset IDs that have been classified as corrupt (decoding failed,
-  /// usually due to the historic 1024-aligned server-side truncation
-  /// bug). Used by thumbnails / page render to mark such pages with a
-  /// warning indicator instead of a blank placeholder so the user
-  /// understands that re-decoding won't help and they need to
-  /// re-import the source PDF / image.
-  final Set<String> _corruptAssetIds = <String>{};
-
-  /// Public read-only view of [_corruptAssetIds] for UI consumers.
-  Set<String> get corruptAssetIds => _corruptAssetIds;
-
-  /// Asset IDs whose bytes are currently being fetched from the server
-  /// because they were missing from `state.assetBytes`. While in this
-  /// set, callers should render a "loading" placeholder, NOT the
-  /// broken-image badge — the asset isn't corrupt, it just hasn't
-  /// arrived yet. Distinct from `_healAttempted` because that set
-  /// stays populated AFTER the fetch (success or failure) to gate
-  /// retries; this set is cleared the moment the fetch lands.
-  final Set<String> _loadingAssetIds = <String>{};
-
-  /// Public read-only view of [_loadingAssetIds] for UI consumers.
-  Set<String> get loadingAssetIds => _loadingAssetIds;
-
-  /// Tracks per-session asset IDs that have already been the target of
-  /// a one-shot fresh-fetch attempt. Without this we'd loop pulling
-  /// the same asset every paint frame if the server bytes are STILL
-  /// corrupt (the failure path re-fires every paint).
-  final Set<String> _healAttempted = <String>{};
-
-  /// One-shot heal: pull fresh bytes for [assetId] from the delta
-  /// folder and, if they decode this time, write them into state +
-  /// remove the corrupt flag. Called from [_decodeAndCacheImage]'s
-  /// failure branch so a user who re-imported the source on another
-  /// device gets the fix automatically on the affected device's next
-  /// paint instead of having to wait for a sync round-trip.
-  /// Sister to [_healCorruptAsset] for the "bytes never landed in
-  /// state.assetBytes" case: the asset is referenced by a page but no
-  /// payload is in memory. Fetches from the delta folder and, on
-  /// success, writes into state + decodes. Used by
-  /// [ensureAssetDecodedForThumbnail] so a missing asset doesn't
-  /// immediately render as broken when the server actually has it.
-  Future<void> _lazyFetchMissingAsset(
-      String assetId, String ownerNotebookId) async {
-    try {
-      final syncService = _ref.read(syncServiceProvider);
-      if (syncService == null) {
-        _markMissingAsCorrupt(assetId);
-        return;
-      }
-      final fresh = await syncService.downloadDeltaAsset(
-          ownerNotebookId, assetId);
-      if (_disposed ||
-          state == null ||
-          state!.metadata.id != ownerNotebookId) {
-        return;
-      }
-      // Server returned bytes — install and decode. Defense-in-depth
-      // (the webdav layer already verifies); a 1024-aligned body here
-      // means something slipped past, so reject it.
-      if (fresh.isEmpty || fresh.length % 1024 == 0) {
-        _markMissingAsCorrupt(assetId);
-        return;
-      }
-      final mergedAssets = Map<String, Uint8List>.from(state!.assetBytes);
-      mergedAssets[assetId] = fresh;
-      state = state!.copyWith(assetBytes: mergedAssets);
-      await _decodeAndCacheImage(assetId, fresh);
-    } catch (_) {
-      // 404 / network failure / etc — only NOW do we declare the asset
-      // unrecoverable and surface the broken-image overlay.
-      _markMissingAsCorrupt(assetId);
-    } finally {
-      // Always clear the loading flag — either we landed bytes (UI
-      // shows the image) or we marked corrupt (UI shows the broken
-      // overlay). Either way the loading placeholder must go.
-      if (_loadingAssetIds.remove(assetId)) {
-        imageCacheVersion.value++;
-      }
-    }
-  }
-
-  void _markMissingAsCorrupt(String assetId) {
-    if (_disposed || state == null) return;
-    if (_corruptAssetIds.add(assetId)) {
-      // ignore: avoid_print
-      print('[Canvas] Asset $assetId has no bytes available — '
-          'likely missing on server (404) or never downloaded. '
-          'Re-import the source PDF/image to recover.');
-      imageCacheVersion.value++;
-    }
-  }
-
-  Future<void> _healCorruptAsset(String assetId, String ownerNotebookId) async {
-    try {
-      final syncService = _ref.read(syncServiceProvider);
-      if (syncService == null) return;
-      final fresh = await syncService.downloadDeltaAsset(
-          ownerNotebookId, assetId);
-      if (_disposed ||
-          state == null ||
-          state!.metadata.id != ownerNotebookId) {
-        return;
-      }
-      final existing = state!.assetBytes[assetId];
-      if (existing != null &&
-          existing.length == fresh.length &&
-          _bytesEqual(existing, fresh)) {
-        // Same corrupt bytes — server still poisoned. Remember persistently
-        // so we don't burn another GET on this asset next app launch (the
-        // proactive sweep + lazy heal both consult _healAttempted, which is
-        // pre-seeded from this set on open).
-        if (_knownIncurableAssets.add(assetId)) {
-          unawaited(_persistIncurableAssets(ownerNotebookId));
-        }
-        return;
-      }
-      // New bytes — replace and retry decode. _decodeAndCacheImage
-      // clears _corruptAssetIds on success.
-      final mergedAssets =
-          Map<String, Uint8List>.from(state!.assetBytes);
-      mergedAssets[assetId] = fresh;
-      // Mark the notebook dirty so the next save persists the fresh bytes into
-      // the on-disk ZIP — otherwise a fresh app launch hits the stale ZIP
-      // cache and re-heals every session. We do NOT add the asset to
-      // _dirtyAssetKeys: the server already has these clean bytes (that's
-      // where we just fetched them), so the local-only ZIP rewrite is enough
-      // and no redundant re-upload is triggered.
-      state = state!.copyWith(assetBytes: mergedAssets, isDirty: true);
-      await _decodeAndCacheImage(assetId, fresh);
-    } catch (_) {
-      // Network blip / server-side 404 / etc — keep corrupt flag.
-    }
-  }
-
-  /// Proactively re-fetch locally-truncated assets from the server. The
-  /// rendered PDF/image pages live IN the notebook (server `_delta/.../assets`
-  /// + local), independent of the original source PDF — so when a local asset
-  /// carries the 1024-aligned truncation fingerprint, the authoritative clean
-  /// bytes are almost always still on the server and we just re-pull them.
-  ///
-  /// The lazy heal in [_decodeAndCacheImage] only fires for assets the user
-  /// actually views; this sweep covers assets on pages they never open, so a
-  /// notebook fully self-heals in the background. Each fetch is throttled via
-  /// [_healAttempted] (once per asset per session) and [_healCorruptAsset]
-  /// replaces bytes only when the server copy actually differs — so a clean
-  /// asset that happens to be 1024-aligned costs one harmless PROPFIND/GET and
-  /// nothing else. Capped so a false-positive-heavy notebook can't trigger a
-  /// fetch storm; the rest still heal lazily on view.
-  void _recoverTruncatedAssetsFromServer() {
-    final s = state;
-    if (s == null) return;
-    if (_ref.read(syncServiceProvider) == null) return; // offline → skip
-    final nb = s.metadata.id;
-    const cap = 80;
-    var fired = 0;
-    for (final entry in s.assetBytes.entries) {
-      if (fired >= cap) break;
-      final b = entry.value;
-      if (b.isEmpty || b.length % 1024 != 0) continue; // not a truncation suspect
-      if (!_healAttempted.add(entry.key)) continue; // already tried this session
-      fired++;
-      unawaited(_healCorruptAsset(entry.key, nb));
-    }
-    if (fired > 0) {
-      print('[Canvas] Proactive asset recovery: re-fetching $fired '
-          'truncated-fingerprint asset(s) from server (clean copy lives in '
-          'the notebook; no source PDF needed)');
-    }
-  }
-
-  bool _bytesEqual(Uint8List a, Uint8List b) {
-    if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
+    commitPageEdit(s, pageFileName, resized,
+        history: false,
+        alsoState: (n) => n.copyWith(
+              document: DocumentStructure(
+                notebookId: s.document.notebookId,
+                formatVersion: s.document.formatVersion,
+                pages: entries,
+              ),
+            ));
   }
 
   /// Content-dedup index: byte-length → assetIds that have that length. Lets
@@ -7138,11 +2801,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// byte-compares (no hashing, no extra dependency). Built lazily, reset on
   /// notebook open/close.
   final Map<int, List<String>> _assetsByLength = {};
+  @override
+  Map<int, List<String>> get assetsByLength => _assetsByLength;
   bool _assetIndexBuilt = false;
 
   /// Returns the id of an existing asset whose bytes are identical to [bytes],
   /// or null if none. Lazily indexes the current asset set on first use.
-  String? _findIdenticalAsset(Uint8List bytes, Map<String, Uint8List> assets) {
+  @override
+  String? findIdenticalAsset(Uint8List bytes, Map<String, Uint8List> assets) {
     if (!_assetIndexBuilt) {
       _assetsByLength.clear();
       assets.forEach((id, b) => (_assetsByLength[b.length] ??= []).add(id));
@@ -7152,278 +2818,18 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (candidates == null) return null;
     for (final id in candidates) {
       final b = assets[id];
-      if (b != null && _bytesEqual(b, bytes)) return id;
+      if (b != null && AssetCache.bytesEqual(b, bytes)) return id;
     }
     return null;
   }
 
-  /// AssetIds whose decode is currently in flight. Used to prevent two
-  /// parallel decodes from racing — priority loop and background loop can
-  /// both fire `_decodeAndCacheImage(assetId, bytes)` for the same id, and
-  /// the second decode's writeback would otherwise overwrite the first
-  /// without disposing the orphaned ui.Image (silent GPU-memory leak).
-  final Set<String> _decodingInFlight = <String>{};
-
-  Future<void> _decodeAndCacheImage(String assetId, Uint8List bytes) async {
-    // Remember which notebook this decode belongs to. If the user switches
-    // notebooks while we're awaiting the codec, the decoded ui.Image must
-    // not leak into the new notebook's imageCache (would show a stale
-    // image on a different page, or worse, under a conflicting assetId).
-    final ownerNotebookId = state?.metadata.id;
-    if (ownerNotebookId == null) return;
-    // Coalesce parallel decodes for the same asset. Once the in-flight
-    // decode lands the cache will already hold the image, so a subsequent
-    // request can re-check via the existing imageCache lookup and skip.
-    if (!_decodingInFlight.add(assetId)) return;
-    ui.Codec? codec;
-    try {
-      codec = await ui.instantiateImageCodec(bytes);
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      // Re-check: still the same notebook, still not disposed, assetBytes
-      // still references this asset.
-      if (_disposed ||
-          state == null ||
-          state!.metadata.id != ownerNotebookId) {
-        image.dispose();
-        return;
-      }
-      final newCache = Map<String, ui.Image>.from(state!.imageCache);
-      // Dispose any previously cached image for this assetId to avoid GPU
-      // memory leaks on iPad when re-decoding (e.g. after a pull merge or
-      // a crop that reuses the same assetId).
-      final previous = newCache[assetId];
-      if (previous != null && !identical(previous, image)) {
-        previous.dispose();
-      }
-      newCache[assetId] = image;
-      // Recovered from a previous corruption attempt — clear the flag
-      // so the warning indicator goes away.
-      _corruptAssetIds.remove(assetId);
-      // If this was on the persisted incurable list (e.g. an earlier session
-      // confirmed the server was poisoned), drop it now — the asset clearly
-      // decodes, so future sessions should try to heal it again normally.
-      if (_knownIncurableAssets.remove(assetId)) {
-        unawaited(_persistIncurableAssets(ownerNotebookId));
-      }
-      state = state!.copyWith(imageCache: newCache);
-      imageCacheVersion.value++;
-    } catch (e) {
-      // Image decoding failed. Most common cause in this codebase is
-      // the historic server-side truncation bug — assets uploaded
-      // before the post-PUT size verification (commit dd43281) sit on
-      // the server and in local mirrors at exactly 1024-aligned byte
-      // boundaries with corrupt PNG/JPG payloads. Detect that
-      // signature and log a one-shot diagnostic so the user knows
-      // why a thumbnail is blank.
-      final isLikelyTruncation = bytes.isNotEmpty && bytes.length % 1024 == 0;
-      if (_corruptAssetIds.add(assetId)) {
-        // ignore: avoid_print
-        print('[Canvas] Asset $assetId failed to decode: $e '
-            '(${bytes.length} B'
-            '${isLikelyTruncation ? ", 1024-aligned → likely truncated server-side" : ""}). '
-            'Re-import the source PDF/image to recover this asset.');
-        if (state != null && state!.metadata.id == ownerNotebookId) {
-          // Bump the version so the painter repaints (corruptAssetIds
-          // membership controls the placeholder render path).
-          imageCacheVersion.value++;
-        }
-        // ── Auto-heal ──
-        // If another device re-uploaded clean bytes for this asset
-        // (after the user manually re-imported the source PDF/image
-        // from a different machine), the server now has good bytes
-        // but our local copy is the truncated leftover. Try a
-        // one-shot fresh fetch from the delta folder; on success
-        // replace the cached bytes and retry the decode.
-        // Throttled to once per asset per session via _healAttempted
-        // so we don't loop on assets the server STILL has corrupt.
-        if (_healAttempted.add(assetId)) {
-          unawaited(_healCorruptAsset(assetId, ownerNotebookId));
-        }
-      }
-    } finally {
-      // Dispose the codec to release native decoder resources.
-      // On iPad, leaking codecs quickly exhausts GPU memory and causes the
-      // renderer to be jettisoned by the OS.
-      codec?.dispose();
-      _decodingInFlight.remove(assetId);
-    }
-  }
-
-  /// Crop an image element using a normalized crop rect (0..1).
-  /// Creates a new cropped image from the original bytes.
-  Future<void> cropImageElement(String elementId, Rect normalizedCrop) async {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-
-    // Find the image element
-    ImageData? imgData;
-    for (final el in page.layers.content) {
-      el.map(unknown: (_) {},
-        stroke: (_) {},
-        text: (_) {},
-        image: (i) { if (i.id == elementId) imgData = i.data; },
-        shape: (_) {},
-        math: (_) {},
-      );
-    }
-    if (imgData == null) return;
-
-    final cachedImage = s.imageCache[imgData!.assetPath];
-    if (cachedImage == null) return;
-
-    // Crop the image using a PictureRecorder
-    final srcW = cachedImage.width.toDouble();
-    final srcH = cachedImage.height.toDouble();
-    final cropSrc = Rect.fromLTRB(
-      normalizedCrop.left * srcW,
-      normalizedCrop.top * srcH,
-      normalizedCrop.right * srcW,
-      normalizedCrop.bottom * srcH,
-    );
-    final cropW = cropSrc.width.toInt();
-    final cropH = cropSrc.height.toInt();
-    if (cropW < 1 || cropH < 1) return;
-
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.drawImageRect(
-      cachedImage,
-      cropSrc,
-      Rect.fromLTWH(0, 0, cropW.toDouble(), cropH.toDouble()),
-      Paint()..filterQuality = FilterQuality.high,
-    );
-    final picture = recorder.endRecording();
-    ui.Image croppedImage;
-    Uint8List croppedBytes;
-    try {
-      croppedImage = await picture.toImage(cropW, cropH);
-      // Encode the cropped image to PNG bytes
-      final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        croppedImage.dispose();
-        return;
-      }
-      croppedBytes = Uint8List.fromList(byteData.buffer.asUint8List());
-    } finally {
-      // Picture holds GPU/CPU display-list memory; release ASAP.
-      picture.dispose();
-    }
-
-    final newAssetId = '${const Uuid().v4()}_cropped.png';
-
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    // Update the image element dimensions (scale on page proportionally)
-    final scaleX = normalizedCrop.width;
-    final scaleY = normalizedCrop.height;
-    final newPageW = imgData!.width * scaleX;
-    final newPageH = imgData!.height * scaleY;
-    final newX = imgData!.x + imgData!.width * normalizedCrop.left;
-    final newY = imgData!.y + imgData!.height * normalizedCrop.top;
-
-    final updatedContent = page.layers.content.map((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      if (id != elementId) return element;
-      return element.map(unknown: (u) => u,
-        stroke: (e) => e as ContentElement,
-        text: (e) => e as ContentElement,
-        image: (e) => ContentElement.image(
-          id: e.id, zIndex: e.zIndex,
-          data: ImageData(
-            x: newX, y: newY,
-            width: newPageW, height: newPageH,
-            assetPath: newAssetId,
-            rotation: e.data.rotation,
-            opacity: e.data.opacity,
-            locked: e.data.locked, comment: e.data.comment,
-          ),
-        ),
-        shape: (e) => e as ContentElement,
-        math: (e) => e as ContentElement,
-      );
-    }).toList();
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: updatedContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    // Update caches
-    final newCache = Map<String, ui.Image>.from(s.imageCache);
-    // Defensive: if a previous image happened to be keyed under the new
-    // (unique UUID) assetId — shouldn't happen but we've seen IDs collide
-    // after aborted crop+undo sequences — dispose it before replacing.
-    final previousAtNewId = newCache[newAssetId];
-    if (previousAtNewId != null && !identical(previousAtNewId, croppedImage)) {
-      previousAtNewId.dispose();
-    }
-    newCache[newAssetId] = croppedImage;
-    final newAssets = Map<String, Uint8List>.from(s.assetBytes);
-    newAssets[newAssetId] = croppedBytes;
-    _markAssetDirty(newAssetId);
-
-    state = s.copyWith(
-      pages: updatedPages,
-      imageCache: newCache,
-      assetBytes: newAssets,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-    );
-    imageCacheVersion.value++;
-  }
+  /// Crops an image element to a normalized rect (0..1), as a new asset.
+  Future<void> cropImageElement(String elementId, Rect normalizedCrop) =>
+      _elements.cropImageElement(elementId, normalizedCrop);
 
   // ── Clipboard operations ──
 
-  /// Collect the asset bytes referenced by [elements] from the CURRENT
-  /// notebook's asset store, so the clipboard stays pasteable across
-  /// notebooks (see [CanvasClipboard.assets]). Best-effort: assets whose
-  /// bytes aren't resident in memory are skipped.
-  Map<String, Uint8List> _collectClipboardAssets(
-      List<ContentElement> elements) {
-    final s = state;
-    if (s == null) return const {};
-    final out = <String, Uint8List>{};
-    for (final el in elements) {
-      if (el is ImageElement) {
-        final p = el.data.assetPath;
-        final bytes = s.assetBytes[p];
-        if (p.isNotEmpty && bytes != null) out[p] = bytes;
-      }
-    }
-    return out;
-  }
-
-  void copySelection() {
-    if (state == null || state!.lassoSelection == null) return;
-    final sel = state!.lassoSelection!;
-    final page = state!.currentPage;
-    if (page == null) return;
-
-    final copied = page.layers.content.where((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return sel.selectedIds.contains(id);
-    }).toList();
-
-    if (copied.isEmpty) return;
-    final clip = CanvasClipboard(
-      elements: copied,
-      bounds: sel.bounds,
-      assets: _collectClipboardAssets(copied),
-    );
-    state = state!.copyWith(clipboard: clip);
-    _ref.read(crossNotebookClipboardProvider.notifier).state = clip;
-  }
+  void copySelection() => _clip.copySelection();
 
   void cutSelection() {
     copySelection();
@@ -7431,25 +2837,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   }
 
   /// Copy a single element (e.g. an image / PDF preview) to the clipboard.
-  void copyElement(String elementId) {
-    if (state == null) return;
-    final page = state!.currentPage;
-    if (page == null) return;
-    final element = page.layers.content.where((e) {
-      final id = e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return id == elementId;
-    }).firstOrNull;
-    if (element == null) return;
-    final bounds = _getElementBounds(element);
-    if (bounds == null) return;
-    final clip = CanvasClipboard(
-      elements: [element],
-      bounds: bounds,
-      assets: _collectClipboardAssets([element]),
-    );
-    state = state!.copyWith(clipboard: clip);
-    _ref.read(crossNotebookClipboardProvider.notifier).state = clip;
-  }
+  void copyElement(String elementId) => _clip.copyElement(elementId);
 
   /// Cut a single element: copy to clipboard, then delete.
   void cutElement(String elementId) {
@@ -7457,481 +2845,49 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     deleteElement(elementId);
   }
 
-  void paste({Offset? at}) {
-    if (state == null || state!.clipboard == null) return;
-    final s = state!;
-    final clip = s.clipboard!;
-    final page = s.currentPage;
-    if (page == null) return;
-    final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
+  void paste({Offset? at}) => _clip.paste(at: at);
 
-    // Offset paste position slightly from original
-    final pasteOffset = at != null
-        ? Offset(at.dx - clip.bounds.center.dx, at.dy - clip.bounds.center.dy)
-        : const Offset(20, 20);
+  /// Duplicate the current lasso selection in place and keep the copies
+  /// selected, so the lasso handles can drag/scale/rotate them.
+  void duplicateSelection() => _clip.duplicateSelection();
 
-    final baseZ = _nextZIndex(page);
-    final newElements = <ContentElement>[];
-    final newIds = <String>[];
-    for (int idx = 0; idx < clip.elements.length; idx++) {
-      final element = clip.elements[idx];
-      final newId = const Uuid().v4();
-      newIds.add(newId);
-      final translated = _translateElement(element, pasteOffset);
-      final z = baseZ + idx;
-      newElements.add(translated.map(unknown: (u) => u.copyWith(id: newId, zIndex: z),
-        stroke: (e) => ContentElement.stroke(id: newId, zIndex: z, data: e.data),
-        text: (e) => ContentElement.text(id: newId, zIndex: z, data: e.data),
-        image: (e) => ContentElement.image(id: newId, zIndex: z, data: e.data),
-        shape: (e) => ContentElement.shape(id: newId, zIndex: z, data: e.data),
-        math: (e) => ContentElement.math(id: newId, zIndex: z, data: e.data),
-      ));
-    }
+  /// Replaces the LaTeX of a math element, kept centred. One undo entry.
+  Future<void> updateMathLatex(String elementId, String latex) =>
+      _elements.updateMathLatex(elementId, latex);
 
-    // Materialize assets this notebook doesn't have (cross-notebook paste:
-    // the clipboard carries the source notebook's bytes) and register the
-    // pasted elements' asset ids on the destination page so orphan-asset
-    // pruning never mistakes them for garbage.
-    final newAssetBytes = Map<String, Uint8List>.from(s.assetBytes);
-    final newRefs = <String>[];
-    var assetsChanged = false;
-    for (final element in clip.elements) {
-      if (element is! ImageElement) continue;
-      final p = element.data.assetPath;
-      if (p.isEmpty) continue;
-      if (!page.assetReferences.contains(p) && !newRefs.contains(p)) {
-        newRefs.add(p);
-      }
-      if (!newAssetBytes.containsKey(p)) {
-        final carried = clip.assets[p];
-        if (carried != null) {
-          newAssetBytes[p] = carried;
-          (_assetsByLength[carried.length] ??= []).add(p);
-          _markAssetDirty(p);
-          _decodeAndCacheImage(p, carried);
-          assetsChanged = true;
-        }
-      }
-    }
+  void duplicateElement(String elementId) => _clip.duplicateElement(elementId);
 
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: [...page.layers.content, ...newElements]),
-      assetReferences: [...page.assetReferences, ...newRefs],
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
+  void cancelPendingPaste() => _clip.cancelPendingPaste();
 
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
+  // ── Reusable Symbols & Libraries (see SymbolsLibrary) ──
 
-    // The cross-notebook clipboard is a one-shot "carry to the next
-    // notebook" intent: once the user has pasted ANYWHERE it is consumed.
-    // Leaving it set made openNotebook re-arm the "Tocca per posizionare"
-    // banner on every subsequent notebook open, even after the paste.
-    if (_ref.read(crossNotebookClipboardProvider) != null) {
-      _ref.read(crossNotebookClipboardProvider.notifier).state = null;
-    }
+  void createSymbolLibrary(String name) => _symbolsLib.createSymbolLibrary(name);
 
-    // Keep the pasted elements SELECTED (same as duplicateSelection): the
-    // paste often lands on top of existing content, and re-selecting it by
-    // hand to move it away is fiddly. Switching to lasso makes the handles
-    // immediately usable.
-    state = s.copyWith(
-      pages: updatedPages,
-      assetBytes: assetsChanged ? newAssetBytes : s.assetBytes,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoPath: [],
-      lassoSelection: LassoSelection(
-        selectedIds: newIds,
-        bounds: clip.bounds.shift(pasteOffset),
-      ),
-      currentTool: CanvasTool.lasso,
-      pendingPaste: false,
-    );
-  }
+  void renameSymbolLibrary(String libId, String newName) =>
+      _symbolsLib.renameSymbolLibrary(libId, newName);
 
-  /// Duplicate the current lasso selection in place, then keep the
-  /// new copies selected so the user can drag/scale/rotate them via
-  /// the existing lasso handles. Pasting in select mode replaces the
-  /// previous "tap somewhere to drop" flow which was disorienting for
-  /// large selections (the user couldn't tell where the duplicate
-  /// would land before committing).
-  void duplicateSelection() {
-    if (state == null || state!.lassoSelection == null) return;
-    final s = state!;
-    final sel = s.lassoSelection!;
-    final page = s.currentPage;
-    if (page == null) return;
+  void deleteSymbolLibrary(String libId) =>
+      _symbolsLib.deleteSymbolLibrary(libId);
 
-    final fileName = s.currentPageFileName;
-    final originals = page.layers.content.where((element) {
-      final id = element.map(unknown: (u) => u.id,
-        stroke: (e) => e.id,
-        text: (e) => e.id,
-        image: (e) => e.id,
-        shape: (e) => e.id,
-        math: (e) => e.id,
-      );
-      return sel.selectedIds.contains(id);
-    }).toList();
-    if (originals.isEmpty) return;
+  void renameSymbol(String libId, String symbolId, String newName) =>
+      _symbolsLib.renameSymbol(libId, symbolId, newName);
 
-    // Update clipboard so a follow-up Ctrl+V works as expected. NOTE: only
-    // the in-app clipboard — duplicate places its copy immediately, so
-    // arming the cross-notebook clipboard here would re-trigger the
-    // "Tocca per posizionare" banner at the next notebook open.
-    final clip = CanvasClipboard(
-      elements: originals,
-      bounds: sel.bounds,
-      assets: _collectClipboardAssets(originals),
-    );
-
-    final undoStack = _pushUndo(s, fileName, page);
-
-    // Offset the copy by a small constant so it's visible next to the
-    // original instead of overlapping it pixel-perfect.
-    const offset = Offset(20, 20);
-
-    final baseZ = _nextZIndex(page);
-    final newElements = <ContentElement>[];
-    final newIds = <String>[];
-    for (int idx = 0; idx < originals.length; idx++) {
-      final translated = _translateElement(originals[idx], offset);
-      final newId = const Uuid().v4();
-      newIds.add(newId);
-      final z = baseZ + idx;
-      newElements.add(translated.map(unknown: (u) => u.copyWith(id: newId, zIndex: z),
-        stroke: (e) => ContentElement.stroke(id: newId, zIndex: z, data: e.data),
-        text: (e) => ContentElement.text(id: newId, zIndex: z, data: e.data),
-        image: (e) => ContentElement.image(id: newId, zIndex: z, data: e.data),
-        shape: (e) => ContentElement.shape(id: newId, zIndex: z, data: e.data),
-        math: (e) => ContentElement.math(id: newId, zIndex: z, data: e.data),
-      ));
-    }
-
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId,
-      pageNumber: page.pageNumber,
-      width: page.width,
-      height: page.height,
-      layers: RenderingLayers(
-        background: page.layers.background,
-        content: [...page.layers.content, ...newElements],
-      ),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt,
-      modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
-    final newBounds = sel.bounds.shift(offset);
-
-    state = s.copyWith(
-      pages: updatedPages,
-      clipboard: clip,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoPath: [],
-      lassoSelection:
-          LassoSelection(selectedIds: newIds, bounds: newBounds),
-    );
-  }
-
-  /// Replaces the LaTeX of math element [elementId], re-measured and kept
-  /// centred where it was. One undo entry.
-  Future<void> updateMathLatex(String elementId, String latex) async {
-    if (latex.trim().isEmpty) return;
-    var s = state;
-    var page = s?.currentPage;
-    if (s == null || page == null) return;
-    final fileName = s.currentPageFileName;
-    final old = page.layers.content
-        .whereType<MathElement>()
-        .where((e) => e.id == elementId)
-        .firstOrNull;
-    if (old == null || old.data.latex == latex) return;
-
-    final d = old.data;
-    final size = await measureMath(latex,
-        colorArgb: d.color, fontSize: d.fontSize, displayMode: d.displayMode);
-    // A resize stretches the box, not fontSize: carry that stretch over.
-    final oldSize = await measureMath(d.latex,
-        colorArgb: d.color, fontSize: d.fontSize, displayMode: d.displayMode);
-    final sx = (oldSize != null && oldSize.width > 0) ? d.width / oldSize.width : 1.0;
-    final sy = (oldSize != null && oldSize.height > 0) ? d.height / oldSize.height : 1.0;
-
-    // measureMath awaited: re-read by file name, as in replaceInkWithMath.
-    if (_disposed) return;
-    s = state;
-    page = s?.pages[fileName];
-    if (s == null || page == null) return;
-    final idx = page.layers.content
-        .indexWhere((e) => e is MathElement && e.id == elementId);
-    if (idx < 0) return;
-    final current = page.layers.content[idx] as MathElement;
-
-    final width = size != null ? size.width * sx : current.data.width;
-    final height = size != null ? size.height * sy : current.data.height;
-    final cx = current.data.x + current.data.width / 2;
-    final cy = current.data.y + current.data.height / 2;
-    final undoStack = _pushUndo(s, fileName, page);
-
-    final newContent = List<ContentElement>.from(page.layers.content);
-    newContent[idx] = current.copyWith(
-      data: current.data.copyWith(
-        latex: latex,
-        x: cx - width / 2,
-        y: cy - height / 2,
-        width: width,
-        height: height,
-      ),
-    );
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(
-          background: page.layers.background, content: newContent),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages)..[fileName] = updatedPage;
-    state = s.copyWith(
-        pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
-  }
-
-  void duplicateElement(String elementId) {
-    if (state == null) return;
-    final s = state!;
-    final page = s.currentPage;
-    if (page == null) return;
-
-    final original = page.layers.content.where((e) {
-      final id = e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return id == elementId;
-    }).firstOrNull;
-    if (original == null) return;
-
-    // Copy the element to clipboard and enter placement mode. In-app
-    // clipboard only (see duplicateSelection): duplicating is a local
-    // action, arming the cross-notebook clipboard re-triggered the
-    // placement banner at the next notebook open.
-    final bounds = _elementBounds(original);
-    final clip = CanvasClipboard(
-      elements: [original],
-      bounds: bounds,
-      assets: _collectClipboardAssets([original]),
-    );
-    state = s.copyWith(
-      clipboard: clip,
-      pendingPaste: true,
-      clearSelectedElement: true,
-    );
-  }
-
-  void cancelPendingPaste() {
-    if (state == null) return;
-    // Dismissing the banner is a "no thanks" for the carried clipboard too:
-    // without this, the cross-notebook clipboard re-armed the banner at the
-    // next notebook open even though the user explicitly closed it.
-    if (_ref.read(crossNotebookClipboardProvider) != null) {
-      _ref.read(crossNotebookClipboardProvider.notifier).state = null;
-    }
-    state = state!.copyWith(pendingPaste: false);
-  }
-
-  // ── Reusable Symbols & Libraries ──
-  //
-  // The library is DEVICE-WIDE, not per notebook: a symbol saved while
-  // writing in one notebook has to be there when you open the next one.
-  // It lives in FileService.globalSymbolsPath, and `state.symbolLibraries`
-  // is the in-memory view of it.
-  //
-  // Each notebook still carries its own `symbols.json`, because that is what
-  // travels to the server and into an exported .abelnote. On open the two are
-  // merged, which is also how a symbol made on another device arrives here,
-  // and how the symbols that existed before this was device-wide are kept.
-
-  /// Ids the user has deleted, mirrored from the shared library so the
-  /// mutators below can add to them. The service owns the durable copy.
-  Set<String> _deletedSymbolIds = {};
-  Set<String> _deletedLibraryIds = {};
-
-  SymbolLibraryService get _symbols =>
-      _ref.read(symbolLibraryServiceProvider);
-
-  /// The live libraries plus the tombstones, as one value to hand the service.
-  SymbolCollection _symbolCollection() => SymbolCollection(
-        libraries: state?.symbolLibraries ?? const [],
-        deletedSymbolIds: _deletedSymbolIds,
-        deletedLibraryIds: _deletedLibraryIds,
-      );
-
-  /// Persist a symbol change to the shared library and let the other devices
-  /// know. Fire-and-forget: saving a symbol must feel instant, and both the
-  /// disk write and the upload are safe to lose — the next change or the next
-  /// library refresh redoes them.
-  void _publishSymbols() {
-    final collection = _symbolCollection();
-    unawaited(() async {
-      await _symbols.save(collection);
-      await _symbols.reconcile();
-    }());
-  }
-
-  /// Returns the first library, or creates a default one if none exists.
-  SymbolLibrary _defaultLibrary(String name) {
-    if (state!.symbolLibraries.isEmpty) {
-      final lib = SymbolLibrary(id: const Uuid().v4(), name: name);
-      state = state!.copyWith(symbolLibraries: [lib], isDirty: true);
-      _publishSymbols();
-      return lib;
-    }
-    return state!.symbolLibraries.first;
-  }
-
-  void createSymbolLibrary(String name) {
-    if (state == null) return;
-    final lib = SymbolLibrary(id: const Uuid().v4(), name: name);
-    state = state!.copyWith(
-        symbolLibraries: [...state!.symbolLibraries, lib], isDirty: true);
-    _publishSymbols();
-  }
-
-  void renameSymbolLibrary(String libId, String newName) {
-    if (state == null) return;
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) => l.id == libId ? l.copyWith(name: newName) : l).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
-
-  void deleteSymbolLibrary(String libId) {
-    if (state == null) return;
-    // Tombstone the symbols too, not just the library: another notebook may
-    // carry them under a library id that survives, and the merge on open
-    // would put them back.
-    for (final l in state!.symbolLibraries.where((l) => l.id == libId)) {
-      _deletedSymbolIds.addAll(l.symbols.map((sym) => sym.id));
-    }
-    _deletedLibraryIds.add(libId);
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.where((l) => l.id != libId).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
-
-  void renameSymbol(String libId, String symbolId, String newName) {
-    if (state == null) return;
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) {
-        if (l.id != libId) return l;
-        return l.copyWith(symbols: l.symbols.map((s) => s.id == symbolId
-            ? ReusableSymbol(id: s.id, name: newName, elements: s.elements, bounds: s.bounds, createdAt: s.createdAt)
-            : s).toList());
-      }).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
-
-  void deleteSymbolFromLibrary(String libId, String symbolId) {
-    if (state == null) return;
-    _deletedSymbolIds.add(symbolId);
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) {
-        if (l.id != libId) return l;
-        return l.copyWith(symbols: l.symbols.where((s) => s.id != symbolId).toList());
-      }).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
+  void deleteSymbolFromLibrary(String libId, String symbolId) =>
+      _symbolsLib.deleteSymbolFromLibrary(libId, symbolId);
 
   /// Creates a symbol from the current lasso selection and adds it to the
   /// target library (first library if [targetLibId] is null).
   void createSymbolFromSelection(String name,
-      {String? targetLibId, required String defaultLibraryName}) {
-    if (state == null || state!.lassoSelection == null) return;
-    final sel = state!.lassoSelection!;
-    final page = state!.currentPage;
-    if (page == null) return;
-
-    final elements = page.layers.content.where((element) {
-      final id = element.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return sel.selectedIds.contains(id);
-    }).toList();
-
-    if (elements.isEmpty) return;
-
-    final symbol = ReusableSymbol(
-      id: const Uuid().v4(),
-      name: name,
-      elements: elements,
-      bounds: sel.bounds,
-      createdAt: DateTime.now(),
-    );
-
-    // Ensure there is at least one library
-    _defaultLibrary(defaultLibraryName);
-
-    final targetId = targetLibId ?? state!.symbolLibraries.first.id;
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) {
-        if (l.id != targetId) return l;
-        return l.copyWith(symbols: [...l.symbols, symbol]);
-      }).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
+          {String? targetLibId, required String defaultLibraryName}) =>
+      _symbolsLib.createSymbolFromSelection(name,
+          targetLibId: targetLibId, defaultLibraryName: defaultLibraryName);
 
   void createSymbolFromElement(String elementId, String name,
-      {required String defaultLibraryName}) {
-    if (state == null) return;
-    final page = state!.currentPage;
-    if (page == null) return;
+          {required String defaultLibraryName}) =>
+      _symbolsLib.createSymbolFromElement(elementId, name,
+          defaultLibraryName: defaultLibraryName);
 
-    final element = page.layers.content.where((e) {
-      final id = e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-      return id == elementId;
-    }).firstOrNull;
-    if (element == null) return;
-
-    final bounds = _getElementBounds(element);
-    if (bounds == null) return;
-
-    final symbol = ReusableSymbol(
-      id: const Uuid().v4(),
-      name: name,
-      elements: [element],
-      bounds: bounds,
-      createdAt: DateTime.now(),
-    );
-
-    _defaultLibrary(defaultLibraryName);
-    final targetId = state!.symbolLibraries.first.id;
-    state = state!.copyWith(
-      symbolLibraries: state!.symbolLibraries.map((l) {
-        if (l.id != targetId) return l;
-        return l.copyWith(symbols: [...l.symbols, symbol]);
-      }).toList(),
-      isDirty: true,
-    );
-    _publishSymbols();
-  }
-
-  void clearPendingSymbol() {
-    if (state == null) return;
-    state = state!.copyWith(clearPendingSymbol: true);
-  }
+  void clearPendingSymbol() => _symbolsLib.clearPendingSymbol();
 
   /// Drops [symbol] on the page centred on [position], as the vector
   /// elements it was saved from (like [paste]), so it stays sharp at any
@@ -7942,10 +2898,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final page = s.currentPage;
     if (page == null) return;
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
 
     final offset = position - symbol.bounds.center;
-    final baseZ = _nextZIndex(page);
+    final baseZ = nextZIndex(page);
     final newElements = <ContentElement>[];
     final newRefs = <String>[];
     for (final element in symbol.elements) {
@@ -7960,7 +2915,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       }
       final newId = const Uuid().v4();
       final z = baseZ + newElements.length;
-      newElements.add(_translateElement(element, offset).map(
+      newElements.add(translateElement(element, offset).map(
         unknown: (u) => u.copyWith(id: newId, zIndex: z),
         stroke: (e) => ContentElement.stroke(id: newId, zIndex: z, data: e.data),
         text: (e) => ContentElement.text(id: newId, zIndex: z, data: e.data),
@@ -7974,35 +2929,20 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       return;
     }
 
-    final updatedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: [...page.layers.content, ...newElements]),
-      assetReferences: [...page.assetReferences, ...newRefs],
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = updatedPage;
-
+    final updatedPage = pageWithContent(page, [...page.layers.content, ...newElements], assetReferences: [...page.assetReferences, ...newRefs]);
     // Land in lasso mode on the placed symbol: it is usually dropped roughly
     // right and then nudged or resized, which needs it selected at once.
-    state = s.copyWith(
-      pages: updatedPages,
-      undoStack: undoStack,
-      redoStack: [],
-      isDirty: true,
-      lassoPath: [],
-      lassoSelection: LassoSelection(
-        selectedIds: [
-          for (final e in newElements)
-            e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id,
-                image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id)
-        ],
-        bounds: symbol.bounds.shift(offset),
-      ),
-      clearPendingSymbol: true,
-      currentTool: CanvasTool.lasso,
-    );
+    commitPageEdit(s, fileName, updatedPage,
+        undoOf: page,
+        alsoState: (n) => n.copyWith(
+              lassoPath: [],
+              lassoSelection: LassoSelection(
+                selectedIds: [for (final e in newElements) e.id],
+                bounds: symbol.bounds.shift(offset),
+              ),
+              clearPendingSymbol: true,
+              currentTool: CanvasTool.lasso,
+            ));
     // Pictures are drawn from the decoded cache only; paste decodes too.
     for (final e in newElements) {
       if (e is ImageElement) ensureAssetDecodedForThumbnail(e.data.assetPath);
@@ -8058,7 +2998,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     final updatedPages = Map<String, PageData>.from(s.pages);
     // `blank` is a brand-new object, so _saveInner's identity diff against
-    // _lastSyncedPages already flags it — the next save() pushes the blank
+    // _sync.lastSyncedPages already flags it — the next save() pushes the blank
     // page and clears the server-side gap.
     updatedPages[entry.fileName] = blank;
 
@@ -8118,7 +3058,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         '[MissingPages] ${missing.length} without local data, '
         '${gone.length} absent on the server',
       ));
-      if (gone.length < missing.length) unawaited(_pullRemoteChanges());
+      if (gone.length < missing.length) unawaited(_pull.pullRemoteChanges());
       return (reachable: true, noServer: false, goneFromServer: gone);
     } catch (e) {
       unawaited(CrashLogger.append('[MissingPages] server check failed: $e'));
@@ -8126,318 +3066,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
   }
 
-  void deletePage(int index) {
-    if (state == null || state!.pageCount <= 1) return;
-    final s = state!;
-    if (index < 0 || index >= s.document.pages.length) return;
-    final entry = s.document.pages[index];
-    final fileName = entry.fileName;
-    final deletedPageId = entry.pageId;
-
-    final newPages = List<PageEntry>.from(s.document.pages)..removeAt(index);
-    // Renumber pages (preserve all fields including chapterId)
-    for (int i = 0; i < newPages.length; i++) {
-      newPages[i] = newPages[i].copyWith(pageNumber: i + 1);
-    }
-
-    final updatedDoc = DocumentStructure(
-      notebookId: s.document.notebookId,
-      formatVersion: s.document.formatVersion,
-      pages: newPages,
-    );
-
-    // Purge the deleted page's pageId from every chapter.pageIds list so
-    // we don't leave dead references in metadata.chapters. These were
-    // never fatal (the document is authoritative for navigation) but
-    // accumulated over time as garbage and confused the heal path on
-    // other devices.
-    final cleanedChapters = s.metadata.chapters
-        .map((c) => c.copyWith(
-              pageIds: c.pageIds.where((pid) => pid != deletedPageId).toList(),
-            ))
-        .toList();
-    final cleanedMeta = s.metadata.copyWith(
-      chapters: cleanedChapters,
-      pageCount: newPages.length,
-      modifiedAt: DateTime.now(),
-    );
-
-    final updatedPages = Map<String, PageData>.from(s.pages)..remove(fileName);
-    // Keep the user on the page they were viewing (the page manager can
-    // delete an arbitrary index, not just the current one): indices after
-    // the deleted page shift down by one; if the current page itself was
-    // deleted, stay at the same position (now the following page).
-    int newIndex = s.currentPageIndex > index
-        ? s.currentPageIndex - 1
-        : s.currentPageIndex;
-    if (newIndex >= newPages.length) newIndex = newPages.length - 1;
-    if (newIndex < 0) newIndex = 0;
-
-    // If a chapter filter is active, the naive "stay at same index" rule
-    // can land on a page outside the active chapter (the page-indicator
-    // then reads "— / N"). Snap to a page that still belongs to the
-    // chapter — the previous one within it, or the first one — and only
-    // fall back to the global index if the chapter became empty.
-    String? newActiveChapterId = s.activeChapterId;
-    if (newActiveChapterId != null) {
-      final chapterPagesInUnfiltered = <int>[
-        for (int i = 0; i < newPages.length; i++)
-          if (newPages[i].chapterId == newActiveChapterId) i,
-      ];
-      if (chapterPagesInUnfiltered.isNotEmpty) {
-        // Only re-snap when the adjusted index fell outside the chapter.
-        // Prefer the closest earlier page within the chapter; otherwise
-        // the first one. Keeps the user near where they were.
-        if (!chapterPagesInUnfiltered.contains(newIndex)) {
-          final prior = chapterPagesInUnfiltered
-              .where((i) => i < newIndex)
-              .toList();
-          newIndex =
-              prior.isNotEmpty ? prior.last : chapterPagesInUnfiltered.first;
-        }
-      } else {
-        // Chapter has no pages left — drop the filter so the nav isn't
-        // stuck showing "— / 0".
-        newActiveChapterId = null;
-      }
-    }
-
-    final clearChapter = newActiveChapterId == null && s.activeChapterId != null;
-    state = s.copyWith(
-      document: updatedDoc,
-      pages: updatedPages,
-      currentPageIndex: newIndex,
-      // Drop undo/redo entries for the deleted page: undo would put its
-      // PageData back into the pages map without a document entry — an
-      // orphan the heal then resurrects. Deletion is declared
-      // non-undoable in the UI, so the stacks must agree.
-      undoStack:
-          s.undoStack.where((e) => e.pageFileName != fileName).toList(),
-      redoStack:
-          s.redoStack.where((e) => e.pageFileName != fileName).toList(),
-      // Deletion shifts all subsequent indices; the previously-tracked
-      // page index would now point to a different page. Drop it so the
-      // bottom-strip "↺ previous" badge doesn't mislead the user.
-      clearPreviousPage: true,
-      activeChapterId: clearChapter ? null : newActiveChapterId,
-      clearActiveChapter: clearChapter,
-      metadata: cleanedMeta,
-      isDirty: true,
-    );
-  }
+  void deletePage(int index) => _pages.deletePage(index);
 
   /// Delete multiple pages in a single state update.
   ///
   /// [docIndices] are absolute document indices (not filtered/visible indices).
   /// Must contain at least one index and must not delete ALL pages if only one
   /// page remains.
-  void deletePages(List<int> docIndices) {
-    if (state == null) return;
-    final s = state!;
-    if (docIndices.isEmpty) return;
-    // Never delete the last page
-    final effective = docIndices.where((i) => i >= 0 && i < s.document.pages.length).toList();
-    if (effective.isEmpty) return;
-    if (s.pageCount - effective.length < 1) {
-      // Keep at least one page — remove excess from deletion list
-      effective.sort();
-      effective.removeLast(); // keep the last one
-      if (effective.isEmpty) return;
-    }
-
-    final indicesToRemove = effective.toSet();
-    final removedFileNames = indicesToRemove.map((i) => s.document.pages[i].fileName).toSet();
-    final removedPageIds = indicesToRemove.map((i) => s.document.pages[i].pageId).toSet();
-
-    final newPages = <PageEntry>[];
-    for (int i = 0; i < s.document.pages.length; i++) {
-      if (!indicesToRemove.contains(i)) {
-        newPages.add(s.document.pages[i].copyWith(pageNumber: newPages.length + 1));
-      }
-    }
-
-    final updatedDoc = DocumentStructure(
-      notebookId: s.document.notebookId,
-      formatVersion: s.document.formatVersion,
-      pages: newPages,
-    );
-    final updatedPagesMap = Map<String, PageData>.from(s.pages)
-      ..removeWhere((k, _) => removedFileNames.contains(k));
-
-    // Keep the user on the page they were viewing: shift by the number of
-    // deleted pages that preceded it, then clamp to the shrunken list.
-    int newIndex = s.currentPageIndex -
-        indicesToRemove.where((i) => i < s.currentPageIndex).length;
-    if (newIndex >= newPages.length) newIndex = newPages.length - 1;
-    if (newIndex < 0) newIndex = 0;
-
-    String? newActiveChapterId = s.activeChapterId;
-    if (newActiveChapterId != null) {
-      final chapterPages = [
-        for (int i = 0; i < newPages.length; i++)
-          if (newPages[i].chapterId == newActiveChapterId) i,
-      ];
-      if (chapterPages.isEmpty) {
-        newActiveChapterId = null;
-      } else if (!chapterPages.contains(newIndex)) {
-        newIndex = chapterPages.first;
-      }
-    }
-
-    // Purge dead pageIds from every chapter (same reason as deletePage).
-    final cleanedChapters = s.metadata.chapters
-        .map((c) => c.copyWith(
-              pageIds: c.pageIds.where((pid) => !removedPageIds.contains(pid)).toList(),
-            ))
-        .toList();
-
-    final clearChapter = newActiveChapterId == null && s.activeChapterId != null;
-    state = s.copyWith(
-      document: updatedDoc,
-      pages: updatedPagesMap,
-      currentPageIndex: newIndex,
-      // Same as deletePage: purge undo/redo entries for deleted pages or
-      // undo restores them as document-less orphans.
-      undoStack: s.undoStack
-          .where((e) => !removedFileNames.contains(e.pageFileName))
-          .toList(),
-      redoStack: s.redoStack
-          .where((e) => !removedFileNames.contains(e.pageFileName))
-          .toList(),
-      // Bulk deletion invalidates any prior "previous page" reference.
-      clearPreviousPage: true,
-      activeChapterId: clearChapter ? null : newActiveChapterId,
-      clearActiveChapter: clearChapter,
-      metadata: s.metadata.copyWith(
-        pageCount: newPages.length,
-        modifiedAt: DateTime.now(),
-        chapters: cleanedChapters,
-      ),
-      isDirty: true,
-    );
-  }
+  void deletePages(List<int> docIndices) => _pages.deletePages(docIndices);
 
   /// Assign multiple pages to a chapter (or clear their chapter) in a single
   /// state update.
-  void assignPagesToChapter(List<int> docIndices, String? chapterId) {
-    if (state == null) return;
-    final s = state!;
-    if (docIndices.isEmpty) return;
-    final indicesSet = docIndices.toSet();
-    final pages = List<PageEntry>.from(s.document.pages);
-    for (final i in indicesSet) {
-      if (i >= 0 && i < pages.length) {
-        pages[i] = pages[i].copyWith(chapterId: chapterId);
-      }
-    }
-    state = s.copyWith(
-      document: s.document.copyWith(pages: pages),
-      isDirty: true,
-    );
-  }
+  void assignPagesToChapter(List<int> docIndices, String? chapterId) =>
+      _pages.assignPagesToChapter(docIndices, chapterId);
 
-  void duplicatePage(int index) {
-    if (state == null) return;
-    final s = state!;
-    if (index < 0 || index >= s.document.pages.length) return;
-    final entry = s.document.pages[index];
-    final sourcePage = s.pages[entry.fileName];
-    if (sourcePage == null) return;
-
-    const uuid = Uuid();
-    final pageId = uuid.v4();
-    final now = DateTime.now();
-    final pageNum = s.pageCount + 1;
-    final fileName = _nextPageFileName(s);
-
-    final newPage = carryPdfTextLayer(sourcePage, PageData(
-      pageId: pageId, pageNumber: pageNum,
-      width: sourcePage.width, height: sourcePage.height,
-      layers: RenderingLayers(
-        background: sourcePage.layers.background,
-        content: sourcePage.layers.content.map((e) {
-          final newId = uuid.v4();
-          return e.map(unknown: (u) => u.copyWith(id: newId),
-            stroke: (e) => ContentElement.stroke(id: newId, zIndex: e.zIndex, data: e.data),
-            text: (e) => ContentElement.text(id: newId, zIndex: e.zIndex, data: e.data),
-            image: (e) => ContentElement.image(id: newId, zIndex: e.zIndex, data: e.data),
-            shape: (e) => ContentElement.shape(id: newId, zIndex: e.zIndex, data: e.data),
-            math: (e) => ContentElement.math(id: newId, zIndex: e.zIndex, data: e.data),
-          );
-        }).toList(),
-      ),
-      createdAt: now, modifiedAt: now,
-    ));
-
-    final newEntry = PageEntry(pageId: pageId, pageNumber: pageNum, fileName: fileName, lastModified: now, chapterId: entry.chapterId);
-
-    // Land right after the source page, like addPage does.
-    final pageList = List<PageEntry>.from(s.document.pages)
-      ..insert(index + 1, newEntry);
-    for (int i = 0; i < pageList.length; i++) {
-      pageList[i] = pageList[i].copyWith(pageNumber: i + 1);
-    }
-    final updatedDoc = DocumentStructure(
-      notebookId: s.document.notebookId,
-      formatVersion: s.document.formatVersion,
-      pages: pageList,
-    );
-
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = newPage;
-
-    state = s.copyWith(
-      document: updatedDoc,
-      pages: updatedPages,
-      currentPageIndex: index + 1,
-      metadata: s.metadata.copyWith(pageCount: pageNum, modifiedAt: now),
-      isDirty: true,
-    );
-  }
+  void duplicatePage(int index) => _pages.duplicatePage(index);
 
   /// Move a set of pages (possibly non-contiguous) so that the first moved
   /// page lands at final 1-based position [targetPosition]. Complements
   /// drag-and-drop, which is impractical for long-distance moves in big
   /// notebooks.
-  void movePagesToPosition(List<int> docIndices, int targetPosition) {
-    if (state == null) return;
-    final s = state!;
-    final validSet = docIndices
-        .where((i) => i >= 0 && i < s.document.pages.length)
-        .toSet();
-    if (validSet.isEmpty) return;
-    final valid = validSet.toList()..sort();
-
-    final currentPageId = s.document.pages[
-        s.currentPageIndex.clamp(0, s.document.pages.length - 1)].pageId;
-
-    final moved = [for (final i in valid) s.document.pages[i]];
-    final remaining = [
-      for (int i = 0; i < s.document.pages.length; i++)
-        if (!validSet.contains(i)) s.document.pages[i],
-    ];
-    // "Position N" means: after the move, the first moved page is page N.
-    final insertAt = (targetPosition - 1).clamp(0, remaining.length);
-    final pages = [...remaining]..insertAll(insertAt, moved);
-
-    for (int i = 0; i < pages.length; i++) {
-      pages[i] = pages[i].copyWith(pageNumber: i + 1);
-    }
-
-    final newCurrentIndex =
-        pages.indexWhere((e) => e.pageId == currentPageId);
-
-    state = s.copyWith(
-      document: DocumentStructure(
-        notebookId: s.document.notebookId,
-        formatVersion: s.document.formatVersion,
-        pages: pages,
-      ),
-      currentPageIndex: newCurrentIndex < 0 ? s.currentPageIndex : newCurrentIndex,
-      metadata: s.metadata.copyWith(modifiedAt: DateTime.now()),
-      isDirty: true,
-    );
-  }
+  void movePagesToPosition(List<int> docIndices, int targetPosition) =>
+      _pages.movePagesToPosition(docIndices, targetPosition);
 
   // ── Clear page ──
 
@@ -8445,49 +3095,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (state == null) return;
     final s = state!;
     final page = s.currentPage;
-    if (page == null) return;
+    if (page == null || page.layers.content.isEmpty) return;
     final fileName = s.currentPageFileName;
-    final undoStack = _pushUndo(s, fileName, page);
 
-    final clearedPage = carryPdfTextLayer(page, PageData(
-      pageId: page.pageId, pageNumber: page.pageNumber,
-      width: page.width, height: page.height,
-      layers: RenderingLayers(background: page.layers.background, content: const []),
-      assetReferences: page.assetReferences,
-      createdAt: page.createdAt, modifiedAt: DateTime.now(),
-    ));
+    final clearedPage = pageWithContent(page, const []);
 
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    updatedPages[fileName] = clearedPage;
-
-    state = s.copyWith(pages: updatedPages, undoStack: undoStack, redoStack: [], isDirty: true);
+    commitPageEdit(s, fileName, clearedPage, undoOf: page);
   }
 
   // ── Select all elements ──
 
-  void selectAll() {
-    if (state == null) return;
-    final page = state!.currentPage;
-    if (page == null || page.layers.content.isEmpty) return;
-
-    // UnknownElement is never painted: selecting it would let delete/cut/move destroy it unseen.
-    final known = page.layers.content.where((e) => e is! UnknownElement).toList();
-    final allIds = known.map((e) {
-      return e.map(unknown: (u) => u.id, stroke: (e) => e.id, text: (e) => e.id, image: (e) => e.id, shape: (e) => e.id, math: (e) => e.id);
-    }).toList();
-
-    Rect? bounds;
-    for (final element in known) {
-      final b = _getElementBounds(element);
-      if (b != null) bounds = bounds == null ? b : bounds.expandToInclude(b);
-    }
-
-    if (bounds == null) return;
-    state = state!.copyWith(
-      lassoSelection: LassoSelection(selectedIds: allIds, bounds: bounds),
-      currentTool: CanvasTool.lasso,
-    );
-  }
+  void selectAll() => _selection.selectAll();
 
   /// Zooms by [factor] around the viewport centre (Ctrl + / Ctrl −).
   void zoomBy(double factor) {
@@ -8507,7 +3125,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       fitToContent();
       return;
     }
-    state = state!.copyWith(zoom: 2.0, panOffset: _centeredPanOffset(2.0));
+    state = state!.copyWith(zoom: 2.0, panOffset: centeredPanOffset(2.0));
   }
 
   /// Fit the current page vertically into the viewport. Computes the zoom
@@ -8542,7 +3160,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// afterwards.
   Future<bool> saveLocally() async {
     if (state == null) return false;
-    final ok = await _persistLocal();
+    final ok = await _save.persistLocal();
     unawaited(save());
     return ok;
   }
@@ -8550,9 +3168,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Puts the notebook on disk now, e.g. before the OS may kill the app.
   Future<bool> persistLocalNow() => state == null
       ? Future<bool>.value(false)
-      : _persistLocal();
+      : _save.persistLocal();
 
-  bool _discardRequested = false;
+  /// The last local write's error, or null once one succeeds.
+  ValueNotifier<Object?> get localSaveError => _save.localSaveError;
 
   bool _preview = false;
 
@@ -8560,216 +3179,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// written anywhere, synced, or merged into the library.
   bool get isPreview => _preview;
 
+  /// True while a pull, retry or commit-retry timer is armed.
+  @visibleForTesting
+  bool get hasSyncTimers => _sync.hasTimers;
+
   /// The user chose to leave without what could not be saved: closing must
   /// neither write nor upload it.
   void discardUnsavedEdits() {
     if (state == null) return;
-    _discardRequested = true;
-    _localRetryTimer?.cancel();
+    _save.discard();
     state = state!.copyWith(isDirty: false);
-  }
-
-  /// Runs [body] after every local write queued before it.
-  Future<T> _withLocalLock<T>(Future<T> Function() body) {
-    final prev = _localWriteTail;
-    final done = Completer<void>();
-    _localWriteTail = done.future;
-    return () async {
-      try {
-        await prev;
-      } catch (_) {}
-      try {
-        return await body();
-      } finally {
-        done.complete();
-      }
-    }();
-  }
-
-  /// Queues a write of everything the state holds that the local store
-  /// does not. It waits only for earlier local writes, never for the sync
-  /// lock: an upload or a pull can hold that for minutes, and edits that
-  /// sit only in memory meanwhile are lost to any crash.
-  Future<bool> _persistLocal() {
-    if (_discardRequested || _preview || _loadingSnapshotId != null) {
-      return Future<bool>.value(false);
-    }
-    final f = _withLocalLock(_persistLocalLocked);
-    _pendingLocalSave = f;
-    unawaited(f.whenComplete(() {
-      if (identical(_pendingLocalSave, f)) _pendingLocalSave = null;
-    }));
-    return f;
-  }
-
-  /// Schedules a local write when pulled changes landed under edits made
-  /// after the merge.
-  void _persistLocalIfBehind() {
-    final st = state;
-    if (st == null || _disposed) return;
-    final behind = st.pages.entries
-            .any((e) => !identical(_localStorePages[e.key], e.value)) ||
-        _localStorePages.keys.any((k) => !st.pages.containsKey(k));
-    if (behind) unawaited(_persistLocal());
-  }
-
-  Future<bool> _persistLocalLocked() async {
-    final s = state;
-    if (s == null || _discardRequested) return false;
-    final id = s.metadata.id;
-    final fileService = _ref.read(fileServiceProvider);
-    try {
-      final hasStore = await fileService.hasLooseStore(id);
-      final changed = <String, PageData>{
-        for (final e in s.pages.entries)
-          if (!hasStore || !identical(_localStorePages[e.key], e.value))
-            e.key: e.value,
-      };
-      final assets = <String, Uint8List>{
-        for (final e in s.assetBytes.entries)
-          if (!hasStore ||
-              !_localStoreAssets.contains(e.key) ||
-              _localDirtyAssetKeys.contains(e.key))
-            e.key: e.value,
-      };
-      // A document listing pages not in memory (a pull still filling it in)
-      // must not replace the one on disk: pages only, until it is whole.
-      final docWhole =
-          s.document.pages.every((e) => s.pages.containsKey(e.fileName));
-      final deleted = hasStore && docWhole
-          ? [
-              for (final fn in _localStorePages.keys)
-                if (!s.pages.containsKey(fn)) fn,
-            ]
-          : const <String>[];
-      final docChanged = !hasStore ||
-          !identical(s.document, _localStoreDoc) ||
-          !identical(s.metadata, _localStoreMeta) ||
-          !identical(s.symbolLibraries, _localStoreSymbols);
-      final writeDoc = docWhole && (docChanged || changed.isNotEmpty ||
-          deleted.isNotEmpty || assets.isNotEmpty);
-      if (changed.isEmpty && assets.isEmpty && deleted.isEmpty && !writeDoc) {
-        _onLocalWriteOk(id);
-        return true;
-      }
-
-      // Write-ahead: mark what the server does not have before it is on
-      // disk, so a crash before the upload still pushes it on reopen.
-      await fileService.addDirtyPages(id, [
-        ...changed.keys,
-        for (final k in assets.keys) 'asset:$k',
-        if (writeDoc) 'doc',
-      ]);
-      await _persistUnpushedBase(id);
-
-      final contentChanged = changed.isNotEmpty ||
-          deleted.isNotEmpty ||
-          assets.isNotEmpty ||
-          !identical(s.document, _localStoreDoc);
-      final meta = s.metadata.copyWith(
-        pageCount: s.document.pages.length,
-        chapters: _chaptersWithMembership(s.metadata.chapters, s.document),
-        modifiedAt: contentChanged ? DateTime.now() : s.metadata.modifiedAt,
-      );
-      final encoded = await _encodePagesWithCache(changed,
-          evictMissing: !hasStore);
-      final hasSymbols = s.symbolLibraries.isNotEmpty;
-      // A stroke changes a page and the metadata, not the page list or the
-      // symbols: those files stay as they are on disk.
-      final writeDocFile =
-          writeDoc && (!hasStore || !identical(s.document, _localStoreDoc));
-      final writeSymbols = writeDoc &&
-          (!hasStore || !identical(s.symbolLibraries, _localStoreSymbols));
-      await fileService.saveNotebookIncremental(
-        id,
-        metadataJson: writeDoc
-            ? Uint8List.fromList(utf8.encode(jsonEncode(meta.toJson())))
-            : null,
-        documentJson: writeDocFile
-            ? Uint8List.fromList(utf8.encode(jsonEncode(s.document.toJson())))
-            : null,
-        changedPages: encoded,
-        changedAssets: assets,
-        deletedPages: deleted,
-        symbolsJson: writeSymbols && hasSymbols
-            ? Uint8List.fromList(utf8.encode(
-                jsonEncode(s.symbolLibraries.map((l) => l.toJson()).toList())))
-            : null,
-        removeSymbols: writeSymbols && !hasSymbols,
-      );
-      if (state?.metadata.id == id) {
-        if (!hasStore) {
-          _localStorePages = {};
-          _localStoreAssets = {};
-        }
-        _localStorePages.addAll(changed);
-        for (final fn in deleted) {
-          _localStorePages.remove(fn);
-        }
-        _localStoreAssets.addAll(assets.keys);
-        for (final k in assets.keys) {
-          if (identical(s.assetBytes[k], state?.assetBytes[k])) {
-            _localDirtyAssetKeys.remove(k);
-          }
-        }
-        if (writeDoc) {
-          _localStoreDoc = s.document;
-          _localStoreMeta = s.metadata;
-          _localStoreSymbols = s.symbolLibraries;
-        }
-      }
-      // Preserve the delta ETag: upsert replaces the row.
-      await fileService.upsertNotebookMeta(
-        id: id,
-        title: meta.title,
-        remotePath: s.remotePath,
-        etag: _remoteMetaEtag,
-        localModifiedAt: meta.modifiedAt,
-        syncStatus: 'modified',
-        fileSize: await fileService.looseStoreSize(id),
-        coverColor: meta.coverColor,
-        coverStyle: meta.coverStyle,
-        paperType: meta.paperType,
-        pageCount: meta.pageCount,
-        createdAt: meta.createdAt,
-      );
-      debugPrint('[Canvas] Saved locally: ${encoded.length} pages, '
-          '${assets.length} assets, ${deleted.length} deleted'
-          '${writeDoc ? '' : ' (page list held back)'}');
-      _onLocalWriteOk(id);
-      return true;
-    } catch (e) {
-      _onLocalWriteFailed(e);
-      return false;
-    }
-  }
-
-  void _onLocalWriteOk(String id) {
-    final recovered = _localFailures > 0;
-    _localRetryTimer?.cancel();
-    _localRetryTimer = null;
-    _localFailures = 0;
-    if (localSaveError.value != null) localSaveError.value = null;
-    // An upload that went through meanwhile skipped its ETag persist; the
-    // disk now holds at least what it sent, so record them now.
-    if (recovered && state?.metadata.id == id) {
-      unawaited(_persistRemoteMetaEtag(id));
-      unawaited(_persistLastPageEtags(id));
-    }
-  }
-
-  /// Nothing else would retry: the edits are no longer "dirty" for the
-  /// autosave once the upload went through.
-  void _onLocalWriteFailed(Object e) {
-    _localFailures++;
-    localSaveError.value = e;
-    debugPrint('[Canvas] Local save failed ($_localFailures in a row): $e');
-    unawaited(CrashLogger.append('[Save] local write FAILED: $e'));
-    _localRetryTimer?.cancel();
-    final secs = (2 * (1 << (_localFailures - 1).clamp(0, 4))).clamp(2, 30);
-    _localRetryTimer = Timer(Duration(seconds: secs), () {
-      if (!_disposed && state != null) unawaited(_persistLocal());
-    });
   }
 
   Future<void> save() async {
@@ -8778,28 +3197,28 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // save that failed remotely leaves isDirty false, and without this the
     // queued DELETEs would wait for an unrelated edit to be retried.
     final hasPendingDeletes =
-        _pendingPageDeletes.isNotEmpty || _pendingAssetDeletes.isNotEmpty;
+        _sync.pendingPageDeletes.isNotEmpty || _sync.pendingAssetDeletes.isNotEmpty;
     // Disk first, without the sync lock: an upload or a pull can hold that
     // for minutes, and a crash meanwhile lost every edit made since.
-    final local = _persistLocal();
-    if (_discardRequested) return;
+    final local = _save.persistLocal();
+    if (_save.discardRequested) return;
     // With no sync the local write is the whole save, and the remote path
     // below (which refreshes the library thumbnail) never runs.
     if (_ref.read(syncServiceProvider) == null) {
-      _refreshThumbnail(state!, state!.metadata.id);
+      _thumbnails.refresh(state!, state!.metadata.id);
     }
     if (!state!.isDirty && !hasPendingDeletes) {
       await local;
       return;
     }
     _wakePullFromIdle();
-    final token = await _acquireSyncLock();
-    if (token == null || state == null) return;
+    final lease = await _sync.acquireLease();
+    if (lease == null || state == null) return;
     bool lockTransferred = false;
     try {
-      lockTransferred = await _saveInner(token);
+      lockTransferred = await _saveInner(lease);
     } finally {
-      if (!lockTransferred) _releaseSyncLock(token);
+      if (!lockTransferred) lease.release();
     }
   }
 
@@ -8809,8 +3228,30 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Returns `true` if the background task has taken ownership of the
   /// sync lock (caller must NOT release it). Returns `false` if the
   /// caller must release the lock itself (nothing scheduled).
-  Future<bool> _saveInner(int lockToken) async {
-    if (state == null || !state!.isDirty) return false;
+  Future<bool> _saveInner(SyncLockLease lease) async {
+    final plan = _prepareSave();
+    if (plan == null) return false;
+    final snapshotDirtyAssetKeys = _commitSaveSnapshot(plan);
+
+    // Encode the dirty pages ONCE, up front. Both consumers reuse these
+    // bytes: the upload and the local write (cache hit by identity). The
+    // encode respects the quiet-pointer gate so it can't kink a stroke.
+    final preEncodedDirty =
+        await _encodePagesWithCache(plan.changedPages, evictMissing: false);
+
+    // The upload starts before the local write: small edits reach the
+    // server in seconds instead of waiting for the disk.
+    final remoteSyncFuture = _push.startRemoteSync(plan, preEncodedDirty);
+    final localSaveFuture = _writeLocally(plan);
+    _push.trackRemoteSave(plan, snapshotDirtyAssetKeys, remoteSyncFuture,
+        localSaveFuture, lease);
+    return true;
+  }
+
+  /// Stage 1: the integrity guards, then which pages, assets and deletions
+  /// this save carries. Null when there is nothing to save or push.
+  SavePlan? _prepareSave() {
+    if (state == null || !state!.isDirty) return null;
 
     // ── Pre-flight integrity guard ──
     //
@@ -8858,26 +3299,26 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // kicking pulls — the next user-initiated save / pull-timer tick
         // will retry naturally, with no chance of a save↔abort↔pull loop.
         final now = DateTime.now();
-        if (_preSaveGuardSince == null ||
-            now.difference(_preSaveGuardSince!) > _preSaveGuardWindow) {
-          _preSaveGuardSince = now;
-          _preSaveGuardAborts = 0;
+        if (_sync.preSaveGuardSince == null ||
+            now.difference(_sync.preSaveGuardSince!) > _preSaveGuardWindow) {
+          _sync.preSaveGuardSince = now;
+          _sync.preSaveGuardAborts = 0;
         }
-        _preSaveGuardAborts++;
-        final triggerPull = _preSaveGuardAborts <= _maxPreSaveGuardAborts;
+        _sync.preSaveGuardAborts++;
+        final triggerPull = _sync.preSaveGuardAborts <= _maxPreSaveGuardAborts;
         print('[Canvas] PRE-SAVE GUARD #2: aborting — document has '
             '${missingData.length} entries without page data '
             '($sample${missingData.length > 3 ? "..." : ""})'
-            '${triggerPull ? ". Triggering pull to re-hydrate first." : " (rate-limited: $_preSaveGuardAborts in ${_preSaveGuardWindow.inSeconds}s — not kicking another pull)."}');
+            '${triggerPull ? ". Triggering pull to re-hydrate first." : " (rate-limited: ${_sync.preSaveGuardAborts} in ${_preSaveGuardWindow.inSeconds}s — not kicking another pull)."}');
         unawaited(CrashLogger.append(
           '[Save] aborted: doc=${cur.document.pages.length} > '
           'pages=${cur.pages.length} (missing: $sample) '
-          'guard#$_preSaveGuardAborts pull=$triggerPull',
+          'guard#${_sync.preSaveGuardAborts} pull=$triggerPull',
         ));
         if (triggerPull) {
-          unawaited(_pullRemoteChanges());
+          unawaited(_pull.pullRemoteChanges());
         }
-        return false;
+        return null;
       }
     }
 
@@ -8892,7 +3333,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final s = state!;
     final syncService = _ref.read(syncServiceProvider);
     final fileService = _ref.read(fileServiceProvider);
-    if (syncService == null) return false;
+    if (syncService == null) return null;
 
     // Always derive pageCount from the live document so the DB is never
     // left with a stale count (e.g. after an auto-accept stamped the
@@ -8907,20 +3348,29 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     final changedPages = <String, PageData>{};
 
     for (final entry in s.pages.entries) {
-      if (!identical(entry.value, _lastSyncedPages[entry.key])) {
+      if (!identical(entry.value, _sync.lastSyncedPages[entry.key])) {
         changedPages[entry.key] = entry.value;
       }
     }
     // Also detect new pages (added since last sync)
     for (final key in s.pages.keys) {
-      if (!_lastSyncedPages.containsKey(key)) {
+      if (!_sync.lastSyncedPages.containsKey(key)) {
         changedPages[key] = s.pages[key]!;
       }
+    }
+    // Pages to write whole on close, folding their stroke chunks.
+    final compactPages = {
+      for (final fn in _sync.compactNext)
+        if (s.pages.containsKey(fn)) fn,
+    };
+    _sync.compactNext.clear();
+    for (final fn in compactPages) {
+      changedPages[fn] = s.pages[fn]!;
     }
 
     // Detect changed assets
     final changedAssets = <String, Uint8List>{};
-    for (final key in _dirtyAssetKeys) {
+    for (final key in _sync.dirtyAssetKeys) {
       if (s.assetBytes.containsKey(key)) {
         changedAssets[key] = s.assetBytes[key]!;
       }
@@ -8928,7 +3378,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
 
     // Detect deleted pages (existed in last sync but no longer in current state)
     final deletedPages = <String>[];
-    for (final key in _lastSyncedPages.keys) {
+    for (final key in _sync.lastSyncedPages.keys) {
       if (!s.pages.containsKey(key)) {
         deletedPages.add(key);
       }
@@ -8936,7 +3386,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Stage into the persistent pending queue so a thrown remote sync
     // doesn't lose the deletion request — _remoteSync merges these and
     // clears them on confirmed success.
-    _pendingPageDeletes.addAll(deletedPages);
+    _sync.pendingPageDeletes.addAll(deletedPages);
 
     // Drop pending DELETEs that conflict with what we're about to PUT.
     // Without this guard, Phase 0 of syncDelta (DELETE) fires in
@@ -8946,10 +3396,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // reuses numeric suffixes after deletion, so this collision is
     // realistic when the user re-imports a PDF after deleting the prior.
     if (changedPages.isNotEmpty) {
-      _pendingPageDeletes.removeWhere((fn) => changedPages.containsKey(fn));
+      _sync.pendingPageDeletes.removeWhere((fn) => changedPages.containsKey(fn));
     }
     if (changedAssets.isNotEmpty) {
-      _pendingAssetDeletes.removeWhere((id) => changedAssets.containsKey(id));
+      _sync.pendingAssetDeletes.removeWhere((id) => changedAssets.containsKey(id));
     }
 
     // Now it's safe to compact orphan assets: we have a stable view of
@@ -8967,7 +3417,24 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     debugPrint('[Canvas] Dirty: ${changedPages.length} pages, '
         '${changedAssets.length} assets, ${deletedPages.length} deleted');
 
-    // 1. Update state IMMEDIATELY so the UI unblocks on this microtask.
+    return SavePlan(
+      s: s,
+      syncService: syncService,
+      fileService: fileService,
+      updatedMeta: updatedMeta,
+      changedPages: changedPages,
+      changedAssets: changedAssets,
+      deletedPages: deletedPages,
+      compactPages: compactPages,
+    );
+  }
+
+  /// Stage 2: the state moves on at once so the UI unblocks, and the dirty
+  /// asset keys of this save are captured (cleared only if the upload lands).
+  Set<String> _commitSaveSnapshot(SavePlan plan) {
+    final s = plan.s;
+    final updatedMeta = plan.updatedMeta;
+    // Update state IMMEDIATELY so the UI unblocks on this microtask.
     //    The remote delta sync and the local ZIP write run in parallel in
     //    the background while we return control to the caller.
     if (state != null) {
@@ -8982,214 +3449,21 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Capture a snapshot of the dirty assets so we can clear them only if
     // the remote commit succeeds. Doing this optimistically lost dirty
     // state when the upload failed halfway through the ordered commit.
-    final snapshotDirtyAssetKeys = Set<String>.of(_dirtyAssetKeys);
+    return Set<String>.of(_sync.dirtyAssetKeys);
+  }
 
-    // 2b. Encode the dirty pages ONCE, up front. Both consumers reuse
-    //     these bytes: syncDelta (which used to re-run compactPageJson
-    //     internally) and the local ZIP build (cache hit by identity).
-    //     Halves the main-thread JSON encode per save, and the encode
-    //     respects the quiet-pointer gate so it can't kink a stroke.
-    final preEncodedDirty =
-        await _encodePagesWithCache(changedPages, evictMissing: false);
-
-    // 3. Fire remote delta sync RIGHT NOW — it only needs the in-memory
-    //    objects (changedPages + document + metadata), does not need the
-    //    full .ncnote ZIP. Putting it ahead of the expensive
-    //    local write is what makes small-stroke
-    //    edits actually reach the server in ~seconds on Tailscale instead
-    //    of waiting for the ZIP build to finish first.
-    // A pending conflict is the user's to decide: uploading now would push
-    // their local side of it (and the document listing it) before they do.
-    // Saved locally only; resolving the conflict triggers the upload.
-    final conflictHold = s.pendingConflicts.isNotEmpty;
-    final remoteSyncFuture = conflictHold
-        ? Future<bool>.value(false)
-        : _remoteSync(
-      syncService: syncService,
-      fileService: fileService,
-      updatedMeta: updatedMeta,
-      document: s.document,
-      dirtyPages: changedPages,
-      preEncodedPages: preEncodedDirty,
-      dirtyAssets: changedAssets.isNotEmpty ? changedAssets : null,
-      symbolLibraries: s.symbolLibraries.isNotEmpty
-          ? s.symbolLibraries.map((l) => l.toJson()).toList()
-          : null,
-      deletedPages: deletedPages.isNotEmpty ? deletedPages : null,
-    );
-
-    // 4. Persist locally: everything the store lacks, this snapshot
+  /// Stage 3, local: queues the write of everything the store lacks.
+  Future<bool> _writeLocally(SavePlan plan) {
+    final s = plan.s;
+    final updatedMeta = plan.updatedMeta;
+    // Persist locally: everything the store lacks, this snapshot
     //    included. Queued after any earlier local write, not behind the
     //    upload; the ETag persist below waits for it.
-    final localSaveFuture = _persistLocal();
+    final localSaveFuture = _save.persistLocal();
 
-    _refreshThumbnail(s, updatedMeta.id);
+    _thumbnails.refresh(s, updatedMeta.id);
 
-    // Hand the lock to a background task that waits for the remote sync
-    // to finish (or fail), then releases the lock.
-    //
-    // Track the background task so closeNotebook() can await it.
-    // Without this, the user can exit mid-upload and the sync ends up
-    // half-committed on the server (pages uploaded, metadata.json never
-    // rewritten), which the next pull then has to reconcile as a conflict.
-    remoteSaveInFlight.value = !conflictHold;
-    _pendingRemoteSave = () async {
-      try {
-        final uploaded = await remoteSyncFuture;
-        if (conflictHold) return; // nothing went up: baselines stay put
-        if (uploaded) _serverMovedStreak = 0;
-        // Remote commit succeeded — clear the failure streak so the
-        // pill flips back from offline to pending/ok.
-        _reportStorageFull(false);
-        _reportReachable(true);
-        if (_consecutiveSyncFailures > 0 || _pullUnreachable) {
-          _consecutiveSyncFailures = 0;
-          _pullUnreachable = false;
-          _remoteRetryTimer?.cancel();
-          _recomputeSyncStatus();
-        }
-        _movedChecks = 0;
-        // The full chain (pages + document + metadata) just landed,
-        // so any pending metadata-only retry is now stale: the bytes
-        // queued by an earlier failed save committed something the
-        // server has since superseded. Drop the queue and reset the
-        // exponential-backoff state.
-        if (_pendingMetaCommitBytes != null) {
-          _pendingMetaCommitBytes = null;
-          _pendingMetaCommitTimer?.cancel();
-          _pendingMetaCommitTimer = null;
-          _metaRetryAttempts = 0;
-          await _persistPendingMetaCommit(updatedMeta.id, null);
-          _recomputeSyncStatus();
-        }
-        // Remote commit succeeded — NOW it's safe to advance the dirty
-        // snapshot. If we do this optimistically (before remote returns),
-        // a failed upload leaves _lastSyncedPages matching state.pages,
-        // so the NEXT save() considers those pages 'already synced' via
-        // identity check and never retries. That's how iPad drew strokes,
-        // hit a commit-phase failure, and the strokes stayed invisible
-        // to other devices even though iPad's local file had them.
-        _lastSyncedPages = s.pages;
-        // Advance the structure/metadata baselines to exactly what we just
-        // uploaded (the `s` snapshot + the committed metadata), so the next
-        // pull's 3-way merge treats THIS as the common ancestor.
-        _lastSyncedDocument = s.document;
-        _lastSyncedMetadata = updatedMeta;
-        for (final k in snapshotDirtyAssetKeys) {
-          _dirtyAssetKeys.remove(k);
-          // Mark these asset IDs as having a server-side counterpart.
-          // _pruneOrphanAssets uses this set to decide whether to queue
-          // a server DELETE — a local-only asset (never uploaded) must
-          // never produce a DELETE because the server might 404 forever
-          // OR delete a totally unrelated file with the same name created
-          // by another device.
-          _uploadedAssetKeys.add(k);
-        }
-        if (uploaded) {
-          await _remarkUnpushedAfterUpload(
-              updatedMeta.id, s.pages, s.document, updatedMeta);
-        }
-        // Persist the per-page ETag map and meta-ETag ONLY after the
-        // local ZIP rebuild has landed on disk. If we persist before the
-        // ZIP write completes (the previous behaviour) and the process
-        // is killed in-between (iOS jetsam, OOM, force-quit), the cold
-        // boot reads "we're synced at these ETags" but the .ncnote on
-        // disk is the pre-save bundle — the next pull's "ETag matches,
-        // skip" path then leaves the user with stale local content
-        // forever, an undetectable form of silent data loss.
-        try {
-          final localOk = await localSaveFuture;
-          if (!localOk) {
-            debugPrint('[Canvas] Local save reported failure — '
-                'skipping ETag persist to avoid lying about sync state');
-          } else {
-            await _persistRemoteMetaEtag(updatedMeta.id);
-            await _persistLastPageEtags(updatedMeta.id);
-          }
-        } catch (e) {
-          debugPrint('[Canvas] Local save errored, skipping ETag '
-              'persist: $e');
-        }
-      } on MetadataCommitFailedException catch (e) {
-        // Pages + document landed on the server, only metadata.json
-        // failed. Persist the bytes for periodic retry — without this,
-        // OTHER devices see the unchanged meta-ETag, fast-path-skip,
-        // and never pull the new pages until something else touches
-        // metadata. Local _lastSyncedPages is intentionally NOT
-        // advanced: the next save will retry the full chain, but the
-        // metadata-only retry timer typically wins first.
-        debugPrint('[Canvas] Remote sync: pages+document committed but '
-            'metadata.json failed — staging for replay: $e');
-        if (e.cause is RemoteStorageFullException) _reportStorageFull(true);
-        _pendingMetaCommitBytes = e.metadataBytes;
-        await _persistPendingMetaCommit(updatedMeta.id, e.metadataBytes);
-        _scheduleMetaCommitRetry();
-        _consecutiveSyncFailures++;
-        _recomputeSyncStatus();
-        try {
-          await fileService.markNotebookDirty(updatedMeta.id);
-        } catch (_) {}
-      } on _ServerMovedException {
-        _serverMovedStreak++;
-        debugPrint('[Canvas] Server changed since the last pull — merging '
-            'before pushing');
-        try {
-          await fileService.markNotebookDirty(updatedMeta.id);
-          await fileService.addDirtyPages(updatedMeta.id, [
-            ...changedPages.keys,
-            for (final k in snapshotDirtyAssetKeys) 'asset:$k',
-            'doc',
-          ]);
-          await _persistUnpushedBase(updatedMeta.id);
-        } catch (_) {}
-        _pullThenPush();
-      } on _RemoteGoneException {
-        await _onRemoteNotebookGone();
-      } catch (e) {
-        final cause = e is MetadataCommitFailedException ? e.cause : e;
-        if (cause is RemoteStoreException &&
-            (cause.statusCode == 404 || cause.statusCode == 409) &&
-            await _remoteNotebookGone(syncService)) {
-          await _onRemoteNotebookGone();
-          return;
-        }
-        debugPrint('[Canvas] Remote sync deferred (offline?): $e');
-        if (e is RemoteStorageFullException) _reportStorageFull(true);
-        _consecutiveSyncFailures++;
-        _recomputeSyncStatus();
-        _scheduleRemoteRetry();
-        // Leave _lastSyncedPages and _dirtyAssetKeys untouched so the
-        // failed pages are detected as dirty again on the next save.
-        try {
-          await fileService.markNotebookDirty(updatedMeta.id);
-          // In-memory state dies with the editor: persist what failed so
-          // reopening pushes it instead of treating it as synced.
-          if (!syncService.isOffline) {
-            // 'doc': every save carries the page list and metadata, so a
-            // failed one leaves those (deletions, moves, renames) unpushed
-            // even when no page content changed.
-            await fileService.addDirtyPages(updatedMeta.id, [
-              ...changedPages.keys,
-              for (final k in snapshotDirtyAssetKeys) 'asset:$k',
-              'doc',
-            ]);
-            await _persistUnpushedBase(updatedMeta.id);
-          }
-        } catch (_) {}
-      } finally {
-        _releaseSyncLock(lockToken);
-        remoteSaveInFlight.value = false;
-      }
-    }();
-    // Clear the tracking slot when this particular save settles — a later
-    // save() may have already replaced it, so only clear if still us.
-    final thisRemoteSave = _pendingRemoteSave;
-    unawaited(thisRemoteSave!.whenComplete(() {
-      if (identical(_pendingRemoteSave, thisRemoteSave)) {
-        _pendingRemoteSave = null;
-      }
-    }));
-    return true;
+    return localSaveFuture;
   }
 
   /// Whether the open notebook is one the user keeps off the remote.
@@ -9223,337 +3497,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
   }
 
-  /// Pre-push checks that found the server moved, in a row. After
-  /// [_maxMovedChecks] the push goes ahead so a pull that never settles the
-  /// difference cannot starve the upload.
-  int _movedChecks = 0;
-  static const int _maxMovedChecks = 3;
-
-  /// The upload overwrites whole page files, so it must start from what the
-  /// server holds now: when another device pushed since our last pull, throw
-  /// [_ServerMovedException] and let the pull's 3-way merge run first.
-  Future<void> _ensureServerUnchanged(
-      SyncService sync, String id, List<String> dirtyFns) async {
-    if (_movedChecks >= _maxMovedChecks) return;
-    final known = dirtyFns.where((fn) => _lastPageEtags[fn] != null).toList();
-    if (known.isEmpty && _remoteMetaEtag == null) {
-      // Never pushed from here: if the server held it before, it is gone now.
-      if (await _remoteNotebookGone(sync)) throw _RemoteGoneException();
-      return;
-    }
-    var moved = false;
-    try {
-      if (known.isNotEmpty && known.length <= 16) {
-        final now = await sync.getPageVersions(id, known);
-        if (now.values.every((v) => v == null) &&
-            await _remoteNotebookGone(sync)) {
-          throw _RemoteGoneException();
-        }
-        moved = now.entries.any((e) => e.value != _lastPageEtags[e.key]);
-      }
-      if (!moved && _remoteMetaEtag != null) {
-        final meta = await sync.getDeltaMetaEtag(id);
-        if (meta == null && await _remoteNotebookGone(sync)) {
-          throw _RemoteGoneException();
-        }
-        moved = meta != null && meta != _remoteMetaEtag;
-      }
-    } on _RemoteGoneException {
-      rethrow;
-    } catch (_) {
-      return; // can't tell: the upload itself will fail or succeed
-    }
-    if (moved) {
-      _movedChecks++;
-      throw _ServerMovedException();
-    }
-  }
-
-  /// Merge what the other device pushed, then push the merge.
-  void _pullThenPush() {
-    // Backs off while the other device keeps winning the race.
-    final ms = (300 * (1 << (_serverMovedStreak - 1).clamp(0, 7)))
-        .clamp(300, 30000);
-    unawaited(() async {
-      await Future<void>.delayed(Duration(milliseconds: ms));
-      if (_disposed || state == null) return;
-      _pagePropfindCounter = _propfindSafetyNetEvery; // force a full listing
-      await _pullRemoteChanges();
-      _retryUnpushed();
-    }());
-  }
-
-  /// This device has seen the notebook on the server: a delta ETag, or the
-  /// root file's ETag recorded when it was downloaded or uploaded.
-  Future<bool> _wasOnServer(String id) async {
-    if (_remoteMetaEtag != null || _lastPageEtags.isNotEmpty) return true;
-    try {
-      final row = await _ref.read(fileServiceProvider).getNotebookMeta(id);
-      return row?['etag'] != null;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// The notebook was on the server and its root file and folder
-  /// are both gone: another device deleted it. Anything else (network, auth,
-  /// a half-written upload) answers false.
-  Future<bool> _remoteNotebookGone(SyncService sync) async {
-    final st = state;
-    if (st == null || !await _wasOnServer(st.metadata.id)) return false;
-    try {
-      if (await sync.deltaFolderExists(st.metadata.id, fresh: true)) {
-        return false;
-      }
-      final root = st.remotePath;
-      return root.isEmpty || await sync.notebookRootAbsent(root);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Keeps the notebook on this device only, instead of recreating a folder
-  /// nobody can find: the user's edits stay, the indicators say so, and
-  /// resuming sync from the library uploads it again on purpose.
-  Future<void> _onRemoteNotebookGone() async {
-    final st = state;
-    if (st == null) return;
-    final id = st.metadata.id;
-    // Deleted from this device: the server is empty because of us.
-    if (_ref.read(notebookListProvider.notifier).isDeletedHere(id)) return;
-    final files = _ref.read(fileServiceProvider);
-    await files.setNotebookLocalOnly(id, true);
-    await files.clearDirtyPages(id);
-    _localOnlyCache[id] = true;
-    keptLocal.value = true;
-    _remoteRetryTimer?.cancel();
-    _pendingMetaCommitBytes = null;
-    _pendingMetaCommitTimer?.cancel();
-    _pendingMetaCommitTimer = null;
-    _pendingPageDeletes.clear();
-    _pendingAssetDeletes.clear();
-    _remoteMetaEtag = null;
-    _lastPageEtags = {};
-    _consecutiveSyncFailures = 0;
-    _pullUnreachable = false;
-    _recomputeSyncStatus();
-    await _persistPendingDeletes(id);
-    await _persistPendingMetaCommit(id, null);
-    await _clearUnpushedBase(id);
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_deltaMetaEtagPrefsKey(id));
-      await prefs.remove(_pageEtagsPrefsKey(id));
-    } catch (_) {}
-    unawaited(CrashLogger.append('[Sync] $id deleted on the server: kept '
-        'on this device only'));
-    _ref.read(notebookListProvider.notifier).noteDeletedElsewhere(id);
-  }
-
-  /// Returns true when the delta went up, false when nothing was sent
-  /// (offline, or the notebook stays on this device).
-  Future<bool> _remoteSync({
-    required SyncService syncService,
-    required dynamic fileService,
-    required NotebookMetadata updatedMeta,
-    required DocumentStructure document,
-    required Map<String, PageData> dirtyPages,
-    Map<String, Uint8List>? preEncodedPages,
-    Map<String, Uint8List>? dirtyAssets,
-    List<Map<String, dynamic>>? symbolLibraries,
-    List<String>? deletedPages,
-  }) async {
-    // Collision guard (queue-lifetime, not just this save): never DELETE a
-    // fileName we're also PUTting in THIS syncDelta call. syncDelta runs
-    // Phase 0 (DELETE) and Phase 1 (PUT) under one Future.wait with no
-    // ordering, so a stale pending delete for page_010 racing the new
-    // page_010 PUT could leave the server without the just-uploaded content.
-    // _saveInner already drops same-save collisions, but a delete QUEUED IN A
-    // PRIOR save (dropped on a flaky link) reaches _remoteSync independently
-    // and bypasses that guard — so re-check against the live upload set here.
-    // Sequential filename reuse after delete+re-import makes this real.
-    if (dirtyPages.isNotEmpty) {
-      _pendingPageDeletes.removeWhere((fn) => dirtyPages.containsKey(fn));
-    }
-    if (dirtyAssets != null && dirtyAssets.isNotEmpty) {
-      _pendingAssetDeletes.removeWhere((id) => dirtyAssets.containsKey(id));
-    }
-
-    // Pending sets carry every delete request — both this save's and any
-    // from prior saves whose DELETE drops on flaky networks (Tailscale).
-    // Drain in CAPPED batches so a backlog of hundreds of orphans (can
-    // happen after re-importing a PDF and re-deleting it on flaky links)
-    // doesn't bloat every save into a multi-minute storm of DELETEs that
-    // ties up the connection and starves the metadata commit phase.
-    const int deleteBatchPerSave = 30;
-    final mergedDeletedPages =
-        _pendingPageDeletes.take(deleteBatchPerSave).toList();
-    final mergedDeletedAssets =
-        _pendingAssetDeletes.take(deleteBatchPerSave).toList();
-
-    if (syncService.isOffline || await _isLocalOnly(updatedMeta.id)) {
-      debugPrint('[Canvas] Skipping delta sync for ${updatedMeta.id} — '
-          'notebook is kept on this device only');
-      // Remember what the server never got: reconnecting or resuming sync
-      // pushes it, instead of reading the local copy as already uploaded.
-      try {
-        await fileService.addDirtyPages(updatedMeta.id, [
-          ...dirtyPages.keys,
-          for (final k in dirtyAssets?.keys ?? const <String>[]) 'asset:$k',
-          'doc',
-        ]);
-        await _persistUnpushedBase(updatedMeta.id);
-      } catch (_) {}
-      return false;
-    }
-
-    await _ensureServerUnchanged(
-        syncService, updatedMeta.id, dirtyPages.keys.toList());
-
-    debugPrint('[Canvas] Starting delta sync: ${dirtyPages.length} pages '
-        '(retrying ${_pendingPageDeletes.length} pending page deletes, '
-        '${_pendingAssetDeletes.length} pending asset deletes)');
-    final ({
-      String? metaEtag,
-      Map<String, String> pageEtags,
-      List<String> failedPageDeletes,
-      List<String> failedAssetDeletes,
-      String? docVersion,
-    }) result;
-    try {
-      result = await syncService.syncDelta(
-        notebookId: updatedMeta.id,
-        metadata: updatedMeta,
-        document: document,
-        dirtyPages: dirtyPages,
-        preEncodedPages: preEncodedPages,
-        dirtyAssets: dirtyAssets,
-        symbolLibraries: symbolLibraries,
-        deletedPageFileNames: mergedDeletedPages.isNotEmpty
-            ? mergedDeletedPages : null,
-        deletedAssetFileNames: mergedDeletedAssets.isNotEmpty
-            ? mergedDeletedAssets : null,
-        // Each page only lands over the server version it was edited from:
-        // a blind PUT replaced another device's strokes, and its next pull
-        // then read them as deleted here.
-        pageBaseVersions: {
-          for (final fn in dirtyPages.keys)
-            if (_lastPageEtags[fn] != null) fn: _lastPageEtags[fn]!,
-        },
-        documentBaseVersion: _remoteDocVersion,
-      );
-    } on RemotePagesChangedException catch (e) {
-      // Ours went up for the others; keep their versions so the pull does
-      // not fetch them back as foreign changes.
-      _lastPageEtags.addAll(e.uploadedEtags);
-      // The page list moved: force the next pull to fetch and merge it even
-      // if metadata.json (written after it) hasn't moved yet.
-      if (e.fileNames.contains(AppConfig.documentFile)) _remoteMetaEtag = null;
-      unawaited(CrashLogger.append('[Sync] ${e.fileNames.length} files '
-          'changed on the server under this upload: merging first'));
-      throw _ServerMovedException();
-    }
-
-    // Anything we asked the server to delete and didn't see a failure for
-    // is now confirmed gone (or 404, which we treat as success). Drop those
-    // from the pending sets; re-add anything that failed.
-    final attemptedPageDeletes = mergedDeletedPages.toSet();
-    final attemptedAssetDeletes = mergedDeletedAssets.toSet();
-    _pendingPageDeletes
-      ..removeAll(attemptedPageDeletes)
-      ..addAll(result.failedPageDeletes);
-    _pendingAssetDeletes
-      ..removeAll(attemptedAssetDeletes)
-      ..addAll(result.failedAssetDeletes);
-    await _persistPendingDeletes(updatedMeta.id);
-
-    _remoteMetaEtag = result.metaEtag;
-    _remoteDocVersion = result.docVersion ?? _remoteDocVersion;
-    // Clear corrupt-ETag dedup entries for any page we just uploaded:
-    // the server now has fresh bytes (with verified size — see
-    // WebDavService.uploadFile), so the OLD truncated ETag we cached as
-    // "skip the GET" is no longer authoritative. If the post-PUT
-    // verification ever lets a bad upload slip through (it shouldn't,
-    // but defensively), the next pull will FormatException again and
-    // re-populate the dedup with the new ETag.
-    for (final fn in result.pageEtags.keys) {
-      _knownCorruptEtags.remove(fn);
-    }
-    // MERGE (not replace) the per-page ETags we just uploaded into the cache.
-    //
-    // Using a full PROPFIND here — the old behaviour — is racy: between our
-    // syncDelta completing and the PROPFIND returning, another device can
-    // upload a different page; its ETag would land in our cache and the next
-    // pull would diff its already-up-to-date ETag against itself, concluding
-    // "no change" → we'd silently miss that remote edit.
-    //
-    // Merging only the pages WE wrote leaves all other entries untouched, so
-    // the next pull still detects any concurrent uploads from other devices.
-    for (final entry in result.pageEtags.entries) {
-      _lastPageEtags[entry.key] = entry.value;
-    }
-    // Purge deleted pages so the pull diff doesn't resurrect them.
-    if (deletedPages != null) {
-      for (final fn in deletedPages) {
-        _lastPageEtags.remove(fn);
-      }
-    }
-    // Dirty marks are reset by the caller once the baselines advanced
-    // (_remarkUnpushedAfterUpload): edits written to disk after this
-    // snapshot keep theirs.
-    await fileService.markNotebookSynced(updatedMeta.id, result.metaEtag);
-    if (_pdfSourcesDirty) {
-      unawaited(_syncPdfSourcesQuietly(syncService, updatedMeta.id));
-    }
-    unawaited(_ref
-        .read(notebookListProvider.notifier)
-        .uploadPendingRootFor(updatedMeta.id));
-    // ETag persistence is INTENTIONALLY deferred: the caller chains it
-    // to the local-ZIP write completion in the _pendingRemoteSave block.
-    // Persisting here would race the local write — a process kill in
-    // between leaves us advertising synced state that the on-disk ZIP
-    // contradicts, producing silent stale-content on next open.
-    print('[Canvas] Delta synced: ${dirtyPages.length} pages → server '
-        '(${result.pageEtags.length} etags captured)');
-    return true;
-  }
-
-  /// After an upload of [pages]/[document]: clears the dirty marks, then
-  /// marks again what the disk holds newer than that upload. Under the
-  /// local-write lock, so a write landing meanwhile keeps its mark.
-  Future<void> _remarkUnpushedAfterUpload(
-    String id,
-    Map<String, PageData> pages,
-    DocumentStructure document,
-    NotebookMetadata metadata,
-  ) {
-    return _withLocalLock(() async {
-      try {
-        final files = _ref.read(fileServiceProvider);
-        await files.clearDirtyPages(id);
-        await _clearUnpushedBase(id);
-        if (state?.metadata.id != id) return;
-        final newer = <String>[
-          for (final e in _localStorePages.entries)
-            if (!identical(e.value, pages[e.key])) e.key,
-          for (final k in _dirtyAssetKeys)
-            if (_localStoreAssets.contains(k)) 'asset:$k',
-          if ((_localStoreDoc != null &&
-                  !identical(_localStoreDoc, document)) ||
-              (_localStoreMeta != null &&
-                  !identical(_localStoreMeta, metadata)))
-            'doc',
-        ];
-        if (newer.isEmpty) return;
-        await files.addDirtyPages(id, newer);
-        await _persistUnpushedBase(id);
-        await files.markNotebookDirty(id);
-      } catch (e) {
-        debugPrint('[Canvas] Could not reset dirty marks: $e');
-      }
-    });
-  }
-
   // ══════════════════════════════════════════════════════════════
   //  PULL TIMER — receive remote changes from other devices
   // ══════════════════════════════════════════════════════════════
@@ -9562,14 +3505,14 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   final _pullJitterRng = Random();
 
   void _startPullTimer() {
-    _pullTimer?.cancel();
+    _sync.pullTimer?.cancel();
     if (_disposed) return;
     // Immediate pull on notebook open — don't wait first interval.
     // Track the future so closeNotebook can await it.
     // _disposed guard avoids scheduling a pull whose continuation could
     // race a `closeNotebook` issued seconds later on a slow link
     // (downloads keep arriving and try to mutate a torn-down state).
-    _pullLoopOn = true;
+    _sync.pullLoopOn = true;
     _pullThenSchedule();
   }
 
@@ -9577,16 +3520,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// interval reflects how this pull went (the failure backoff counted one
   /// pull late when the next tick was armed at the start).
   void _pullThenSchedule() {
-    final f = _pullRemoteChanges();
-    _pendingPullFuture = f;
+    final f = _pull.pullRemoteChanges();
+    _sync.pendingPullFuture = f;
     f.then((_) {}, onError: (_) {}).whenComplete(() {
-      if (!_disposed && _pullLoopOn) _schedulePullTick();
+      if (!_disposed && _sync.pullLoopOn) _schedulePullTick();
     });
   }
-
-  /// False once [flushPendingWork] or [dispose] stopped polling: a pull that
-  /// finishes after that must not re-arm the timer.
-  bool _pullLoopOn = false;
 
   /// Restart the pull timer when coming back from a teardown that killed it
   /// (e.g. previous `paused` lifecycle event). No-op if a timer is already
@@ -9595,63 +3534,33 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     if (_preview) return;
     if (_disposed) return;
     if (state == null) return;
-    if (_pullTimer != null) return;
+    if (_sync.pullTimer != null) return;
     debugPrint('[Canvas] Resume: restarting pull timer');
-    _idlePullCount = 0;
+    _sync.idlePullCount = 0;
     _startPullTimer();
-  }
-
-  /// Dispose every GPU-backed image texture held in state.imageCache.
-  /// Must be called before the Flutter engine shuts down, otherwise the
-  /// Linux build crashes with 'Segmentation fault (core dumped)' on close
-  /// because native ui.Image handles are still alive when the renderer
-  /// tears down its texture pool.
-  ///
-  /// Called from the canvas screen on AppLifecycleState.detached.
-  void releaseImageCache() {
-    final s = state;
-    if (s == null) return;
-    if (s.imageCache.isEmpty) return;
-    final count = s.imageCache.length;
-    for (final img in s.imageCache.values) {
-      try { img.dispose(); } catch (_) {}
-    }
-    _imageAccessTime.clear();
-    // Don't touch `state` — we're shutting down; the empty map means any
-    // half-rendered frame still in flight just gets a placeholder.
-    debugPrint('[Canvas] Released $count image textures on shutdown');
   }
 
   @override
   void dispose() {
-    _pullLoopOn = false;
-    _pullTimer?.cancel();
-    _pullTimer = null;
-    _pendingMetaCommitTimer?.cancel();
-    _pendingMetaCommitTimer = null;
-    _discardPendingErase();
+    _sync.pullLoopOn = false;
+    _sync.pullTimer?.cancel();
+    _sync.pullTimer = null;
+    _sync.pendingMetaCommitTimer?.cancel();
+    _sync.pendingMetaCommitTimer = null;
+    _sync.remoteRetryTimer?.cancel();
+    _sync.remoteRetryTimer = null;
+    _eraser.discard();
     _disposed = true;
-    // Release ui.Image textures before super.dispose() tears down the
-    // Riverpod state (which would otherwise drop references without
-    // calling image.dispose()).
-    try {
-      releaseImageCache();
-    } catch (_) {}
-    // Release math raster textures too (same GPU-texture lifetime concern).
-    try {
-      for (final r in mathCache.values) {
-        r.image.dispose();
-      }
-      mathCache.clear();
-    } catch (_) {}
+    _sync.forceReleaseLock(); // a save or pull waiting on it must not hang
+    _toolPrefs.dispose();
+    _thumbnails.dispose();
+    _assets.dispose();
     // Dispose the ValueNotifier instances so any still-subscribed listeners
     // (e.g. the sync pill widget) get cleaned up instead of leaking their
     // attached callbacks on hot-restart / provider container teardown.
     try { isPullingFromRemote.dispose(); } catch (_) {}
     try { pullProgress.dispose(); } catch (_) {}
     try { hasSyncFailure.dispose(); } catch (_) {}
-    try { imageCacheVersion.dispose(); } catch (_) {}
-    try { mathCacheVersion.dispose(); } catch (_) {}
     try { pagesLoading.dispose(); } catch (_) {}
     super.dispose();
   }
@@ -9659,9 +3568,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// Drops a backed-off pull cadence straight back to the fast one: someone
   /// is using this device, so remote edits should show up promptly.
   void _wakePullFromIdle() {
-    if (_idlePullCount < _idlePullThreshold) return;
-    _idlePullCount = 0;
-    if (_pullTimer != null) _schedulePullTick();
+    if (_sync.idlePullCount < SyncPull.idlePullThreshold) return;
+    _sync.idlePullCount = 0;
+    if (_sync.pullTimer != null) _schedulePullTick();
   }
 
   /// Self-rescheduling pull tick. Adds random jitter per cycle so multiple
@@ -9673,20 +3582,20 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   ///
   /// Adaptive interval: starts at [AppConfig.deltaPullInterval] (2 s) for
   /// snappy convergence right after a notebook open or a real change.
-  /// After [_idlePullThreshold] consecutive noop pulls we exponentially
+  /// After [SyncPull.idlePullThreshold] consecutive noop pulls we exponentially
   /// back off up to [_idlePullMaxInterval] so an idle notebook doesn't
   /// keep PROPFIND'ing the server and parsing a 215-entry XML payload
   /// every 2 s — that was burning 100 % of one CPU core for no benefit.
-  /// On any real change ([_idlePullCount] reset by [_pullRemoteChanges])
+  /// On any real change ([_sync.idlePullCount] reset by [_pullRemoteChanges])
   /// we drop straight back to the fast cadence.
   void _schedulePullTick() {
     if (_disposed) return;
-    if (_idlePullCount >= _deepIdleThreshold) unawaited(SyncThrift.refresh());
-    final base = _pullIntervalForIdle();
+    if (_sync.idlePullCount >= SyncPull.deepIdleThreshold) unawaited(SyncThrift.refresh());
+    final base = _pull.pullIntervalForIdle();
     final jitterMs = _pullJitterRng.nextInt(AppConfig.deltaPullJitter.inMilliseconds + 1);
     final next = base + Duration(milliseconds: jitterMs);
-    _pullTimer?.cancel();
-    _pullTimer = Timer(next, () {
+    _sync.pullTimer?.cancel();
+    _sync.pullTimer = Timer(next, () {
       if (_disposed) return;
       // Skip while the user is actively dragging / zooming. The pull's
       // network HEAD response-handling microtasks would otherwise
@@ -9707,11 +3616,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         _schedulePullTick();
         return;
       }
-      // Skip if a pull or save is still in flight. _pullRemoteChanges()
-      // early-returns on _isPulling already, but we also want to back off
+      // Skip if a pull or save is still in flight. _pull.pullRemoteChanges()
+      // early-returns on _sync.isPulling already, but we also want to back off
       // when save() is uploading so a concurrent PROPFIND doesn't see our
       // half-committed delta folder and mis-diagnose it as a remote change.
-      if (!_isPulling && _syncLock == null && !_bulkOperationInProgress) {
+      if (!_sync.isPulling && _sync.lock == null && !_bulkOperationInProgress) {
         _pullThenSchedule();
         return;
       }
@@ -9719,92 +3628,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     });
   }
 
-  /// Number of consecutive pull cycles that ended in a "nothing changed"
-  /// noop. Used to back off the polling interval (see
-  /// [_pullIntervalForIdle]). Reset to 0 in [_pullRemoteChanges] whenever
-  /// a real change is observed.
-  int _idlePullCount = 0;
-  static const int _idlePullThreshold = 3;
-  static const Duration _idlePullMaxInterval = Duration(seconds: 30);
   /// After this many consecutive noop pulls the cap stretches to
   /// [_deepIdleMaxInterval], or [_deepIdleThriftyInterval] on metered
   /// data / battery saver. Local activity resets it ([_wakePullFromIdle]).
-  static const int _deepIdleThreshold = 30;
-  static const Duration _deepIdleMaxInterval = Duration(seconds: 60);
-  static const Duration _deepIdleThriftyInterval = Duration(minutes: 5);
 
-  /// Counter for the ordered-commit safety-net: every Nth pull does the
-  /// full pages/ PROPFIND even when meta-ETag is unchanged, to catch
-  /// the rare case of pages added on another device that crashed before
-  /// updating metadata.json. Cycle reset to 0 each time we run the
-  /// full PROPFIND.
-  int _pagePropfindCounter = 0;
-  static const int _propfindSafetyNetEvery = 8;
-  /// Timestamp anchor for the safety-net so deep-idle (5 min ticks) can't
-  /// stretch it to 8 * 5 min = 40 min. With this, after
-  /// [_propfindSafetyNetMaxAge] of wall-clock time without a full PROPFIND
-  /// we force one regardless of tick count. Set when [_pagePropfindCounter]
-  /// is reset.
-  DateTime _lastFullPropfindAt = DateTime.fromMillisecondsSinceEpoch(0);
-  static const Duration _propfindSafetyNetMaxAge = Duration(minutes: 5);
 
-  /// Pulls in a row that ended with something not received (a page, or
-  /// document/metadata that would not verify). Each one used to retry at the
-  /// 4-second cadence forever; from [_failedPullsBackoff] on the interval
-  /// doubles up to [_failedPullMaxInterval], and from [_failedPullsShown] the
-  /// sync badge says so.
-  int _consecutiveFailedPulls = 0;
 
-  /// Assets the server answered 404 for, and when. Not asked again for
-  /// [_absentAssetRetry]: an upload from another device may still be on
-  /// its way, a reference to a deleted image never will be.
-  final Map<String, DateTime> _absentRemoteAssets = {};
-  static const Duration _absentAssetRetry = Duration(minutes: 10);
 
-  bool _knownAbsent(String ref) {
-    final at = _absentRemoteAssets[ref];
-    if (at == null) return false;
-    if (DateTime.now().difference(at) < _absentAssetRetry) return true;
-    _absentRemoteAssets.remove(ref);
-    return false;
-  }
-  static const int _failedPullsBackoff = 3;
-  static const int _failedPullsShown = 5;
-  static const Duration _failedPullMaxInterval = Duration(minutes: 5);
-
-  Duration _pullIntervalForIdle() {
-    if (_consecutiveFailedPulls >= _failedPullsBackoff) {
-      final shift = (_consecutiveFailedPulls - _failedPullsBackoff).clamp(0, 10);
-      final ms = AppConfig.deltaPullInterval.inMilliseconds * (2 << shift);
-      return Duration(
-          milliseconds: ms.clamp(0, _failedPullMaxInterval.inMilliseconds));
-    }
-    if (_idlePullCount < _idlePullThreshold) {
-      return AppConfig.deltaPullInterval;
-    }
-    final maxIntervalMs = _idlePullCount >= _deepIdleThreshold
-        ? (SyncThrift.thrifty
-                ? _deepIdleThriftyInterval
-                : _deepIdleMaxInterval)
-            .inMilliseconds
-        : _idlePullMaxInterval.inMilliseconds;
-    // Exponential backoff: idle=3 → 4s, 4 → 8s, 5 → 16s, 6+ → 30s,
-    // 30+ → 60s (5 min when thrifty).
-    final shift = (_idlePullCount - _idlePullThreshold).clamp(0, 8);
-    final ms = AppConfig.deltaPullInterval.inMilliseconds * (2 << shift);
-    final capped = ms.clamp(
-      AppConfig.deltaPullInterval.inMilliseconds,
-      maxIntervalMs,
-    );
-    return Duration(milliseconds: capped);
-  }
-
-  bool _isPulling = false;
-  /// The in-flight pull Future, if any. Tracked so that [closeNotebook]
-  /// can await an in-progress pull before dropping state — otherwise
-  /// exiting mid-download drops the pulled pages before they reach disk
-  /// and the next open reads the stale local file.
-  Future<void>? _pendingPullFuture;
 
   /// Set to a "pan/zoom is happening RIGHT NOW" timestamp by the canvas
   /// screen on every pointer-move during pan/zoom. While this stamp is
@@ -9819,1640 +3649,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   static const Duration _interactGuard = Duration(milliseconds: 150);
   bool get _isInteractingRecent =>
       DateTime.now().difference(_lastInteractAt) < _interactGuard;
-  // _isSyncing tracked by _syncLock mutex
+  // _isSyncing tracked by _sync.lock mutex
 
-  /// Checks if the remote metadata.json ETag has changed, then pulls
-  /// only the pages that differ. Falls back to checking the .ncnote ZIP
-  /// for devices that don't use delta sync. Merges into the live canvas.
-  ///
-  /// Now mutex-protected: waits for any in-flight save() to finish first,
-  /// and if local pages are dirty, creates per-page conflicts instead of
-  /// silently overwriting.
-  Future<void> _pullRemoteChanges() async {
-    if (_preview) return;
-    if (_isPulling || state == null || _bulkOperationInProgress) return;
-    // Don't pull while user is resolving conflicts or reviewing pending
-    // remote changes — avoids overwriting with a fresh pull.
-    if (state!.pendingConflicts.isNotEmpty) return;
-    if (state!.pendingRemoteChanges != null) return;
-    _isPulling = true;
-    _pullHadFailures = false;
-    // NOTE: isPullingFromRemote is NOT flipped here. The pill should only
-    // appear when we're actually *downloading* new remote content — not
-    // during every 4-second PROPFIND poll, which is silent and quick.
-    // We set it true below only if the metadata ETag indicates real
-    // changes to fetch.
-
-    try {
-      // ── Fast path: cheap HEAD on metadata.json only — NO LOCK ──
-      //
-      // The common case on every 4-second poll (and most notebook opens)
-      // is "nothing changed". Running the HEAD inside `_syncLock` blocked
-      // any concurrent save() for 100-200ms on every idle poll; with the
-      // HEAD outside the lock, idle polling has zero contention with user
-      // saves. Only the slow path (getRemoteChangeState + page downloads)
-      // needs the lock, and save() doesn't touch `_remoteMetaEtag`, so
-      // reading it without the lock is safe.
-      final syncService = _ref.read(syncServiceProvider);
-      // syncServiceProvider always returns a non-null instance now (see its
-      // doc comment) — local-only mode is signaled by isOffline, not null.
-      if (syncService == null || syncService.isOffline) return;
-      final pullNotebookId = state!.metadata.id;
-      // Nothing to pull for a notebook that was never meant to leave.
-      if (await _isLocalOnly(pullNotebookId)) return;
-      // closeNotebook may have nulled state (or switched notebooks) during the await.
-      if (state == null || state!.metadata.id != pullNotebookId) return;
-      final s0 = state!;
-      unawaited(CrashLogger.append(
-        '[Pull] start nb=${pullNotebookId.substring(0, 8)} '
-        'state.pages=${s0.pages.length}/doc=${s0.document.pages.length} '
-        'cachedMetaEtag=${_remoteMetaEtag ?? "null"} '
-        'lastPageEtags=${_lastPageEtags.length}',
-      ));
-      // ── Cheap idle path: meta-ETag HEAD only ──
-      //
-      // Fetching meta-ETag AND a full pages/ PROPFIND every 2 s burnt a
-      // whole CPU core idle on a 215-page notebook (XML payload ~50 KB +
-      // parse + Map diff). Almost every poll is a noop, so we now do
-      // ONLY the meta-ETag HEAD (a few-byte response) on most ticks and
-      // fall through to the full PROPFIND only when meta-ETag actually
-      // moved, or every [_propfindSafetyNetEvery] cycles as a safety
-      // net catching the rare ordered-commit race (another device wrote
-      // pages + document.json but crashed before committing
-      // metadata.json — meta-ETag unchanged but pages/ folder has new
-      // files invisible from a HEAD).
-      String? fastMetaEtag;
-      var fullStateFetched = false;
-      ({String? metaEtag, Map<String, String> pageEtags})? remoteState;
-      // Safety-net: by tick count OR by wall-clock age (whichever fires
-      // first). Pre-fix, deep-idle stretched the cap to 5 min per tick,
-      // and the tick-only safety-net `>= 8` could push a full PROPFIND
-      // out to ~40 min. The wall-clock anchor caps the worst case at
-      // [_propfindSafetyNetMaxAge].
-      final now = DateTime.now();
-      final mustDoSafetyNet =
-          ++_pagePropfindCounter >= _propfindSafetyNetEvery ||
-          now.difference(_lastFullPropfindAt) >= _propfindSafetyNetMaxAge;
-      try {
-        fastMetaEtag =
-            await syncService.getDeltaMetaEtag(pullNotebookId);
-      } catch (e) {
-        unawaited(CrashLogger.append('[Pull] meta-HEAD failed: $e'));
-        return;
-      }
-      // getDeltaMetaEtag folds errors into null; null for a notebook we
-      // already know is on the server means the server isn't answering.
-      if (fastMetaEtag != null) {
-        _onRemoteReachable();
-      } else if (_remoteMetaEtag != null && !_pullUnreachable) {
-        if (await _remoteNotebookGone(syncService)) {
-          await _onRemoteNotebookGone();
-          return;
-        }
-        _pullUnreachable = true;
-        _reportReachable(false);
-        _recomputeSyncStatus();
-      }
-      // Delta folder never seen from here (the first save creates it): the
-      // full fetch below would only repeat the same 404s. The safety net looks.
-      if (fastMetaEtag == null &&
-          _remoteMetaEtag == null &&
-          _lastPageEtags.isEmpty &&
-          !mustDoSafetyNet) {
-        _idlePullCount++;
-        return;
-      }
-      final metaMoved = fastMetaEtag != null &&
-          (_remoteMetaEtag == null || fastMetaEtag != _remoteMetaEtag);
-      if (fastMetaEtag != null) {
-        unawaited(_syncPdfSourcesQuietly(syncService, pullNotebookId,
-            upToDate: !metaMoved && _remoteMetaEtag != null));
-      }
-      if (metaMoved || mustDoSafetyNet || _remoteMetaEtag == null) {
-        try {
-          remoteState =
-              await syncService.getRemoteChangeState(pullNotebookId);
-        } on RemoteStoreException catch (e) { // WebDAV and Drive alike
-          if (e.statusCode == 404) {
-            if (await _remoteNotebookGone(syncService)) {
-              await _onRemoteNotebookGone();
-              return;
-            }
-            // Remote .sync/<id>/ doesn't exist yet — a freshly created
-            // notebook that has never been pushed. Nothing to pull; the
-            // first save() will create the folder. Count as an idle tick
-            // so adaptive backoff engages instead of re-hitting the 404
-            // at full cadence (which also spammed "Pull failed" forever).
-            _idlePullCount++;
-            // The listing ran and answered: the safety net is satisfied too,
-            // or it would rerun this same 404 fetch on every tick.
-            _pagePropfindCounter = 0;
-            _lastFullPropfindAt = now;
-            unawaited(CrashLogger.append(
-              '[Pull] skip: remote delta folder missing (404) — '
-              'notebook not pushed yet',
-            ));
-            return;
-          }
-          rethrow;
-        }
-        fastMetaEtag = remoteState.metaEtag;
-        fullStateFetched = true;
-        _pagePropfindCounter = 0;
-        _lastFullPropfindAt = now;
-      }
-      if (state == null || state!.metadata.id != pullNotebookId) {
-        print('[Canvas] Pull aborted — notebook switched during HEAD '
-            '(expected $pullNotebookId, got ${state?.metadata.id})');
-        unawaited(CrashLogger.append('[Pull] abort: nb switched during HEAD'));
-        return;
-      }
-      // Detect server-side metadata/pages inconsistency. Three cases:
-      //   1. pages/ folder has MORE files than our local document (another
-      //      device added pages + page files but failed to commit metadata)
-      //   2. pages/ contains fileNames we've never seen locally (same as
-      //      #1 but count might match due to concurrent add+remove)
-      //   3. An EXISTING page's ETag has moved but our cache still has the
-      //      old one (another device saved a stroke and rewrote that page,
-      //      but crashed before writing metadata.json) — THIS is the case
-      //      the previous detector missed, causing iPad edits to existing
-      //      pages to be invisible on PC forever when the iPad's save hit
-      //      the ordered-commit race.
-      // Skipped on the cheap path (no full PROPFIND) since meta-ETag is
-      // matching our cache → the safety-net cycle every
-      // [_propfindSafetyNetEvery] ticks will catch any rare divergence.
-      final int remotePageCount = fullStateFetched
-          ? remoteState!.pageEtags.length
-          : _lastPageEtags.length;
-      final serverInconsistent = fullStateFetched &&
-          (remoteState!.pageEtags.length > s0.document.pages.length ||
-              (_lastPageEtags.isNotEmpty &&
-                  remoteState.pageEtags.keys.any((k) => !_lastPageEtags.containsKey(k))) ||
-              (_lastPageEtags.isNotEmpty &&
-                  remoteState.pageEtags.entries.any(
-                      (e) => _lastPageEtags[e.key] != null &&
-                             _lastPageEtags[e.key] != e.value)));
-      if (fastMetaEtag != null &&
-          _remoteMetaEtag != null &&
-          fastMetaEtag == _remoteMetaEtag &&
-          !serverInconsistent) {
-        // Server unchanged since last known etag AND no sign of a half-
-        // committed upload from another device. Safe to skip the pull if
-        // local state is also self-consistent. If `document.pages > pages`,
-        // a previous partial pull left us with missing data and we need
-        // to fetch regardless of what the server says.
-        if (s0.pages.length >= s0.document.pages.length) {
-          // ── Ghost-page detection (P1) ──
-          //
-          // The pull is about to skip because state is "self-consistent"
-          // (pages == doc) and meta ETag is unchanged. But if the document
-          // references pages whose ETag the server has NEVER acknowledged
-          // (count(_lastPageEtags) < count(document.pages)), those pages
-          // exist locally without ever having been uploaded — typically
-          // because a previous save() failed mid-upload and reopen rebuilt
-          // _lastSyncedPages from the local zip, hiding the ghost pages
-          // from future dirty-page detection. Result: every subsequent
-          // pull skips here, every save() considers the ghost pages
-          // already-synced, and the notebook is permanently wedged with
-          // local pages > remote pages.
-          //
-          // Repair: rebuild _lastSyncedPages without those ghost entries
-          // (so the next save() detects them as "new pages" via the
-          // !_lastSyncedPages.containsKey(key) branch in _saveInner) and
-          // mark the notebook dirty so the next save cycle actually fires.
-          if (_lastPageEtags.isNotEmpty &&
-              _lastPageEtags.length < s0.document.pages.length) {
-            final ghostFns = s0.document.pages
-                .map((p) => p.fileName)
-                .where((fn) => !_lastPageEtags.containsKey(fn))
-                .toList();
-            if (ghostFns.isNotEmpty) {
-              for (final fn in ghostFns) {
-                _lastSyncedPages.remove(fn);
-              }
-              if (state != null && state!.metadata.id == pullNotebookId) {
-                state = state!.copyWith(isDirty: true);
-              }
-              unawaited(CrashLogger.append(
-                '[Pull] ghost pages detected: ${ghostFns.length} doc entries '
-                'without server ETag (sample: '
-                '${ghostFns.take(3).join(",")}'
-                '${ghostFns.length > 3 ? "..." : ""}) — '
-                'marked dirty so next save() uploads them',
-              ));
-              return;
-            }
-          }
-          unawaited(CrashLogger.append(
-            '[Pull] skip: meta ETag unchanged (fast=$fastMetaEtag) '
-            'and state is consistent (pages=${s0.pages.length}=doc=${s0.document.pages.length}, '
-            'remote pages=$remotePageCount, fullPropfind=$fullStateFetched)',
-          ));
-          _idlePullCount++;
-          return;
-        }
-        unawaited(CrashLogger.append(
-          '[Pull] force slow-path despite matching ETag: state inconsistent '
-          '(pages=${s0.pages.length} < doc=${s0.document.pages.length}) — '
-          're-fetching to hydrate missing pages',
-        ));
-      } else if (serverInconsistent) {
-        unawaited(CrashLogger.append(
-          '[Pull] SERVER inconsistency detected: metaEtag unchanged but '
-          'pages/ folder has $remotePageCount files vs '
-          'local document.pages=${s0.document.pages.length}. '
-          'Forcing slow path to hydrate orphan pages (broken commit from '
-          'another device).',
-        ));
-      }
-      unawaited(CrashLogger.append(
-        '[Pull] proceed: fastEtag=${fastMetaEtag ?? "null"} '
-        'cached=${_remoteMetaEtag ?? "null"} → acquire lock + full fetch',
-      ));
-
-      // ── Slow path: remote changed (or safety-net cycle), acquire lock ──
-      //
-      // We deliberately do NOT reset _idlePullCount here. The slow path
-      // is entered both for genuine changes AND for the periodic safety
-      // net (every [_propfindSafetyNetEvery] ticks). Resetting on
-      // safety-net cycles defeated the adaptive backoff: every 8th tick
-      // dropped us back to the 2 s cadence, then 8 more ticks of 2 s,
-      // then safety-net again, forever — the whole point of the backoff
-      // (idle should converge to 30 s) never materialised, and a
-      // 215-page notebook kept paying a full pages/ PROPFIND every 16 s
-      // for nothing. The reset now happens deeper in the function, only
-      // when [changeState.metaEtag != _remoteMetaEtag] (true work to
-      // do).
-      final pullLockToken = await _acquireSyncLock();
-      if (pullLockToken == null) return;
-      try {
-        if (state == null || state!.metadata.id != pullNotebookId) return;
-        final s = state!;
-
-        // Fetch metadata ETag + page ETags in parallel (only on change path)
-        final changeState = await syncService.getRemoteChangeState(pullNotebookId);
-
-        // Guard: did the user switch notebooks while we were awaiting the
-        // network? If so this pull belongs to the OLD notebook — dropping
-        // its data into the new one would swap the user's current notebook
-        // out from under them (the "Automotive turned into AICD" bug).
-        if (state == null || state!.metadata.id != pullNotebookId) {
-          print('[Canvas] Pull aborted — notebook switched during PROPFIND '
-              '(expected $pullNotebookId, got ${state?.metadata.id})');
-          return;
-        }
-
-        unawaited(CrashLogger.append(
-          '[Pull] changeState: metaEtag=${changeState.metaEtag ?? "null"} '
-          'remotePages=${changeState.pageEtags.length}',
-        ));
-        // Re-evaluate server inconsistency here against the inside-lock
-        // change state. We enter the download path if ANY of:
-        //   - meta ETag moved
-        //   - pages/ folder has more files than local document
-        //   - server has page fileNames we don't know about
-        //   - an EXISTING page's ETag moved (ordered-commit race: page
-        //     uploaded but metadata.json never committed, so meta ETag
-        //     looks unchanged). Without this check, strokes written on
-        //     another device and uploaded into an existing page are
-        //     invisible here until the meta ETag eventually moves.
-        // Also: a page the document lists and the server has, but whose data
-        // this device lacks (e.g. pulled into memory but never persisted).
-        final localDataMissing = s.document.pages.any((e) =>
-            !s.pages.containsKey(e.fileName) &&
-            changeState.pageEtags.containsKey(e.fileName));
-        final innerInconsistent = localDataMissing ||
-            changeState.pageEtags.length > s.document.pages.length ||
-            (_lastPageEtags.isNotEmpty &&
-                changeState.pageEtags.keys.any((k) => !_lastPageEtags.containsKey(k))) ||
-            (_lastPageEtags.isNotEmpty &&
-                changeState.pageEtags.entries.any(
-                    (e) => _lastPageEtags[e.key] != null &&
-                           _lastPageEtags[e.key] != e.value));
-        if (changeState.metaEtag != null &&
-            (changeState.metaEtag != _remoteMetaEtag || innerInconsistent)) {
-          // Real work detected → reset idle counter so the next ticks
-          // happen at the snappy 2 s cadence until things stabilise.
-          // Watchdog: if we've been in the "inconsistent" loop too long
-          // without progress (>= _maxInconsistentPulls in the window), do NOT
-          // reset to the fast cadence — let adaptive backoff stretch the next
-          // tick out. Defense-in-depth on top of the ghost-prune (which
-          // normally converges in ~3 strikes); guards against any future
-          // regression where state can't converge for unknown reasons.
-          if (_consecutiveInconsistentPulls < _maxInconsistentPulls) {
-            _idlePullCount = 0;
-          } else {
-            print('[Canvas] Pull watchdog: $_consecutiveInconsistentPulls '
-                'consecutive inconsistent pulls — suppressing fast-cadence '
-                'reset, letting adaptive backoff engage');
-          }
-          if (changeState.metaEtag == _remoteMetaEtag && innerInconsistent) {
-            print('[Canvas] Meta ETag unchanged but pages/ folder grew '
-                '(${changeState.pageEtags.length} remote vs '
-                '${s.document.pages.length} local document). '
-                'Hydrating orphan pages from server.');
-            unawaited(CrashLogger.append(
-              '[Pull] hydrating orphan pages despite matching meta ETag '
-              '(remote pages=${changeState.pageEtags.length}, '
-              'local doc=${s.document.pages.length})',
-            ));
-          } else {
-            print('[Canvas] Delta metadata changed, pulling delta...');
-          }
-          // The pill is NOT flipped here — metadata ETag changes even when
-          // nothing of substance was downloaded (e.g. same content re-uploaded
-          // from this device, weak/strong ETag reformatting by the server).
-          // Showing it every 4s during normal polling is distracting.
-          // _pullFromDeltaInner flips it only when real pages/assets will
-          // actually be fetched.
-          await _pullFromDeltaFast(
-            s, syncService, changeState.pageEtags,
-          );
-          // Only advance _remoteMetaEtag if the notebook is STILL open and
-          // still the same one we started the pull for. If the user closed
-          // or switched mid-pull, the merge aborted and the pulled pages
-          // never reached local disk — advancing the ETag here would tell
-          // the next session "you're already in sync" and permanently lose
-          // those pages.
-          // Advance the cached meta ETag only when the pull fully hydrated
-          // us — same notebook still open, no per-page failures, AND the
-          // resulting state is internally consistent (every document entry
-          // has page data in memory). Persisting an ETag that matches a
-          // truncated local state is the wedge we spent this afternoon
-          // chasing: next pull would fast-path skip, leaving missing pages
-          // unreachable until manual "Forza sync".
-          final stillOpen = state != null && state!.metadata.id == pullNotebookId;
-          final sNow = stillOpen ? state! : null;
-          // Per-fileName check, not a length comparison: a local-only page
-          // can make `pages.length >= document.pages.length` true while a
-          // DIFFERENT document entry still has no page data. Advancing the
-          // meta ETag in that state makes the gap permanent (next pull
-          // fast-path skips). Require that EVERY document entry is backed by
-          // page data in memory — exactly what the comment above intends.
-          final stateConsistent = sNow == null
-              ? false
-              : sNow.document.pages.every((e) => sNow.pages.containsKey(e.fileName));
-          if (stillOpen && !_pullHadFailures && stateConsistent) {
-            // Wait for the pulled-changes local save to land on disk BEFORE
-            // persisting the meta ETag. Otherwise a crash/kill in the small
-            // window between persist and save completion leaves the
-            // _remoteMetaEtag matching the server while the .ncnote zip is
-            // still the pre-pull version — next open's fast path skips
-            // because ETag matches, and the user is wedged at the old
-            // page count until they manually force-sync.
-            final pendingSave = _pendingPulledLocalSave;
-            if (pendingSave != null) {
-              try {
-                await pendingSave;
-              } catch (e) {
-                print('[Canvas] Pre-ETag save wait failed: $e');
-              }
-            }
-            _remoteMetaEtag = changeState.metaEtag;
-            if (_consecutiveFailedPulls > 0) {
-              _consecutiveFailedPulls = 0;
-              _recomputeSyncStatus();
-            }
-            // Real progress (ETag advanced) → reset the inconsistent-loop
-            // watchdog. The next inconsistent pull starts a fresh window.
-            _consecutiveInconsistentPulls = 0;
-            _consecutiveInconsistentSince = null;
-            // Persist so next cold-start's first pull can skip immediately.
-            // Awaited: SharedPreferences.setString is a few ms, and we need
-            // it on disk before the caller assumes the ETag survived a crash.
-            await _persistRemoteMetaEtag(pullNotebookId);
-            unawaited(CrashLogger.append(
-              '[Pull] ETag advanced: ${changeState.metaEtag}',
-            ));
-          } else if (_pullHadFailures) {
-            _consecutiveFailedPulls++;
-            _recomputeSyncStatus();
-            print('[Canvas] Pull had failures — leaving _remoteMetaEtag stale '
-                'so next sync retries missing content');
-            unawaited(CrashLogger.append(
-              '[Pull] ETag not advanced: pull failed '
-              '($_consecutiveFailedPulls in a row, next in '
-              '${_pullIntervalForIdle().inSeconds}s)',
-            ));
-          } else if (stillOpen && !stateConsistent) {
-            // Increment the watchdog inside a rolling window. Once it crosses
-            // _maxInconsistentPulls, the slow-path branch above stops
-            // resetting _idlePullCount so the next tick is at the slower
-            // adaptive cadence (eventually 30 s) instead of 2 s — preventing
-            // any silent CPU loop if the ghost-prune ever fails to converge.
-            final now = DateTime.now();
-            if (_consecutiveInconsistentSince == null ||
-                now.difference(_consecutiveInconsistentSince!) >
-                    _inconsistentWindow) {
-              _consecutiveInconsistentSince = now;
-              _consecutiveInconsistentPulls = 0;
-            }
-            _consecutiveInconsistentPulls++;
-            print('[Canvas] Pull done but state still inconsistent '
-                '(pages=${sNow!.pages.length} < doc=${sNow.document.pages.length}) '
-                '— leaving _remoteMetaEtag stale so next pull retries '
-                '[loop $_consecutiveInconsistentPulls/$_maxInconsistentPulls]');
-            unawaited(CrashLogger.append(
-              '[Pull] ETag not advanced: state still mismatch '
-              '(pages=${sNow.pages.length} < doc=${sNow.document.pages.length})',
-            ));
-          }
-        }
-      } finally {
-        // Hand the lock to a background task that awaits any local-save
-        // spawned by acceptRemoteChanges() before releasing. Without this
-        // the next save() / pull can race the pulled ZIP rewrite on disk:
-        //   • save() would overwrite the on-disk file before the pulled
-        //     pages are persisted → pulled edits lost on next open
-        //   • the _pageJsonCache would be re-populated out of order
-        final pendingSave = _pendingPulledLocalSave;
-        if (pendingSave == null) {
-          _releaseSyncLock(pullLockToken);
-        } else {
-          () async {
-            try {
-              await pendingSave;
-            } catch (e) {
-              print('[Canvas] Pending pulled-save failed: $e');
-            } finally {
-              // Clear only if still the same future (a later pull may have
-              // replaced it).
-              if (identical(_pendingPulledLocalSave, pendingSave)) {
-                _pendingPulledLocalSave = null;
-              }
-              _releaseSyncLock(pullLockToken);
-            }
-          }();
-        }
-      }
-    } catch (e) {
-      print('[Canvas] Pull failed: $e');
-    } finally {
-      _isPulling = false;
-      isPullingFromRemote.value = false;
-    }
-  }
-
-  /// Pull changed pages from the exploded _delta/ folder.
-  /// Uses per-page WebDAV ETags to detect which pages actually changed.
-  /// Returns true if any pages were merged.
-  /// [preloadedPageEtags]: already-fetched page ETags (parallel optimization).
-  Future<bool> _pullFromDeltaFast(
-    CanvasState s,
-    SyncService syncService,
-    Map<String, String> preloadedPageEtags,
-  ) async {
-    return _pullFromDeltaInner(s, syncService, preloadedPageEtags);
-  }
-
-  Future<bool> _pullFromDeltaInner(
-    CanvasState s,
-    SyncService syncService,
-    Map<String, String> remotePageEtags,
-  ) async {
-    print('[Canvas] Remote has ${remotePageEtags.length} pages, local cache has ${_lastPageEtags.length} ETags');
-
-    // Find pages whose WebDAV ETag changed since last pull, OR that exist
-    // on the server but are missing from the local state.
-    //
-    // The second condition handles stale local caches: _initPageEtags may
-    // have pre-populated _lastPageEtags from the server, so a stale local
-    // notebook (e.g. opened with 1 page when server has 100) would have
-    // matching ETags for all 100 pages and download nothing. Checking
-    // s.pages directly ensures every page the server has is materialised
-    // locally, regardless of whether the ETag cache looks up-to-date.
-    final pagesToPull = <String>[];
-    final preKnownCorrupt = <String>[];
-    for (final entry in remotePageEtags.entries) {
-      final etagChanged = _lastPageEtags[entry.key] != entry.value;
-      final missingLocally = !s.pages.containsKey(entry.key);
-      if (etagChanged || missingLocally) {
-        // Dedup: if we've already confirmed the server bytes for this exact
-        // ETag are corrupt, re-issuing the GET will hit the same bad bytes.
-        // Skip the network round-trip and let the heal path handle it
-        // directly — the upcoming save() will replace the corrupt server
-        // file and produce a fresh ETag, at which point this skip no
-        // longer matches and the next pull will re-fetch normally.
-        if (_knownCorruptEtags[entry.key] == entry.value) {
-          // No copy here to heal it with: nothing to do until it changes.
-          if (s.pages.containsKey(entry.key)) preKnownCorrupt.add(entry.key);
-          continue;
-        }
-        pagesToPull.add(entry.key);
-      }
-    }
-
-    // ── Mass-delete sanity check ──
-    //
-    // If the server's pages/ listing came back with DRASTICALLY FEWER
-    // entries than what we have cached, this is almost certainly a
-    // network/PROPFIND issue (partial response, proxy error, server
-    // glitch) rather than a user genuinely deleting every page at once.
-    // A previous version interpreted the 0-count case as 'all 183 pages
-    // deleted' and auto-removed them from local state (then filled the
-    // gaps with blank placeholders on the next pull), wiping hours of
-    // work. Bail out of the pull completely when this pattern matches.
-    //
-    // Heuristic: server returned 0 AND we had >=5 cached, OR server
-    // returned <50% of what we had cached AND cached was >=20. Either
-    // case is implausible as a genuine operation and more plausible
-    // as a networking glitch.
-    if (_lastPageEtags.isNotEmpty) {
-      final cachedCount = _lastPageEtags.length;
-      final remoteCount = remotePageEtags.length;
-      final suspicious = (remoteCount == 0 && cachedCount >= 5) ||
-          (cachedCount >= 20 && remoteCount < cachedCount ~/ 2);
-      if (suspicious) {
-        print('[Canvas] Pull: ABORTING — server listing returned $remoteCount '
-            'pages vs $cachedCount cached; refusing to treat as mass-delete '
-            '(likely a transient PROPFIND failure). Next pull will retry.');
-        unawaited(CrashLogger.append(
-          '[Pull] abort: mass-delete-protection '
-          '(remote=$remoteCount, cached=$cachedCount)',
-        ));
-        _pullHadFailures = true; // force retry next cycle
-        return false;
-      }
-    }
-
-    // Detect pages that were deleted remotely (in our ETag cache but gone
-    // from the remote pages/ folder listing).
-    final deletedRemotelyByEtag = _lastPageEtags.keys
-        .where((k) => !remotePageEtags.containsKey(k))
-        .toSet();
-
-    // ── Structure-based deletion detection ──
-    // ETag-based deletion detection (_lastPageEtags diff above) already
-    // catches remote deletions when we had an ETag for the page; the loop
-    // below is the backstop for the "cache was fetched AFTER the delete"
-    // path.
-    //
-    // IMPORTANT: we gate on `_lastPageEtags.containsKey(fn)`, NOT
-    // `_lastSyncedPages`. `_lastSyncedPages` is re-populated from the
-    // local .ncnote on every open — which means it also contains pages
-    // the user added offline and that have NEVER been uploaded. Using
-    // that signal would classify brand-new local pages as "deleted
-    // remotely" and silently drop them the first time the canvas pulls
-    // ("ho aggiunto pagina 2 offline, chiuso e riaperto, è sparita").
-    //
-    // `_lastPageEtags` only contains pages the server has acknowledged,
-    // so it cleanly distinguishes "was on server, now gone" (true remote
-    // delete) from "never been on server, still pending upload" (local-
-    // only page to preserve and upload on the next save).
-    for (final pageEntry in s.document.pages) {
-      final fn = pageEntry.fileName;
-      if (remotePageEtags.containsKey(fn)) continue; // still exists on remote
-      if (deletedRemotelyByEtag.contains(fn)) continue; // already detected
-      if (s.pages[fn] == null) continue; // no local data (nothing to delete)
-      if (_lastPageEtags.containsKey(fn)) {
-        deletedRemotelyByEtag.add(fn);
-      } else {
-        print('[Canvas] Pull: page $fn exists locally but not on server — '
-            'treating as pending upload (never synced), NOT a remote delete');
-      }
-    }
-
-    // Edge case: every "changed" page on the server was already known to
-    // be corrupt at this very ETag. Nothing to network-fetch, but we still
-    // need to push the heal save so the server gets fresh bytes — fall
-    // through to the download path so the heal scheduling fires.
-    if (pagesToPull.isEmpty && deletedRemotelyByEtag.isEmpty && preKnownCorrupt.isEmpty) {
-      // ── Metadata-only change check ───────────────────────────────────
-      // We're here because the meta-ETag moved (slow path was triggered)
-      // but no per-page ETag changed. The most common cause is a metadata-
-      // only edit on another device: chapter renamed, chapter added with
-      // no pages yet, title changed, paper type changed. The old code
-      // dropped through to the ETag-advance path without ever downloading
-      // metadata.json/document.json — so a chapter rename done on PC was
-      // INVISIBLE on iPad until the next page edit happened to bump a
-      // page ETag. Now we always pull the metadata pair when the slow
-      // path fires, and apply any content changes so they propagate.
-      try {
-        final remoteMeta =
-            await syncService.downloadDeltaMetaVersioned(s.metadata.id);
-        if (state != null && state!.metadata.id == s.metadata.id) {
-          // 3-way merge against the LIVE state (not the pull-start snapshot)
-          // so a reorder / chapter-move / rename the user made during this
-          // tick isn't clobbered by the remote metadata. No page data moved on
-          // this path (pagesToPull empty), so any doc entry without local data
-          // is NOT on the server (else it'd be in pagesToPull) → a ghost. Prune
-          // it via the strike policy so a long-broken document.json (more
-          // entries than real pages) finally converges instead of pinning the
-          // pull in a hot retry loop forever.
-          final live = state!;
-          final surviving = _survivingFileNames(
-            withData: live.pages.keys,
-            docPages: live.document.pages,
-            serverFileNames: remotePageEtags.keys.toSet(),
-            remoteDeleted: const {},
-          );
-          final merged = CanvasNotifier._merge3Way(
-            baseMeta: _lastSyncedMetadata,
-            localMeta: live.metadata,
-            remoteMeta: remoteMeta.metadata,
-            baseDoc: _lastSyncedDocument,
-            localDoc: live.document,
-            remoteDoc: remoteMeta.document,
-            survivingFileNames: surviving,
-          );
-          final finalDoc = merged.document;
-          final finalMeta =
-              merged.metadata.copyWith(pageCount: finalDoc.pages.length);
-          final changed = CanvasNotifier._documentStructurallyDiffers(
-                  finalDoc, live.document) ||
-              CanvasNotifier._metadataStructurallyDiffers(
-                  finalMeta, live.metadata);
-          if (changed) {
-            // Mark dirty only when our merge differs from what the server has
-            // (local-side edits to push) AND the document is internally
-            // consistent — pushing while data-less entries remain would just
-            // trip PRE-SAVE GUARD #2 → abort → pull → hot loop. Defer until the
-            // ghost-prune / hydration makes it consistent.
-            final docConsistent = finalDoc.pages
-                .every((e) => live.pages.containsKey(e.fileName));
-            final needsPush = docConsistent &&
-                (CanvasNotifier._documentStructurallyDiffers(
-                        finalDoc, remoteMeta.document) ||
-                    CanvasNotifier._metadataStructurallyDiffers(
-                        finalMeta, remoteMeta.metadata));
-            state = live.copyWith(
-              metadata: finalMeta,
-              document: finalDoc,
-              isDirty: needsPush || live.isDirty,
-            );
-            // Adopting the remote order/chapters/title only changed memory:
-            // with the meta ETag now marked seen, a reopen loaded the old
-            // page list from disk and never pulled it again.
-            if (!needsPush) {
-              _pendingPulledLocalSave = _savePulledChangesLocally(
-                  finalMeta, finalDoc, live.pages, live.assetBytes);
-            }
-            print('[Canvas] Pull noop: merged metadata/structure '
-                '(needsPush=$needsPush) — chapters/title/paper/order');
-            unawaited(CrashLogger.append(
-              '[Pull] noop: 3-way merged metadata/structure '
-              '(needsPush=$needsPush)',
-            ));
-          }
-          // Baseline tracks SERVER TRUTH regardless of whether we adopted a
-          // change, so the next merge has the correct common ancestor.
-          _lastSyncedDocument = remoteMeta.document;
-          _remoteDocVersion = remoteMeta.docVersion;
-          _lastSyncedMetadata = remoteMeta.metadata;
-        }
-      } catch (e) {
-        // Don't fail the whole pull on a metadata-fetch hiccup; next pull
-        // will retry. The ETag advance below means we WON'T retry — but
-        // that's fine: any subsequent metadata edit will move the meta
-        // ETag again and trigger another slow-path tick.
-        print('[Canvas] Pull noop: metadata-content check failed: $e');
-      }
-
-      print('[Canvas] Delta pull: no page ETags changed, no deletions');
-      unawaited(CrashLogger.append(
-        '[Pull] diff: noop (remote=${remotePageEtags.length} '
-        'cached=${_lastPageEtags.length} state=${s.pages.length})',
-      ));
-      _lastPageEtags = Map.of(remotePageEtags);
-      // Await the persist — the user can close the notebook during the
-      // 'noop' tick of the pull loop, and if the unawaited write hadn't
-      // landed yet the next open would reset _lastPageEtags to empty and
-      // force a full 183-page re-sync next time.
-      await _persistLastPageEtags(s.metadata.id);
-      return false;
-    }
-
-    print('[Canvas] Delta pull: ${pagesToPull.length} pages changed, '
-        '${deletedRemotelyByEtag.length} pages deleted remotely');
-    unawaited(CrashLogger.append(
-      '[Pull] diff: pull=${pagesToPull.length} '
-      '(${pagesToPull.take(3).join(",")}${pagesToPull.length > 3 ? "..." : ""}) '
-      'del=${deletedRemotelyByEtag.length} '
-      '(${deletedRemotelyByEtag.take(3).join(",")}${deletedRemotelyByEtag.length > 3 ? "..." : ""})',
-    ));
-
-    // Real download starting — show the "Sincronizzazione…" pill. Flipped
-    // here (not in the outer PROPFIND-only cycle) so the indicator only
-    // appears when we're actually bringing down new content, not during
-    // the silent 4-second polling.
-    isPullingFromRemote.value = true;
-    try {
-      return await _pullFromDeltaDownload(
-        s, syncService, remotePageEtags, pagesToPull, deletedRemotelyByEtag,
-        preKnownCorrupt,
-      );
-    } finally {
-      isPullingFromRemote.value = false;
-      pullProgress.value = (done: 0, total: 0);
-    }
-  }
-
-  Future<bool> _pullFromDeltaDownload(
-    CanvasState s,
-    SyncService syncService,
-    Map<String, String> remotePageEtags,
-    List<String> pagesToPull,
-    Set<String> deletedRemotelyByEtag,
-    List<String> preKnownCorrupt,
-  ) async {
-    // Download metadata + changed pages in parallel (one round-trip)
-    late final ({NotebookMetadata metadata, DocumentStructure document}) remoteMeta;
-    final updatedPages = Map<String, PageData>.from(s.pages);
-    final updatedAssets = Map<String, Uint8List>.from(s.assetBytes);
-    var anyPageChanged = false;
-
-    final metaFuture = syncService
-        .downloadDeltaMetaVersioned(s.metadata.id)
-        .then((r) {
-      _pendingDocVersion = r.docVersion;
-      return (metadata: r.metadata, document: r.document);
-    });
-
-    // ── Per-page download with retry + live progress counter ──
-    //
-    // The previous code fired `Future.wait` with a single attempt per
-    // page; any transient failure (Tailscale relay flap, Nextcloud
-    // hiccup, TLS reset) dropped that page and left the user's notebook
-    // incomplete until the NEXT 4-second pull cycle fired.  For a
-    // 100-page first-time hydration over a flaky network that could mean
-    // minutes of incomplete state without any visible progress.
-    //
-    // Now each page has its own 3-attempt retry loop with exponential
-    // backoff, capped by [AppConfig.webdavDeltaTimeoutSeconds] per attempt.
-    // A live counter feeds [pullProgress] so the sync pill can show
-    // "Sincronizzazione 23/100" instead of a generic spinner.
-    final completed = <String>[];
-    final failedPages = <String>[];
-    // Pages whose server-side bytes are CORRUPT (e.g. JSON truncated mid-
-    // stroke at a 1024-byte boundary, observed when an interrupted PUT
-    // from another device left a partial body on Nextcloud). These do
-    // NOT count as transient failures: re-downloading will hit the same
-    // bad bytes forever, so we must NOT block the meta-ETag advance and
-    // MUST NOT apply the per-page cooldown — that combination is exactly
-    // what produced the every-2-second pull-loop hammering the server.
-    // Instead we hand the page back to save() with the local-good copy
-    // re-flagged as dirty, so the next save heals the server.
-    //
-    // Seeded with pages whose current server ETag matches an entry in
-    // [_knownCorruptEtags] — those were already proven corrupt this
-    // session, so we skip the redundant GET entirely.
-    final corruptedPages = <String>[...preKnownCorrupt];
-    if (preKnownCorrupt.isNotEmpty) {
-      print('[Canvas] Pull: skipping ${preKnownCorrupt.length} GET(s) for '
-          'pages already known corrupt at their current server ETag '
-          '(sample: ${preKnownCorrupt.take(3).join(",")}'
-          '${preKnownCorrupt.length > 3 ? "..." : ""}) — heal via save '
-          'will run');
-    }
-    var completedCount = 0;
-
-    // ── Per-page failure cooldown (P2) ──
-    //
-    // Skip pages that have failed [maxConsecutiveFailures] times in a row
-    // until [pageCooldown] has elapsed since the last failure. Without this
-    // the same 8 broken downloads (e.g. server-side gone, permission glitch,
-    // bad bytes) re-fired every 2 s pull cycle forever, draining battery
-    // and the IOClient connection pool. After the cooldown a single retry
-    // is allowed; if it succeeds counters reset, otherwise the cooldown
-    // is reapplied.
-    const maxConsecutiveFailures = 5;
-    const pageCooldown = Duration(seconds: 60);
-    final now = DateTime.now();
-    final cooledDown = <String>[];
-    pagesToPull.removeWhere((fn) {
-      final until = _pageFailureCooldownUntil[fn];
-      if (until != null && now.isBefore(until)) {
-        cooledDown.add(fn);
-        return true;
-      }
-      return false;
-    });
-    if (cooledDown.isNotEmpty) {
-      _pullHadFailures = true; // keep meta etag stale until they recover
-      unawaited(CrashLogger.append(
-        '[Pull] cooldown skip: ${cooledDown.length} pages '
-        '(sample: ${cooledDown.take(3).join(",")}'
-        '${cooledDown.length > 3 ? "..." : ""}) — '
-        'will retry after cooldown expires',
-      ));
-    }
-    // Refresh totals after cooldown filter so the progress pill is honest.
-    pullProgress.value = (done: 0, total: pagesToPull.length);
-
-    Future<void> pullOne(String pageFileName) async {
-      const maxAttempts = 3;
-      Object? lastError;
-      for (var attempt = 0; attempt < maxAttempts; attempt++) {
-        try {
-          final remotePage = await syncService
-              .downloadDeltaPage(s.metadata.id, pageFileName);
-          updatedPages[pageFileName] = remotePage;
-          anyPageChanged = true;
-          completed.add(pageFileName);
-          completedCount++;
-          pullProgress.value =
-              (done: completedCount, total: pagesToPull.length);
-          // Success: reset failure tracking for this page.
-          _pageFailureCount.remove(pageFileName);
-          _pageFailureCooldownUntil.remove(pageFileName);
-          return;
-        } catch (e) {
-          lastError = e;
-          // ── Server-side corruption short-circuit ──
-          // FormatException from `jsonDecode(utf8.decode(bytes))` means
-          // the bytes the server gave us are not valid JSON — typically
-          // truncated mid-stroke at a 1024-byte boundary because an
-          // earlier PUT from some device only partially committed.
-          // Re-trying the download won't help (the bad bytes are stable
-          // on the server), and the FormatException is wrapped as a
-          // bare Exception by the http path, so we sniff the message
-          // too. We bail out of the retry loop immediately and let the
-          // outer code reroute this page through the heal-via-reupload
-          // path instead of the network-failure path.
-          final isCorruption = e is FormatException ||
-              e.toString().contains('FormatException');
-          if (isCorruption) {
-            corruptedPages.add(pageFileName);
-            // Reset any prior cooldown — corruption is a one-shot
-            // categorisation, not a flaky-network counter.
-            _pageFailureCount.remove(pageFileName);
-            _pageFailureCooldownUntil.remove(pageFileName);
-            // Remember the exact server ETag we just confirmed corrupt
-            // so subsequent pull cycles before save() lands skip the
-            // GET entirely (the bad bytes are stable; re-downloading
-            // them just burns bandwidth).
-            final corruptEtag = remotePageEtags[pageFileName];
-            if (corruptEtag != null) {
-              _knownCorruptEtags[pageFileName] = corruptEtag;
-            }
-            print('[Canvas] Page $pageFileName: server-side JSON '
-                'corruption detected ($e) — scheduling heal via '
-                're-upload from local copy');
-            return;
-          }
-          if (attempt == maxAttempts - 1) break;
-          // Exponential backoff: 200 ms, 600 ms, 1.8 s.
-          await Future.delayed(
-              Duration(milliseconds: 200 * (1 << attempt)));
-          // Abort all further attempts if the notebook was closed.
-          if (_disposed || state?.metadata.id != s.metadata.id) return;
-        }
-      }
-      failedPages.add(pageFileName);
-      _pullHadFailures = true;
-      // Track consecutive failures so we can apply a cooldown next pull.
-      final fc = (_pageFailureCount[pageFileName] ?? 0) + 1;
-      _pageFailureCount[pageFileName] = fc;
-      if (fc >= maxConsecutiveFailures) {
-        _pageFailureCooldownUntil[pageFileName] =
-            DateTime.now().add(pageCooldown);
-        print('[Canvas] Page $pageFileName failed $fc times — '
-            'applying ${pageCooldown.inSeconds}s cooldown');
-      }
-      print('[Canvas] Failed to pull page $pageFileName '
-          'after $maxAttempts attempts: $lastError');
-    }
-
-    // Pull pages with explicit concurrency cap (NOT via the IOClient pool).
-    // The pool's queueing piles every in-flight GET onto the same N
-    // sockets — when those go stale together (typical Tailscale signature:
-    // middlebox closes idle keep-alive after ~30 s), dozens of queued
-    // requests all surface "Connection closed" before the circuit
-    // breaker rebuilds the client. With an explicit worker pool we only
-    // ever have [batchSize] requests in flight: a stale-pool burst trips
-    // ONE rebuild, the next batchSize requests use the fresh pool, and
-    // the cascade stops at batchSize instead of pagesToPull.length.
-    const batchSize = 4;
-    final queue = List<String>.from(pagesToPull);
-    Future<void> worker() async {
-      while (queue.isNotEmpty) {
-        if (_disposed || state?.metadata.id != s.metadata.id) return;
-        final fn = queue.removeLast();
-        await pullOne(fn);
-      }
-    }
-    final workers = List.generate(
-        batchSize < queue.length ? batchSize : queue.length,
-        (_) => worker());
-    await Future.wait(workers);
-    // A corrupt server page this device never had cannot be healed by a
-    // re-upload: healing marked the notebook dirty and rewrote its metadata
-    // on every pull, forever. Left alone until another device rewrites it.
-    final unhealable =
-        corruptedPages.where((fn) => !s.pages.containsKey(fn)).toList();
-    if (unhealable.isNotEmpty) {
-      corruptedPages.removeWhere(unhealable.contains);
-      unawaited(CrashLogger.append('[Pull] unreadable on the server and '
-          'not on this device, left alone: ${unhealable.join(",")}'));
-    }
-    // ── Defensive meta-fetch: never let document.json / metadata.json
-    //    failure abort the whole pull cycle.
-    //
-    // metaFuture is downloadDeltaMeta() which throws on truncated /
-    // empty / unparseable body (very common during Tailscale flaps:
-    // server closes the connection mid-response → 200 OK with 0
-    // bytes → jsonDecode('') → FormatException). If we let that
-    // propagate, the function aborts BEFORE line 7836 where per-page
-    // ETags get persisted. Next pull tick sees _lastPageEtags = 1
-    // again and tries the full 102-page re-pull from scratch — the
-    // infinite-loop bug.
-    //
-    // On meta failure: mark _pullHadFailures so the meta ETag stays
-    // stale (next tick will retry the whole cycle), but still persist
-    // the per-page ETags we DID successfully fetch and return false
-    // gracefully.
-    try {
-      remoteMeta = await metaFuture;
-    } catch (e) {
-      print('[Canvas] Meta fetch failed mid-pull '
-          '(${completed.length} pages still got through): $e');
-      _pullHadFailures = true;
-      // Persist what we DID download so subsequent ticks don't re-fetch
-      // the same pages. remotePageEtags was already restricted at
-      // lines 7280-7295 to remove failed/cooled/corrupt pages, so
-      // it now contains only the successful ones.
-      remotePageEtags = Map.of(remotePageEtags);
-      for (final fn in failedPages) { remotePageEtags.remove(fn); }
-      for (final fn in cooledDown) { remotePageEtags.remove(fn); }
-      for (final fn in corruptedPages) { remotePageEtags.remove(fn); }
-      for (final entry in remotePageEtags.entries) {
-        _lastPageEtags[entry.key] = entry.value;
-      }
-      await _persistLastPageEtags(s.metadata.id);
-      return false;
-    }
-
-    if (anyPageChanged) {
-      print('[Canvas] Pulled ${completed.length}/${pagesToPull.length} pages '
-          '(${failedPages.length} failed, ${corruptedPages.length} corrupt → reupload)');
-    }
-    unawaited(CrashLogger.append(
-      '[Pull] download done: ok=${completed.length}/${pagesToPull.length} '
-      'failed=${failedPages.length}'
-      '${failedPages.isEmpty ? "" : " (${failedPages.take(3).join(",")})"} '
-      'corrupt=${corruptedPages.length}'
-      '${corruptedPages.isEmpty ? "" : " (${corruptedPages.take(3).join(",")})"}',
-    ));
-    // Evict per-page ETags for any download that failed so the next pull
-    // re-attempts them; we must NOT advance _lastPageEtags for pages we
-    // didn't actually receive. Also evict pages we skipped due to the
-    // cooldown — they still haven't been received either. And evict
-    // corrupt-on-server pages so the next save() (which uploads the
-    // local-good copy) is followed by a pull that DOES re-fetch the
-    // freshly-correct bytes — leaving the corrupt etag in our cache
-    // would make the post-heal pull skip them.
-    if (failedPages.isNotEmpty || cooledDown.isNotEmpty || corruptedPages.isNotEmpty) {
-      remotePageEtags = Map.of(remotePageEtags);
-      for (final fn in failedPages) {
-        // Keep the previous ETag we had (if any) so the "changed" comparison
-        // still picks this page up next time the ETag actually changes again,
-        // but ensure the new remotePageEtags entry for this file does NOT
-        // make it into _lastPageEtags below.
-        remotePageEtags.remove(fn);
-      }
-      for (final fn in cooledDown) {
-        remotePageEtags.remove(fn);
-      }
-      for (final fn in corruptedPages) {
-        remotePageEtags.remove(fn);
-      }
-    }
-
-
-    // Download new assets in parallel
-    // Collect asset references from both assetReferences list AND image elements.
-    //
-    // An asset is considered "missing" and worth pulling from the server if:
-    //   1. It's NOT in the local assetBytes map, OR
-    //   2. It IS in the local map but flagged as corrupt — this is the
-    //      heal path for the historic 1024-aligned-truncation bug. If
-    //      another device re-uploaded clean bytes after we cached the
-    //      corrupt copy, the path hasn't changed and the previous
-    //      `containsKey` short-circuit kept the broken bytes forever.
-    //      Re-fetching forces a fresh decode attempt; on success
-    //      `_decodeAndCacheImage` clears the corrupt flag.
-    final missingAssets = <String>{};
-    bool needsHeal(String ref) =>
-        !_knownAbsent(ref) &&
-        (!updatedAssets.containsKey(ref) || _corruptAssetIds.contains(ref));
-    for (final page in updatedPages.values) {
-      // Only what an image element draws: assetReferences is append-only and
-      // keeps ids of deleted images, which were fetched (404) on every pull.
-      for (final el in page.layers.content) {
-        el.map(unknown: (_) {},
-          stroke: (_) {},
-          text: (_) {},
-          shape: (_) {},
-          math: (_) {},
-          image: (img) {
-            final path = img.data.assetPath;
-            if (path.isNotEmpty && needsHeal(path)) {
-              missingAssets.add(path);
-            }
-          },
-        );
-      }
-    }
-    // Drop the cached bytes for any asset we're about to re-pull so the
-    // download path actually writes the fresh bytes back instead of
-    // short-circuiting on "already in updatedAssets".
-    for (final ref in missingAssets) {
-      updatedAssets.remove(ref);
-    }
-    // ── Asset download: priority (current page) sync, rest in background ─
-    //
-    // Previously the entire asset download was awaited inline before the
-    // function could return. For an asset-heavy notebook (Automotive: 200+
-    // assets / 60+ MB) over Tailscale the awaited pull took 2-5 minutes,
-    // and the meta-ETag persist (which happens AFTER this function returns)
-    // never ran if the user closed the app during that window. Result:
-    // every reopen replayed a full 389-page slow-path pull because
-    // `_remoteMetaEtag` was still null on disk.
-    //
-    // Now we only await the current page's assets (so the visible page
-    // renders correctly when this function returns); the rest fire as an
-    // unawaited background task that updates `state.assetBytes` incremen-
-    // tally and marks the notebook dirty so the next save flushes them to
-    // the .ncnote zip. The ETag can advance as soon as page commit + local
-    // save complete, independent of asset progress.
-    if (missingAssets.isNotEmpty) {
-      final maxAssetConcurrency = (defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.android)
-          ? 4
-          : 6;
-      final notebookId = s.metadata.id;
-      final curPageRefs =
-          _assetRefsForPage(s.currentPageIndex, s.document, updatedPages);
-      final priorityList =
-          missingAssets.where(curPageRefs.contains).toList();
-      final backgroundList =
-          missingAssets.where((r) => !curPageRefs.contains(r)).toList();
-
-      Future<(String, Uint8List?, Object?)> pullOneAsset(String ref) async {
-        const maxAttempts = 3;
-        Object? lastError;
-        for (var attempt = 0; attempt < maxAttempts; attempt++) {
-          try {
-            final data = await syncService.downloadDeltaAsset(notebookId, ref);
-            return (ref, data, null);
-          } catch (e) {
-            lastError = e;
-            // Not on the server: retrying (now or next pull) can't help.
-            if (e is RemoteStoreException && e.statusCode == 404) {
-              _absentRemoteAssets[ref] = DateTime.now();
-              unawaited(CrashLogger.append('[Pull] asset missing on the '
-                  'server, asked again in 10 min: $ref'));
-              break;
-            }
-            if (attempt == maxAttempts - 1) break;
-            await Future.delayed(
-                Duration(milliseconds: 200 * (1 << attempt)));
-            if (_disposed || state?.metadata.id != notebookId) {
-              return (ref, null, lastError);
-            }
-          }
-        }
-        return (ref, null, lastError);
-      }
-
-      // Priority pass: await current-page assets so the visible page renders
-      // correctly when the function returns.
-      final priorityDownloaded = <String, Uint8List>{};
-      for (var i = 0; i < priorityList.length; i += maxAssetConcurrency) {
-        if (_disposed) break;
-        final batch = priorityList.skip(i).take(maxAssetConcurrency);
-        final batchResults = await Future.wait(batch.map(pullOneAsset));
-        for (final (ref, data, err) in batchResults) {
-          if (data != null) {
-            updatedAssets[ref] = data;
-            priorityDownloaded[ref] = data;
-            anyPageChanged = true;
-          } else if (err != null) {
-            print('[Canvas] Failed to pull priority asset $ref: $err '
-                '(will retry next pull)');
-          }
-        }
-      }
-      if (priorityDownloaded.isNotEmpty) {
-        for (final entry in priorityDownloaded.entries) {
-          unawaited(_decodeAndCacheImage(entry.key, entry.value));
-        }
-      }
-
-      // Background pass: fire-and-forget. Aborts if the user switches notebooks.
-      //
-      // Previously this `state = state!.copyWith(assetBytes: merged)` ran
-      // PER-BATCH — and `merged` was a fresh `Map<String, Uint8List>.from(50MB)`
-      // every iteration, plus every state mutation cascaded into a full
-      // rebuild of the canvas widget tree (which `ref.watch(canvasProvider)`s
-      // the entire state). On a 60-asset notebook the rebuild storm + Map
-      // re-allocations alone burned a CPU core for the whole download
-      // window. Now we accumulate every batch into a local map and commit
-      // ONCE at the end of the pass — image decoding still streams in
-      // (each batch fires `_decodeAndCacheImage` so the canvas can show
-      // them as soon as they're decoded).
-      //
-      // We also no longer flip `isDirty=true`: the assets are reachable
-      // from `_pageJsonCache` lookups and will be flushed by the NEXT
-      // user-driven save, which is enough — flipping dirty here triggered
-      // a full-notebook 50 MB ZIP rebuild + remote sync just because some
-      // bytes arrived from the server, which is exactly the work we want
-      // to avoid.
-      if (backgroundList.isNotEmpty) {
-        unawaited(() async {
-          final bgDownloaded = <String, Uint8List>{};
-          int bgOk = 0;
-          int bgFailed = 0;
-          for (var i = 0;
-              i < backgroundList.length;
-              i += maxAssetConcurrency) {
-            if (_disposed || state?.metadata.id != notebookId) break;
-            final batch =
-                backgroundList.skip(i).take(maxAssetConcurrency);
-            final batchResults = await Future.wait(batch.map(pullOneAsset));
-            for (final (ref, data, err) in batchResults) {
-              if (data != null) {
-                bgDownloaded[ref] = data;
-                bgOk++;
-                // Decode now so the canvas paints the asset as soon as
-                // each batch resolves — _decodeAndCacheImage updates
-                // state.imageCache atomically and is independent of the
-                // assetBytes commit below.
-                unawaited(_decodeAndCacheImage(ref, data));
-              } else if (err != null) {
-                bgFailed++;
-                print('[Canvas] Failed to pull bg asset $ref: $err '
-                    '(will retry next pull)');
-              }
-            }
-          }
-          print('[Canvas] Background asset pull done: '
-              '$bgOk/${backgroundList.length} ok, $bgFailed failed');
-          // Single commit at the end. Skip if the notifier was disposed
-          // or the notebook closed mid-pass — without the _disposed check
-          // a post-dispose `state = ...` would set a value on a notifier
-          // Riverpod considers torn-down, surfacing as "tried to use
-          // ProviderContainer after it was disposed" if any listener
-          // outlives the dispose.
-          if (!_disposed &&
-              bgDownloaded.isNotEmpty &&
-              state != null &&
-              state!.metadata.id == notebookId) {
-            final merged = Map<String, Uint8List>.from(state!.assetBytes)
-              ..addAll(bgDownloaded);
-            state = state!.copyWith(assetBytes: merged);
-            // Anything we just pulled from the server is by definition
-            // server-confirmed. Mark these as eligible for future
-            // server-side DELETE (used by _pruneOrphanAssets).
-            _uploadedAssetKeys.addAll(bgDownloaded.keys);
-          }
-        }());
-      }
-    }
-
-    // ── Detect remote deletions: pages in local state but gone from
-    //    remote pages/ folder ──
-    final deletionConflicts = <PageConflict>[];
-
-    if (deletedRemotelyByEtag.isNotEmpty) {
-      for (final fileName in deletedRemotelyByEtag) {
-        final localPage = s.pages[fileName];
-        if (localPage == null) continue;
-        // Was this page edited locally since last sync?
-        final locallyEdited = _lastSyncedPages[fileName] != null &&
-            localPage != _lastSyncedPages[fileName];
-        if (locallyEdited) {
-          // Conflict: local edit vs remote deletion — let user decide
-          final pageIndex = s.document.pages.indexWhere(
-              (e) => e.fileName == fileName);
-          final pageEntry = pageIndex >= 0
-              ? s.document.pages[pageIndex] : null;
-          final chapterName = _chapterNameForPage(pageEntry, s.metadata);
-          deletionConflicts.add(PageConflict(
-            fileName: fileName,
-            pageNumber: localPage.pageNumber,
-            chapterName: chapterName,
-            localPage: localPage,
-            remotePage: localPage, // no remote version — show local as both
-            localImageCache: Map.of(state!.imageCache),
-            remoteImageCache: const {},
-            isDeletion: true,
-          ));
-          print('[Canvas] CONFLICT: $fileName edited locally but deleted remotely');
-        } else {
-          // Safe deletion — auto-remove
-          updatedPages.remove(fileName);
-          anyPageChanged = true;
-          print('[Canvas] Auto-removing page deleted remotely: $fileName');
-        }
-      }
-    }
-
-    // Notebook-switch guard: if the user opened a different notebook while
-    // we were downloading pages/assets, this data belongs to the old one.
-    // Writing it to state would corrupt the now-active notebook.
-    if (state == null || state!.metadata.id != s.metadata.id) {
-      print('[Canvas] Delta merge aborted — notebook switched mid-pull '
-          '(expected ${s.metadata.id}, got ${state?.metadata.id})');
-      return false;
-    }
-
-    // Enter the merge/accept block when ANY of the following is true:
-    //   - we successfully pulled at least one page (anyPageChanged)
-    //   - we detected a remote deletion that needs reconciling
-    //   - we detected at least one page that's corrupt on the server
-    //     (heal-via-reupload path; needs to land in pendingRemoteChanges
-    //     so acceptRemoteChanges + the corruption-heal post-step run and
-    //     the auto-save Timer is scheduled). Without this third guard,
-    //     a pull where ALL changed pages are corrupt skips the entire
-    //     block, never schedules the save, and the loop continues
-    //     forever.
-    if ((anyPageChanged ||
-            deletionConflicts.isNotEmpty ||
-            corruptedPages.isNotEmpty) &&
-        state != null) {
-      // ── Detect conflicts: pages changed both locally AND remotely ──
-      final conflicts = <PageConflict>[...deletionConflicts];
-      final safePages = <String>{}; // non-conflicting remote pages
-      // fileNames where both sides edited but the edits look disjoint
-      // (element-level) → auto-merge at apply time instead of prompting.
-      final autoMergeable = <String>{};
-      for (final fileName in pagesToPull) {
-        final remotePage = updatedPages[fileName];
-        final localPage = s.pages[fileName];
-        if (remotePage == null) continue;
-
-        // Skip pages where local and remote have identical content —
-        // no conflict and no change to report.
-        // Compare without modifiedAt: a re-upload of identical content sets a
-        // new modifiedAt timestamp, but that is NOT a real conflict.
-        if (localPage != null &&
-            localPage.copyWith(modifiedAt: null) ==
-                remotePage.copyWith(modifiedAt: null)) {
-          continue;
-        }
-
-        // Conflict: local page was edited since last sync AND remote ALSO
-        // diverged from that same baseline. Classic 3-way merge: if only one
-        // side moved, it's not a conflict.
-        //
-        // The remoteEdited check matters on flaky networks: when a save's
-        // upload reaches the server but the response packet is dropped, the
-        // iPad thinks the save failed and leaves lastSynced at the old
-        // baseline. Subsequent local edits then look "edited locally", and
-        // the next pull sees the server's new ETag (matching what the iPad
-        // just uploaded) and pulls it back — without remoteEdited the user
-        // gets a false conflict prompt for their own pending work.
-        // Compare without modifiedAt so a sync-induced timestamp change on
-        // otherwise-identical content doesn't register as edited.
-        final lastSynced = _lastSyncedPages[fileName];
-        final lastSyncedNorm = lastSynced?.copyWith(modifiedAt: null);
-        final locallyEdited = localPage != null &&
-            lastSynced != null &&
-            localPage.copyWith(modifiedAt: null) != lastSyncedNorm;
-        final remoteEdited = lastSynced != null &&
-            remotePage.copyWith(modifiedAt: null) != lastSyncedNorm;
-        if (locallyEdited && remoteEdited) {
-          // Before prompting, try an element-level 3-way merge: if the two
-          // sides touched DIFFERENT strokes/images/shapes/text, we can fold
-          // them together silently — no dialog, which keeps the experience
-          // smooth (most "same page" edits on different devices are actually
-          // disjoint). Only a genuine same-element clash surfaces a prompt.
-          // acceptRemoteChanges re-runs this with the LIVE local page; here
-          // we only DECIDE (against the snapshot) whether a prompt is needed.
-          // lastSynced and localPage are both non-null here (locallyEdited
-          // implies it), so Dart has already promoted them.
-          final autoMerged = CanvasNotifier._mergePageElements(
-              base: lastSynced, local: localPage, remote: remotePage);
-          if (autoMerged != null) {
-            autoMergeable.add(fileName);
-            safePages.add(fileName);
-            print('[Canvas] Auto-mergeable (disjoint element edits): $fileName');
-          } else {
-            final pageIndex = remoteMeta.document.pages.indexWhere(
-                (e) => e.fileName == fileName);
-            final pageEntry = pageIndex >= 0
-                ? remoteMeta.document.pages[pageIndex]
-                : null;
-            final chapterName = _chapterNameForPage(pageEntry, remoteMeta.metadata);
-            conflicts.add(PageConflict(
-              fileName: fileName,
-              pageNumber: remotePage.pageNumber,
-              chapterName: chapterName,
-              localPage: localPage,
-              remotePage: remotePage,
-              localImageCache: Map.of(state!.imageCache),
-              remoteImageCache: Map.of(state!.imageCache),
-            ));
-            print('[Canvas] CONFLICT on $fileName — local + remote edits '
-                'touch the same element(s)');
-          }
-        } else if (locallyEdited && !remoteEdited) {
-          // Local has unsynced edits but remote is unchanged from baseline:
-          // the server's "new" ETag is just our own pending upload echoing
-          // back (or a touched mtime on identical bytes). Keep local content
-          // by reverting the merge map; the next save will push local up.
-          // Without this, the safePages branch would overwrite the user's
-          // in-progress strokes with the older remote bytes — exactly the
-          // data-loss bug behind the false-conflict UX on flaky links.
-          //
-          // `localPage != null` is already implied by `locallyEdited`.
-          updatedPages[fileName] = localPage;
-          print('[Canvas] Pull: $fileName changed remotely but matches '
-              'baseline; preserving local edits');
-        } else {
-          safePages.add(fileName);
-        }
-      }
-
-      // ── Build per-page change details for non-conflicting pages ──
-      // Skip pages whose content is identical to local (same ETag ≠ same
-      // content, but downloading gave us the actual data to compare).
-      final details = <PageChangeDetail>[];
-      var newCount = 0;
-      var modCount = 0;
-      for (final fileName in safePages) {
-        final remotePage = updatedPages[fileName];
-        final localPage = s.pages[fileName];
-        if (remotePage == null) continue;
-        final isNew = localPage == null;
-        // Content-equality check: if the downloaded page has the same
-        // data as local, don't report it as modified.
-        if (!isNew && localPage == remotePage) {
-          // Silently accept the identical page (keeps updatedPages in sync)
-          continue;
-        }
-        if (isNew) {
-          newCount++;
-        } else {
-          modCount++;
-        }
-        final pageIndex = remoteMeta.document.pages.indexWhere((e) => e.fileName == fileName);
-        final pageEntry = pageIndex >= 0 ? remoteMeta.document.pages[pageIndex] : null;
-        final chapterName = _chapterNameForPage(pageEntry, remoteMeta.metadata);
-        final localCounts = _elementCounts(localPage);
-        final remoteCounts = _elementCounts(remotePage);
-        details.add(PageChangeDetail(
-          fileName: fileName,
-          pageNumber: remotePage.pageNumber,
-          pageIndex: pageIndex >= 0 ? pageIndex : 0,
-          chapterName: chapterName,
-          changeType: isNew ? PageChangeType.added : PageChangeType.modified,
-          localStrokeCount: localCounts.$1, remoteStrokeCount: remoteCounts.$1,
-          localImageCount: localCounts.$2, remoteImageCount: remoteCounts.$2,
-          localShapeCount: localCounts.$3, remoteShapeCount: remoteCounts.$3,
-          localTextCount: localCounts.$4, remoteTextCount: remoteCounts.$4,
-        ));
-      }
-
-      // Count safe deletions (auto-removed, not conflicting)
-      final safeDeleteCount = deletedRemotelyByEtag.length - deletionConflicts.length;
-
-      // ── Preserve locally-added pages that the server hasn't seen yet ──
-      // remoteMeta.document only lists pages the server knows about.
-      // Any pages added locally but not yet fully uploaded are absent from
-      // that list. If we let auto-accept replace state.document with the
-      // remote-only version, those page entries disappear even though their
-      // data is still alive in updatedPages — they become unreachable and
-      // appear to vanish (chapter mixing / "page loss after PDF import").
-      //
-      // Fix: append local-only entries after the remote list so they survive
-      // the merge. Remote's ordering and chapter assignments win for shared
-      // pages; local-only entries keep their original chapterId.
-      final remoteFileNames =
-          remoteMeta.document.pages.map((p) => p.fileName).toSet();
-      // Exclude pages we just auto-deleted (server removed them) from the
-      // local-only preservation set. Without this filter, a page deleted
-      // on another device would be removed from `updatedPages` but its
-      // stale PageEntry would survive in `localOnlyEntries` → document
-      // ends up with N entries while pages map has N-1. The canvas then
-      // reports 'Nessuna pagina' for the ghost entry and every subsequent
-      // pull loops forever at 'pages=N-1 < doc=N, state still mismatch'.
-      final localOnlyEntries = s.document.pages
-          .where((p) => !remoteFileNames.contains(p.fileName) &&
-                         !deletedRemotelyByEtag.contains(p.fileName))
-          .toList();
-
-      // ── Self-heal corrupted server document.json ──
-      //
-      // Observed on a production Nextcloud: every notebook's server-side
-      // `_delta/<id>/document.json` contained only **one** PageEntry, while
-      // `_delta/<id>/pages/` held dozens or hundreds of actual page files.
-      // An earlier buggy client had overwritten the remote document with a
-      // stale 1-entry local state.  Because the pull-then-save cycle now
-      // propagates that 1-entry document back to disk, the bug was
-      // self-perpetuating — every sync re-cemented the broken state.
-      //
-      // Detect the mismatch and rebuild PageEntries from the actual page
-      // data we just downloaded.  chapterId is reconstructed from
-      // `metadata.chapters[].pageIds` — the canonical chapter membership
-      // list — so orphan pages keep their original chapter instead of
-      // landing in "no chapter" (the bug that nuked chapter info on every
-      // notebook during the previous heal cycle).  Sort uses the filename
-      // numeric suffix (page_001 .. page_NNN) which is stable; the
-      // `pageNumber` field inside PageData JSON has been observed
-      // duplicated/corrupt so it can't be trusted.
-      final allLocalFileNames = {
-        ...remoteFileNames,
-        ...localOnlyEntries.map((e) => e.fileName),
-      };
-      final orphanPageIdToChapter = _chapterByPageId(remoteMeta.metadata);
-      // A page another device just added is an orphan here until its page
-      // list lands, and is in no chapter list yet: without a chapter it fell
-      // out of every chapter view. New pages go after the last one.
-      final remoteChapters = remoteMeta.metadata.chapters;
-      final orphanFallbackChapter = remoteMeta.document.pages.isNotEmpty
-          ? remoteMeta.document.pages.last.chapterId
-          : (remoteChapters.length == 1 ? remoteChapters.first.id : null);
-      final orphanSynthEntries = <PageEntry>[];
-      int orphanChRecovered = 0;
-      int orphanChUnmapped = 0;
-      final localEntryByFile = {
-        for (final e in s.document.pages) e.fileName: e,
-      };
-      for (final entry in updatedPages.entries) {
-        if (allLocalFileNames.contains(entry.key)) continue;
-        final pid = entry.value.pageId;
-        // A page this device still lists (kept against a remote delete)
-        // keeps its own entry, chapter included.
-        final own = localEntryByFile[entry.key];
-        if (own != null) {
-          orphanSynthEntries.add(own);
-          orphanChRecovered++;
-          continue;
-        }
-        final ch = orphanPageIdToChapter[pid] ?? orphanFallbackChapter;
-        if (ch != null) {
-          orphanChRecovered++;
-        } else {
-          orphanChUnmapped++;
-        }
-        orphanSynthEntries.add(PageEntry(
-          pageId: pid,
-          pageNumber: entry.value.pageNumber,
-          fileName: entry.key,
-          lastModified: entry.value.modifiedAt,
-          chapterId: ch,
-        ));
-      }
-      if (orphanSynthEntries.isNotEmpty) {
-        print('[Canvas] HEAL: remote document.json references '
-            '${remoteMeta.document.pages.length} pages but pages/ folder '
-            'has ${updatedPages.length} — synthesising '
-            '${orphanSynthEntries.length} PageEntries '
-            '(chapter recovered: $orphanChRecovered, '
-            'unmapped: $orphanChUnmapped). '
-            'The next save() will push the repaired document to the server.');
-      }
-
-      // Assemble merged document: remote entries first (canonical order from
-      // the server — preserves any page-manager reorder), then local-only,
-      // then orphaned-and-healed.  Do NOT sort the combined list by filename
-      // numeric suffix: filenames are minted sequentially at page-creation
-      // time, so sorting by filename destroys a user-defined reorder
-      // (page-manager drag) every time a heal or local-only branch fires
-      // here. Only sort the orphan-synth set internally so its members
-      // appear deterministically across devices when the heal actually
-      // recovers something.
-      orphanSynthEntries.sort((a, b) =>
-          _filenameNum(a.fileName).compareTo(_filenameNum(b.fileName)));
-      // Pages only this device lists go back where they were locally,
-      // after their local predecessor; appending them moved a page added
-      // or kept offline to the end of the notebook.
-      final combinedEntries = CanvasNotifier.placeByLocalOrder(
-        [...remoteMeta.document.pages],
-        [
-          ...localOnlyEntries,
-          ...orphanSynthEntries
-              .where((e) => localEntryByFile.containsKey(e.fileName)),
-        ],
-        s.document.pages,
-      )..addAll(orphanSynthEntries
-          .where((e) => !localEntryByFile.containsKey(e.fileName)));
-      // Renumber to guarantee sequential, unique pageNumbers after the heal.
-      for (var i = 0; i < combinedEntries.length; i++) {
-        combinedEntries[i] = combinedEntries[i].copyWith(pageNumber: i + 1);
-      }
-      final mergedDocument = (localOnlyEntries.isEmpty &&
-              orphanSynthEntries.isEmpty)
-          ? remoteMeta.document
-          : DocumentStructure(
-              notebookId: remoteMeta.document.notebookId,
-              formatVersion: remoteMeta.document.formatVersion,
-              pages: combinedEntries,
-            );
-
-      // Show conflicts if any, plus non-conflicting changes banner.
-      // Also trigger the pending/accept flow when the server document was
-      // healed from orphan pages — even if no "user-visible" changes were
-      // detected, the in-memory state still needs to pick up the repaired
-      // document so the subsequent save() uploads it back to the server.
-      final needsHeal = orphanSynthEntries.isNotEmpty;
-      // ALSO trigger when at least one page was found corrupt on the server —
-      // we need to push the local-good copy back up to overwrite the bad
-      // bytes, otherwise the next pull will hit the same FormatException.
-      final needsCorruptionHeal = corruptedPages.isNotEmpty;
-      if (conflicts.isNotEmpty ||
-          details.isNotEmpty ||
-          safeDeleteCount > 0 ||
-          needsHeal ||
-          needsCorruptionHeal) {
-        final pending = (details.isNotEmpty || safeDeleteCount > 0 || needsHeal || needsCorruptionHeal)
-            ? PendingRemoteChanges(
-                metadata: remoteMeta.metadata,
-                document: mergedDocument,
-                pages: updatedPages,
-                assets: updatedAssets,
-                changedPages: details,
-                newPageCount: newCount,
-                modifiedPageCount: modCount,
-                deletedPageCount: safeDeleteCount,
-                newAssetCount: missingAssets.length,
-                autoMergeable: autoMergeable,
-                // The server's ACTUAL page listing (PROPFIND of pages/), NOT
-                // document.json — document.json is exactly what contains the
-                // ghost entries we're trying to detect. A doc entry whose
-                // fileName isn't in this set and has no local data is a ghost.
-                remotePageFileNames: remotePageEtags.keys.toSet(),
-                remoteDeletedFileNames: deletedRemotelyByEtag.toSet(),
-              )
-            : null;
-
-        // Auto-accept all non-conflicting changes silently.
-        // Only show UI when there are true per-page conflicts
-        // (both local and remote edited the same page).
-        if (conflicts.isEmpty && pending != null) {
-          print('[Canvas] Auto-accepting ${pending.totalChanges} remote '
-              'changes ($newCount new, $modCount modified'
-              '${needsHeal ? ", ${orphanSynthEntries.length} healed orphans" : ""}'
-              '${needsCorruptionHeal ? ", ${corruptedPages.length} corrupt-page reuploads" : ""})');
-          state = state!.copyWith(
-            pendingRemoteChanges: pending,
-            clearPendingConflicts: true,
-          );
-          acceptRemoteChanges();
-          // Any healed orphan means the server's document.json/metadata.json
-          // is inconsistent (page files exist in pages/ but aren't listed
-          // in document). Mark dirty so the next save() pushes the repaired
-          // document back to the server — regardless of whether we also
-          // received other pending changes in this cycle. Without this, a
-          // pull that both 'accepts' real new pages AND heals an orphan
-          // left the server broken forever (details.isNotEmpty gated the
-          // repair-upload out even though the repair is exactly what's
-          // needed to break the cycle).
-          if (needsHeal && state != null) {
-            state = state!.copyWith(isDirty: true);
-          }
-          // Corrupt-page heal: acceptRemoteChanges just rebuilt
-          // _lastSyncedPages from the merged map (which contains the
-          // LOCAL bytes for these pages, since updatedPages was seeded
-          // from s.pages and we never overwrote them). To make the next
-          // save() actually re-upload, we must evict their entries so
-          // _saveInner's `!_lastSyncedPages.containsKey(key)` branch
-          // detects them as fresh. Then mark dirty + schedule a save:
-          // the local copies overwrite the truncated server bytes, and
-          // a subsequent pull picks up the freshly-written ETag without
-          // FormatException.
-          if (needsCorruptionHeal && state != null) {
-            for (final fn in corruptedPages) {
-              _lastSyncedPages.remove(fn);
-            }
-            state = state!.copyWith(isDirty: true);
-            print('[Canvas] HEAL: ${corruptedPages.length} pages corrupt on '
-                'server (sample: ${corruptedPages.take(3).join(",")}'
-                '${corruptedPages.length > 3 ? "..." : ""}) — will re-upload '
-                'from local on the next save (auto-scheduled)');
-            // Schedule save just after the current pull releases its sync
-            // lock. 500ms gives the in-flight _savePulledChangesLocally
-            // time to land; save() acquires the lock cooperatively so a
-            // race here just queues behind the local persist instead of
-            // being dropped.
-            Timer(const Duration(milliseconds: 500), () {
-              if (_disposed) return;
-              if (state == null || state!.metadata.id != s.metadata.id) return;
-              unawaited(save());
-            });
-          }
-        } else {
-          state = state!.copyWith(
-            pendingRemoteChanges: pending,
-            pendingConflicts: conflicts.isNotEmpty ? conflicts : null,
-            clearPendingRemoteChanges: pending == null,
-            clearPendingConflicts: conflicts.isEmpty,
-          );
-          print('[Canvas] Pull result: ${conflicts.length} conflicts, '
-              '$modCount safe merges, $newCount new pages');
-        }
-      }
-    }
-    _lastPageEtags = Map.of(remotePageEtags);
-    // Await — if we only 'unawait' this, a notebook close fires right
-    // after a successful pull race the SharedPreferences write and the
-    // next open wakes up with _lastPageEtags={} → forces a full N-page
-    // re-sync even though nothing on the server changed.
-    await _persistLastPageEtags(s.metadata.id);
-    return anyPageChanged;
-  }
 
   // ══════════════════════════════════════════════════════════════
   //  ACCEPT / DISMISS REMOTE CHANGES
@@ -11482,7 +3680,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // pending.pages was captured at pull-start. If the user kept drawing
     // while the pull was in flight (slow Tailscale: 30-90s), state.pages[k]
     // is now a NEW PageData instance while repaired.pages[k] is the pre-pull
-    // snapshot. Identity vs _lastSyncedPages tells us whether the user
+    // snapshot. Identity vs _sync.lastSyncedPages tells us whether the user
     // touched this page since last sync; if yes keep live local, else take
     // remote. Plus: keep truly local-only pages, drop remote-deleted ones.
     final mergedPages = <String, PageData>{};
@@ -11504,7 +3702,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         continue;
       }
       final live = s.pages[k];
-      final lastSynced = _lastSyncedPages[k];
+      final lastSynced = _sync.lastSyncedPages[k];
       // Server page newer than ours while local edits exist (the pull saw
       // disjoint edits, or the user drew during the download): merge,
       // never pick a side. Keeping only live dropped the other device's
@@ -11521,9 +3719,9 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         // back, but nothing drawn is lost.
         final reMerged = (lastSynced == null
                 ? null
-                : CanvasNotifier._mergePageElements(
+                : mergePageElements(
                     base: lastSynced, local: live, remote: entry.value)) ??
-            CanvasNotifier._unionPageElements(local: live, remote: entry.value);
+            unionPageElements(local: live, remote: entry.value);
         mergedPages[k] = reMerged;
         // Base = the server page this merge contains. Dropping the base
         // (the old code) made the next pull see "no local edits".
@@ -11541,7 +3739,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
     for (final entry in s.pages.entries) {
       if (mergedPages.containsKey(entry.key)) continue;
-      final wasPreviouslySynced = _lastSyncedPages.containsKey(entry.key);
+      final wasPreviouslySynced = _sync.lastSyncedPages.containsKey(entry.key);
       if (wasPreviouslySynced) continue; // remote-deleted → drop
       mergedPages[entry.key] = entry.value; // truly local-only → keep
     }
@@ -11549,11 +3747,11 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // came back with this pull: the newer edit wins. Draining the queued
     // DELETE afterwards removed the file under a page list still naming it,
     // losing that edit on the server.
-    final revived = _pendingPageDeletes
+    final revived = _sync.pendingPageDeletes
         .where((fn) => repaired.pages.containsKey(fn))
         .toList();
     if (revived.isNotEmpty) {
-      _pendingPageDeletes.removeAll(revived);
+      _sync.pendingPageDeletes.removeAll(revived);
       unawaited(_persistPendingDeletes(s.metadata.id));
       print('[Canvas] Dropped queued delete for remotely edited page(s): '
           '${revived.join(", ")}');
@@ -11572,17 +3770,17 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // the server; prune only ghosts confirmed dead for _ghostPruneThreshold
     // pulls. Without keeping pending-hydration entries, a page whose download
     // merely failed this cycle on a flaky link would be wrongly dropped.
-    final surviving = _survivingFileNames(
+    final surviving = _pull.survivingFileNames(
       withData: mergedPages.keys,
       docPages: s.document.pages,
       serverFileNames: pending.remotePageFileNames,
       remoteDeleted: pending.remoteDeletedFileNames,
     );
-    final merged = CanvasNotifier._merge3Way(
-      baseMeta: _lastSyncedMetadata,
+    final merged = merge3Way(
+      baseMeta: _sync.lastSyncedMetadata,
       localMeta: s.metadata,
       remoteMeta: pending.metadata,
-      baseDoc: _lastSyncedDocument,
+      baseDoc: _sync.lastSyncedDocument,
       localDoc: s.document,
       remoteDoc: repaired.document,
       survivingFileNames: surviving,
@@ -11637,7 +3835,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     for (final entry in s.assetBytes.entries) {
       mergedAssets.putIfAbsent(entry.key, () => entry.value);
     }
-    _uploadedAssetKeys.addAll(pending.assets.keys);
+    _sync.uploadedAssetKeys.addAll(pending.assets.keys);
 
     state = s.copyWith(
       undoStack: rebaseHistoryOnMerge(s.undoStack, s.pages, mergedPages),
@@ -11650,15 +3848,15 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       activeChapterId: mergedChapterId,
       clearPendingRemoteChanges: true,
     );
-    _lastSyncedPages = newLastSynced;
+    _sync.lastSyncedPages = newLastSynced;
     // Baselines track SERVER TRUTH (what this pull observed), NOT the merged
     // result — the merge isn't on the server until we push it. Setting the
     // baseline to `merged` would let a pull during the push window read
     // local's own unpushed contributions as "remote reverted them" and drop
     // them. save() advances these to the merged doc once the upload commits.
-    _lastSyncedDocument = repaired.document;
-    _remoteDocVersion = _pendingDocVersion;
-    _lastSyncedMetadata = pending.metadata;
+    _sync.lastSyncedDocument = repaired.document;
+    _sync.remoteDocVersion = _sync.pendingDocVersion;
+    _sync.lastSyncedMetadata = pending.metadata;
 
     // If our local structural / metadata edits made the merged result differ
     // from what the server has, mark dirty so the next save pushes the merge
@@ -11674,8 +3872,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         finalDoc.pages.every((e) => mergedPages.containsKey(e.fileName));
     final needsPush = docConsistent &&
         (anyAutoMerged ||
-            CanvasNotifier._documentStructurallyDiffers(finalDoc, repaired.document) ||
-            CanvasNotifier._metadataStructurallyDiffers(finalMeta, pending.metadata));
+            documentStructurallyDiffers(finalDoc, repaired.document) ||
+            metadataStructurallyDiffers(finalMeta, pending.metadata));
     if (needsPush && state != null) {
       state = state!.copyWith(isDirty: true);
     }
@@ -11689,7 +3887,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // blank bytes-only in state.assetBytes with no ui.Image cached.
     // Without this call the user sees blank images/PDFs until they flip
     // to the next page and back (which triggers decode via goToPage).
-    _ensureAssetsForCurrentWindow();
+    _assets.ensureForCurrentWindow();
 
     // Persist the merged state locally. Tracked so closeNotebook() can
     // await it — otherwise exiting immediately after an auto-accept loses
@@ -11716,13 +3914,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       // (partial) pull — otherwise after a failed pull the notebook is stuck
       // showing the install-time pageCount (e.g. "1 pagina") until the user
       // opens it again and a retry succeeds.
-      _pendingPulledLocalSave = _persistPulledMetaOnly(finalMeta);
+      _sync.pendingPulledLocalSave = _persistPulledMetaOnly(finalMeta);
       return;
     }
     if (missingCount > 0) {
       print('[Canvas] acceptRemoteChanges: $missingCount merged page entries '
           'have no data — skipping .ncnote persist but refreshing DB metadata');
-      _pendingPulledLocalSave = _persistPulledMetaOnly(finalMeta);
+      _sync.pendingPulledLocalSave = _persistPulledMetaOnly(finalMeta);
       return;
     }
     // Two callers reach this point:
@@ -11740,13 +3938,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     //
     // The sync lock already serialises save() / pull correctly for case (a),
     // so all we need in (b) is to hold the lock while this pulled-save
-    // actually writes.  `_isPulling` tells us which case we're in.
-    if (_isPulling) {
-      _pendingPulledLocalSave = _savePulledChangesLocally(
+    // actually writes.  `_sync.isPulling` tells us which case we're in.
+    if (_sync.isPulling) {
+      _sync.pendingPulledLocalSave = _savePulledChangesLocally(
         finalMeta, finalDoc, mergedPages, mergedAssets,
       );
     } else {
-      _pendingPulledLocalSave = _runPulledSaveLocked(
+      _sync.pendingPulledLocalSave = _runPulledSaveLocked(
         finalMeta, finalDoc, mergedPages, mergedAssets,
       );
     }
@@ -11770,7 +3968,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
         remotePath: s?.remotePath ?? '',
         // Leave syncStatus as 'modified' so the next sync cycle will retry
         // the missing pages (synced would mask the incomplete state).
-        etag: _remoteMetaEtag,
+        etag: _sync.remoteMetaEtag,
         // Use now() — see _savePulledChangesLocally for the rationale:
         // the library's overwrite guard compares local_modified_at against
         // the root .ncnote's server mtime. If we stamp a server timestamp
@@ -11802,44 +4000,13 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     Map<String, PageData> pages,
     Map<String, Uint8List> assets,
   ) async {
-    final pulledSaveToken = await _acquireSyncLock();
+    final pulledSaveToken = await _sync.acquireLock();
     if (pulledSaveToken == null) return;
     try {
       await _savePulledChangesLocally(metadata, document, pages, assets);
     } finally {
-      _releaseSyncLock(pulledSaveToken);
+      _sync.releaseLock(pulledSaveToken);
     }
-  }
-
-  /// Inserts [extras] into [base] after the nearest page that precedes them
-  /// in [localOrder] and is already in the result (at the start if none).
-  @visibleForTesting
-  static List<PageEntry> placeByLocalOrder(List<PageEntry> base,
-      List<PageEntry> extras, List<PageEntry> localOrder) {
-    final out = [...base];
-    final localIndex = {
-      for (var i = 0; i < localOrder.length; i++) localOrder[i].fileName: i,
-    };
-    final sorted = [...extras]..sort((a, b) =>
-        (localIndex[a.fileName] ?? 1 << 30)
-            .compareTo(localIndex[b.fileName] ?? 1 << 30));
-    for (final e in sorted) {
-      final li = localIndex[e.fileName];
-      var at = out.length;
-      if (li != null) {
-        at = 0;
-        for (var j = li - 1; j >= 0; j--) {
-          final k =
-              out.indexWhere((p) => p.fileName == localOrder[j].fileName);
-          if (k >= 0) {
-            at = k + 1;
-            break;
-          }
-        }
-      }
-      out.insert(at, e);
-    }
-    return out;
   }
 
   /// User dismissed the incoming remote changes — keep local state.
@@ -11928,20 +4095,20 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // be resurrected by a later diff.
     //
     // IMPORTANT: pages NOT involved in the conflict keep their previous
-    // _lastSyncedPages entry intact — overwriting with the current in-memory
+    // _sync.lastSyncedPages entry intact — overwriting with the current in-memory
     // page would hide legitimate local edits on unrelated pages.
-    final newBaseline = Map<String, PageData>.from(_lastSyncedPages);
+    final newBaseline = Map<String, PageData>.from(_sync.lastSyncedPages);
     for (final conflict in s.pendingConflicts) {
       if (removedByDeletion.contains(conflict.fileName)) {
         newBaseline.remove(conflict.fileName);
-        _lastPageEtags.remove(conflict.fileName);
+        _sync.lastPageEtags.remove(conflict.fileName);
       } else if (resolutions[conflict.fileName] ?? true) {
         newBaseline.remove(conflict.fileName);
       } else {
         newBaseline[conflict.fileName] = updatedPages[conflict.fileName]!;
       }
     }
-    _lastSyncedPages = newBaseline;
+    _sync.lastSyncedPages = newBaseline;
 
     // A removed page may have left currentPageIndex past the end.
     final newIndex = updatedDoc.pages.isEmpty
@@ -11979,12 +4146,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // baseline entry — overwriting the whole map with `s.pages` made every
     // unsaved local edit on non-conflicted pages look already-synced,
     // silently excluding it from all future saves.
-    final newBaseline = Map<String, PageData>.from(_lastSyncedPages);
+    final newBaseline = Map<String, PageData>.from(_sync.lastSyncedPages);
     for (final conflict in s.pendingConflicts) {
       final live = s.pages[conflict.fileName];
       if (live != null) newBaseline[conflict.fileName] = live;
     }
-    _lastSyncedPages = newBaseline;
+    _sync.lastSyncedPages = newBaseline;
     state = s.copyWith(clearPendingConflicts: true);
     print('[Canvas] User dismissed all conflicts (kept local)');
   }
@@ -12005,33 +4172,12 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     }
   }
 
-  /// Resolve chapter name for a page entry.
-  static String? _chapterNameForPage(PageEntry? pageEntry, NotebookMetadata meta) {
-    if (pageEntry == null || pageEntry.chapterId == null) return null;
-    final idx = meta.chapters.indexWhere((c) => c.id == pageEntry.chapterId);
-    return idx >= 0 ? meta.chapters[idx].title : null;
-  }
-
-  /// Count elements by type in a page: (strokes, images, shapes, texts).
-  static (int, int, int, int) _elementCounts(PageData? page) {
-    if (page == null) return (0, 0, 0, 0);
-    var strokes = 0, images = 0, shapes = 0, texts = 0;
-    for (final el in page.layers.content) {
-      el.map(unknown: (_) => 0,
-        stroke: (_) => strokes++,
-        image: (_) => images++,
-        shape: (_) => shapes++,
-        text: (_) => texts++,
-        math: (_) => 0,
-      );
-    }
-    return (strokes, images, shapes, texts);
-  }
 
   /// Track an asset as dirty when added/modified (e.g. image paste/add).
-  void _markAssetDirty(String assetKey) {
-    _dirtyAssetKeys.add(assetKey);
-    _localDirtyAssetKeys.add(assetKey);
+  @override
+  void markAssetDirty(String assetKey) {
+    _sync.dirtyAssetKeys.add(assetKey);
+    _save.dirtyAssetKeys.add(assetKey);
   }
 
   /// Build a ZIP from the pulled state and save it locally so changes
@@ -12041,7 +4187,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   /// hasn't been pulled yet, they're silently dropped from the stored ZIP
   /// AND from the stored document, so the library card stays accurate and
   /// the next pull will re-request them via the "missingLocally" branch of
-  /// `_pullFromDeltaInner`.  This replaces the old behaviour that REFUSED
+  /// `_pullFromDelta`.  This replaces the old behaviour that REFUSED
   /// to save on any missing page — that guard was meant to prevent a
   /// "Nessuna pagina" state but in practice it meant that on a 100-page
   /// first-time pull a single transient failure threw away every already-
@@ -12091,10 +4237,10 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
     // Only what the store lacks, like save(): rebuilding and rewriting the
     // whole notebook on every pull cost hundreds of MB of disk writes on a
     // large one. Queued with the editor's own local writes.
-    await _withLocalLock(() =>
+    await _save.withLocalLock(() =>
         _savePulledIncremental(persistedMeta, persistedDoc, pages, assets));
     // Edits made after the merge are newer than what was just written.
-    _persistLocalIfBehind();
+    _save.persistLocalIfBehind();
   }
 
   /// Writes only the pulled pages and assets the local store doesn't hold yet,
@@ -12111,16 +4257,16 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       final hasStore = await fileService.hasLooseStore(id);
       final toWrite = <String, PageData>{
         for (final e in pages.entries)
-          if (!hasStore || !identical(_localStorePages[e.key], e.value))
+          if (!hasStore || !identical(_save.storedPages[e.key], e.value))
             e.key: e.value,
       };
       final newAssets = <String, Uint8List>{
         for (final e in assets.entries)
-          if (!hasStore || !_localStoreAssets.contains(e.key)) e.key: e.value,
+          if (!hasStore || !_save.storedAssets.contains(e.key)) e.key: e.value,
       };
       final docFiles = document.pages.map((e) => e.fileName).toSet();
       final deleted = [
-        for (final fn in _localStorePages.keys)
+        for (final fn in _save.storedPages.keys)
           if (!pages.containsKey(fn) && !docFiles.contains(fn)) fn,
       ];
       final symbols = state?.symbolLibraries ?? const <SymbolLibrary>[];
@@ -12141,23 +4287,23 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
       );
       if (state?.metadata.id == id) {
         if (!hasStore) {
-          _localStorePages = {};
-          _localStoreAssets = {};
+          _save.storedPages = {};
+          _save.storedAssets = {};
         }
-        _localStorePages.addAll(toWrite);
+        _save.storedPages.addAll(toWrite);
         for (final fn in deleted) {
-          _localStorePages.remove(fn);
+          _save.storedPages.remove(fn);
         }
-        _localStoreAssets.addAll(newAssets.keys);
-        _localStoreDoc = document;
-        _localStoreMeta = metadata;
-        _localStoreSymbols = state?.symbolLibraries;
+        _save.storedAssets.addAll(newAssets.keys);
+        _save.storedDoc = document;
+        _save.storedMeta = metadata;
+        _save.storedSymbols = state?.symbolLibraries;
       }
       await fileService.upsertNotebookMeta(
         id: id,
         title: metadata.title,
         remotePath: state?.remotePath ?? '',
-        etag: _remoteMetaEtag,
+        etag: _sync.remoteMetaEtag,
         localModifiedAt: DateTime.now(),
         syncStatus: 'synced',
         fileSize: await fileService.looseStoreSize(id),
@@ -12226,461 +4372,6 @@ class CanvasNotifier extends StateNotifier<CanvasState?> {
   static const int _encodeYieldBatch = 3;
 }
 
-/// Compact JSON encode for a PageData.
-///
-/// Two reductions applied:
-///
-/// (1) Doubles rounded to 3 decimals (sub-1‰ — well below visible
-///     pixel precision and finer than the tablet's 10-bit ADC).
-///
-/// (2) StrokePoint objects emitted as compact arrays
-///     `[x, y, pressure?, tilt?, timestamp?]` with trailing defaults
-///     omitted. A point with pressure=0.5, tilt=0, timestamp=0
-///     becomes `[x, y]` (2 elements) instead of a 5-field object.
-///     Decoder counter-part is [_expandStrokePointsInPlace] (applied
-///     via [decodePageData]) which restores the map form before
-///     handing to the generated PageData.fromJson.
-///
-/// Combined effect on a typical 100-point stroke: JSON drops from
-/// ~8-10 KB to ~1.5-2.5 KB (75-85% smaller). Same wire schema for
-/// the surrounding tree, both forms accepted on read so old notebooks
-/// continue to load unchanged.
-///
-/// Elements are immutable, so each one's encoding is kept by identity: saving
-/// a dense page after one more stroke encodes that stroke, not the page.
-String compactPageJson(PageData page) =>
-    _spliceContent(page, (e) => _elementJson[e] ??= _compactElementJson(e)) ??
-    _compactTreeJson(page.toJson());
-
-/// [page]'s compact JSON with each content element written by [element];
-/// null if the page JSON has no place for them (cannot happen in practice).
-String? _spliceContent(
-    PageData page, String Function(ContentElement) element) {
-  final content = page.layers.content;
-  final skeleton = _compactTreeJson(
-      page.copyWith(layers: page.layers.copyWith(content: const [])).toJson());
-  if (content.isEmpty) return skeleton;
-  // Cannot occur inside a JSON string: the quote after `content` would be escaped.
-  const hole = '"content":[]';
-  final at = skeleton.indexOf(hole);
-  if (at < 0) return null;
-  final out = StringBuffer(skeleton.substring(0, at + hole.length - 1));
-  for (var i = 0; i < content.length; i++) {
-    if (i > 0) out.write(',');
-    out.write(element(content[i]));
-  }
-  out.write(skeleton.substring(at + hole.length - 1));
-  return out.toString();
-}
-
-final _elementJson = Expando<String>('compactElementJson');
-
-String _compactTreeJson(Object? raw) {
-  final rounded = _roundFloatsInPlace(raw);
-  _compactStrokePointsInPlace(rounded);
-  return jsonEncode(rounded);
-}
-
-String _compactElementJson(ContentElement e) {
-  if (e is! StrokeElement) {
-    return _compactTreeJson(const ContentListConverter().toJson([e]).single);
-  }
-  final points = e.data.points;
-  final shell = _compactTreeJson(e.copyWith.data(points: const []).toJson());
-  const hole = '"points":[]';
-  final at = shell.indexOf(hole);
-  if (at < 0) return _compactTreeJson(e.toJson());
-  final out = StringBuffer(shell.substring(0, at + hole.length - 1));
-  for (var i = 0; i < points.length; i++) {
-    final p = points[i];
-    if (!p.x.isFinite || !p.y.isFinite || !p.pressure.isFinite || !p.tilt.isFinite) {
-      return _compactTreeJson(e.toJson()); // jsonEncode's own handling
-    }
-    if (i > 0) out.write(',');
-    // Same rounding and default trimming as _pointMapToArray.
-    final pr = (p.pressure * 1000).round() / 1000, t = (p.tilt * 1000).round() / 1000;
-    out
-      ..write('[')
-      ..write((p.x * 1000).round() / 1000)
-      ..write(',')
-      ..write((p.y * 1000).round() / 1000);
-    if (p.timestamp != 0 || t != 0.0 || pr != 0.5) out..write(',')..write(pr);
-    if (p.timestamp != 0 || t != 0.0) out..write(',')..write(t);
-    if (p.timestamp != 0) out..write(',')..write(p.timestamp);
-    out.write(']');
-  }
-  out.write(shell.substring(at + hole.length - 1));
-  return out.toString();
-}
-
-/// Counterpart to [compactPageJson]: reads both point forms, the compact
-/// `[x,y,p,t,ts]` arrays and the older maps. Mutates [json]: stroke points
-/// are built here directly, so `PageData.fromJson` never sees one map per
-/// point. Always use this instead of `PageData.fromJson` on page JSON.
-PageData decodePageData(Map<String, dynamic> json) {
-  final layers = json['layers'];
-  final content = layers is Map ? layers['content'] : null;
-  final points = <int, List<StrokePoint>>{};
-  if (content is List) {
-    for (var i = 0; i < content.length; i++) {
-      final e = content[i];
-      if (e is! Map || e['type'] != 'stroke') continue;
-      final data = e['data'];
-      final pts = data is Map ? data['points'] : null;
-      if (pts is List && pts.isNotEmpty) {
-        points[i] = _decodeStrokePoints(pts);
-        data['points'] = const <dynamic>[];
-      }
-    }
-  }
-  return _withPoints(PageData.fromJson(json), points);
-}
-
-/// [page] with the strokes at the given content indices given these points.
-PageData _withPoints(PageData page, Map<int, List<StrokePoint>> points) {
-  if (points.isEmpty) return page;
-  // ContentListConverter keeps one element per entry, so indices line up.
-  final elements = List<ContentElement>.of(page.layers.content);
-  points.forEach((i, pts) {
-    final e = elements[i];
-    if (e is StrokeElement) elements[i] = e.copyWith.data(points: pts);
-  });
-  return page.copyWith(layers: page.layers.copyWith(content: elements));
-}
-
-// ── Page bytes ──
-//
-// A page is stored as compact JSON or in a binary form with the same
-// content: "ABPG", a version byte, the length and UTF-8 of the page's compact
-// JSON with every stroke's points left out, the number of strokes, then each
-// stroke's points as zigzag varint deltas of thousandths, the precision the
-// JSON keeps. Readers take both; writers use the binary form only once
-// [AppConfig.writeBinaryPages] is on. Format notes: ABELNOTE_FORMAT_GUIDE.md.
-
-const _binMagic = [0x41, 0x42, 0x50, 0x47]; // "ABPG"
-const _binVersion = 1;
-
-/// A binary page in a format newer than this app reads. Not a
-/// [FormatException]: the page is not corrupt, and nothing may overwrite it.
-class PageFormatTooNewException implements Exception {
-  const PageFormatTooNewException(this.version);
-  final int version;
-  @override
-  String toString() =>
-      'PageFormatTooNewException: page format $version is newer than this app reads';
-}
-
-/// The bytes a page is stored as, on disk and on the server.
-Uint8List encodePageBytes(PageData page) =>
-    (AppConfig.writeBinaryPages ? binaryPageBytes(page) : null) ??
-    Uint8List.fromList(utf8.encode(compactPageJson(page)));
-
-bool isBinaryPage(List<int> bytes) =>
-    bytes.length > 4 &&
-    bytes[0] == _binMagic[0] &&
-    bytes[1] == _binMagic[1] &&
-    bytes[2] == _binMagic[2] &&
-    bytes[3] == _binMagic[3];
-
-/// Reads a stored page in either form. A damaged page throws
-/// [FormatException], a binary page of a later format
-/// [PageFormatTooNewException].
-PageData decodePageBytes(List<int> bytes) {
-  if (isBinaryPage(bytes)) {
-    return _decodeBinaryPage(
-        bytes is Uint8List ? bytes : Uint8List.fromList(bytes));
-  }
-  return decodePageData(
-      jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>);
-}
-
-/// [page] in the binary form; null for a stroke point that is not a finite
-/// number, which only the JSON path handles.
-Uint8List? binaryPageBytes(PageData page) {
-  final blocks = <Uint8List>[];
-  for (final e in page.layers.content) {
-    if (e is! StrokeElement) continue;
-    final block = _pointBlocks[e] ?? _encodePointBlock(e.data.points);
-    if (block == null) return null;
-    blocks.add(_pointBlocks[e] = block);
-  }
-  final skeleton = _spliceContent(page, _skeletonElementJson);
-  if (skeleton == null) return null;
-  final json = utf8.encode(skeleton);
-  final w = _ByteWriter()
-    ..bytes(_binMagic)
-    ..byte(_binVersion)
-    ..varint(json.length)
-    ..bytes(json)
-    ..varint(blocks.length);
-  for (final b in blocks) {
-    w.bytes(b);
-  }
-  return w.take();
-}
-
-final _pointBlocks = Expando<Uint8List>('binaryPointBlock');
-final _skeletonJson = Expando<String>('binaryElementSkeleton');
-
-String _skeletonElementJson(ContentElement e) => e is StrokeElement
-    ? (_skeletonJson[e] ??=
-        _compactTreeJson(e.copyWith.data(points: const []).toJson()))
-    : (_elementJson[e] ??= _compactElementJson(e));
-
-Uint8List? _encodePointBlock(List<StrokePoint> pts) {
-  final n = pts.length;
-  final xs = List<int>.filled(n, 0), ys = List<int>.filled(n, 0);
-  final ps = List<int>.filled(n, 0), ts = List<int>.filled(n, 0);
-  final ms = List<int>.filled(n, 0);
-  var flags = 0;
-  for (var i = 0; i < n; i++) {
-    final p = pts[i];
-    if (!p.x.isFinite || !p.y.isFinite || !p.pressure.isFinite || !p.tilt.isFinite) {
-      return null;
-    }
-    // Same rounding as compactPageJson, so both forms decode alike.
-    xs[i] = (p.x * 1000).round();
-    ys[i] = (p.y * 1000).round();
-    ps[i] = (p.pressure * 1000).round();
-    ts[i] = (p.tilt * 1000).round();
-    ms[i] = p.timestamp;
-    if (ps[i] != 500) flags |= 1;
-    if (ts[i] != 0) flags |= 2;
-    if (ms[i] != 0) flags |= 4;
-  }
-  final w = _ByteWriter()
-    ..varint(n)
-    ..byte(flags);
-  void run(List<int> v) {
-    var prev = 0;
-    for (final x in v) {
-      w.zigzag(x - prev);
-      prev = x;
-    }
-  }
-
-  run(xs);
-  run(ys);
-  if (flags & 1 != 0) run(ps);
-  if (flags & 2 != 0) run(ts);
-  if (flags & 4 != 0) run(ms);
-  return w.take();
-}
-
-PageData _decodeBinaryPage(Uint8List b) {
-  final version = b[4];
-  if (version > _binVersion) throw PageFormatTooNewException(version);
-  if (version != _binVersion) {
-    throw const FormatException('binary page: unknown version');
-  }
-  try {
-    final r = _ByteReader(b, 5);
-    final length = r.varint();
-    final end = r.pos + length;
-    if (end > b.length) throw const FormatException('binary page: truncated');
-    final json = jsonDecode(utf8.decode(Uint8List.sublistView(b, r.pos, end)))
-        as Map<String, dynamic>;
-    r.pos = end;
-    final count = r.varint();
-    final layers = json['layers'];
-    final content = layers is Map ? layers['content'] : null;
-    final points = <int, List<StrokePoint>>{};
-    if (content is List) {
-      for (var i = 0; i < content.length; i++) {
-        final e = content[i];
-        if (e is! Map || e['type'] != 'stroke') continue;
-        if (points.length == count) {
-          throw const FormatException('binary page: missing points');
-        }
-        points[i] = _readPointBlock(r);
-      }
-    }
-    if (points.length != count || r.pos != b.length) {
-      throw const FormatException('binary page: strokes do not match');
-    }
-    return _withPoints(PageData.fromJson(json), points);
-  } on ArgumentError {
-    // Index past the end: a cut-off file.
-    throw const FormatException('binary page: truncated');
-  }
-}
-
-List<StrokePoint> _readPointBlock(_ByteReader r) {
-  final n = r.varint();
-  final flags = r.byte();
-  // Each point takes at least two bytes: a bigger count is damage.
-  if (n * 2 > r.b.length - r.pos) {
-    throw const FormatException('binary page: bad point count');
-  }
-  List<int> run() {
-    final v = List<int>.filled(n, 0);
-    var acc = 0;
-    for (var i = 0; i < n; i++) {
-      acc += r.zigzag();
-      v[i] = acc;
-    }
-    return v;
-  }
-
-  final xs = run(), ys = run();
-  final ps = flags & 1 != 0 ? run() : null;
-  final ts = flags & 2 != 0 ? run() : null;
-  final ms = flags & 4 != 0 ? run() : null;
-  return List<StrokePoint>.generate(
-    n,
-    (i) => StrokePoint(
-      x: xs[i] / 1000,
-      y: ys[i] / 1000,
-      pressure: ps == null ? 0.5 : ps[i] / 1000,
-      tilt: ts == null ? 0.0 : ts[i] / 1000,
-      timestamp: ms == null ? 0 : ms[i],
-    ),
-    growable: false,
-  );
-}
-
-// Varints by arithmetic, not shifts: on the web an int is a double and
-// shifts cut it to 32 bits.
-class _ByteWriter {
-  Uint8List _b = Uint8List(256);
-  int _n = 0;
-
-  void _room(int k) {
-    if (_n + k <= _b.length) return;
-    var size = _b.length * 2;
-    while (size < _n + k) {
-      size *= 2;
-    }
-    _b = Uint8List(size)..setRange(0, _n, _b);
-  }
-
-  void byte(int v) {
-    _room(1);
-    _b[_n++] = v;
-  }
-
-  void bytes(List<int> v) {
-    _room(v.length);
-    _b.setRange(_n, _n + v.length, v);
-    _n += v.length;
-  }
-
-  void varint(int v) {
-    _room(10);
-    while (v >= 0x80) {
-      _b[_n++] = 0x80 + v % 0x80;
-      v = v ~/ 0x80;
-    }
-    _b[_n++] = v;
-  }
-
-  void zigzag(int v) => varint(v >= 0 ? v * 2 : -v * 2 - 1);
-
-  Uint8List take() => _b.sublist(0, _n);
-}
-
-class _ByteReader {
-  _ByteReader(this.b, this.pos);
-  final Uint8List b;
-  int pos;
-
-  int byte() => b[pos++];
-
-  int varint() {
-    var v = 0, scale = 1;
-    while (true) {
-      final x = b[pos++];
-      v += (x % 0x80) * scale;
-      if (x < 0x80) return v;
-      scale *= 0x80;
-      if (scale > 9007199254740992) {
-        throw const FormatException('binary page: varint too long');
-      }
-    }
-  }
-
-  int zigzag() {
-    final z = varint();
-    return z.isEven ? z ~/ 2 : -((z + 1) ~/ 2);
-  }
-}
-
-/// Same values and defaults as StrokePoint.fromJson on the expanded map.
-List<StrokePoint> _decodeStrokePoints(List pts) => [
-      for (final p in pts)
-        if (p is List)
-          StrokePoint(
-            x: (p[0] as num).toDouble(),
-            y: (p[1] as num).toDouble(),
-            pressure: p.length > 2 ? (p[2] as num?)?.toDouble() ?? 0.5 : 0.5,
-            tilt: p.length > 3 ? (p[3] as num?)?.toDouble() ?? 0.0 : 0.0,
-            timestamp: p.length > 4 ? (p[4] as num?)?.toInt() ?? 0 : 0,
-          )
-        else
-          StrokePoint.fromJson(p as Map<String, dynamic>),
-    ];
-
-Object? _roundFloatsInPlace(Object? v) {
-  if (v is double) {
-    // Arithmetic rounding, NOT double.parse(v.toStringAsFixed(3)): the
-    // string round-trip allocates+parses a String per double, and a
-    // dense page is ~80k doubles — that was measurable jank on every
-    // save since encoding runs on the main thread. The two roundings
-    // can differ by 1 ulp on ties, irrelevant at page-coordinate scale.
-    return v.isFinite ? (v * 1000).round() / 1000 : v;
-  }
-  if (v is Map) {
-    final out = <String, Object?>{};
-    v.forEach((k, val) {
-      out[k as String] = _roundFloatsInPlace(val);
-    });
-    return out;
-  }
-  if (v is List) {
-    return v.map(_roundFloatsInPlace).toList(growable: false);
-  }
-  return v;
-}
-
-/// Walk the page JSON tree and replace `points: [{...}, {...}]` lists
-/// inside a `stroke` ContentElement with compact `points: [[x,y,..], ..]`.
-/// Operates in place on the tree produced by toJson() — only the
-/// `points` list under each stroke element is mutated, the rest of
-/// the structure (zIndex, id, data wrapper, type) stays intact.
-void _compactStrokePointsInPlace(Object? v) {
-  if (v is Map) {
-    if (v['type'] == 'stroke') {
-      final data = v['data'];
-      if (data is Map && data['points'] is List) {
-        final pts = data['points'] as List;
-        for (var i = 0; i < pts.length; i++) {
-          final p = pts[i];
-          if (p is Map) pts[i] = _pointMapToArray(p);
-        }
-      }
-    }
-    v.forEach((_, val) {
-      if (val is Map || val is List) _compactStrokePointsInPlace(val);
-    });
-  } else if (v is List) {
-    for (final item in v) { _compactStrokePointsInPlace(item); }
-  }
-}
-
-List<num> _pointMapToArray(Map p) {
-  final x = p['x'] as num;
-  final y = p['y'] as num;
-  final pr = (p['pressure'] as num?) ?? 0.5;
-  final t = (p['tilt'] as num?) ?? 0.0;
-  final ts = (p['timestamp'] as num?) ?? 0;
-  // Trim trailing defaults so quick taps / mouse strokes (no real
-  // pressure or timestamp) compact to just [x, y].
-  if (ts == 0 && t == 0.0 && pr == 0.5) return <num>[x, y];
-  if (ts == 0 && t == 0.0) return <num>[x, y, pr];
-  if (ts == 0) return <num>[x, y, pr, t];
-  return <num>[x, y, pr, t, ts];
-}
-
 /// Tiny record tying cached encoded bytes to the exact [PageData] instance
 /// they were produced from. Identity check (`identical`) is enough because
 /// [PageData] is a freezed/immutable model.
@@ -12689,10 +4380,3 @@ class _CachedPageJson {
   final Uint8List bytes;
   const _CachedPageJson(this.page, this.bytes);
 }
-
-
-/// The server changed under a push; the caller merges first.
-class _ServerMovedException implements Exception {}
-
-/// The server no longer holds the notebook.
-class _RemoteGoneException implements Exception {}

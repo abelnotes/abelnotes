@@ -46,6 +46,33 @@ jobs:
       - run: flutter test
       - run: flutter test --platform chrome test/browser_file_export_test.dart
 
+  # The web editor must draw a page and a stroke: a layout slip once left
+  # every page blank on the PWA while native builds were fine.
+  web-smoke:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: bash tool/build_web.sh /
+      - run: npm install --no-save --no-package-lock playwright@1.56.1
+      - run: npx playwright install --with-deps chromium
+      - name: Page and stroke render
+        run: |
+          (cd build/web && python3 -m http.server 7390 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          sleep 2
+          node tool/web_smoke.mjs http://127.0.0.1:7390/ web-smoke.png
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: web-smoke
+          path: web-smoke.png
+
   windows:
     needs: check
     runs-on: windows-latest

@@ -1209,18 +1209,8 @@ class CanvasRenderEngine extends CustomPainter {
     // Content
     final sortedContent = List<ContentElement>.from(pageData.layers.content)
       ..sort((a, b) {
-        final aZ = a.map(unknown: (u) => u.zIndex,
-            stroke: (s) => s.zIndex,
-            text: (t) => t.zIndex,
-            image: (i) => i.zIndex,
-            shape: (s) => s.zIndex,
-            math: (m) => m.zIndex);
-        final bZ = b.map(unknown: (u) => u.zIndex,
-            stroke: (s) => s.zIndex,
-            text: (t) => t.zIndex,
-            image: (i) => i.zIndex,
-            shape: (s) => s.zIndex,
-            math: (m) => m.zIndex);
+        final aZ = a.zIndex;
+        final bZ = b.zIndex;
         return aZ.compareTo(bZ);
       });
 

@@ -90,6 +90,37 @@ void main() {
     expect(_ids(c.read(canvasProvider)!.pages['p1.json']), ['a', 'x']);
   });
 
+  test('an edit that changes nothing leaves undo and redo alone', () {
+    final cur = _page('p1', [_line('a', 10)]);
+    final undo = UndoEntry('p1.json', _page('p1', []));
+    final redo = UndoEntry('p1.json', _page('p1', [_line('a', 10), _line('z', 90)]));
+    n.state = _state({'p1.json': cur}, undo: [undo]);
+    n.state = n.state!.copyWith(redoStack: [redo]);
+
+    n.deleteElement('nope');
+    var s = c.read(canvasProvider)!;
+    expect(s.undoStack, [undo]);
+    expect(s.redoStack, [redo]);
+    expect(s.isDirty, isFalse);
+
+    n.state = _state({'p1.json': _page('p1', [])}, undo: [undo]);
+    n.state = n.state!.copyWith(redoStack: [redo]);
+    n.clearPage();
+    s = c.read(canvasProvider)!;
+    expect(s.undoStack, [undo]);
+    expect(s.redoStack, [redo]);
+    expect(s.isDirty, isFalse);
+
+    // A real delete still records one step and drops redo.
+    n.state = _state({'p1.json': cur}, undo: [undo]);
+    n.state = n.state!.copyWith(redoStack: [redo]);
+    n.deleteElement('a');
+    s = c.read(canvasProvider)!;
+    expect(s.undoStack.length, 2);
+    expect(s.redoStack, isEmpty);
+    expect(s.isDirty, isTrue);
+  });
+
   test('undo with a pending move reverts that move and keeps older strokes', () {
     final older = _page('p1', [_line('a', 10)]);
     final cur = _page('p1', [_line('a', 10), _line('b', 40)]);
@@ -109,6 +140,34 @@ void main() {
     s = c.read(canvasProvider)!;
     expect(_y(s.pages['p1.json']!, 'b'), 140);
     expect(_ids(s.pages['p1.json']), ['a', 'b']);
+  });
+
+  test('duplicate and copy keep a pending lasso move', () {
+    const moved = LassoSelection(
+        selectedIds: ['a'],
+        bounds: Rect.fromLTWH(10, 10, 90, 0),
+        dragOffset: Offset(0, 100));
+    n.state = _state({'p1.json': _page('p1', [_line('a', 10)])}, lasso: moved);
+    n.duplicateSelection();
+    var s = c.read(canvasProvider)!;
+    final page = s.pages['p1.json']!;
+    final copyId = _ids(page).firstWhere((id) => id != 'a');
+    expect(_y(page, 'a'), 110);
+    expect(_y(page, copyId), 130);
+    // Undo walks back the copy, then the move: two steps.
+    expect(s.undoStack.length, 2);
+    n.undo();
+    expect(_ids(c.read(canvasProvider)!.pages['p1.json']), ['a']);
+    expect(_y(c.read(canvasProvider)!.pages['p1.json']!, 'a'), 110);
+
+    n.state = _state({'p1.json': _page('p1', [_line('a', 10)])}, lasso: moved);
+    n.copySelection();
+    s = c.read(canvasProvider)!;
+    expect(_y(s.pages['p1.json']!, 'a'), 110);
+    final clip = s.clipboard!.elements.single.mapOrNull(stroke: (e) => e)!;
+    expect(clip.data.points.first.y, 110);
+    // Bounds are re-measured from the moved stroke (pen width included).
+    expect(s.clipboard!.bounds.top, closeTo(110, 2));
   });
 
   test('redo does not commit a pending move over the redo history', () {

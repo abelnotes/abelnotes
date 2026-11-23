@@ -11,6 +11,8 @@ import 'package:abelnotes/core/providers/canvas_provider.dart'
 import 'package:abelnotes/features/canvas/data/pdf_sources.dart';
 import 'package:abelnotes/core/services/file_service.dart';
 import 'package:abelnotes/core/services/remote_store.dart';
+import 'package:abelnotes/core/sync/stroke_ops.dart';
+import 'package:abelnotes/core/sync/stroke_ops_remote.dart';
 import 'package:abelnotes/shared/models/ncnote_format.dart';
 
 /// Runs at most [max] remote calls at once. Firing every page at the
@@ -94,6 +96,10 @@ class SyncService {
   /// loadLooseStoreFromDisk, parseNcnoteMetadata, buildPackageBytes) never
   /// touch this, so they run offline; only real network operations reach it.
   RemoteStore get _remote => _remoteOrNull ?? (throw NoRemoteException());
+
+  /// Stroke delta chunks of this server (see StrokeOps); unused while off.
+  @visibleForTesting
+  late final StrokeOpsRemote strokeOps = StrokeOpsRemote(_remote);
 
   // ── Integrity Protection ──
 
@@ -388,6 +394,7 @@ class SyncService {
     _explodedDirsReady.remove(notebookId);
     _deltaCommitted.remove(notebookId);
     _remote.forgetCached(_deltaDir(notebookId));
+    if (StrokeOps.read) strokeOps.forget(notebookId);
   }
 
   /// Creates the exploded folder structure on the server (idempotent).
@@ -552,6 +559,62 @@ class SyncService {
     }
   }
 
+  /// The chunk for [page] when one may replace the page write (design:
+  /// lib/core/sync/README.md, "Push"); null writes the page.
+  OpChunk? _chunkFor(String notebookId, String fileName, PageData page,
+      String? baseVersion, PageData? baseline) {
+    final rec = strokeOps.baseOf(notebookId, fileName);
+    if (baseVersion == null ||
+        baseline == null ||
+        rec == null ||
+        !identical(rec.page, baseline) ||
+        rec.version != baseVersion) {
+      return null;
+    }
+    if (splitPageVersion(baseVersion).chunks.length >=
+        StrokeOps.maxLiveChunks) {
+      return null;
+    }
+    final chunk = diffPage(baseline, page);
+    if (chunk == null) return null;
+    final snapshot = strokeOps.snapshotBytes(notebookId, fileName);
+    final live = strokeOps.chunkBytes(notebookId, fileName, baseVersion);
+    if (snapshot >= StrokeOps.compactFromBytes &&
+        live + encodeChunk(chunk).length > snapshot) {
+      return null;
+    }
+    return chunk;
+  }
+
+  /// Uploads [chunk] for [fileName] over [baseVersion]; returns the page's
+  /// new version. Throws [_PageMovedOnServer] when the page is gone.
+  Future<String> _putChunk(String notebookId, String dir, String fileName,
+      PageData page, OpChunk chunk, String baseVersion, int timeoutSeconds) async {
+    final base = splitPageVersion(baseVersion);
+    if (chunk.isEmpty && chunk.modifiedAt == strokeOps.baseOf(notebookId, fileName)?.page.modifiedAt) {
+      strokeOps.recordBase(notebookId, fileName, baseVersion, page);
+      return baseVersion;
+    }
+    final id = await strokeOps.write(dir, fileName, chunk,
+        timeoutSeconds: timeoutSeconds);
+    // Deleted on another device meanwhile: the pull must show that.
+    var gone = false;
+    try {
+      gone = await _remote.getVersion('${dir}pages/$fileName') == null &&
+          _remote.nullVersionMeansAbsent;
+    } on RemoteStoreException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      gone = true;
+    }
+    if (gone) {
+      await strokeOps.deleteChunks(notebookId, dir, fileName, [id]);
+      throw const _PageMovedOnServer();
+    }
+    final version = pageVersion(base.snapshot, [...base.chunks, id]);
+    strokeOps.recordBase(notebookId, fileName, version, page);
+    return version;
+  }
+
   /// First time each page upload found its file gone, see [_putPageIfUnchanged].
   final Map<String, DateTime> _absentSince = {};
 
@@ -621,6 +684,8 @@ class SyncService {
     List<String>? deletedAssetFileNames,
     Map<String, String>? pageBaseVersions,
     String? documentBaseVersion,
+    Map<String, PageData>? pageBaselines,
+    Set<String> compactPages = const {},
   }) async {
     try {
       return await _syncDeltaInner(
@@ -635,6 +700,8 @@ class SyncService {
         deletedAssetFileNames: deletedAssetFileNames,
         pageBaseVersions: pageBaseVersions,
         documentBaseVersion: documentBaseVersion,
+        pageBaselines: pageBaselines,
+        compactPages: compactPages,
       );
     } catch (e) {
       // A 409/404 mid-upload usually means the delta folder vanished under
@@ -670,6 +737,8 @@ class SyncService {
     List<String>? deletedAssetFileNames,
     Map<String, String>? pageBaseVersions,
     String? documentBaseVersion,
+    Map<String, PageData>? pageBaselines,
+    Set<String> compactPages = const {},
   }) async {
     await _ensureDeltaDir(notebookId);
     final dir = _deltaDir(notebookId);
@@ -691,6 +760,10 @@ class SyncService {
             debugPrint('[Sync] Delete of pages/$fileName failed: $e');
           }),
         );
+        if (StrokeOps.read) {
+          deleteFutures.add(strokeOps.deleteChunks(notebookId, dir, fileName,
+              strokeOps.chunksOf(notebookId, fileName)));
+        }
       }
     }
     if (deletedAssetFileNames != null && deletedAssetFileNames.isNotEmpty) {
@@ -725,6 +798,22 @@ class SyncService {
     final movedPages = <String>[];
 
     for (final e in dirtyPages.entries) {
+      final chunk = StrokeOps.writing && !compactPages.contains(e.key)
+          ? _chunkFor(notebookId, e.key, e.value,
+              pageBaseVersions?[e.key], pageBaselines?[e.key])
+          : null;
+      if (chunk != null) {
+        final fn = e.key;
+        pageUploads[fn] = gate
+            .run<String?>(() => _putChunk(notebookId, dir, fn, e.value, chunk,
+                pageBaseVersions![fn]!, dt))
+            .catchError((Object err, StackTrace st) {
+          if (err is! _PageMovedOnServer) Error.throwWithStackTrace(err, st);
+          movedPages.add(fn);
+          return null;
+        });
+        continue;
+      }
       // compactPageJson() rounds doubles to 3 decimals — cuts the per-
       // page wire payload by ~60% with zero deserializer changes (it
       // already accepts any numeric precision via `as num`). On a
@@ -732,26 +821,45 @@ class SyncService {
       // preEncodedPages (from the save path's per-identity cache) skips
       // re-running that encode on the UI isolate — the save already
       // produced the exact same bytes for the local ZIP build.
-      final bytes = preEncodedPages?[e.key] ??
+      var bytes = preEncodedPages?[e.key] ??
           encodePageBytes(e.value);
       final path = '${dir}pages/${e.key}';
-      final base =
+      var base =
           _conditionalPagePuts ? (pageBaseVersions?[e.key]) : null;
+      // With stroke chunks, a page write folds the chunks of its base.
+      final folded = StrokeOps.read
+          ? strokeOps.foldedBy(notebookId, e.key, pageBaseVersions?[e.key])
+          : const <ChunkId>{};
+      if (StrokeOps.read) {
+        bytes = withFoldedOps(bytes, folded);
+        if (base != null) base = splitPageVersion(base).snapshot;
+      }
+      final Future<String?> upload;
       if (base == null) {
         // Atomic even without a precondition: the page overwritten here
         // may be the only good copy anywhere.
-        pageUploads[e.key] = gate.run(
-            () => _remote.uploadFileAtomic(path, bytes, timeoutSeconds: dt));
+        final b = bytes;
+        upload = gate.run(
+            () => _remote.uploadFileAtomic(path, b, timeoutSeconds: dt));
       } else {
-        final fn = e.key;
-        pageUploads[fn] = gate
-            .run(() => _putPageIfUnchanged(path, bytes, base, dt))
+        final fn = e.key, b = bytes, v = base;
+        upload = gate
+            .run(() => _putPageIfUnchanged(path, b, v, dt))
             .catchError((Object err, StackTrace st) {
           if (err is! _PageMovedOnServer) Error.throwWithStackTrace(err, st);
           movedPages.add(fn);
           return null;
         });
       }
+      pageUploads[e.key] = !StrokeOps.read
+          ? upload
+          : upload.then((etag) async {
+              if (etag == null) return etag;
+              await strokeOps.deleteChunks(notebookId, dir, e.key, folded);
+              strokeOps.wroteSnapshot(notebookId, e.key,
+                  etag.replaceAll('"', ''), e.value, folded, bytes.length);
+              return etag;
+            });
     }
 
     // Track expected sizes of asset uploads for the batched post-PUT
@@ -1015,15 +1123,35 @@ class SyncService {
   /// that want a tolerant default can catch and interpret themselves.
   Future<Map<String, String>> getRemotePageEtags(String notebookId) async {
     final dir = _deltaDir(notebookId);
-    final items = await _remote.listDirectory('${dir}pages/');
+    final List<RemoteItem> items;
+    OpsListing? ops;
+    if (StrokeOps.read) {
+      final both = await Future.wait<Object>([
+        _remote.listDirectory('${dir}pages/'),
+        strokeOps.list(notebookId, dir),
+      ]);
+      items = both[0] as List<RemoteItem>;
+      ops = both[1] as OpsListing;
+    } else {
+      items = await _remote.listDirectory('${dir}pages/');
+    }
     _sweepAbandonedUploads('${dir}pages/', items);
-    return {
+    final etags = {
       for (final item in items)
         if (!item.isDirectory &&
             item.name.endsWith('.json') &&
             item.version != null)
           item.name: item.version!,
     };
+    if (ops == null) return etags;
+    // Only writers sweep: README.md, "Read on, write off".
+    if (StrokeOps.writing) {
+      strokeOps.sweepOrphans(notebookId, dir, {
+        for (final item in items)
+          if (!item.isDirectory && item.name.endsWith('.json')) item.name,
+      });
+    }
+    return strokeOps.versions(etags, ops);
   }
 
   /// Temporary files of atomic uploads whose client died before the rename.
@@ -1082,10 +1210,22 @@ class SyncService {
   }
 
   /// Downloads a single page from the exploded folder.
+  /// With stroke chunks on, the page at [version] (from a listing), else at
+  /// what the server holds now.
   Future<PageData> downloadDeltaPage(
     String notebookId,
-    String pageFileName,
-  ) async {
+    String pageFileName, {
+    String? version,
+  }) async {
+    if (StrokeOps.read) {
+      final v = version ??
+          (await getPageVersions(notebookId, [pageFileName]))[pageFileName];
+      if (v == null) {
+        throw RemoteStoreException('no such page: $pageFileName', 404);
+      }
+      return strokeOps.download(
+          notebookId, _deltaDir(notebookId), pageFileName, v);
+    }
     final data = await _remote.downloadFile(
       '${_deltaDir(notebookId)}pages/$pageFileName',
     );
@@ -1238,16 +1378,29 @@ class SyncService {
       String notebookId, Iterable<String> fileNames) async {
     final dir = '${_deltaDir(notebookId)}pages/';
     final out = <String, String?>{};
-    await Future.wait(fileNames.map((fn) async {
-      try {
-        final v = await _remote.getVersionFast('$dir$fn') ??
-            await _remote.getVersion('$dir$fn');
-        out[fn] = v?.replaceAll('"', '');
-      } on RemoteStoreException catch (e) {
-        if (e.statusCode != 404) rethrow;
-        out[fn] = null;
+    OpsListing? ops;
+    await Future.wait([
+      ...fileNames.map((fn) async {
+        try {
+          final v = await _remote.getVersionFast('$dir$fn') ??
+              await _remote.getVersion('$dir$fn');
+          out[fn] = v?.replaceAll('"', '');
+        } on RemoteStoreException catch (e) {
+          if (e.statusCode != 404) rethrow;
+          out[fn] = null;
+        }
+      }),
+      if (StrokeOps.read)
+        strokeOps
+            .list(notebookId, _deltaDir(notebookId))
+            .then((l) => ops = l),
+    ]);
+    if (ops != null) {
+      for (final fn in out.keys) {
+        final v = out[fn];
+        if (v != null) out[fn] = pageVersion(v, ops!.byPage[fn] ?? const []);
       }
-    }));
+    }
     return out;
   }
 
@@ -1307,12 +1460,24 @@ class SyncService {
 
     // Download all pages with per-page retry
     final pageItems = await _remote.listDirectory('${dir}pages/');
+    final ops = StrokeOps.read ? await strokeOps.list(notebookId, dir) : null;
+    final versions = ops == null
+        ? null
+        : strokeOps.versions({
+            for (final item in pageItems)
+              if (item.version != null) item.name: item.version!,
+          }, ops);
     final pages = <String, PageData>{};
 
     Future<void> downloadPage(String fileName) async {
       const maxPageRetries = 3;
       for (var attempt = 0; attempt < maxPageRetries; attempt++) {
         try {
+          final v = versions?[fileName];
+          if (v != null) {
+            pages[fileName] = await strokeOps.download(notebookId, dir, fileName, v);
+            return;
+          }
           final data = await _remote.downloadFile('${dir}pages/$fileName');
           pages[fileName] = decodePageBytes(data);
           return;
@@ -1422,7 +1587,7 @@ class SyncService {
       pageEtags: {
         for (final item in pageItems)
           if (item.version != null && pages.containsKey(item.name))
-            item.name: item.version!,
+            item.name: versions?[item.name] ?? item.version!,
       },
     );
   }

@@ -44,9 +44,16 @@ const harnessNotebookId = '0e2e0000-harness-notebook';
 /// One editor scenario: opens the harness, runs [body], then lets debounced
 /// timers (tool prefs, autosave) fire and unmounts, inside the test itself.
 void testEditor(String description, Future<void> Function(EditorHarness h) body,
-    {Map<String, PageData>? pages, Size size = const Size(1280, 800)}) {
+    {Map<String, PageData>? pages,
+    Size size = const Size(1280, 800),
+    String? paperType,
+    void Function(ProviderContainer container)? beforeShow}) {
   testWidgets(description, (tester) async {
-    final h = await EditorHarness.open(tester, pages: pages, size: size);
+    final h = await EditorHarness.open(tester,
+        pages: pages,
+        size: size,
+        paperType: paperType,
+        beforeShow: beforeShow);
     await body(h);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -82,6 +89,8 @@ class EditorHarness {
     Map<String, PageData>? pages,
     Size size = const Size(1280, 800),
     Map<String, Object> prefs = const {},
+    String? paperType,
+    void Function(ProviderContainer container)? beforeShow,
   }) async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -101,7 +110,11 @@ class EditorHarness {
     final now = DateTime(2026);
     await tester.runAsync(() => container.read(canvasProvider.notifier).openNotebook(
           metadata: NotebookMetadata(
-              id: harnessNotebookId, title: 'Harness', createdAt: now, modifiedAt: now),
+              id: harnessNotebookId,
+              title: 'Harness',
+              createdAt: now,
+              modifiedAt: now,
+              paperType: paperType ?? 'lined'),
           document: DocumentStructure(notebookId: harnessNotebookId, pages: [
             for (final (i, f) in pg.keys.indexed)
               PageEntry(pageId: pg[f]!.pageId, pageNumber: i + 1, fileName: f),
@@ -112,6 +125,7 @@ class EditorHarness {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    beforeShow?.call(container);
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
@@ -143,6 +157,11 @@ class EditorHarness {
   Future<void> _close() async {
     container.dispose();
     await tester.runAsync(() async {
+      // Close the database first: a save still running would otherwise hold
+      // its lock in the shared sqlite isolate and stall the next test's open.
+      try {
+        await files.dispose();
+      } catch (_) {}
       try {
         await tmp.delete(recursive: true);
       } catch (_) {}

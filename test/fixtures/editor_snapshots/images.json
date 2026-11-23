@@ -1,0 +1,1281 @@
+{
+  "scenario": "images",
+  "steps": [
+    {
+      "op": "open",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "pen",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [],
+        "redo": [],
+        "isDirty": false,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "add image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": false,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e2",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "add same bytes again (dedup)",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": false,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "flip image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": false,
+                "flipH": true,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "toggle lock",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "comment",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "rotate image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 200.0,
+                "h": 100.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "resize image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "copy image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e2"],
+          "bounds": {"l":94.85,"t":86.34,"r":205.15,"b":163.66}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e4",
+                "z": 3,
+                "type": "image",
+                "x": 350.0,
+                "y": 375.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": "e3",
+        "lasso": {
+          "ids": ["e4"],
+          "bounds": {"l":344.85,"t":361.34,"r":455.15,"b":438.66},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e2"],
+          "bounds": {"l":94.85,"t":86.34,"r":205.15,"b":163.66}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "delete image",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e4",
+                "z": 3,
+                "type": "image",
+                "x": 350.0,
+                "y": 375.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e4"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e4"],
+          "bounds": {"l":344.85,"t":361.34,"r":455.15,"b":438.66},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e2"],
+          "bounds": {"l":94.85,"t":86.34,"r":205.15,"b":163.66}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "undo",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 1,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": ["asset1","asset1"],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "image",
+                "x": 100.0,
+                "y": 100.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "image",
+                "x": 100.0,
+                "y": 300.0,
+                "w": 80.0,
+                "h": 80.0,
+                "asset": "asset1",
+                "rot": 0.0,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": false,
+                "comment": null,
+                "pdfPt": [null,null]
+              },
+              {
+                "id": "e4",
+                "z": 3,
+                "type": "image",
+                "x": 350.0,
+                "y": 375.0,
+                "w": 100.0,
+                "h": 50.0,
+                "asset": "asset1",
+                "rot": 0.3,
+                "opacity": 1.0,
+                "locked": true,
+                "flipH": true,
+                "comment": "a note",
+                "pdfPt": [null,null]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e3","e4"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e2"],
+          "bounds": {"l":94.85,"t":86.34,"r":205.15,"b":163.66}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    }
+  ]
+}

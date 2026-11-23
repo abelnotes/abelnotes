@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:abelnotes/shared/utils/text_controller_scope.dart';
 import 'package:abelnotes/core/providers/canvas_provider.dart';
 import 'package:abelnotes/features/canvas/data/render_engine.dart' show paintTechnicalStroke;
 import 'package:abelnotes/l10n/app_localizations.dart';
@@ -582,30 +583,25 @@ class _SymbolTile extends StatelessWidget {
 
 Future<String?> _promptName(BuildContext context, String title, String hint, {String initial = ''}) async {
   final l10n = AppLocalizations.of(context);
-  final ctrl = TextEditingController(text: initial);
-  try {
-    return await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: InputDecoration(hintText: hint),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.symCancel)),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: Text(l10n.symOk),
-          ),
-        ],
+  return showDialog<String>(
+    context: context,
+    builder: (ctx) => TextControllerScope(text: initial, builder: (_, ctrl) => AlertDialog(
+      title: Text(title),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        decoration: InputDecoration(hintText: hint),
+        onSubmitted: (v) => Navigator.pop(ctx, v),
       ),
-    );
-  } finally {
-    ctrl.dispose();
-  }
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.symCancel)),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, ctrl.text),
+          child: Text(l10n.symOk),
+        ),
+      ],
+    )),
+  );
 }

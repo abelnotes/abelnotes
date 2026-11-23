@@ -168,4 +168,13 @@ void main() {
     up(2, 130, at: const Offset(80, 0));
     expect(taps, isEmpty);
   });
+
+  test('fingers still down when the detector is disposed never make a tap', () {
+    down(1, 0);
+    down(2, 20, at: const Offset(80, 0));
+    d.dispose();
+    up(1, 120);
+    up(2, 130, at: const Offset(80, 0));
+    expect(taps, isEmpty);
+  });
 }

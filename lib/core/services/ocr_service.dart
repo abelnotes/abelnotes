@@ -32,6 +32,9 @@ abstract class OcrService {
   /// text-selection overlay work unchanged), or null if unsupported or
   /// nothing was recognized.
   Future<PdfTextLayer?> recognizePage(PageData page);
+
+  /// Releases whatever the implementation holds once the editor is closed.
+  void dispose();
 }
 
 /// Picks the platform implementation, or a no-op elsewhere.
@@ -48,6 +51,8 @@ class _UnsupportedOcrService implements OcrService {
   bool get isSupported => false;
   @override
   Future<PdfTextLayer?> recognizePage(PageData page) async => null;
+  @override
+  void dispose() {}
 }
 
 class _AppleVisionOcrService implements OcrService {
@@ -59,6 +64,10 @@ class _AppleVisionOcrService implements OcrService {
 
   @override
   bool get isSupported => true;
+
+  // Stateless: the native side keeps nothing between calls.
+  @override
+  void dispose() {}
 
   @override
   Future<PdfTextLayer?> recognizePage(PageData page) async {

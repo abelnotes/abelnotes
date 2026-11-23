@@ -1,0 +1,4887 @@
+{
+  "scenario": "clipboard",
+  "steps": [
+    {
+      "op": "open",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "pen",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [],
+        "redo": [],
+        "isDirty": false,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "select",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [],
+        "redo": [],
+        "isDirty": false,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e1","e2"],
+          "bounds": {"l":99.0,"t":99.0,"r":260.0,"b":224.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": null,
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "copy",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [],
+        "redo": [],
+        "isDirty": false,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e1","e2"],
+          "bounds": {"l":99.0,"t":99.0,"r":260.0,"b":224.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e1","e2"],
+          "bounds": {"l":99.0,"t":99.0,"r":260.0,"b":224.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste at",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e5","e6"],
+          "bounds": {"l":319.5,"t":437.5,"r":480.5,"b":562.5},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e1","e2"],
+          "bounds": {"l":99.0,"t":99.0,"r":260.0,"b":224.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste default position",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e7",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.0,"y":120.0,"p":0.5},
+                "last": {"x":170.0,"y":120.0,"p":0.5},
+                "sum": [870.0,720.0]
+              },
+              {
+                "id": "e8",
+                "z": 6,
+                "type": "text",
+                "x": 120.0,
+                "y": 220.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e7","e8"],
+          "bounds": {"l":119.0,"t":119.0,"r":280.0,"b":244.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e1","e2"],
+          "bounds": {"l":99.0,"t":99.0,"r":260.0,"b":224.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "cut",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e7","e8"],
+          "bounds": {"l":119.0,"t":119.0,"r":280.0,"b":244.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste after cut",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e9","e10"],
+          "bounds": {"l":219.5,"t":237.5,"r":380.5,"b":362.5},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e7","e8"],
+          "bounds": {"l":119.0,"t":119.0,"r":280.0,"b":244.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "duplicate selection",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 0,
+        "previousPageIndex": null,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e11","e12"],
+          "bounds": {"l":239.5,"t":257.5,"r":400.5,"b":382.5},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e9","e10"],
+          "bounds": {"l":219.5,"t":237.5,"r":380.5,"b":362.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "go to page 2",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e9","e10"],
+          "bounds": {"l":219.5,"t":237.5,"r":380.5,"b":362.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste on page 2",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e13","e14"],
+          "bounds": {"l":119.5,"t":137.5,"r":280.5,"b":262.5},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e9","e10"],
+          "bounds": {"l":219.5,"t":237.5,"r":380.5,"b":362.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "copy single element",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e13","e14"],
+          "bounds": {"l":119.5,"t":137.5,"r":280.5,"b":262.5},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e4"],
+          "bounds": {"l":49.0,"t":49.0,"r":121.0,"b":51.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "paste single",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e15"],
+          "bounds": {"l":64.0,"t":399.0,"r":136.0,"b":401.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e4"],
+          "bounds": {"l":49.0,"t":49.0,"r":121.0,"b":51.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "cut single element",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e15"],
+          "bounds": {"l":64.0,"t":399.0,"r":136.0,"b":401.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e4"],
+          "bounds": {"l":49.0,"t":49.0,"r":121.0,"b":51.0}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "duplicate element (arms placement)",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e15"],
+          "bounds": {"l":64.0,"t":399.0,"r":136.0,"b":401.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": true,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "place duplicate",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              },
+              {
+                "id": "e16",
+                "z": 4,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":225.0,"y":250.0,"p":0.5},
+                "last": {"x":275.0,"y":250.0,"p":0.5},
+                "sum": [1500.0,1500.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15"]
+          }
+        ],
+        "redo": [],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": {
+          "ids": ["e16"],
+          "bounds": {"l":225.0,"t":250.0,"r":275.0,"b":250.0},
+          "drag": [0.0,0.0],
+          "rotation": 0.0,
+          "scale": 1.0
+        },
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "undo",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15","e16"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "undo",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e4",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":50.0,"y":50.0,"p":0.5},
+                "last": {"x":120.0,"y":50.0,"p":0.5},
+                "sum": [680.0,400.0]
+              },
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15","e16"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "redo",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15","e16"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "copy with no selection",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15","e16"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    },
+    {
+      "op": "cancel pending paste",
+      "state": {
+        "document": [
+          {
+            "file": "p1.json",
+            "pageId": "pg1",
+            "number": 1,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          },
+          {
+            "file": "p2.json",
+            "pageId": "pg2",
+            "number": 2,
+            "chapterId": null,
+            "size": [595.0,842.0]
+          }
+        ],
+        "metadata": {
+          "title": "Characterization",
+          "pageCount": 2,
+          "paperType": "lined",
+          "chapters": []
+        },
+        "pages": {
+          "p1.json": {
+            "pageId": "pg1",
+            "number": 1,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e1",
+                "z": 0,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":100.0,"y":100.0,"p":0.5},
+                "last": {"x":150.0,"y":100.0,"p":0.5},
+                "sum": [750.0,600.0]
+              },
+              {
+                "id": "e2",
+                "z": 1,
+                "type": "text",
+                "x": 100.0,
+                "y": 200.0,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e3",
+                "z": 2,
+                "type": "shape",
+                "shape": "circle",
+                "p1": [300.0,100.0],
+                "p2": [360.0,160.0],
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "fill": null,
+                "rot": 0.0,
+                "vertices": []
+              },
+              {
+                "id": "e5",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":320.5,"y":438.5,"p":0.5},
+                "last": {"x":370.5,"y":438.5,"p":0.5},
+                "sum": [2073.0,2631.0]
+              },
+              {
+                "id": "e6",
+                "z": 4,
+                "type": "text",
+                "x": 320.5,
+                "y": 538.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e9",
+                "z": 5,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":220.5,"y":238.5,"p":0.5},
+                "last": {"x":270.5,"y":238.5,"p":0.5},
+                "sum": [1473.0,1431.0]
+              },
+              {
+                "id": "e10",
+                "z": 6,
+                "type": "text",
+                "x": 220.5,
+                "y": 338.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e11",
+                "z": 7,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":240.5,"y":258.5,"p":0.5},
+                "last": {"x":290.5,"y":258.5,"p":0.5},
+                "sum": [1593.0,1551.0]
+              },
+              {
+                "id": "e12",
+                "z": 8,
+                "type": "text",
+                "x": 240.5,
+                "y": 358.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              }
+            ]
+          },
+          "p2.json": {
+            "pageId": "pg2",
+            "number": 2,
+            "size": [595.0,842.0],
+            "background": {"type":"lined","color":4294967295,"spacing":30.0,"lineColor":4289771712,"pdfAsset":null,"pdfPage":0},
+            "pdfTextLayer": null,
+            "assetRefs": [],
+            "content": [
+              {
+                "id": "e13",
+                "z": 1,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 6,
+                "first": {"x":120.5,"y":138.5,"p":0.5},
+                "last": {"x":170.5,"y":138.5,"p":0.5},
+                "sum": [873.0,831.0]
+              },
+              {
+                "id": "e14",
+                "z": 2,
+                "type": "text",
+                "x": 120.5,
+                "y": 238.5,
+                "w": 160.0,
+                "h": 24.0,
+                "content": "copy text",
+                "font": "sans-serif",
+                "size": 16.0,
+                "color": 4278190080,
+                "bold": false,
+                "italic": false,
+                "align": "left",
+                "spans": []
+              },
+              {
+                "id": "e15",
+                "z": 3,
+                "type": "stroke",
+                "tool": "pen",
+                "color": 4278190080,
+                "width": 2.0,
+                "hl": false,
+                "opacity": 1.0,
+                "points": 8,
+                "first": {"x":65.0,"y":400.0,"p":0.5},
+                "last": {"x":135.0,"y":400.0,"p":0.5},
+                "sum": [800.0,3200.0]
+              }
+            ]
+          }
+        },
+        "currentPageIndex": 1,
+        "previousPageIndex": 0,
+        "activeChapterId": null,
+        "tool": "lasso",
+        "zoom": 2.0,
+        "pan": [0.0,0.0],
+        "undo": [
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e7","e8"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6"]
+          },
+          {
+            "file": "p1.json",
+            "ids": ["e1","e2","e3","e5","e6","e9","e10"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14"]
+          },
+          {
+            "file": "p2.json",
+            "ids": ["e4","e13","e14","e15"]
+          }
+        ],
+        "redo": [
+          {
+            "file": "p2.json",
+            "ids": ["e13","e14","e15","e16"]
+          }
+        ],
+        "isDirty": true,
+        "selectedElementId": null,
+        "lasso": null,
+        "lassoPath": 0,
+        "pendingPaste": false,
+        "pendingSymbol": null,
+        "activeStroke": 0,
+        "clipboard": {
+          "ids": ["e13"],
+          "bounds": {"l":120.5,"t":138.5,"r":170.5,"b":138.5}
+        },
+        "recognizedShape": null,
+        "toolSettings": {"color":4278190080,"width":1.5,"opacity":1.0,"shapeType":"rectangle","shapeRecognition":true}
+      }
+    }
+  ]
+}
