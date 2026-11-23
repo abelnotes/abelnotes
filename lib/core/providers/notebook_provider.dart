@@ -22,6 +22,7 @@ import 'package:abelnotes/core/services/pending_remote_deletes.dart';
 import 'package:abelnotes/core/services/pending_root_uploads.dart';
 import 'package:abelnotes/core/services/search_service.dart';
 import 'package:abelnotes/features/search/search_indexer.dart';
+import 'package:abelnotes/features/search/region_route.dart' show regionRouterAsset;
 import 'package:abelnotes/core/services/sync_service.dart';
 import 'package:abelnotes/core/services/unpushed_guard.dart';
 import 'package:abelnotes/features/pages_tray/application/pages_tray_provider.dart';
@@ -37,22 +38,24 @@ final searchServiceProvider = Provider<SearchService>(
 /// Keeps the search index current; started by the library screen.
 final searchIndexerProvider = Provider<SearchIndexer>((ref) {
   final indexer = SearchIndexer(ref.watch(fileServiceProvider),
-      inkModel: kIsWeb ? null : _loadInkModel);
+      inkModel: _loadInkModel);
   ref.onDispose(indexer.dispose);
   return indexer;
 });
 
-/// The bundled handwriting model (native builds only: it runs on the C engine).
+/// The bundled handwriting model (runs on the C engine: native, or WebAssembly on the web).
 Future<InkModel?> _loadInkModel() async {
   final meta = await rootBundle.loadString('assets/models/handwriting_text.json');
   final data = await rootBundle.load('assets/models/handwriting_text.abnn');
   final version = (jsonDecode(meta) as Map<String, dynamic>)['version'] as String;
   final lexicon = await rootBundle.loadString('assets/models/handwriting_lexicon.tsv');
+  final router = await rootBundle.load(regionRouterAsset);
   return (
     bytes: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
     metaJson: meta,
     version: version,
     lexicon: lexicon,
+    router: router.buffer.asUint8List(router.offsetInBytes, router.lengthInBytes),
   );
 }
 

@@ -10,6 +10,7 @@ import 'dart:typed_data';
 
 import '../ink_recognizer/model_file.dart';
 import '../ink_recognizer/ops.dart';
+import 'engine_graph.dart';
 import 'native_engine.dart';
 
 /// One detected symbol, in input-image pixels.
@@ -105,10 +106,19 @@ class CircuitDetector {
     _nativeTried = true;
     final e = NativeEngine.open();
     if (e == null) return null;
-    var ok = true;
-    for (var i = 0; i < _ops.length && ok; i++) {
+    if (!buildGraph(e)) {
+      e.dispose();
+      return null;
+    }
+    return _native = e;
+  }
+
+  /// Builds the op list on [e]; false when it refuses an op.
+  bool buildGraph(EngineGraph e) {
+    List<int> ints(Object? v) => (v as List).cast<int>();
+    for (var i = 0; i < _ops.length; i++) {
       final o = _ops[i];
-      List<int> ints(Object? v) => (v as List).cast<int>();
+      final bool ok;
       switch (o['op'] as String) {
         case 'conv':
           final c = _convs[i]!;
@@ -130,12 +140,30 @@ class CircuitDetector {
         default:
           ok = false;
       }
+      if (!ok) return false;
     }
-    if (!ok) {
-      e.dispose();
-      return null;
+    return true;
+  }
+
+  /// The tensors an engine run hands back for an h x w input (the heads),
+  /// and how many floats they take together.
+  ({List<int> want, int floats}) engineOutputs(int h, int w) {
+    final sh = _shapes(h, w);
+    final want = [for (final hd in _heads) ...hd];
+    return (want: want, floats: want.fold<int>(0, (a, id) => a + sh[id]!.$1 * sh[id]!.$2 * sh[id]!.$3));
+  }
+
+  /// [forward]'s result from an engine run's [heads] (see [engineOutputs]).
+  Float32List decodeEngine(Float32List heads, int h, int w) {
+    final sh = _shapes(h, w);
+    final t = <int, _T>{};
+    var off = 0;
+    for (final id in engineOutputs(h, w).want) {
+      final (c, th, tw) = sh[id]!;
+      t[id] = _T(c, th, tw, Float32List.sublistView(heads, off, off + c * th * tw));
+      off += c * th * tw;
     }
-    return _native = e;
+    return _decode(t);
   }
 
   /// (channels, height, width) of every tensor for an h x w input.
@@ -180,19 +208,9 @@ class CircuitDetector {
   Float32List forward(Float32List image, int h, int w) {
     final engine = profile == null ? _engine() : null;
     if (engine != null) {
-      final sh = _shapes(h, w);
-      final want = [for (final hd in _heads) ...hd];
-      final out = engine.run(image, h, w, want, want.fold<int>(0, (a, id) => a + sh[id]!.$1 * sh[id]!.$2 * sh[id]!.$3));
-      if (out != null) {
-        final t = <int, _T>{};
-        var off = 0;
-        for (final id in want) {
-          final (c, th, tw) = sh[id]!;
-          t[id] = _T(c, th, tw, Float32List.sublistView(out, off, off + c * th * tw));
-          off += c * th * tw;
-        }
-        return _decode(t);
-      }
+      final outs = engineOutputs(h, w);
+      final heads = engine.run(image, h, w, outs.want, outs.floats);
+      if (heads != null) return decodeEngine(heads, h, w);
     }
     final plane = h * w;
     final x = Float32List(3 * plane);
@@ -267,9 +285,10 @@ class CircuitDetector {
   static const Map<String, double> classMinScore = {'current_source': 0.2, 'switch': 0.4};
 
   /// Thresholded, class-wise NMS'd detections.
+  /// [raw]: [forward]'s result when it already ran elsewhere (a worker).
   List<Detection> detect(Float32List image, int h, int w,
-      {double minScore = 0.3, double iou = 0.5}) {
-    final out = forward(image, h, w);
+      {double minScore = 0.3, double iou = 0.5, Float32List? raw}) {
+    final out = raw ?? forward(image, h, w);
     final n = out.length ~/ (4 + names.length);
     final cands = <Detection>[];
     for (var a = 0; a < n; a++) {

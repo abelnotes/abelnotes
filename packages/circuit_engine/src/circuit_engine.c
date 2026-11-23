@@ -10,11 +10,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+// WebAssembly (the web app) runs on one thread and reads no environment.
+#ifdef __wasm__
+#define CE_NO_THREADS 1
+#define CE_NO_PROFILE 1
+#elif defined(_WIN32)
+#define CE_NO_PROFILE 1
+#endif
+
 #ifdef _WIN32
 #include <windows.h>
 #define CE_EXPORT __declspec(dllexport)
 #else
+#ifndef CE_NO_THREADS
 #include <pthread.h>
+#endif
 #define CE_EXPORT __attribute__((visibility("default")))
 #endif
 
@@ -59,6 +69,25 @@ typedef struct {
 
 typedef void (*job_fn)(void* ctx, int lo, int hi);
 
+#ifdef CE_NO_THREADS
+typedef struct pool {
+  int n;
+} pool;
+
+static pool* pool_new(int n) {
+  (void)n;
+  pool* p = (pool*)calloc(1, sizeof(pool));
+  p->n = 1;
+  return p;
+}
+
+static void pool_run(pool* p, job_fn fn, void* ctx, int total, int chunk) {
+  (void)p, (void)chunk;
+  if (total > 0) fn(ctx, 0, total);
+}
+
+static void pool_free(pool* p) { free(p); }
+#else
 typedef struct pool pool;
 struct pool {
   int n;
@@ -207,6 +236,7 @@ static void pool_free(pool* p) {
   free(p->th);
   free(p);
 }
+#endif  // CE_NO_THREADS
 
 // ---- network ----
 
@@ -690,7 +720,7 @@ CE_EXPORT long ce_run(void* h, const float* gray, int height, int width, const i
   float* x = tensor_alloc(&n->t[0], 3, height, width);
   for (int c = 0; c < 3; c++) memcpy(x + c * plane, gray, plane * sizeof(float));
   int rc = 0;
-#ifndef _WIN32
+#ifndef CE_NO_PROFILE
   static double prof[16];
   const int profiling = getenv("CE_PROFILE") != NULL;
 #else
@@ -698,12 +728,12 @@ CE_EXPORT long ce_run(void* h, const float* gray, int height, int width, const i
 #endif
   for (int k = 0; k < n->n_ops && rc == 0; k++) {
     const op* o = &n->ops[k];
-#ifndef _WIN32
+#ifndef CE_NO_PROFILE
     struct timespec t0, t1;
     if (profiling) clock_gettime(CLOCK_MONOTONIC, &t0);
 #endif
     rc = run_op(n, o);
-#ifndef _WIN32
+#ifndef CE_NO_PROFILE
     if (profiling) {
       clock_gettime(CLOCK_MONOTONIC, &t1);
       const int key = o->kind == OP_CONV ? (o->g != 1 ? 9 : (o->k == 1 ? 7 : 8)) : o->kind;
@@ -714,7 +744,7 @@ CE_EXPORT long ce_run(void* h, const float* gray, int height, int width, const i
       if (n->last_use[o->in[i]] == k) tensor_free(&n->t[o->in[i]]);
     }
   }
-#ifndef _WIN32
+#ifndef CE_NO_PROFILE
   if (profiling) {
     fprintf(stderr, "CE_PROFILE 1x1 %.1f kxk %.1f dw %.1f add %.1f concat %.1f split %.1f pool %.1f up %.1f attn %.1f\n",
             prof[7], prof[8], prof[9], prof[OP_ADD], prof[OP_CONCAT], prof[OP_SPLIT], prof[OP_MAXPOOL], prof[OP_UPSAMPLE],
@@ -798,3 +828,9 @@ CE_HOT static void linear(const float* x, const float* w, const float* bias, flo
 CE_EXPORT void ce_linear(const float* x, const float* w, const float* bias, float* out, int m, int k, int n) {
   linear(x, w, bias, out, m, k, n);
 }
+
+#ifdef __wasm__
+// The web app's buffers in the module's memory.
+CE_EXPORT void* ce_malloc(size_t bytes) { return malloc(bytes ? bytes : 1); }
+CE_EXPORT void ce_free(void* ptr) { free(ptr); }
+#endif

@@ -3667,9 +3667,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Recognizes the selected handwritten formula and turns it into editable LaTeX. Check the result: some symbols may be wrong.';
 
   @override
-  String get csRecognizeMath => 'Convert to LaTeX';
-
-  @override
   String get csRecognizeMathFailed => 'No formula recognised';
 
   @override
@@ -3701,6 +3698,42 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Image not loaded yet';
+
+  @override
+  String get csRecognize => 'Recognize';
+
+  @override
+  String get csRecognizedAsFormula => 'Recognized as a formula';
+
+  @override
+  String get csRecognizedAsCircuit => 'Recognized as a circuit';
+
+  @override
+  String get csRecognizeChange => 'Change';
+
+  @override
+  String get csRecognizeAs => 'Recognize as';
+
+  @override
+  String get csRecognizeAsFormula => 'Formula';
+
+  @override
+  String get csRecognizeAsCircuit => 'Circuit';
+
+  @override
+  String get csRecognizeAsText => 'Text';
+
+  @override
+  String get csRecognizeTextNotConverted =>
+      'Handwritten text is searchable, but it is not converted to typed text';
+
+  @override
+  String get csRecognizeDrawing => 'Looks like a drawing: nothing to recognize';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$module is off: turn it on in Settings > Modules';
+  }
 
   @override
   String get imgConvertToInk => 'Convert to ink';

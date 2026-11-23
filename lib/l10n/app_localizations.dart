@@ -5726,12 +5726,6 @@ abstract class AppLocalizations {
   /// **'Riconosce la formula scritta a mano selezionata e la trasforma in LaTeX modificabile. Controlla il risultato: qualche simbolo può essere sbagliato.'**
   String get modMathInkDesc;
 
-  /// No description provided for @csRecognizeMath.
-  ///
-  /// In it, this message translates to:
-  /// **'Converti in LaTeX'**
-  String get csRecognizeMath;
-
   /// No description provided for @csRecognizeMathFailed.
   ///
   /// In it, this message translates to:
@@ -5797,6 +5791,72 @@ abstract class AppLocalizations {
   /// In it, this message translates to:
   /// **'Immagine non ancora caricata'**
   String get csRecognizeImageMissing;
+
+  /// No description provided for @csRecognize.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci'**
+  String get csRecognize;
+
+  /// No description provided for @csRecognizedAsFormula.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosciuto come formula'**
+  String get csRecognizedAsFormula;
+
+  /// No description provided for @csRecognizedAsCircuit.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosciuto come circuito'**
+  String get csRecognizedAsCircuit;
+
+  /// No description provided for @csRecognizeChange.
+  ///
+  /// In it, this message translates to:
+  /// **'Cambia'**
+  String get csRecognizeChange;
+
+  /// No description provided for @csRecognizeAs.
+  ///
+  /// In it, this message translates to:
+  /// **'Riconosci come'**
+  String get csRecognizeAs;
+
+  /// No description provided for @csRecognizeAsFormula.
+  ///
+  /// In it, this message translates to:
+  /// **'Formula'**
+  String get csRecognizeAsFormula;
+
+  /// No description provided for @csRecognizeAsCircuit.
+  ///
+  /// In it, this message translates to:
+  /// **'Circuito'**
+  String get csRecognizeAsCircuit;
+
+  /// No description provided for @csRecognizeAsText.
+  ///
+  /// In it, this message translates to:
+  /// **'Testo'**
+  String get csRecognizeAsText;
+
+  /// No description provided for @csRecognizeTextNotConverted.
+  ///
+  /// In it, this message translates to:
+  /// **'Il testo scritto a mano è cercabile, ma non viene convertito in testo digitato'**
+  String get csRecognizeTextNotConverted;
+
+  /// No description provided for @csRecognizeDrawing.
+  ///
+  /// In it, this message translates to:
+  /// **'Sembra un disegno: niente da riconoscere'**
+  String get csRecognizeDrawing;
+
+  /// No description provided for @csRecognizeModuleOff.
+  ///
+  /// In it, this message translates to:
+  /// **'{module} è disattivato: attivalo in Impostazioni > Moduli'**
+  String csRecognizeModuleOff(String module);
 
   /// No description provided for @imgConvertToInk.
   ///

@@ -14,6 +14,7 @@ import 'package:abelnotes/features/search/ink_decode.dart';
 import 'package:abelnotes/features/search/ink_recognizer.dart';
 import 'package:abelnotes/features/search/ink_text.dart';
 import 'package:abelnotes/features/search/page_text.dart';
+import 'package:abelnotes/features/search/region_router.dart';
 import 'package:abelnotes/features/search/search_index.dart';
 import 'package:abelnotes/shared/utils/text_fold.dart';
 
@@ -42,18 +43,37 @@ typedef _Todo = ({
 
 const _chunk = 8;
 
-/// The handwriting model handed to the extraction isolate.
-typedef InkModel = ({Uint8List bytes, String metaJson, String version, String? lexicon});
+/// The handwriting model handed to the extraction isolate; [router] keeps
+/// lines that are not text (formulas, circuits) away from OCR.
+typedef InkModel = ({
+  Uint8List bytes,
+  String metaJson,
+  String version,
+  String? lexicon,
+  Uint8List? router,
+});
+
+/// Handwriting segments worth reading: [router] says they may be text.
+bool Function(InkSegment) ocrGate(RegionRouter router) =>
+    (seg) => (router.classify(seg.strokes)?.text ?? 1) >= ocrTextThreshold;
 
 /// The text of each page (with recognised handwriting when [ink] is given),
 /// null for one that does not parse.
 List<PageText?> _extractBatch(
-    ({List<Uint8List> pages, Uint8List? model, String? meta, String? lexicon}) job) {
+    ({
+      List<Uint8List> pages,
+      Uint8List? model,
+      String? meta,
+      String? lexicon,
+      Uint8List? router,
+    }) job) {
   InkRecognizer? rec;
+  RegionRouter? router;
   if (job.model != null && job.meta != null) {
     rec = InkRecognizer.open(job.model!,
         InkModelMeta.fromJson(jsonDecode(job.meta!) as Map<String, dynamic>),
         lexicon: job.lexicon == null ? null : InkLexicon.parse(job.lexicon!));
+    if (rec != null && job.router != null) router = RegionRouter.open(job.router!);
   }
   try {
     return [
@@ -62,7 +82,8 @@ List<PageText?> _extractBatch(
           try {
             final text = extractPageTextFromBytes(b);
             if (rec == null) return text;
-            return text.withInk(rec.recognizePage(decodePageBytes(b)));
+            return text.withInk(rec.recognizePage(decodePageBytes(b),
+                keep: router == null ? null : ocrGate(router)));
           } on FormatException {
             return null;
           } catch (_) {
@@ -77,8 +98,12 @@ List<PageText?> _extractBatch(
     ];
   } finally {
     rec?.dispose();
+    router?.dispose();
   }
 }
+
+/// Recognizer and router kept open by an indexer that extracts in place (web).
+typedef _InkEngines = ({InkRecognizer rec, RegionRouter? router});
 
 /// Keeps the `page_text` table in step with the notebook stores: it follows
 /// [FileService.writes] (after a pause) and reconciles once per launch.
@@ -103,12 +128,63 @@ class SearchIndexer {
 
   Future<InkModel?> _inkModel() => _ink ??= () async {
         try {
-          return await inkModel?.call();
+          final m = await inkModel?.call();
+          if (m == null || useIsolate) return m;
+          // In place (web): opened once; a model that can't run indexes no ink.
+          final meta = InkModelMeta.fromJson(jsonDecode(m.metaJson) as Map<String, dynamic>);
+          final lexicon = m.lexicon == null ? null : await InkLexicon.parseAsync(m.lexicon!, _idle);
+          final rec = await InkRecognizer.load(m.bytes, meta, lexicon: lexicon);
+          if (rec == null) return null;
+          _engines = (rec: rec, router: m.router == null ? null : await RegionRouter.load(m.router!));
+          if (_disposed) _closeEngines();
+          return m;
         } catch (e) {
           debugPrint('[SearchIndexer] handwriting model unavailable: $e');
           return null;
         }
       }();
+  _InkEngines? _engines;
+
+  void _closeEngines() {
+    _engines?.rec.dispose();
+    _engines?.router?.dispose();
+    _engines = null;
+  }
+
+  /// [_extractBatch] in place, one handwriting line per idle slot; the
+  /// recognizer and router run in the engine's worker.
+  Future<List<PageText?>> _extractInPlace(List<Uint8List> pages) async {
+    final out = <PageText?>[];
+    for (final b in pages) {
+      PageText text;
+      try {
+        text = extractPageTextFromBytes(b);
+      } on FormatException {
+        out.add(null);
+        continue;
+      }
+      final e = _engines;
+      if (e != null) {
+        try {
+          final lines = <InkLine>[];
+          final segs = segmentInk(inkStrokes(decodePageBytes(b)));
+          for (final seg in segs) {
+            await _idle();
+            if (_disposed) return out;
+            final p = await e.router?.classifyAsync(seg.strokes);
+            if ((p?.text ?? 1) < ocrTextThreshold) continue;
+            lines.addAll(await e.rec.recognizeAsync(seg));
+          }
+          text = text.withInk(lines);
+        } catch (err) {
+          // Handwriting failed on this page: keep its typed text.
+          debugPrint('[SearchIndexer] handwriting failed: $err');
+        }
+      }
+      out.add(text);
+    }
+    return out;
+  }
 
   /// Opened on first use: the database may not be ready when this is built.
   late final SearchIndex index = SearchIndex(files.database);
@@ -292,7 +368,8 @@ class SearchIndexer {
       keep.add(fileName);
       // The model version is part of the stamp: a new model re-reads pages.
       final stamp = '${st.size}:${st.modified.millisecondsSinceEpoch}'
-          '${ink == null ? '' : ':${ink.version}'}';
+          '${ink == null ? '' : ':${ink.version}'}'
+          '${ink?.router == null ? '' : '+$regionRouterVersion'}';
       final row = stored[fileName];
       if (row != null && row.stamp == stamp && !force.contains(fileName)) {
         if (row.pageIndex != i || row.chapterId != chapterId) {
@@ -327,9 +404,12 @@ class SearchIndexer {
         model: ink?.bytes,
         meta: ink?.metaJson,
         lexicon: ink?.lexicon,
+        router: ink?.router,
       );
-      final texts =
-          useIsolate ? await compute(_extractBatch, job) : _extractBatch(job);
+      final texts = useIsolate
+          ? await compute(_extractBatch, job)
+          : await _extractInPlace(job.pages);
+      if (_disposed) return;
       for (var k = 0; k < read.length; k++) {
         final t = read[k].t;
         batch.add(PageRow(
@@ -390,6 +470,7 @@ class SearchIndexer {
 
   void dispose() {
     _disposed = true;
+    _closeEngines();
     _sub?.cancel();
     _reconcileTimer?.cancel();
     for (final t in _timers.values) {

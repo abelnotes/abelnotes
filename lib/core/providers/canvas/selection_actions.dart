@@ -512,6 +512,24 @@ class SelectionActions {
     _core.state = _core.state!.copyWith(clearSelectedElement: true);
   }
 
+  /// Lasso-selects the elements [ids] of the current page that are on it.
+  void selectIds(Set<String> ids) {
+    final page = _core.state?.currentPage;
+    if (page == null) return;
+    final hit = [for (final e in page.layers.content) if (ids.contains(e.id) && e is! UnknownElement) e];
+    Rect? bounds;
+    for (final e in hit) {
+      final b = getElementBounds(e);
+      if (b != null) bounds = bounds == null ? b : bounds.expandToInclude(b);
+    }
+    if (bounds == null) return;
+    _core.state = _core.state!.copyWith(
+      lassoSelection: LassoSelection(selectedIds: [for (final e in hit) e.id], bounds: bounds),
+      clearSelectedElement: true,
+      currentTool: CanvasTool.lasso,
+    );
+  }
+
   void selectAll() {
     if (_core.state == null) return;
     final page = _core.state!.currentPage;

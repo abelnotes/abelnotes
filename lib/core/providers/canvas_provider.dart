@@ -1397,6 +1397,7 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   }
 
   void _recomputeSyncStatus() {
+    if (_disposed) return; // a push that finished after the editor closed
     final next = _sync.consecutiveSyncFailures > 0 ||
         _sync.pendingMetaCommitBytes != null ||
         _sync.pullUnreachable ||
@@ -2776,6 +2777,8 @@ class CanvasNotifier extends StateNotifier<CanvasState?> implements CanvasCore {
   // ── Element selection & transform ──
 
   void selectElement(String elementId) => _selection.selectElement(elementId);
+
+  void selectIds(Set<String> ids) => _selection.selectIds(ids);
 
   void deselectElement() => _selection.deselectElement();
 

@@ -77,7 +77,7 @@ void main(List<String> args) async {
           .loadString('assets/licenses/onenote_parser_LICENSE.txt');
       yield LicenseEntryWithLineBreaks(const ['onenote_parser'], text);
     });
-    // Attribution for the recognisers: circuit symbols, detector, formula, handwriting.
+    // Attribution for the recognisers: circuit symbols, detector, formula, handwriting, router.
     LicenseRegistry.addLicense(() async* {
       yield LicenseEntryWithLineBreaks(const ['CircuiTikZ'],
           await rootBundle.loadString('assets/licenses/circuitikz_NOTICE.txt'));
@@ -89,6 +89,8 @@ void main(List<String> args) async {
           await rootBundle.loadString('assets/licenses/handwriting_text_NOTICE.txt'));
       yield LicenseEntryWithLineBreaks(const ['Handwriting search word list'],
           await rootBundle.loadString('assets/licenses/handwriting_lexicon_NOTICE.txt'));
+      yield LicenseEntryWithLineBreaks(const ['Region router model'],
+          await rootBundle.loadString('assets/licenses/region_router_NOTICE.txt'));
     });
     LicenseRegistry.addLicense(() async* {
       final text =

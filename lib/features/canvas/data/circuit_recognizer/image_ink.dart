@@ -27,6 +27,15 @@ const _nb = [(-1, 0), (-1, 1), (0, 1), (1, 1), (1, 0), (1, -1), (0, -1), (-1, -1
 /// Traces the ink of an RGBA image ([w] x [h], row-major) into polylines.
 List<TracedStroke> traceImageInk(Uint8List rgba, int w, int h) => traceImage(rgba, w, h).strokes;
 
+/// [traceImage] on the engine in [worker] (the web, off the UI thread).
+Future<({List<TracedStroke> strokes, InkMask ink})> traceImageOn(
+    CircuitWorker worker, Uint8List rgba, int w, int h) async {
+  final s = kTraceLongSide / math.max(w, h);
+  final cw = math.max(1, (w * s).round()), ch = math.max(1, (h * s).round());
+  final t = await worker.trace(rgba, w, h, cw, ch, s);
+  return (strokes: [for (final (p, wd, c) in t.strokes) TracedStroke(p, wd, c)], ink: InkMask(t.ink, cw, ch, s));
+}
+
 /// [traceImageInk], with the ink mask the lines were thinned from.
 ({List<TracedStroke> strokes, InkMask ink}) traceImage(Uint8List rgba, int w, int h) {
   final s = kTraceLongSide / math.max(w, h);
@@ -132,6 +141,13 @@ List<TracedStroke> traceImageInk(Uint8List rgba, int w, int h) => traceImage(rgb
 /// pixels along [cut] (traced lines in image pixels with their ink width).
 /// Cropped to what remains: (RGBA, left, top, width, height), or null when
 /// nothing does.
+/// [inkLeftover] on the engine in [worker] (the web, off the UI thread).
+Future<(Uint8List, int, int, int, int)?> inkLeftoverOn(
+    CircuitWorker worker, Uint8List rgba, int w, int h, List<(Float64List, double)> cut) async {
+  final m = await worker.leftover(rgba, w, h, cut);
+  return m.kept < 30 ? null : _crop(rgba, m.alpha, w, m.x0, m.y0, m.x1, m.y1);
+}
+
 (Uint8List, int, int, int, int)? inkLeftover(Uint8List rgba, int w, int h, List<(Float64List, double)> cut) {
   final native = NativeImage.open();
   if (native != null) {

@@ -1,0 +1,16 @@
+The region router tells handwriting, formulas, circuits and drawings apart, so
+search reads only handwritten text and a lasso selection goes to the right
+recognizer. It is a small model bundled in the app
+(assets/models/region_router.abnn) and runs entirely on your device: nothing
+is sent to any server or third party.
+
+License: AGPL-3.0, with CC BY 4.0 attribution to CGHD.
+
+The model is a small convolutional network (two image views of a stroke group
+plus 24 stroke measurements) trained from scratch for AbelNotes. It is run by
+the app's own engine (packages/circuit_engine/src/abnn.c, region_router.c).
+
+Its training data includes the CGHD dataset of hand-drawn circuit diagrams
+by DFKI (https://zenodo.org/records/15333233), licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/. The circuit drawings were
+traced into strokes.

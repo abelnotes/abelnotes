@@ -1,6 +1,6 @@
 # Formula recognition: training
 
-Training code for the model behind "Convert to LaTeX": the user lassos a
+Training code for the formula model behind Recognize: the user lassos a
 handwritten formula, the app replaces the ink with a typeset `MathElement`.
 Everything here is the offline half (data, model, training, export). The
 runtime half is in `lib/features/canvas/data/ink_recognizer/`, and what the

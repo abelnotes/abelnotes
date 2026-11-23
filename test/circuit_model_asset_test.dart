@@ -28,6 +28,7 @@ void main() {
       'assets/models/handwriting_text.abnn',
       'assets/models/handwriting_text.json',
       'assets/models/handwriting_lexicon.tsv',
+      'assets/models/region_router.abnn',
     ]);
   });
 

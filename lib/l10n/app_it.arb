@@ -3025,8 +3025,6 @@
   "@modMathInkName": {},
   "modMathInkDesc": "Riconosce la formula scritta a mano selezionata e la trasforma in LaTeX modificabile. Controlla il risultato: qualche simbolo può essere sbagliato.",
   "@modMathInkDesc": {},
-  "csRecognizeMath": "Converti in LaTeX",
-  "@csRecognizeMath": {},
   "csRecognizeMathFailed": "Nessuna formula riconosciuta",
   "@csRecognizeMathFailed": {},
   "mathEditTitle": "Modifica formula",
@@ -3049,6 +3047,34 @@
   "@csRecognizeError": {},
   "csRecognizeImageMissing": "Immagine non ancora caricata",
   "@csRecognizeImageMissing": {},
+  "csRecognize": "Riconosci",
+  "@csRecognize": {},
+  "csRecognizedAsFormula": "Riconosciuto come formula",
+  "@csRecognizedAsFormula": {},
+  "csRecognizedAsCircuit": "Riconosciuto come circuito",
+  "@csRecognizedAsCircuit": {},
+  "csRecognizeChange": "Cambia",
+  "@csRecognizeChange": {},
+  "csRecognizeAs": "Riconosci come",
+  "@csRecognizeAs": {},
+  "csRecognizeAsFormula": "Formula",
+  "@csRecognizeAsFormula": {},
+  "csRecognizeAsCircuit": "Circuito",
+  "@csRecognizeAsCircuit": {},
+  "csRecognizeAsText": "Testo",
+  "@csRecognizeAsText": {},
+  "csRecognizeTextNotConverted": "Il testo scritto a mano è cercabile, ma non viene convertito in testo digitato",
+  "@csRecognizeTextNotConverted": {},
+  "csRecognizeDrawing": "Sembra un disegno: niente da riconoscere",
+  "@csRecognizeDrawing": {},
+  "csRecognizeModuleOff": "{module} è disattivato: attivalo in Impostazioni > Moduli",
+  "@csRecognizeModuleOff": {
+    "placeholders": {
+      "module": {
+        "type": "String"
+      }
+    }
+  },
   "imgConvertToInk": "Converti in tratti",
   "@imgConvertToInk": {},
   "csPhotoInkBusy": "Lettura della scrittura…",

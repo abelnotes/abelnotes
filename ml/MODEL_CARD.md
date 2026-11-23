@@ -1,6 +1,6 @@
 # Formula model: model card
 
-`assets/models/math_ink.ablm`, the model behind "Convert to LaTeX" (formula
+`assets/models/math_ink.ablm`, the model behind Recognize on a lasso formula (formula
 recognition, Beta).
 
 | | |

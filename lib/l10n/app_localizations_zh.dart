@@ -3530,9 +3530,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modMathInkDesc => '识别选中的手写公式，并转换为可编辑的 LaTeX。请检查结果：部分符号可能有误。';
 
   @override
-  String get csRecognizeMath => '转换为 LaTeX';
-
-  @override
   String get csRecognizeMathFailed => '未识别出公式';
 
   @override
@@ -3564,6 +3561,41 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => '图片尚未加载';
+
+  @override
+  String get csRecognize => '识别';
+
+  @override
+  String get csRecognizedAsFormula => '已识别为公式';
+
+  @override
+  String get csRecognizedAsCircuit => '已识别为电路';
+
+  @override
+  String get csRecognizeChange => '更改';
+
+  @override
+  String get csRecognizeAs => '识别为';
+
+  @override
+  String get csRecognizeAsFormula => '公式';
+
+  @override
+  String get csRecognizeAsCircuit => '电路';
+
+  @override
+  String get csRecognizeAsText => '文字';
+
+  @override
+  String get csRecognizeTextNotConverted => '手写文字可以搜索，但不会转换为输入文字';
+
+  @override
+  String get csRecognizeDrawing => '看起来是图画：没有可识别的内容';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$module已关闭：请在“设置 > 模块”中开启';
+  }
 
   @override
   String get imgConvertToInk => '转换为笔迹';

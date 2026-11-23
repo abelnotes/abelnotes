@@ -11,7 +11,20 @@ class InkRecognizer {
   static InkRecognizer? open(Uint8List model, InkModelMeta meta, {InkLexicon? lexicon}) =>
       null;
 
-  List<InkLine> recognizePage(PageData page) => const [];
+  static Future<InkRecognizer?> load(Uint8List model, InkModelMeta meta,
+          {InkLexicon? lexicon}) async =>
+      null;
+
+  Future<List<InkLine>> recognizeAsync(InkSegment seg) async => const [];
+
+  Future<({Float32List probs, int frames, int classes, InkRaster geometry})?> debugRunAsync(
+          InkSegment seg) async =>
+      null;
+
+  Future<Float32List> rasterAsync(InkSegment seg) async => Float32List(0);
+
+  List<InkLine> recognizePage(PageData page, {bool Function(InkSegment seg)? keep}) =>
+      const [];
 
   List<InkLine> recognize(InkSegment seg) => const [];
 

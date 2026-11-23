@@ -58,14 +58,44 @@ class InkRecognizer {
     }
   }
 
-  /// Every line of handwriting on [page] that reads as text.
-  List<InkLine> recognizePage(PageData page) {
+  /// As [open]; the web's form, which can only load asynchronously.
+  static Future<InkRecognizer?> load(Uint8List model, InkModelMeta meta,
+          {InkLexicon? lexicon}) async =>
+      open(model, meta, lexicon: lexicon);
+
+  Future<List<InkLine>> recognizeAsync(InkSegment seg) async => recognize(seg);
+
+  Future<({Float32List probs, int frames, int classes, InkRaster geometry})?> debugRunAsync(
+      InkSegment seg) async {
+    final o = debugRun(seg);
+    return o == null
+        ? null
+        : (probs: o.probs, frames: o.frames, classes: o.classes, geometry: o.geometry);
+  }
+
+  Future<Float32List> rasterAsync(InkSegment seg) async => debugRun(seg)?.raster ?? Float32List(0);
+
+  /// Every line of handwriting on [page] that reads as text ([keep] skips
+  /// segments that are not text, e.g. formulas).
+  List<InkLine> recognizePage(PageData page, {bool Function(InkSegment seg)? keep}) {
     if (_disposed) return const [];
-    return [for (final seg in segmentInk(inkStrokes(page))) ...recognize(seg)];
+    return [
+      for (final seg in segmentInk(inkStrokes(page)))
+        if (keep == null || keep(seg)) ...recognize(seg),
+    ];
   }
 
   /// The segment's line (lexicon reading first, then the plain one if it differs).
   List<InkLine> recognize(InkSegment seg) {
+    final o = debugRun(seg);
+    if (o == null) return const [];
+    return decodeLines(o.probs, o.frames, o.classes, seg, o.geometry, _meta, _lexicon);
+  }
+
+  /// The model's input and output for [seg], for parity tests.
+  ({Float32List raster, Float32List probs, int frames, int classes, InkRaster geometry})?
+      debugRun(InkSegment seg) {
+    if (_disposed) return null;
     final r = rasterGeometry(seg, _meta);
     final h = _meta.height, w = r.width;
     final xy = malloc<Float>(math.max(1, r.xy.length));
@@ -81,11 +111,12 @@ class InkRecognizer {
       final lw = math.max(1.0, (_meta.lineWidth * r.scale / 2).roundToDouble());
       _raster(xy, st, r.starts.length, r.xy.length ~/ 2, lw, w, h, img);
       dims.asTypedList(4).setAll(0, [1, 3, h, w]);
-      if (_run(_m, img, 4, dims, out, outNd, outDims) != 0) return const [];
-      if (outNd.value != 3) return const [];
+      final raster = Float32List.fromList(img.asTypedList(3 * h * w));
+      if (_run(_m, img, 4, dims, out, outNd, outDims) != 0) return null;
+      if (outNd.value != 3) return null;
       final frames = outDims[1], classes = outDims[2];
       final probs = Float32List.fromList(out.value.asTypedList(frames * classes));
-      return decodeLines(probs, frames, classes, seg, r, _meta, _lexicon);
+      return (raster: raster, probs: probs, frames: frames, classes: classes, geometry: r);
     } finally {
       malloc
         ..free(xy)

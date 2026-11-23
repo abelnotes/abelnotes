@@ -13,13 +13,28 @@ class InkLexicon {
 
   factory InkLexicon.parse(String tsv) {
     final logp = <String, double>{};
-    for (final line in tsv.split('\n')) {
+    _addLines(tsv.split('\n'), logp);
+    return InkLexicon._(logp, logp.keys.toList()..sort());
+  }
+
+  /// As [parse], [pause] between slices of lines (the web parses on the UI thread).
+  static Future<InkLexicon> parseAsync(String tsv, Future<void> Function() pause) async {
+    final logp = <String, double>{};
+    final lines = tsv.split('\n');
+    for (var i = 0; i < lines.length; i += 8000) {
+      _addLines(lines.sublist(i, math.min(i + 8000, lines.length)), logp);
+      await pause();
+    }
+    return InkLexicon._(logp, logp.keys.toList()..sort());
+  }
+
+  static void _addLines(List<String> lines, Map<String, double> logp) {
+    for (final line in lines) {
       final tab = line.indexOf('\t');
       if (tab <= 0) continue;
       final p = double.tryParse(line.substring(tab + 1).trim());
       if (p != null) logp[line.substring(0, tab)] = p;
     }
-    return InkLexicon._(logp, logp.keys.toList()..sort());
   }
 
   int get length => _logp.length;

@@ -1,19 +1,31 @@
 import 'dart:typed_data';
 
+import 'engine_graph.dart';
+
+/// Nothing to load: there is no engine here.
+Future<bool> loadNativeEngine() async => false;
+
 /// No native engine on this platform.
-class NativeEngine {
+class NativeEngine implements EngineGraph {
   NativeEngine._();
 
   static NativeEngine? open() => null;
 
+  @override
   bool conv(int input, int output, int cin, int cout, int k, int s, int p, int g, bool act, Float32List w,
           int wStride, Float32List b) =>
       false;
+  @override
   bool add(int a, int b, int output) => false;
+  @override
   bool concat(List<int> inputs, int output) => false;
+  @override
   bool split(int input, List<int> outputs, List<int> sizes) => false;
+  @override
   bool maxpool(int input, int output, int k, int p) => false;
+  @override
   bool upsample(int input, int output, int scale) => false;
+  @override
   bool attn(int input, int outX, int outV, int heads, int keyDim, int headDim, double scale) => false;
   Float32List? run(Float32List gray, int h, int w, List<int> want, int outLen) => null;
   void dispose() {}
@@ -56,4 +68,24 @@ class NativeMath {
   bool linear(Float32List x, Float32List w, Float32List? bias, Float32List out,
           {required int m, required int k, required int n}) =>
       false;
+}
+
+/// No worker on this platform (native ones run the engine on an isolate).
+class CircuitWorker {
+  CircuitWorker._();
+
+  static Future<CircuitWorker?> start(bool Function(EngineGraph g) build) async => null;
+
+  Future<Float32List?> run(Float32List gray, int h, int w, List<int> want, int outLen) =>
+      throw UnsupportedError('no circuit worker');
+
+  Future<({List<(Float64List, double, int)> strokes, Uint8List ink})> trace(
+          Uint8List rgba, int w, int h, int cw, int ch, double s) =>
+      throw UnsupportedError('no circuit worker');
+
+  Future<({Uint8List alpha, int x0, int y0, int x1, int y1, int kept})> leftover(
+          Uint8List rgba, int w, int h, List<(Float64List, double)> cut) =>
+      throw UnsupportedError('no circuit worker');
+
+  void dispose() {}
 }

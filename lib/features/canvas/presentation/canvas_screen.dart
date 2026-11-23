@@ -34,6 +34,7 @@ import 'package:abelnotes/features/canvas/data/zoom_snapshot.dart';
 import 'package:abelnotes/features/canvas/data/pdf_export.dart';
 import 'package:abelnotes/features/canvas/presentation/pdf_text_selection.dart';
 import 'package:abelnotes/features/search/notebook_find_bar.dart';
+import 'package:abelnotes/features/search/region_route.dart' show RegionKind;
 import 'package:abelnotes/core/providers/notebook_provider.dart'
     show searchIndexerProvider, syncServiceProvider;
 import 'package:abelnotes/core/services/app_windows.dart';
@@ -54,6 +55,7 @@ import 'package:abelnotes/features/canvas/data/circuit_recognizer/circuit_recogn
 import 'package:abelnotes/features/canvas/data/circuit_recognizer/image_circuit.dart';
 import 'package:abelnotes/features/canvas/data/photo_ink/photo_ink_strokes.dart';
 import 'package:abelnotes/features/modules/module_registry.dart';
+import 'package:abelnotes/features/modules/recognize_route.dart';
 import 'package:abelnotes/features/modules/selection_action.dart';
 import 'package:abelnotes/features/canvas/presentation/multi_finger_tap.dart';
 import 'package:abelnotes/features/canvas/presentation/canvas_crop_dialog.dart';
@@ -2148,6 +2150,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                       onColor: _showSelectionColorPicker,
                       onWidth: _showSelectionWidthPicker,
                       onMore: _showSelectionMoreMenu,
+                      onRecognize: _recognizeSelection,
                     ),
                   ),
                 ),
@@ -2465,7 +2468,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
 
   /// "Altro" menu for lass selection — surfaces the less-used actions
   /// (flip H/V, screenshot to clipboard, paste into another notebook).
-  Future<void> _showSelectionMoreMenu(CanvasState state) async {
+  Future<void> _showSelectionMoreMenu(CanvasState state, bool compact) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
@@ -2486,7 +2489,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final a in ref.watch(selectionActionsProvider))
-                    if (a.appliesTo(summary))
+                    if (a.appliesTo(summary) && !_isRecognizer(a))
                       ListTile(
                         leading: Icon(a.icon),
                         title: Text(a.label(AppLocalizations.of(ctx))),
@@ -2498,6 +2501,16 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
                 ],
               );
             }),
+            if (compact)
+              ListTile(
+                leading: const Icon(Icons.copy_all_rounded),
+                title: Text(AppLocalizations.of(ctx).csDuplicate),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(canvasProvider.notifier).duplicateSelection();
+                  _toast(AppLocalizations.of(ctx).csSelectionDuplicated);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.flip_rounded),
               title: Text(AppLocalizations.of(ctx).csFlipHorizontal),
@@ -2548,16 +2561,128 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     );
   }
 
+  static bool _isRecognizer(SelectionAction a) => isRecognizerAction(a);
+
+  /// Recognize: the region router picks the recognizer for the selection;
+  /// unsure, the user picks. The chosen module action then runs as usual.
+  Future<void> _recognizeSelection() async {
+    final notifier = ref.read(canvasProvider.notifier);
+    notifier.applySelectionTransform();
+    final slots = RecognizerSlots.read(ref);
+    RegionClassifier? classify;
+    try {
+      classify = await ref.read(regionClassifierProvider.future);
+    } catch (e) {
+      CrashLogger.append('[recognize] router unavailable: $e');
+    }
+    if (!mounted) return;
+    final probs = await classify?.call([for (final e in notifier.selectedInk()) e.$2]);
+    if (!mounted) return;
+    CrashLogger.append('[recognize] $probs');
+    var step = decideRecognize(probs, slots);
+    if (step is AskRecognizer) {
+      final kind = await _askRecognizer();
+      if (kind == null || !mounted) return;
+      step = recognizeAs(kind, slots);
+    }
+    await _applyRecognizeStep(step);
+  }
+
+  /// Runs [step]; a conversion is followed by its kind and a "Change" action.
+  Future<void> _applyRecognizeStep(RecognizeStep step) async {
+    final l10n = AppLocalizations.of(context);
+    switch (step) {
+      case RunRecognizer(:final action, :final kind):
+        final notifier = ref.read(canvasProvider.notifier);
+        final before = ref.read(canvasProvider)?.undoStack.lastOrNull;
+        final ids = await _runSelectionAction(action);
+        final s = ref.read(canvasProvider);
+        if (ids == null || s == null || !mounted) return;
+        // Change undoes exactly this step, so only while it is still the last one.
+        final page = s.currentPageFileName, top = s.undoStack.lastOrNull;
+        if (top == null || identical(top, before)) return;
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(SnackBar(
+          content: Text(kind == RegionKind.formula
+              ? l10n.csRecognizedAsFormula
+              : l10n.csRecognizedAsCircuit),
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: l10n.csRecognizeChange,
+            onPressed: () async {
+              final now = ref.read(canvasProvider);
+              if (!mounted || now == null || now.currentPageFileName != page ||
+                  !identical(now.undoStack.lastOrNull, top)) {
+                return;
+              }
+              notifier.undo();
+              notifier.selectIds(ids);
+              final kind = await _askRecognizer();
+              if (kind == null || !mounted) return;
+              await _applyRecognizeStep(recognizeAs(kind, RecognizerSlots.read(ref)));
+            },
+          ),
+        ));
+      case NoteRecognizer(:final note):
+        _toast(switch (note) {
+          RecognizeNote.textNotConverted => l10n.csRecognizeTextNotConverted,
+          RecognizeNote.nothingToRecognize => l10n.csRecognizeDrawing,
+          RecognizeNote.formulaOff => l10n.csRecognizeModuleOff(l10n.modMathInkName),
+          RecognizeNote.circuitOff => l10n.csRecognizeModuleOff(l10n.modCircuitsName),
+          RecognizeNote.unavailable => l10n.csRecognizeModelMissing,
+        });
+      case AskRecognizer():
+        break;
+    }
+  }
+
+  /// The choice offered when the router is unsure.
+  Future<RegionKind?> _askRecognizer() => showModalBottomSheet<RegionKind>(
+        context: context,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) {
+          final l10n = AppLocalizations.of(ctx);
+          ListTile tile(IconData icon, String label, RegionKind kind) => ListTile(
+                key: Key('recognizeAs:${kind.name}'),
+                leading: Icon(icon),
+                title: Text(label),
+                onTap: () => Navigator.of(ctx).pop(kind),
+              );
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(l10n.csRecognizeAs,
+                      style: Theme.of(ctx).textTheme.titleSmall),
+                ),
+                tile(Icons.functions_rounded, l10n.csRecognizeAsFormula, RegionKind.formula),
+                tile(Icons.electrical_services_rounded, l10n.csRecognizeAsCircuit,
+                    RegionKind.circuit),
+                tile(Icons.text_fields_rounded, l10n.csRecognizeAsText, RegionKind.text),
+                const SizedBox(height: 8),
+              ],
+            ),
+          );
+        },
+      );
+
   /// Runs a module's lasso action and applies its outcome in one undo step.
   /// A miss is a toast: recognisers fail often and undo is the safety net.
-  Future<void> _runSelectionAction(SelectionAction action) async {
+  /// Returns the ids of the replaced ink, null when nothing changed.
+  Future<Set<String>?> _runSelectionAction(SelectionAction action) async {
     final l10n = AppLocalizations.of(context);
     final notifier = ref.read(canvasProvider.notifier);
     // A selection moved but not committed yet is read where it now is.
     notifier.applySelectionTransform();
     final s = ref.read(canvasProvider);
     final page = s?.currentPage;
-    if (s == null || page == null) return;
+    if (s == null || page == null) return null;
     final fileName = s.currentPageFileName;
 
     _toast(action.busyLabel(l10n));
@@ -2572,7 +2697,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     } catch (e, st) {
       outcome = ActionFailed('$e\n$st', reason: ActionFailReason.error);
     }
-    if (!mounted) return;
+    if (!mounted) return null;
     switch (outcome) {
       case ActionFailed(:final debug, :final reason):
         CrashLogger.append('[module] ${action.id} failed (${reason.name}): $debug');
@@ -2582,12 +2707,15 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           ActionFailReason.noInk => l10n.csRecognizeNoInk,
           ActionFailReason.error => l10n.csRecognizeError,
         });
+        return null;
       case ReplaceInk(:final removedIds, :final added):
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         notifier.replaceStrokesWithDrawing(fileName, removedIds, added);
+        return removedIds;
       case InsertMath(:final removedIds, :final latex):
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         await notifier.replaceInkWithMath(fileName, removedIds, latex);
+        return removedIds;
     }
   }
 
@@ -2717,9 +2845,11 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
     final moduleActions = hasLassoSelection
         ? [
             for (final a in ref.read(selectionActionsProvider))
-              if (a.appliesTo(summary)) a,
+              if (a.appliesTo(summary) && !_isRecognizer(a)) a,
           ]
         : const <SelectionAction>[];
+    final recognize = hasLassoSelection && summary.hasInk &&
+        ref.read(selectionActionsProvider).any(_isRecognizer);
 
     showMenu<String>(
       context: context,
@@ -2736,6 +2866,8 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
           PopupMenuItem(value: 'delete_sel', child: MenuRow(Icons.delete_outline_rounded, l10n.csDelete, l10n.csKeyDelete)),
           const PopupMenuDivider(),
           PopupMenuItem(value: 'create_symbol', child: MenuRow(Icons.star_outline_rounded, l10n.csCreateSymbol, null)),
+          if (recognize)
+            PopupMenuItem(value: 'recognize', child: MenuRow(Icons.auto_fix_high_rounded, l10n.csRecognize, null)),
           for (final a in moduleActions)
             PopupMenuItem(value: 'module:${a.id}', child: MenuRow(a.icon, a.label(l10n), null)),
         ],
@@ -2783,6 +2915,7 @@ class _CanvasScreenState extends ConsumerState<CanvasScreen>
         }
       }
       switch (value) {
+        case 'recognize': _recognizeSelection(); break;
         case 'copy': notifier.copySelection(); _toast(AppLocalizations.of(context).csSelectionCopied); break;
         case 'copy_screenshot': _clipboard.copySelectionAsScreenshot(); break;
         case 'cut': notifier.cutSelection(); _toast(AppLocalizations.of(context).csSelectionCut); break;

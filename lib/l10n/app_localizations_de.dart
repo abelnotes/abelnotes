@@ -3698,9 +3698,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Erkennt die ausgewählte handgeschriebene Formel und wandelt sie in bearbeitbares LaTeX um. Prüfe das Ergebnis: Einzelne Symbole können falsch sein.';
 
   @override
-  String get csRecognizeMath => 'In LaTeX umwandeln';
-
-  @override
   String get csRecognizeMathFailed => 'Keine Formel erkannt';
 
   @override
@@ -3732,6 +3729,43 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Bild noch nicht geladen';
+
+  @override
+  String get csRecognize => 'Erkennen';
+
+  @override
+  String get csRecognizedAsFormula => 'Als Formel erkannt';
+
+  @override
+  String get csRecognizedAsCircuit => 'Als Schaltung erkannt';
+
+  @override
+  String get csRecognizeChange => 'Ändern';
+
+  @override
+  String get csRecognizeAs => 'Erkennen als';
+
+  @override
+  String get csRecognizeAsFormula => 'Formel';
+
+  @override
+  String get csRecognizeAsCircuit => 'Schaltung';
+
+  @override
+  String get csRecognizeAsText => 'Text';
+
+  @override
+  String get csRecognizeTextNotConverted =>
+      'Handschrift ist durchsuchbar, wird aber nicht in getippten Text umgewandelt';
+
+  @override
+  String get csRecognizeDrawing =>
+      'Sieht nach einer Zeichnung aus: nichts zu erkennen';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$module ist aus: in Einstellungen > Module einschalten';
+  }
 
   @override
   String get imgConvertToInk => 'In Striche umwandeln';

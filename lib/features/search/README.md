@@ -31,8 +31,8 @@ is the only place that knows; swap the engine there.
   after the pause. A job re-stats the notebook's pages, re-extracts those whose
   stamp changed (or were reported changed), refreshes page order, drops rows of
   vanished pages. Evicting a notebook keeps its rows.
-- Native: extraction in an isolate, one page at a time. Web: main isolate, one
-  page per idle-priority slot.
+- Native: extraction in an isolate, a few pages per hop. Web: main isolate, one
+  page per idle-priority slot, handwriting one line per slot (models in a worker).
 - Reconcile once per launch (3 s after the library appears): queues every library
   notebook; rows of notebooks no longer in the library are deleted.
 
@@ -77,7 +77,18 @@ hash + model version. Table and indexer stay as they are; find in notebook needs
 the recognised words with their stroke boxes as one more haystack.
 
 ## Handwriting (phase 3)
-Native only (the recognizer runs on the C engine, `abnn` in packages/circuit_engine).
+Every platform: the recognizer runs on the C engine (`abnn` in
+packages/circuit_engine), natively or as WebAssembly on the web.
+
+- Web: router and OCR run in the engine's Web Worker (`web/circuit_engine.wasm`,
+  `circuit_engine_worker.js`, `RegionRouter.load` / `InkRecognizer.load`);
+  segmentation and decoding stay in Dart on the UI thread, one line per
+  idle-priority slot, and the word list is parsed in slices. The models
+  (about 13 MB) are fetched when indexing first needs them and cached by the
+  service worker on first use, not precached. `tool/web_abnn_bench.sh`
+  holds the WebAssembly build to the native outputs pinned by
+  `test/engine_outputs_test.dart` (views and rasters bit for bit, identical
+  OCR strings).
 
 - Segmentation (`ink_segment.dart`). Strokes whose ends continue each other (touching, or a small gap with
   both ends pointing at each other) are one unit, so ink cut into more strokes
@@ -101,3 +112,23 @@ Native only (the recognizer runs on the C engine, `abnn` in packages/circuit_eng
 - Cache: lines are stored per page with the model version; bumping `version`
   in `handwriting_text.json` re-reads every page.
 
+
+## Region router
+A small model says whether a stroke group is text, a formula, a circuit or a
+drawing (`region_router.dart`, `RegionRouter.classify`, `classifyAsync` on the
+web), on every platform like the recognizer.
+
+- Input: 24 stroke measurements relative to the group's own writing scale
+  (median stroke height), a 64 x 64 view of the whole group (layout) and a
+  32 x 192 view at a fixed glyph scale from its left edge (detail). Features
+  and views are computed in C (`packages/circuit_engine/src/region_router.c`)
+  with the same raster as the recognizer; the model is an ABNN v2 graph with
+  three inputs (`abnn_run_n`).
+- Model: a two-tower CNN plus a feature MLP (104k parameters), trained from
+  scratch for AbelNotes (credits in `assets/licenses/region_router_NOTICE.txt`).
+  The feature normalisation is folded into the weights.
+- Search: a segment goes to OCR only when p(text) >= `ocrTextThreshold`
+  (0.2), which keeps almost all text lines and most formula lines out of the
+  index. The router is about 8 ms per segment and saves
+  the OCR of every skipped one, so indexing gets faster, not slower.
+- The router version is part of the page stamp: a new router re-reads pages.

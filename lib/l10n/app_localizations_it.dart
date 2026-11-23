@@ -3690,9 +3690,6 @@ class AppLocalizationsIt extends AppLocalizations {
       'Riconosce la formula scritta a mano selezionata e la trasforma in LaTeX modificabile. Controlla il risultato: qualche simbolo può essere sbagliato.';
 
   @override
-  String get csRecognizeMath => 'Converti in LaTeX';
-
-  @override
   String get csRecognizeMathFailed => 'Nessuna formula riconosciuta';
 
   @override
@@ -3725,6 +3722,42 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Immagine non ancora caricata';
+
+  @override
+  String get csRecognize => 'Riconosci';
+
+  @override
+  String get csRecognizedAsFormula => 'Riconosciuto come formula';
+
+  @override
+  String get csRecognizedAsCircuit => 'Riconosciuto come circuito';
+
+  @override
+  String get csRecognizeChange => 'Cambia';
+
+  @override
+  String get csRecognizeAs => 'Riconosci come';
+
+  @override
+  String get csRecognizeAsFormula => 'Formula';
+
+  @override
+  String get csRecognizeAsCircuit => 'Circuito';
+
+  @override
+  String get csRecognizeAsText => 'Testo';
+
+  @override
+  String get csRecognizeTextNotConverted =>
+      'Il testo scritto a mano è cercabile, ma non viene convertito in testo digitato';
+
+  @override
+  String get csRecognizeDrawing => 'Sembra un disegno: niente da riconoscere';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$module è disattivato: attivalo in Impostazioni > Moduli';
+  }
 
   @override
   String get imgConvertToInk => 'Converti in tratti';

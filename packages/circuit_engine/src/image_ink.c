@@ -1,6 +1,6 @@
 // Pixel passes of the picture tidy-up, line for line the Dart ones in
-// lib/features/canvas/data/circuit_recognizer/image_ink.dart (the web keeps
-// those): same arithmetic, same rounding, same result to the bit.
+// lib/features/canvas/data/circuit_recognizer/image_ink.dart: same
+// arithmetic, same rounding, same result to the bit.
 
 #include <math.h>
 #include <stdint.h>
@@ -15,7 +15,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#else
+#elif !defined(__wasm__)
 #include <pthread.h>
 #include <unistd.h>
 #endif
@@ -29,6 +29,10 @@ typedef struct {
   int lo, hi;
 } band;
 
+#ifdef __wasm__
+// WebAssembly (the web app): one thread.
+static void pfor(int total, band_fn fn, void* ctx) { fn(ctx, 0, total); }
+#else
 #ifdef _WIN32
 static DWORD WINAPI band_main(LPVOID arg) {
 #else
@@ -78,6 +82,7 @@ static void pfor(int total, band_fn fn, void* ctx) {
 #endif
   }
 }
+#endif  // __wasm__
 
 // 8-neighbourhood as (dy, dx), clockwise from north (Zhang-Suen order).
 static const int NB[8][2] = {{-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}};

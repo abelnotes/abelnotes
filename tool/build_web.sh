@@ -48,7 +48,8 @@ PY
 FILES="$(cd "$OUT" && find . -type f \
   ! -name 'flutter_service_worker.js' ! -name '*.symbols' ! -name '*.map' \
   ! -name '.last_build_id' ! -name 'update.html' ! -path './canvaskit/skwasm*' \
-  ! -path './canvaskit/experimental_webparagraph/*' ! -name '*.ablm' \
+  ! -path './canvaskit/experimental_webparagraph/*' ! -name '*.ablm' ! -name '*.abnn' \
+  ! -name 'handwriting_lexicon.tsv' \
   ! -path './fonts/fallback/*' \
   ! -name 'NotoSansJP-Regular.ttf' \
   | sed 's|^\./||' | sort | python3 -c \

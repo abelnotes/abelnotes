@@ -3687,9 +3687,6 @@ class AppLocalizationsEs extends AppLocalizations {
       'Reconoce la fórmula manuscrita seleccionada y la convierte en LaTeX editable. Revisa el resultado: algún símbolo puede salir mal.';
 
   @override
-  String get csRecognizeMath => 'Convertir a LaTeX';
-
-  @override
   String get csRecognizeMathFailed => 'No se reconoció ninguna fórmula';
 
   @override
@@ -3721,6 +3718,42 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get csRecognizeImageMissing => 'Imagen aún no cargada';
+
+  @override
+  String get csRecognize => 'Reconocer';
+
+  @override
+  String get csRecognizedAsFormula => 'Reconocido como fórmula';
+
+  @override
+  String get csRecognizedAsCircuit => 'Reconocido como circuito';
+
+  @override
+  String get csRecognizeChange => 'Cambiar';
+
+  @override
+  String get csRecognizeAs => 'Reconocer como';
+
+  @override
+  String get csRecognizeAsFormula => 'Fórmula';
+
+  @override
+  String get csRecognizeAsCircuit => 'Circuito';
+
+  @override
+  String get csRecognizeAsText => 'Texto';
+
+  @override
+  String get csRecognizeTextNotConverted =>
+      'El texto manuscrito se puede buscar, pero no se convierte en texto escrito';
+
+  @override
+  String get csRecognizeDrawing => 'Parece un dibujo: nada que reconocer';
+
+  @override
+  String csRecognizeModuleOff(String module) {
+    return '$module está desactivado: actívalo en Ajustes > Módulos';
+  }
 
   @override
   String get imgConvertToInk => 'Convertir en trazos';

@@ -94,6 +94,7 @@ assets/models/*
 !assets/models/math_ink.ablm
 !assets/models/handwriting_text.abnn
 !assets/models/handwriting_text.json
+!assets/models/region_router.abnn
 
 # Playwright for tool/web_smoke.mjs (npm install --no-save)
 /node_modules/

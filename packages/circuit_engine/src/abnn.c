@@ -3,6 +3,8 @@
 // Model file ("ABNN" v1), little endian:
 //   magic "ABNN", u32 version, u32 n_values, u32 n_inits, u32 n_nodes,
 //   i32 input, i32 output
+// v2 (models with several inputs, e.g. the region router): after n_nodes,
+//   u32 n_inputs, i32 input[n_inputs], i32 output
 //   inits:  i32 id, u8 dtype (0 f32, 1 i64), u8 ndim, i64 dims[ndim], data
 //   nodes:  u8 op, u8 n_in, i32 in[n_in] (-1 = absent), u8 n_out, i32 out[n_out],
 //           u8 n_attr, attrs: u8 key, u8 type (0 int, 1 ints, 2 float),
@@ -14,9 +16,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+// WebAssembly (the web app) runs on one thread.
+#ifdef __wasm__
+#define AB_NO_THREADS 1
+#endif
 #ifdef _WIN32
 #include <windows.h>
-#else
+#elif !defined(AB_NO_THREADS)
 #include <pthread.h>
 #include <unistd.h>
 #endif
@@ -42,11 +48,31 @@ enum {
 };
 
 #define MAXD 6
+#define MAXIN 8
 
 // ---- thread pool: one job at a time, chunks handed out by a counter ----
 
 typedef void (*job_fn)(void* ctx, int lo, int hi);
 
+#ifdef AB_NO_THREADS
+typedef struct pool {
+  int n;
+} pool;
+
+static pool* pool_new(int n) {
+  (void)n;
+  pool* p = (pool*)calloc(1, sizeof(pool));
+  p->n = 1;
+  return p;
+}
+
+static void pool_run(pool* p, job_fn fn, void* ctx, int total, int chunk) {
+  (void)p, (void)chunk;
+  if (total > 0) fn(ctx, 0, total);
+}
+
+static void pool_free(pool* p) { free(p); }
+#else
 typedef struct pool pool;
 struct pool {
   int n;
@@ -195,6 +221,7 @@ static void pool_free(pool* p) {
   free(p->th);
   free(p);
 }
+#endif  // AB_NO_THREADS
 
 
 typedef struct {
@@ -221,7 +248,8 @@ typedef struct {
 } node;
 
 typedef struct {
-  int n_values, n_nodes, input, output;
+  int n_values, n_nodes, n_inputs, output;
+  int inputs[MAXIN];
   tens* vals;    // runtime values
   tens* inits;   // constant values (same ids), dtype<0 if none
   node* nodes;
@@ -280,13 +308,19 @@ AB_EXPORT model* abnn_load(const uint8_t* buf, size_t len) {
   rd r = {buf, len, 0, 0};
   char magic[4];
   if (!rd_n(&r, magic, 4) || memcmp(magic, "ABNN", 4) != 0) return NULL;
-  if (ru32(&r) != 1) return NULL;
+  const uint32_t version = ru32(&r);
+  if (version != 1 && version != 2) return NULL;
   model* m = calloc(1, sizeof(model));
   if (!m) return NULL;
   m->n_values = (int)ru32(&r);
   int n_inits = (int)ru32(&r);
   m->n_nodes = (int)ru32(&r);
-  m->input = ri32(&r);
+  m->n_inputs = version == 1 ? 1 : (int)ru32(&r);
+  if (m->n_inputs < 1 || m->n_inputs > MAXIN) {
+    free(m);
+    return NULL;
+  }
+  for (int i = 0; i < m->n_inputs; i++) m->inputs[i] = ri32(&r);
   m->output = ri32(&r);
   if (m->n_values <= 0 || m->n_values > 100000 || m->n_nodes <= 0 || m->n_nodes > 100000) {
     free(m);
@@ -339,12 +373,14 @@ AB_EXPORT model* abnn_load(const uint8_t* buf, size_t len) {
     for (int i = 0; i < n->n_out; i++)
       if (n->out[i] < 0 || n->out[i] >= m->n_values) goto fail;
   }
-  if (r.bad || m->input < 0 || m->input >= m->n_values || m->output < 0 ||
-      m->output >= m->n_values)
-    goto fail;
+  if (r.bad || m->output < 0 || m->output >= m->n_values) goto fail;
+  for (int i = 0; i < m->n_inputs; i++)
+    if (m->inputs[i] < 0 || m->inputs[i] >= m->n_values) goto fail;
   m->last_use[m->output] = m->n_nodes;
   {
-#ifdef _WIN32
+#if defined(AB_NO_THREADS)
+    int cores = 1;
+#elif defined(_WIN32)
     SYSTEM_INFO si;
     GetSystemInfo(&si);
     int cores = (int)si.dwNumberOfProcessors;
@@ -1099,15 +1135,20 @@ static int run_node(model* m, const node* n) {
   return -1;
 }
 
-// Runs the model on a float input of shape dims[nd]. On success returns 0 and
-// points *out at the output (valid until the next run or abnn_free).
-AB_EXPORT int abnn_run(model* m, const float* input, int nd, const int64_t* dims,
-                       const float** out, int* out_nd, int64_t* out_dims) {
-  if (!m || nd > MAXD) return -1;
+// Runs the model on its n float inputs (input k has shape nds[k] dims, the
+// dims of all inputs back to back in dims). On success returns 0 and points
+// *out at the output (valid until the next run or abnn_free).
+AB_EXPORT int abnn_run_n(model* m, int n, const float* const* inputs, const int* nds,
+                         const int64_t* dims, const float** out, int* out_nd,
+                         int64_t* out_dims) {
+  if (!m || n != m->n_inputs) return -1;
   for (int i = 0; i < m->n_values; i++) free_t(&m->vals[i]);
-  tens* in = &m->vals[m->input];
-  if (!alloc_t(in, 0, nd, dims)) return -1;
-  memcpy(in->p, input, (size_t)numel(in) * 4);
+  for (int k = 0, at = 0; k < n; at += nds[k], k++) {
+    if (nds[k] < 0 || nds[k] > MAXD) return -1;
+    tens* in = &m->vals[m->inputs[k]];
+    if (!alloc_t(in, 0, nds[k], dims + at)) return -1;
+    memcpy(in->p, inputs[k], (size_t)numel(in) * 4);
+  }
   for (int k = 0; k < m->n_nodes; k++) {
     const node* n = &m->nodes[k];
     if (run_node(m, n) != 0) return -(k + 2);
@@ -1125,15 +1166,20 @@ AB_EXPORT int abnn_run(model* m, const float* input, int nd, const int64_t* dims
   return 0;
 }
 
+// One-input form of abnn_run_n.
+AB_EXPORT int abnn_run(model* m, const float* input, int nd, const int64_t* dims,
+                       const float** out, int* out_nd, int64_t* out_dims) {
+  return abnn_run_n(m, 1, &input, &nd, dims, out, out_nd, out_dims);
+}
+
 // ---- ink line rasteriser (the recognizer's input) ----
 
 // Draws polylines (pixel coordinates; stroke k = points [starts[k],
 // starts[k+1]) ) with round caps and anti-aliased edges into a 3 x H x W input
 // laid out like training: paper 1, ink -1.
-AB_EXPORT void abnn_raster(const float* xy, const int32_t* starts, int n_strokes,
-                           int n_points, float lw, int W, int H, float* out) {
-  float* cov = calloc((size_t)W * H, sizeof(float));
-  if (!cov) return;
+// Max-coverage of the round-capped polylines into cov[H*W] (0 paper .. 1 ink).
+void abnn_raster_cov(const float* xy, const int32_t* starts, int n_strokes, int n_points,
+                     float lw, int W, int H, float* cov) {
   const float r = lw * 0.5f;
   for (int s = 0; s < n_strokes; s++) {
     int a = starts[s], b = s + 1 < n_strokes ? starts[s + 1] : n_points;
@@ -1161,6 +1207,13 @@ AB_EXPORT void abnn_raster(const float* xy, const int32_t* starts, int n_strokes
         }
     }
   }
+}
+
+AB_EXPORT void abnn_raster(const float* xy, const int32_t* starts, int n_strokes,
+                           int n_points, float lw, int W, int H, float* out) {
+  float* cov = calloc((size_t)W * H, sizeof(float));
+  if (!cov) return;
+  abnn_raster_cov(xy, starts, n_strokes, n_points, lw, W, H, cov);
   for (int ch = 0; ch < 3; ch++)
     for (int i = 0; i < W * H; i++) out[ch * W * H + i] = 1.0f - 2.0f * cov[i];
   free(cov);

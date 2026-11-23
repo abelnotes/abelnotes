@@ -14,6 +14,7 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 import 'circuit_recognizer_service.dart';
 import 'circuit_strokes.dart';
 import 'image_ink.dart';
+import 'native_engine.dart';
 import 'raster.dart';
 
 /// A picture's circuit redrawn: [strokes] for the parts and wires, and
@@ -29,7 +30,8 @@ Future<(ImageCircuit?, String)> imageCircuitStrokes(CircuitRecognizer recognizer
   if (pixels == null) return (null, 'image not decoded');
   final (rgba, w, h) = pixels;
   final tDecode = watch.elapsedMilliseconds;
-  final (ink, mask) = await compute(_trace, pixels);
+  final worker = recognizer.worker;
+  final (ink, mask) = worker != null ? await _traceOn(worker, pixels) : await compute(_trace, pixels);
   final tTrace = watch.elapsedMilliseconds;
   if (ink.isEmpty) return (null, 'no ink in image');
   // Recognised in image pixels with the image as the page: the circuit
@@ -81,7 +83,10 @@ Future<(ImageCircuit?, String)> imageCircuitStrokes(CircuitRecognizer recognizer
   final fallback = styles[result.removed.first];
   final drawn = circuitStrokes(onPage, [for (final src in result.sources) src >= 0 ? styles[src] : fallback]);
   final tRecognise = watch.elapsedMilliseconds;
-  final left = await compute(_leftover, (rgba, w, h, [for (final i in result.removed) (ink[i].points, ink[i].width)]));
+  final cut = [for (final i in result.removed) (ink[i].points, ink[i].width)];
+  final left = worker != null
+      ? _premultiplied(await inkLeftoverOn(worker, rgba, w, h, cut))
+      : await compute(_leftover, (rgba, w, h, cut));
   final why = '${result.components} components from ${ink.length} traced lines; decode $tDecode, trace '
       '${tTrace - tDecode}, recognise ${tRecognise - tTrace}, leftover ${watch.elapsedMilliseconds - tRecognise} ms';
   if (left == null) return ((strokes: drawn, rest: null), why);
@@ -120,7 +125,10 @@ Future<(Uint8List, int, int)?> decodeRgba(Uint8List bytes) async {
 
 (Uint8List, int, int, int, int)? _leftover((Uint8List, int, int, List<(Float64List, double)>) job) {
   final (rgba, w, h, cut) = job;
-  final left = inkLeftover(rgba, w, h, cut);
+  return _premultiplied(inkLeftover(rgba, w, h, cut));
+}
+
+(Uint8List, int, int, int, int)? _premultiplied((Uint8List, int, int, int, int)? left) {
   if (left == null) return null;
   final (out, x0, y0, cw, ch) = left;
   // The engine takes premultiplied pixels.
@@ -149,6 +157,11 @@ Future<Uint8List> _encodePng(Uint8List premul, int w, int h) async {
   }
   return img.encodePng(img.Image.fromBytes(width: w, height: h, bytes: premul.buffer, numChannels: 4),
       level: 1, filter: img.PngFilter.none);
+}
+
+Future<(List<TracedStroke>, InkMask)> _traceOn(CircuitWorker worker, (Uint8List, int, int) pixels) async {
+  final t = await traceImageOn(worker, pixels.$1, pixels.$2, pixels.$3);
+  return (t.strokes, t.ink);
 }
 
 (List<TracedStroke>, InkMask) _trace((Uint8List, int, int) pixels) {

@@ -6,6 +6,11 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as p;
 
+import 'engine_graph.dart';
+
+/// The library loads on first use; nothing to wait for.
+Future<bool> loadNativeEngine() async => true;
+
 typedef _CreateC = Pointer<Void> Function(Int32);
 typedef _Create = Pointer<Void> Function(int);
 typedef _ConvC = Int32 Function(Pointer<Void>, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32, Int32,
@@ -31,7 +36,7 @@ typedef _Destroy = void Function(Pointer<Void>);
 
 /// The detector graph on the native engine: built op by op, then run.
 /// ABELNOTES_CIRCUIT_NATIVE=0 keeps the detector in Dart (tests, benches).
-class NativeEngine {
+class NativeEngine implements EngineGraph {
   NativeEngine._(this._h, DynamicLibrary lib)
       : _conv = lib.lookupFunction<_ConvC, _Conv>('ce_conv'),
         _add = lib.lookupFunction<_AddC, _Add>('ce_add'),
@@ -102,6 +107,7 @@ class NativeEngine {
     return ptr;
   }
 
+  @override
   bool conv(int input, int output, int cin, int cout, int k, int s, int p, int g, bool act, Float32List w,
       int wStride, Float32List b) {
     final wp = _floats(w), bp = _floats(b);
@@ -113,8 +119,10 @@ class NativeEngine {
     }
   }
 
+  @override
   bool add(int a, int b, int output) => _add(_h, a, b, output) == 0;
 
+  @override
   bool concat(List<int> inputs, int output) {
     final ip = _ints(inputs);
     try {
@@ -124,6 +132,7 @@ class NativeEngine {
     }
   }
 
+  @override
   bool split(int input, List<int> outputs, List<int> sizes) {
     final op = _ints(outputs), sp = _ints(sizes);
     try {
@@ -134,10 +143,13 @@ class NativeEngine {
     }
   }
 
+  @override
   bool maxpool(int input, int output, int k, int p) => _maxpool(_h, input, output, k, p) == 0;
 
+  @override
   bool upsample(int input, int output, int scale) => _upsample(_h, input, output, scale) == 0;
 
+  @override
   bool attn(int input, int outX, int outV, int heads, int keyDim, int headDim, double scale) =>
       _attn(_h, input, outX, outV, heads, keyDim, headDim, scale) == 0;
 
@@ -383,3 +395,23 @@ class NativeMath {
 
 /// The circuit_engine library, shared with the handwriting recognizer (abnn).
 DynamicLibrary? circuitEngineLibrary() => NativeEngine._lib();
+
+/// No worker on this platform (native ones run the engine on an isolate).
+class CircuitWorker {
+  CircuitWorker._();
+
+  static Future<CircuitWorker?> start(bool Function(EngineGraph g) build) async => null;
+
+  Future<Float32List?> run(Float32List gray, int h, int w, List<int> want, int outLen) =>
+      throw UnsupportedError('no circuit worker');
+
+  Future<({List<(Float64List, double, int)> strokes, Uint8List ink})> trace(
+          Uint8List rgba, int w, int h, int cw, int ch, double s) =>
+      throw UnsupportedError('no circuit worker');
+
+  Future<({Uint8List alpha, int x0, int y0, int x1, int y1, int kept})> leftover(
+          Uint8List rgba, int w, int h, List<(Float64List, double)> cut) =>
+      throw UnsupportedError('no circuit worker');
+
+  void dispose() {}
+}

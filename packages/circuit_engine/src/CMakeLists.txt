@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(circuit_engine_library LANGUAGES C)
 
-add_library(circuit_engine SHARED circuit_engine.c image_ink.c abnn.c)
+add_library(circuit_engine SHARED circuit_engine.c image_ink.c abnn.c region_router.c)
 set_target_properties(circuit_engine PROPERTIES OUTPUT_NAME "circuit_engine" C_STANDARD 11)
 
 if(MSVC)

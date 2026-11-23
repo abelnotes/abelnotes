@@ -1,7 +1,6 @@
 // Features that ship with the app, expressed through the module API so the
 // API is exercised before any third party relies on it.
 
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,33 +42,31 @@ const kCircuitsModuleId = 'abelnotes.circuits';
 const kMathInkModuleId = 'abelnotes.math-ink';
 
 final List<AppModule> builtinModules = [
-  // Not on the web: the detector would freeze the UI for seconds there.
-  if (!kIsWeb)
-    AppModule(
-      manifest: const ModuleManifest(
-        id: kCircuitsModuleId,
-        version: '1.0.0',
-        license: 'AGPL-3.0-or-later AND GPL-3.0-only',
-        permissions: {
-          ModulePermission.selectionRead,
-          ModulePermission.selectionWrite,
-          ModulePermission.modelRun,
-        },
-        assets: [
-          ModuleAsset(
-            kCircuitModelFileName,
-            sha256: kBundledCircuitModelSha256,
-            license: 'AGPL-3.0, with CC BY 4.0 attribution to CGHD',
-          ),
-        ],
-        selectionActions: ['abelnotes.circuits.tidy'],
-      ),
-      name: (l) => l.modCircuitsName,
-      description: (l) => l.modCircuitsDesc,
-      runtime: circuitRecognizerProvider,
-      actions: (ref) => [_TidyCircuit(ref)],
-      beta: true,
+  AppModule(
+    manifest: const ModuleManifest(
+      id: kCircuitsModuleId,
+      version: '1.0.0',
+      license: 'AGPL-3.0-or-later AND GPL-3.0-only',
+      permissions: {
+        ModulePermission.selectionRead,
+        ModulePermission.selectionWrite,
+        ModulePermission.modelRun,
+      },
+      assets: [
+        ModuleAsset(
+          kCircuitModelFileName,
+          sha256: kBundledCircuitModelSha256,
+          license: 'AGPL-3.0, with CC BY 4.0 attribution to CGHD',
+        ),
+      ],
+      selectionActions: ['abelnotes.circuits.tidy'],
     ),
+    name: (l) => l.modCircuitsName,
+    description: (l) => l.modCircuitsDesc,
+    runtime: circuitRecognizerProvider,
+    actions: (ref) => [_TidyCircuit(ref)],
+    beta: true,
+  ),
   AppModule(
     manifest: const ModuleManifest(
       id: kMathInkModuleId,
@@ -102,7 +99,7 @@ class _RecognizeMath extends SelectionAction {
   @override
   IconData get icon => Icons.functions_rounded;
   @override
-  String label(AppLocalizations l10n) => l10n.csRecognizeMath;
+  String label(AppLocalizations l10n) => l10n.csRecognize;
   @override
   String busyLabel(AppLocalizations l10n) => l10n.csRecognizeBusy;
   @override

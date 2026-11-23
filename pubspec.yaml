@@ -156,6 +156,9 @@ flutter:
     # Word list for the handwriting decoder (CC BY-SA 4.0, see its notice).
     - assets/licenses/handwriting_lexicon_NOTICE.txt
     - assets/models/handwriting_lexicon.tsv
+    # Region router (text / formula / circuit / drawing), see lib/features/search/README.md.
+    - assets/licenses/region_router_NOTICE.txt
+    - assets/models/region_router.abnn
     # OFL-1.1 text for the bundled Instrument Sans, registered in LicenseRegistry.
     - assets/fonts/InstrumentSans-OFL.txt
     - assets/fonts/NotoSansJP-OFL.txt

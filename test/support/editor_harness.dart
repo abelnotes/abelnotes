@@ -47,13 +47,15 @@ void testEditor(String description, Future<void> Function(EditorHarness h) body,
     {Map<String, PageData>? pages,
     Size size = const Size(1280, 800),
     String? paperType,
-    void Function(ProviderContainer container)? beforeShow}) {
+    void Function(ProviderContainer container)? beforeShow,
+    List<Override> overrides = const []}) {
   testWidgets(description, (tester) async {
     final h = await EditorHarness.open(tester,
         pages: pages,
         size: size,
         paperType: paperType,
-        beforeShow: beforeShow);
+        beforeShow: beforeShow,
+        overrides: overrides);
     await body(h);
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -91,6 +93,7 @@ class EditorHarness {
     Map<String, Object> prefs = const {},
     String? paperType,
     void Function(ProviderContainer container)? beforeShow,
+    List<Override> overrides = const [],
   }) async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -105,6 +108,7 @@ class EditorHarness {
     final container = ProviderContainer(overrides: [
       fileServiceProvider.overrideWithValue(files),
       remoteStoreProvider.overrideWithValue(remote),
+      ...overrides,
     ]);
     final pg = pages ?? {'p1.json': blankPage('p1')};
     final now = DateTime(2026);

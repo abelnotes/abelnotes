@@ -47,8 +47,8 @@ And it is **open source (AGPL-3.0)**: read exactly how your notes are handled, b
 ## Features
 
 **Math and circuits**
-- **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and pick Convert to LaTeX in its ⋯ menu. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
-- **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded. Not in the web app yet; turn it off in Settings → Modules
+- **Formula recognition** *(Beta, free while in testing)*: lasso a handwritten formula and tap Recognize. It becomes typeset LaTeX you can edit. Recognition runs on your device, in the web app too, and nothing is uploaded. Check the result: one undo brings the ink back. Turn it off in Settings → Modules
+- **Circuit recognition** *(Beta, free while in testing)*: lasso a hand-drawn circuit and tap Recognize, or use the ⋯ menu of a photo of one, and it is redrawn with clean symbols and straight wires on your device. Nothing is uploaded, in the web app too; turn it off in Settings → Modules
 - **LaTeX math**: paste LaTeX or Markdown (from your notes, a paper or an AI assistant) and it becomes typeset math, sharp at any zoom, that you move and annotate like ink
 - Both recognisers are part of the open-source code (AGPL-3.0): building from source, and the Flatpak, AUR and GitHub builds, always include every feature
 

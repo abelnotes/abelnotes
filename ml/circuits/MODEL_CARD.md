@@ -1,6 +1,7 @@
 # Circuit detector: model card
 
-`assets/models/circuit_detector.ablm`, the model behind "Recognize circuit".
+`assets/models/circuit_detector.ablm`, the model behind Recognize on a lasso circuit and a
+photo's "Recognize circuit".
 
 | | |
 |---|---|

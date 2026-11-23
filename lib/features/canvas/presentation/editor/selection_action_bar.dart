@@ -1,5 +1,5 @@
-// Floating action bar of a lasso selection: copy, cut, duplicate, colour,
-// thickness, paste, delete, more and close.
+// Floating action bar of a lasso selection: recognize, copy, cut, duplicate,
+// colour, thickness, paste, delete, more and close.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +9,11 @@ import 'package:abelnotes/features/canvas/presentation/canvas_painter_notifiers.
 import 'package:abelnotes/features/canvas/presentation/editor/editor_widgets.dart';
 import 'package:abelnotes/features/canvas/presentation/editor/page_view_transform.dart';
 import 'package:abelnotes/features/modules/module_registry.dart';
+import 'package:abelnotes/features/modules/recognize_route.dart';
 import 'package:abelnotes/ui/theme/hw_theme.dart';
+
+/// Below this canvas width Duplicate moves into More, so the bar fits a phone.
+const kSelectionBarCompactWidth = 560.0;
 
 /// Positioned: put it straight in a Stack.
 class SelectionActionBar extends ConsumerWidget {
@@ -26,6 +30,7 @@ class SelectionActionBar extends ConsumerWidget {
     required this.onColor,
     required this.onWidth,
     required this.onMore,
+    required this.onRecognize,
   });
 
   final CanvasState state;
@@ -40,12 +45,18 @@ class SelectionActionBar extends ConsumerWidget {
   final double? Function(CanvasState state) strokeWidthOf;
   final VoidCallback onColor;
   final void Function(CanvasState state) onWidth;
-  final void Function(CanvasState state) onMore;
+  /// [compact]: the bar left Duplicate out, More offers it.
+  final void Function(CanvasState state, bool compact) onMore;
+
+  /// Recognize (region router), shown for ink when a recognizer module is ready.
+  final VoidCallback onRecognize;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Starts loading module models, so the ⋯ menu can offer their actions.
-    ref.read(selectionActionsProvider);
+    // Starts loading module models; Recognize appears once one is ready.
+    final recognize = ref.watch(selectionActionsProvider).any(isRecognizerAction) &&
+        ref.read(canvasProvider.notifier).selectionHasInk;
+    final compact = canvasSize.width < kSelectionBarCompactWidth;
     final p = HwThemeScope.of(context);
     final view = PageViewTransform.of(state, canvasSize);
     final originalSel = state.lassoSelection!;
@@ -104,6 +115,9 @@ class SelectionActionBar extends ConsumerWidget {
             child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (recognize)
+                FloatingActionBtn(Icons.auto_fix_high_rounded, AppLocalizations.of(context).csRecognize,
+                    onRecognize),
               FloatingActionBtn(Icons.copy_rounded, AppLocalizations.of(context).csCopy, () {
                 ref.read(canvasProvider.notifier).copySelection();
                 // If the selection is a single image, also push its PNG
@@ -133,10 +147,11 @@ class SelectionActionBar extends ConsumerWidget {
                 ref.read(canvasProvider.notifier).cutSelection();
                 toast(AppLocalizations.of(context).csSelectionCut);
               }),
-              FloatingActionBtn(Icons.copy_all_rounded, AppLocalizations.of(context).csDuplicate, () {
-                ref.read(canvasProvider.notifier).duplicateSelection();
-                toast(AppLocalizations.of(context).csSelectionDuplicated);
-              }),
+              if (!compact)
+                FloatingActionBtn(Icons.copy_all_rounded, AppLocalizations.of(context).csDuplicate, () {
+                  ref.read(canvasProvider.notifier).duplicateSelection();
+                  toast(AppLocalizations.of(context).csSelectionDuplicated);
+                }),
               // Quick color picker — restores the workflow from the
               // previous UI (select stroke → tap color to recolor).
               FloatingActionBtn(Icons.palette_rounded, AppLocalizations.of(context).csChangeColor,
@@ -157,7 +172,7 @@ class SelectionActionBar extends ConsumerWidget {
               // Less-used actions folded into a "more" menu (Rifletti H/V,
               // Screenshot, Incolla in altro notebook).
               FloatingActionBtn(Icons.more_horiz, AppLocalizations.of(context).csMore,
-                  () => onMore(state)),
+                  () => onMore(state, compact)),
               FloatingActionBtn(Icons.close, null, () {
                 ref.read(canvasProvider.notifier).clearSelection();
               }),

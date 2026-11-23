@@ -19,6 +19,7 @@ import 'package:abelnotes/shared/models/ncnote_format.dart';
 import '../ink_recognizer/model_file.dart';
 import 'circuit_graph.dart';
 import 'detector.dart';
+import 'native_engine.dart';
 import 'raster.dart';
 
 const String kCircuitModelFileName = 'circuit_detector.ablm';
@@ -36,8 +37,7 @@ const double kRetrySidePx = 320;
 
 /// Auto-disposed: a module switched off in Settings frees its isolate.
 final circuitRecognizerProvider = FutureProvider.autoDispose<CircuitRecognizer?>((ref) async {
-  // Not offered on the web: there the detector would freeze the UI for seconds.
-  if (kIsWeb) return null;
+  if (kIsWeb) return CircuitRecognizer.loadInline();
   final dir = await getApplicationSupportDirectory();
   final path = '${dir.path}${Platform.pathSeparator}models${Platform.pathSeparator}$kCircuitModelFileName';
   await installBundledModel(
@@ -80,11 +80,26 @@ class CircuitResult {
 }
 
 class CircuitRecognizer {
-  CircuitRecognizer._(this._isolate, this._toIsolate, this._responses);
+  CircuitRecognizer._(Isolate this._isolate, SendPort this._toIsolate, Stream<dynamic> this._responses)
+      : _inline = null,
+        worker = null;
+  CircuitRecognizer._inline(CircuitDetector this._inline, this.worker)
+      : _isolate = null,
+        _toIsolate = null,
+        _responses = null;
 
-  final Isolate _isolate;
-  final SendPort _toIsolate;
-  final Stream<dynamic> _responses;
+  final Isolate? _isolate;
+  final SendPort? _toIsolate;
+  final Stream<dynamic>? _responses;
+
+  /// Web has no isolates: the detector runs on the UI thread, on the
+  /// engine's WebAssembly build (the Dart forward pass would take seconds).
+  final CircuitDetector? _inline;
+
+  /// With [_inline], the engine in a Web Worker: the heavy passes run there
+  /// and the UI thread only does the light Dart steps around them. Null
+  /// elsewhere, or where a worker can't start (the UI thread then runs all).
+  final CircuitWorker? worker;
   var _nextId = 0;
   var _disposed = false;
 
@@ -110,6 +125,21 @@ class CircuitRecognizer {
     return CircuitRecognizer._(isolate, handshake, responses);
   }
 
+  /// The bundled model with the WebAssembly engine; null when either is
+  /// missing.
+  static Future<CircuitRecognizer?> loadInline() async {
+    try {
+      if (!await loadNativeEngine()) return null;
+      final data = await rootBundle.load(kBundledCircuitModelAsset);
+      final det = CircuitDetector.fromModelFile(
+          await ModelFile.parseAsync(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes)));
+      return CircuitRecognizer._inline(det, await CircuitWorker.start(det.buildGraph));
+    } catch (e) {
+      debugPrint('[circuit] model load failed: $e');
+      return null;
+    }
+  }
+
   /// [pageWidth] fixes the scale: the detector expects page width ~1024 px.
   /// [ink], for a traced picture, is what the detector looks at instead of
   /// the strokes redrawn.
@@ -118,9 +148,22 @@ class CircuitRecognizer {
     final flat = [
       for (final s in strokes) Float64List.fromList([for (final p in s.points) ...[p.x, p.y]])
     ];
+    final inline = _inline;
+    if (inline != null) {
+      // A frame for the busy indicator before the UI thread is taken.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final watch = Stopwatch()..start();
+      try {
+        final w = worker;
+        if (w != null) return await runOn(w, inline, flat, pageWidth, watch, ink);
+        return run(inline, flat, pageWidth, watch, ink);
+      } catch (e) {
+        return CircuitResult({}, [], [], 0, watch.elapsedMilliseconds, '$e');
+      }
+    }
     final id = _nextId++;
-    _toIsolate.send(_Request(id, flat, pageWidth, ink));
-    final reply = await _responses.firstWhere((m) => m is _Reply && m.id == id,
+    _toIsolate!.send(_Request(id, flat, pageWidth, ink));
+    final reply = await _responses!.firstWhere((m) => m is _Reply && m.id == id,
         orElse: () => _Reply(id, CircuitResult({}, [], [], 0, 0, 'isolate closed'))) as _Reply;
     return reply.result;
   }
@@ -128,7 +171,8 @@ class CircuitRecognizer {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    _isolate.kill(priority: Isolate.beforeNextEvent);
+    _isolate?.kill(priority: Isolate.beforeNextEvent);
+    worker?.dispose();
   }
 
   static void _isolateMain(List<dynamic> args) {
@@ -171,6 +215,26 @@ class CircuitRecognizer {
     return second.replaced ? second : first;
   }
 
+  /// [run] with the detector's forward pass on [worker].
+  static Future<CircuitResult> runOn(CircuitWorker worker, CircuitDetector det, List<Float64List> strokes,
+      double pageWidth, [Stopwatch? watch, InkMask? ink]) async {
+    Future<CircuitResult> at(double pw, InkMask? ink) async {
+      final r = _raster(strokes, pw, ink);
+      final outs = det.engineOutputs(r.height, r.width);
+      final heads = r.data.isEmpty ? null : await worker.run(r.data, r.height, r.width, outs.want, outs.floats);
+      final dets = det.detect(r.data, r.height, r.width,
+          raw: heads == null ? null : det.decodeEngine(heads, r.height, r.width));
+      return _finish(r, strokes, dets, watch);
+    }
+
+    final first = await at(pageWidth, ink);
+    if (ink != null || first.replaced) return first;
+    final retry = retryPageWidth(strokes, pageWidth);
+    if (retry == null) return first;
+    final second = await at(retry, null);
+    return second.replaced ? second : first;
+  }
+
   /// The page width at which [strokes]' longer side takes [kRetrySidePx]
   /// model pixels, or null when it is already at a size the detector reads.
   static double? retryPageWidth(List<Float64List> strokes, double pageWidth) {
@@ -193,8 +257,14 @@ class CircuitRecognizer {
 
   static CircuitResult _runAt(CircuitDetector det, List<Float64List> strokes, double pageWidth,
       [Stopwatch? watch, InkMask? ink]) {
-    final r = ink == null ? rasterize(strokes, pageWidth) : rasterizeInk(ink, strokes, pageWidth);
-    final dets = det.detect(r.data, r.height, r.width);
+    final r = _raster(strokes, pageWidth, ink);
+    return _finish(r, strokes, det.detect(r.data, r.height, r.width), watch);
+  }
+
+  static Raster _raster(List<Float64List> strokes, double pageWidth, InkMask? ink) =>
+      ink == null ? rasterize(strokes, pageWidth) : rasterizeInk(ink, strokes, pageWidth);
+
+  static CircuitResult _finish(Raster r, List<Float64List> strokes, List<Detection> dets, Stopwatch? watch) {
     final px = [
       for (final s in strokes) [for (var i = 0; i + 1 < s.length; i += 2) Pt(r.toPxX(s[i]), r.toPxY(s[i + 1]))]
     ];
